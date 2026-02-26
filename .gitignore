@@ -15,7 +15,7 @@ data/*
 !data/.gitkeep
 
 # Reports generati
-reports/
+/reports/
 *.csv
 # Eccezione: mantieni l'esempio
 !example_output.csv
