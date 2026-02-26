@@ -1,0 +1,42 @@
+# Development Dockerfile with hot reloading
+FROM node:25-alpine
+
+# Install pnpm (corepack removed in Node 25)
+RUN npm install -g pnpm
+
+WORKDIR /app
+
+# Copy workspace configuration
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY tsconfig.base.json tsconfig.json ./
+
+# Copy full package sources
+COPY packages/database ./packages/database
+COPY packages/api ./packages/api
+
+# Install all dependencies (including devDependencies for tsx)
+RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
+
+# Generate Prisma client
+RUN pnpm --filter @go-watchtower/database exec prisma generate
+
+# Build database package (API depends on it)
+RUN pnpm --filter @go-watchtower/database build
+
+# Install prisma CLI globally (needed by entrypoint for migrate deploy)
+RUN npm install -g prisma@7.4.1
+
+# Copy entrypoint
+COPY packages/api/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+# Set working directory to API
+WORKDIR /app/packages/api
+
+# Expose port
+EXPOSE 3000
+
+# Run migrations then start
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["pnpm", "dev"]

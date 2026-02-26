@@ -1,0 +1,365 @@
+import { Type, type Static } from "@sinclair/typebox";
+
+// ============================================================================
+// Product Schemas
+// ============================================================================
+
+export const CreateProductBodySchema = Type.Object({
+  name: Type.String({ minLength: 1, maxLength: 255 }),
+  description: Type.Optional(Type.String()),
+  isActive: Type.Optional(Type.Boolean()),
+});
+
+export type CreateProductBody = Static<typeof CreateProductBodySchema>;
+
+export const UpdateProductBodySchema = Type.Object({
+  name: Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
+  description: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  isActive: Type.Optional(Type.Boolean()),
+});
+
+export type UpdateProductBody = Static<typeof UpdateProductBodySchema>;
+
+export const ProductParamsSchema = Type.Object({
+  id: Type.String(),
+});
+
+export type ProductParams = Static<typeof ProductParamsSchema>;
+
+export const ProductResponseSchema = Type.Object({
+  id: Type.String(),
+  name: Type.String(),
+  description: Type.Union([Type.String(), Type.Null()]),
+  isActive: Type.Boolean(),
+  createdAt: Type.String(),
+  updatedAt: Type.String(),
+});
+
+export const ProductsResponseSchema = Type.Array(ProductResponseSchema);
+
+// ============================================================================
+// Environment Schemas
+// ============================================================================
+
+export const CreateEnvironmentBodySchema = Type.Object({
+  name: Type.String({ minLength: 1, maxLength: 255 }),
+  description: Type.Optional(Type.String()),
+  order: Type.Optional(Type.Number({ minimum: 0 })),
+});
+
+export type CreateEnvironmentBody = Static<typeof CreateEnvironmentBodySchema>;
+
+export const UpdateEnvironmentBodySchema = Type.Object({
+  name: Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
+  description: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  order: Type.Optional(Type.Number({ minimum: 0 })),
+});
+
+export type UpdateEnvironmentBody = Static<typeof UpdateEnvironmentBodySchema>;
+
+export const EnvironmentParamsSchema = Type.Object({
+  productId: Type.String(),
+  id: Type.String(),
+});
+
+export type EnvironmentParams = Static<typeof EnvironmentParamsSchema>;
+
+export const ProductIdParamsSchema = Type.Object({
+  productId: Type.String(),
+});
+
+export type ProductIdParams = Static<typeof ProductIdParamsSchema>;
+
+export const EnvironmentResponseSchema = Type.Object({
+  id: Type.String(),
+  name: Type.String(),
+  description: Type.Union([Type.String(), Type.Null()]),
+  order: Type.Number(),
+  productId: Type.String(),
+  createdAt: Type.String(),
+  updatedAt: Type.String(),
+});
+
+export const EnvironmentsResponseSchema = Type.Array(EnvironmentResponseSchema);
+
+// ============================================================================
+// Microservice Schemas
+// ============================================================================
+
+export const CreateMicroserviceBodySchema = Type.Object({
+  name: Type.String({ minLength: 1, maxLength: 255 }),
+  description: Type.Optional(Type.String()),
+});
+
+export type CreateMicroserviceBody = Static<typeof CreateMicroserviceBodySchema>;
+
+export const UpdateMicroserviceBodySchema = Type.Object({
+  name: Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
+  description: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+});
+
+export type UpdateMicroserviceBody = Static<typeof UpdateMicroserviceBodySchema>;
+
+export const MicroserviceParamsSchema = Type.Object({
+  productId: Type.String(),
+  id: Type.String(),
+});
+
+export type MicroserviceParams = Static<typeof MicroserviceParamsSchema>;
+
+export const MicroserviceResponseSchema = Type.Object({
+  id: Type.String(),
+  name: Type.String(),
+  description: Type.Union([Type.String(), Type.Null()]),
+  productId: Type.String(),
+  createdAt: Type.String(),
+  updatedAt: Type.String(),
+});
+
+export const MicroservicesResponseSchema = Type.Array(MicroserviceResponseSchema);
+
+// ============================================================================
+// Runbook Schemas
+// ============================================================================
+
+export const CreateRunbookBodySchema = Type.Object({
+  name: Type.String({ minLength: 1, maxLength: 255 }),
+  description: Type.Optional(Type.String()),
+  link: Type.String({ minLength: 1 }),
+});
+
+export type CreateRunbookBody = Static<typeof CreateRunbookBodySchema>;
+
+export const UpdateRunbookBodySchema = Type.Object({
+  name: Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
+  description: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  link: Type.Optional(Type.String({ minLength: 1 })),
+});
+
+export type UpdateRunbookBody = Static<typeof UpdateRunbookBodySchema>;
+
+export const RunbookParamsSchema = Type.Object({
+  productId: Type.String(),
+  id: Type.String(),
+});
+
+export type RunbookParams = Static<typeof RunbookParamsSchema>;
+
+export const RunbookResponseSchema = Type.Object({
+  id: Type.String(),
+  name: Type.String(),
+  description: Type.Union([Type.String(), Type.Null()]),
+  link: Type.String(),
+  productId: Type.String(),
+  createdAt: Type.String(),
+  updatedAt: Type.String(),
+});
+
+export const RunbooksResponseSchema = Type.Array(RunbookResponseSchema);
+
+// ============================================================================
+// Final Action Schemas
+// ============================================================================
+
+export const CreateFinalActionBodySchema = Type.Object({
+  name: Type.String({ minLength: 1, maxLength: 255 }),
+  description: Type.Optional(Type.String()),
+  order: Type.Optional(Type.Number({ minimum: 0 })),
+  isOther: Type.Optional(Type.Boolean()),
+});
+
+export type CreateFinalActionBody = Static<typeof CreateFinalActionBodySchema>;
+
+export const UpdateFinalActionBodySchema = Type.Object({
+  name: Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
+  description: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  order: Type.Optional(Type.Number({ minimum: 0 })),
+  isOther: Type.Optional(Type.Boolean()),
+});
+
+export type UpdateFinalActionBody = Static<typeof UpdateFinalActionBodySchema>;
+
+export const FinalActionParamsSchema = Type.Object({
+  productId: Type.String(),
+  id: Type.String(),
+});
+
+export type FinalActionParams = Static<typeof FinalActionParamsSchema>;
+
+export const FinalActionResponseSchema = Type.Object({
+  id: Type.String(),
+  name: Type.String(),
+  description: Type.Union([Type.String(), Type.Null()]),
+  order: Type.Number(),
+  isOther: Type.Boolean(),
+  productId: Type.String(),
+  createdAt: Type.String(),
+  updatedAt: Type.String(),
+});
+
+export const FinalActionsResponseSchema = Type.Array(FinalActionResponseSchema);
+
+// ============================================================================
+// Alarm Schemas
+// ============================================================================
+
+export const CreateAlarmBodySchema = Type.Object({
+  name: Type.String({ minLength: 1, maxLength: 255 }),
+  description: Type.Optional(Type.String()),
+  runbookId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+});
+
+export type CreateAlarmBody = Static<typeof CreateAlarmBodySchema>;
+
+export const UpdateAlarmBodySchema = Type.Object({
+  name: Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
+  description: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  runbookId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+});
+
+export type UpdateAlarmBody = Static<typeof UpdateAlarmBodySchema>;
+
+export const AlarmParamsSchema = Type.Object({
+  productId: Type.String(),
+  id: Type.String(),
+});
+
+export type AlarmParams = Static<typeof AlarmParamsSchema>;
+
+export const AlarmResponseSchema = Type.Object({
+  id: Type.String(),
+  name: Type.String(),
+  description: Type.Union([Type.String(), Type.Null()]),
+  runbookId: Type.Union([Type.String(), Type.Null()]),
+  runbook: Type.Union([
+    Type.Object({
+      id: Type.String(),
+      name: Type.String(),
+    }),
+    Type.Null(),
+  ]),
+  productId: Type.String(),
+  createdAt: Type.String(),
+  updatedAt: Type.String(),
+});
+
+export const AlarmsResponseSchema = Type.Array(AlarmResponseSchema);
+
+// ============================================================================
+// Downstream Schemas
+// ============================================================================
+
+export const CreateDownstreamBodySchema = Type.Object({
+  name: Type.String({ minLength: 1, maxLength: 255 }),
+  description: Type.Optional(Type.String()),
+});
+
+export type CreateDownstreamBody = Static<typeof CreateDownstreamBodySchema>;
+
+export const UpdateDownstreamBodySchema = Type.Object({
+  name: Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
+  description: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+});
+
+export type UpdateDownstreamBody = Static<typeof UpdateDownstreamBodySchema>;
+
+export const DownstreamParamsSchema = Type.Object({
+  productId: Type.String(),
+  id: Type.String(),
+});
+
+export type DownstreamParams = Static<typeof DownstreamParamsSchema>;
+
+export const DownstreamResponseSchema = Type.Object({
+  id: Type.String(),
+  name: Type.String(),
+  description: Type.Union([Type.String(), Type.Null()]),
+  productId: Type.String(),
+  createdAt: Type.String(),
+  updatedAt: Type.String(),
+});
+
+export const DownstreamsResponseSchema = Type.Array(DownstreamResponseSchema);
+
+// ============================================================================
+// Ignored Alarm Schemas
+// ============================================================================
+
+const TimeConstraintPeriodSchema = Type.Object({
+  start: Type.String({ format: "date-time" }),
+  end: Type.String({ format: "date-time" }),
+});
+
+const TimeConstraintHoursSchema = Type.Object({
+  start: Type.String({ pattern: "^\\d{2}:\\d{2}$" }),
+  end: Type.String({ pattern: "^\\d{2}:\\d{2}$" }),
+});
+
+const TimeConstraintSchema = Type.Object({
+  periods: Type.Optional(Type.Array(TimeConstraintPeriodSchema)),
+  weekdays: Type.Optional(Type.Array(Type.Integer({ minimum: 0, maximum: 6 }))),
+  hours: Type.Optional(Type.Array(TimeConstraintHoursSchema)),
+});
+
+export const CreateIgnoredAlarmBodySchema = Type.Object({
+  alarmId: Type.String(),
+  environmentId: Type.String(),
+  reason: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  isActive: Type.Optional(Type.Boolean()),
+  validity: Type.Optional(Type.Array(TimeConstraintSchema)),
+  exclusions: Type.Optional(Type.Array(TimeConstraintSchema)),
+});
+
+export type CreateIgnoredAlarmBody = Static<typeof CreateIgnoredAlarmBodySchema>;
+
+export const UpdateIgnoredAlarmBodySchema = Type.Object({
+  alarmId: Type.Optional(Type.String()),
+  environmentId: Type.Optional(Type.String()),
+  reason: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  isActive: Type.Optional(Type.Boolean()),
+  validity: Type.Optional(Type.Array(TimeConstraintSchema)),
+  exclusions: Type.Optional(Type.Array(TimeConstraintSchema)),
+});
+
+export type UpdateIgnoredAlarmBody = Static<typeof UpdateIgnoredAlarmBodySchema>;
+
+export const IgnoredAlarmParamsSchema = Type.Object({
+  productId: Type.String(),
+  id: Type.String(),
+});
+
+export type IgnoredAlarmParams = Static<typeof IgnoredAlarmParamsSchema>;
+
+const RelatedEntitySchema = Type.Object({
+  id: Type.String(),
+  name: Type.String(),
+});
+
+export const IgnoredAlarmResponseSchema = Type.Object({
+  id: Type.String(),
+  alarmId: Type.String(),
+  environmentId: Type.String(),
+  reason: Type.Union([Type.String(), Type.Null()]),
+  isActive: Type.Boolean(),
+  productId: Type.String(),
+  validity: Type.Array(TimeConstraintSchema),
+  exclusions: Type.Array(TimeConstraintSchema),
+  alarm: RelatedEntitySchema,
+  environment: RelatedEntitySchema,
+  createdAt: Type.String(),
+  updatedAt: Type.String(),
+});
+
+export const IgnoredAlarmsResponseSchema = Type.Array(IgnoredAlarmResponseSchema);
+
+// ============================================================================
+// Common Error Schemas
+// ============================================================================
+
+export const ErrorResponseSchema = Type.Object({
+  error: Type.String(),
+});
+
+export const MessageResponseSchema = Type.Object({
+  message: Type.String(),
+});

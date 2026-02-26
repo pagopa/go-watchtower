@@ -1,0 +1,371 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum AuthProvider {
+  LOCAL
+  GOOGLE
+}
+
+enum AnalysisType {
+  ANALYZABLE
+  IGNORED_RELEASE
+  IGNORED_MAINTENANCE
+  IGNORED_LISTED
+  IGNORED_NOT_MANAGED
+}
+
+enum AnalysisStatus {
+  CREATED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum Resource {
+  PRODUCT
+  ENVIRONMENT
+  MICROSERVICE
+  IGNORED_ALARM
+  RUNBOOK
+  FINAL_ACTION
+  ALARM
+  ALARM_ANALYSIS
+  DOWNSTREAM
+  USER
+}
+
+// ═══════════════════════════════════════════════════════════
+// ROLES & PERMISSIONS
+// ═══════════════════════════════════════════════════════════
+
+model Role {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  name        String   @unique
+  description String?
+  isDefault   Boolean  @default(false) @map("is_default")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  users       User[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model RolePermission {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  roleId    String   @map("role_id") @db.Uuid
+  resource  Resource
+  canRead   Boolean  @default(false) @map("can_read")
+  canWrite  Boolean  @default(false) @map("can_write")
+  canDelete Boolean  @default(false) @map("can_delete")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, resource])
+  // @@index([roleId]) — redundant: covered by @@unique([roleId, resource])
+  @@map("role_permissions")
+}
+
+model UserPermissionOverride {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  resource  Resource
+  canRead   Boolean? @map("can_read")
+  canWrite  Boolean? @map("can_write")
+  canDelete Boolean? @map("can_delete")
+  grantedBy String?  @map("granted_by") @db.Uuid
+  reason    String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user          User  @relation("UserOverrides", fields: [userId], references: [id], onDelete: Cascade)
+  grantedByUser User? @relation("GrantedOverrides", fields: [grantedBy], references: [id], onDelete: SetNull)
+
+  @@unique([userId, resource])
+  // @@index([userId]) — redundant: covered by @@unique([userId, resource])
+  @@index([grantedBy])
+  @@map("user_permission_overrides")
+}
+
+// ═══════════════════════════════════════════════════════════
+// USERS
+// ═══════════════════════════════════════════════════════════
+
+model User {
+  id           String       @id @default(uuid(7)) @db.Uuid
+  email        String       @unique
+  passwordHash String?      @map("password_hash")
+  name         String
+  roleId       String       @map("role_id") @db.Uuid
+  provider     AuthProvider @default(LOCAL)
+  providerId   String?      @map("provider_id")
+  isActive     Boolean      @default(true) @map("is_active")
+  preferences  Json         @default("{}") @map("preferences")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  role                Role                     @relation(fields: [roleId], references: [id])
+  permissionOverrides UserPermissionOverride[] @relation("UserOverrides")
+  grantedOverrides    UserPermissionOverride[] @relation("GrantedOverrides")
+  refreshTokens       RefreshToken[]
+  analyses            AlarmAnalysis[]          @relation("OperatorAnalyses")
+  createdAnalyses     AlarmAnalysis[]          @relation("CreatedByUser")
+  updatedAnalyses     AlarmAnalysis[]          @relation("UpdatedByUser")
+
+  @@index([roleId])
+  @@map("users")
+}
+
+model RefreshToken {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  tokenHash   String   @unique @map("token_hash")
+  userId      String   @map("user_id") @db.Uuid
+  userAgent   String?  @map("user_agent")
+  ipAddress   String?  @map("ip_address")
+  expiresAt   DateTime @map("expires_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  revokedAt   DateTime? @map("revoked_at")
+  replacedBy  String?  @map("replaced_by")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+model Product {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  name        String   @unique
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  environments  Environment[]
+  microservices Microservice[]
+  finalActions   FinalAction[]
+  ignoredAlarms IgnoredAlarm[]
+  runbooks      Runbook[]
+  alarms        Alarm[]
+  downstreams   Downstream[]
+  analyses      AlarmAnalysis[]
+
+  @@map("products")
+}
+
+model Environment {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  name        String
+  description String?
+  order       Int      @default(0)
+  productId   String   @map("product_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  product       Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  analyses      AlarmAnalysis[]
+  ignoredAlarms IgnoredAlarm[]
+
+  @@unique([productId, name])
+  @@map("environments")
+}
+
+model Microservice {
+  id          String                 @id @default(uuid(7)) @db.Uuid
+  name        String
+  description String?
+  productId   String                 @map("product_id") @db.Uuid
+  createdAt DateTime               @default(now()) @map("created_at")
+  updatedAt DateTime               @updatedAt @map("updated_at")
+  product   Product                @relation(fields: [productId], references: [id], onDelete: Cascade)
+  analyses  AnalysisMicroservice[]
+
+  @@unique([productId, name])
+  @@map("microservices")
+}
+
+model IgnoredAlarm {
+  id            String   @id @default(uuid(7)) @db.Uuid
+  alarmId       String   @map("alarm_id") @db.Uuid
+  environmentId String   @map("environment_id") @db.Uuid
+  reason        String?
+  isActive      Boolean  @default(true) @map("is_active")
+  productId     String   @map("product_id") @db.Uuid
+  validity      Json     @default("[]")
+  exclusions    Json     @default("[]")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  alarm       Alarm       @relation(fields: [alarmId], references: [id], onDelete: Cascade)
+  environment Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  product     Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([alarmId, environmentId])
+  @@index([productId])
+  @@index([environmentId])
+  @@map("ignored_alarms")
+}
+
+model Alarm {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  name        String
+  description String?
+  productId   String   @map("product_id") @db.Uuid
+  runbookId   String?  @map("runbook_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  product       Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  runbook       Runbook?        @relation(fields: [runbookId], references: [id], onDelete: SetNull)
+  analyses      AlarmAnalysis[]
+  ignoredAlarms IgnoredAlarm[]
+
+  @@unique([productId, name])
+  @@index([runbookId])
+  @@map("alarms")
+}
+
+model Runbook {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  name        String
+  description String?
+  link        String
+  productId   String   @map("product_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  product  Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  alarms   Alarm[]
+  analyses AlarmAnalysis[]
+
+  @@unique([productId, name])
+  @@map("runbooks")
+}
+
+model FinalAction {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  name        String
+  description String?
+  order       Int      @default(0)
+  isOther     Boolean  @default(false) @map("is_other")
+  productId   String   @map("product_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  product  Product               @relation(fields: [productId], references: [id], onDelete: Cascade)
+  analyses AnalysisFinalAction[]
+
+  @@unique([productId, name])
+  @@map("final_actions")
+}
+
+model AlarmAnalysis {
+  id              String       @id @default(uuid(7)) @db.Uuid
+  analysisDate    DateTime     @map("analysis_date")
+  firstAlarmAt    DateTime     @map("first_alarm_at")
+  lastAlarmAt     DateTime     @map("last_alarm_at")
+  occurrences     Int          @default(1)
+  isOnCall        Boolean      @default(false) @map("is_on_call")
+  analysisType    AnalysisType   @default(ANALYZABLE) @map("analysis_type")
+  status          AnalysisStatus @default(CREATED) @map("status")
+  alarmId         String         @map("alarm_id") @db.Uuid
+  errorDetails    String?        @map("error_details")
+  conclusionNotes   String?        @map("conclusion_notes")
+  externalTeamName  String?        @map("external_team_name")
+  operatorId        String         @map("operator_id") @db.Uuid
+  productId       String         @map("product_id") @db.Uuid
+  environmentId   String         @map("environment_id") @db.Uuid
+  runbookId       String?      @map("runbook_id") @db.Uuid
+  links           Json         @default("[]")
+  trackingIds     Json         @default("[]") @map("tracking_ids")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  createdById     String       @map("created_by_id") @db.Uuid
+  updatedById     String?      @map("updated_by_id") @db.Uuid
+
+  alarm       Alarm       @relation(fields: [alarmId], references: [id], onDelete: Restrict)
+  operator    User        @relation("OperatorAnalyses", fields: [operatorId], references: [id], onDelete: Restrict)
+  product     Product     @relation(fields: [productId], references: [id], onDelete: Restrict)
+  environment Environment @relation(fields: [environmentId], references: [id], onDelete: Restrict)
+  runbook     Runbook?    @relation(fields: [runbookId], references: [id], onDelete: Restrict)
+  createdBy   User        @relation("CreatedByUser", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy   User?       @relation("UpdatedByUser", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  microservices AnalysisMicroservice[]
+  downstreams   AnalysisDownstream[]
+  finalActions  AnalysisFinalAction[]
+
+  @@index([analysisDate])
+  // @@index([productId]) — redundant: covered by @@index([productId, analysisDate])
+  @@index([environmentId])
+  @@index([operatorId])
+  @@index([alarmId])
+  @@index([productId, analysisDate])
+  @@index([createdAt])
+  // @@index([analysisType]) — low cardinality (5 values), never used as leading filter
+  // @@index([status]) — low cardinality (3 values), never used as leading filter
+  @@index([runbookId])
+  @@index([createdById])
+  @@index([updatedById])
+  @@map("alarm_analyses")
+}
+
+model AnalysisMicroservice {
+  analysisId     String @map("analysis_id") @db.Uuid
+  microserviceId String @map("microservice_id") @db.Uuid
+
+  analysis     AlarmAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  microservice Microservice  @relation(fields: [microserviceId], references: [id], onDelete: Cascade)
+
+  @@id([analysisId, microserviceId])
+  @@index([microserviceId])
+  @@map("analysis_microservices")
+}
+
+model Downstream {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  name        String
+  description String?
+  productId   String   @map("product_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  product  Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
+  analyses AnalysisDownstream[]
+
+  @@unique([productId, name])
+  @@map("downstreams")
+}
+
+model AnalysisDownstream {
+  analysisId   String @map("analysis_id") @db.Uuid
+  downstreamId String @map("downstream_id") @db.Uuid
+
+  analysis   AlarmAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  downstream Downstream    @relation(fields: [downstreamId], references: [id], onDelete: Cascade)
+
+  @@id([analysisId, downstreamId])
+  @@index([downstreamId])
+  @@map("analysis_downstreams")
+}
+
+model AnalysisFinalAction {
+  analysisId    String @map("analysis_id") @db.Uuid
+  finalActionId String @map("final_action_id") @db.Uuid
+
+  analysis    AlarmAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  finalAction FinalAction   @relation(fields: [finalActionId], references: [id], onDelete: Cascade)
+
+  @@id([analysisId, finalActionId])
+  @@index([finalActionId])
+  @@map("analysis_final_actions")
+}

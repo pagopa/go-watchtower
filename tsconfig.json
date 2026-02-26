@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "noEmit": true
+  },
+  "files": [],
+  "references": [
+    { "path": "./packages/api" },
+    { "path": "./packages/database" },
+    { "path": "./packages/frontend" }
+  ]
+}

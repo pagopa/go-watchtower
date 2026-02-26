@@ -1,0 +1,757 @@
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
+import { useSession } from 'next-auth/react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import {
+  Mail, Shield, CalendarDays, Loader2, Check, Pencil, X,
+  Monitor, Sun, Moon, Rows3, PanelLeft, SlidersHorizontal,
+  KeyRound, Globe, RotateCcw, Eye, EyeOff, Lock, ChevronDown, ChevronUp,
+} from 'lucide-react'
+import { api, type UserDetail, type ColumnSettings } from '@/lib/api-client'
+import { COLUMN_REGISTRY, LIST_LABELS, type ColumnDef } from '@/lib/column-registry'
+import { usePreferences } from '@/hooks/use-preferences'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Separator } from '@/components/ui/separator'
+import { cn } from '@/lib/utils'
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function formatDate(isoStr: string): string {
+  return new Date(isoStr).toLocaleDateString('it-IT', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
+function getInitials(name: string): string {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('')
+}
+
+const PROVIDER_LABELS: Record<string, string> = {
+  google: 'Google',
+  local: 'Email e password',
+  github: 'GitHub',
+}
+
+const THEME_CONFIG = {
+  light: { label: 'Chiaro', icon: Sun },
+  dark: { label: 'Scuro', icon: Moon },
+  system: { label: 'Sistema', icon: Monitor },
+} as const
+
+// ─── Column analysis ──────────────────────────────────────────────────────────
+
+interface ColumnState {
+  def: ColumnDef
+  position: number | null       // 1-based position in visible order, null if hidden
+  currentLabel: string          // possibly renamed
+  isVisible: boolean
+  defaultVisible: boolean
+  isVisibilityChanged: boolean
+  customWidth: number | undefined
+  isWidthCustom: boolean
+  isRenamed: boolean
+  hasAnyOverride: boolean
+}
+
+function buildColumnStates(settings: ColumnSettings, definitions: ColumnDef[]): ColumnState[] {
+  const visibleList = settings.visible ?? []
+  const orderList = settings.order ?? visibleList
+  const visibleSet = new Set(visibleList)
+  const positionMap = new Map(orderList.map((id, i) => [id, i + 1]))
+
+  return definitions.map((def) => {
+    const isVisible = visibleSet.has(def.id)
+    const defaultVisible = def.defaultVisible !== false
+    const isVisibilityChanged = isVisible !== defaultVisible
+    const customWidth = settings.widths?.[def.id]
+    const isWidthCustom = customWidth !== undefined && customWidth !== def.defaultWidth
+    const rename = settings.renames?.[def.id]
+    const isRenamed = !!rename
+    const currentLabel = rename ?? def.label
+    const position = isVisible ? (positionMap.get(def.id) ?? null) : null
+    const hasAnyOverride = isVisibilityChanged || isWidthCustom || isRenamed
+
+    return {
+      def,
+      position,
+      currentLabel,
+      isVisible,
+      defaultVisible,
+      isVisibilityChanged,
+      customWidth,
+      isWidthCustom,
+      isRenamed,
+      hasAnyOverride,
+    }
+  })
+}
+
+// ─── Column settings detail ───────────────────────────────────────────────────
+
+function ColumnSettingsDetail({
+  listKey,
+  settings,
+  onResetWidth,
+  onResetRename,
+}: {
+  listKey: string
+  settings: ColumnSettings
+  onResetWidth: (columnId: string) => void
+  onResetRename: (columnId: string) => void
+}) {
+  const definitions = COLUMN_REGISTRY[listKey]
+  if (!definitions) return null
+
+  const columns = buildColumnStates(settings, definitions)
+
+  // Sort: visible columns by position, then hidden columns (in definition order)
+  const sorted = [...columns].sort((a, b) => {
+    if (a.isVisible && !b.isVisible) return -1
+    if (!a.isVisible && b.isVisible) return 1
+    if (a.isVisible && b.isVisible) return (a.position ?? 999) - (b.position ?? 999)
+    return 0
+  })
+
+  const overrideCount = columns.filter((c) => c.hasAnyOverride).length
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">
+        <span className="font-medium tabular-nums text-foreground">{overrideCount}</span>
+        {' '}colonne con impostazioni personalizzate su{' '}
+        <span className="tabular-nums">{definitions.length}</span> totali
+      </p>
+
+      <div className="overflow-hidden rounded-lg border border-border">
+        {/* Table header */}
+        <div className="grid grid-cols-[2rem_1fr_6rem_6rem] gap-0 border-b bg-muted/40">
+          <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">#</div>
+          <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">Colonna</div>
+          <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">Visibilità</div>
+          <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">Larghezza</div>
+        </div>
+
+        {/* Rows */}
+        <div className="divide-y divide-border/60">
+          {sorted.map((col) => (
+            <div
+              key={col.def.id}
+              className={cn(
+                'grid grid-cols-[2rem_1fr_6rem_6rem] gap-0 transition-colors',
+                col.hasAnyOverride
+                  ? 'bg-amber-50/40 dark:bg-amber-950/20'
+                  : 'bg-transparent',
+                !col.isVisible && 'opacity-50',
+              )}
+            >
+              {/* Position */}
+              <div className="flex items-center px-3 py-2.5">
+                <span className="font-mono text-xs tabular-nums text-muted-foreground/70">
+                  {col.position ?? '—'}
+                </span>
+              </div>
+
+              {/* Column name */}
+              <div className="flex min-w-0 items-center gap-1.5 px-3 py-2.5">
+                {col.def.locked && (
+                  <Lock className="h-3 w-3 shrink-0 text-muted-foreground/40" />
+                )}
+                <div className="min-w-0">
+                  {col.isRenamed ? (
+                    <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+                      <span className="truncate text-xs font-semibold text-amber-700 dark:text-amber-400">
+                        {col.currentLabel}
+                      </span>
+                      <span className="shrink-0 text-[10px] text-muted-foreground/50">
+                        ← {col.def.label}
+                      </span>
+                      <button
+                        onClick={() => onResetRename(col.def.id)}
+                        className="shrink-0 rounded px-1 py-px text-[10px] text-muted-foreground/50 hover:bg-muted hover:text-foreground"
+                        title="Ripristina nome originale"
+                      >
+                        ripristina
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="truncate text-xs text-foreground/80">{col.def.label}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Visibility */}
+              <div className="flex items-center px-3 py-2.5">
+                {col.isVisible ? (
+                  <span className={cn(
+                    'flex items-center gap-1 text-xs',
+                    col.isVisibilityChanged
+                      ? 'font-medium text-amber-700 dark:text-amber-400'
+                      : 'text-muted-foreground/70',
+                  )}>
+                    <Eye className="h-3 w-3 shrink-0" />
+                    <span>Visibile</span>
+                  </span>
+                ) : (
+                  <span className={cn(
+                    'flex items-center gap-1 text-xs',
+                    col.isVisibilityChanged
+                      ? 'font-medium text-amber-700/70 dark:text-amber-400/70'
+                      : 'text-muted-foreground/40',
+                  )}>
+                    <EyeOff className="h-3 w-3 shrink-0" />
+                    <span>Nascosta</span>
+                  </span>
+                )}
+              </div>
+
+              {/* Width */}
+              <div className="flex items-center gap-1 px-3 py-2.5">
+                {col.isWidthCustom ? (
+                  <div className="flex items-center gap-1">
+                    <span className="font-mono text-xs font-semibold text-amber-700 dark:text-amber-400">
+                      {col.customWidth}px
+                    </span>
+                    <span className="text-[10px] text-muted-foreground/40">
+                      /{col.def.defaultWidth}
+                    </span>
+                    <button
+                      onClick={() => onResetWidth(col.def.id)}
+                      className="rounded px-1 py-px text-[10px] text-muted-foreground/40 hover:bg-muted hover:text-foreground"
+                      title="Ripristina larghezza default"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ) : (
+                  <span className="font-mono text-xs text-muted-foreground/40">
+                    {col.def.defaultWidth}px
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Avatar ───────────────────────────────────────────────────────────────────
+
+function Avatar({ name, className }: { name: string; className?: string }) {
+  return (
+    <div
+      className={cn(
+        'flex shrink-0 items-center justify-center rounded-full bg-primary font-bold text-primary-foreground',
+        className
+      )}
+    >
+      {getInitials(name)}
+    </div>
+  )
+}
+
+// ─── Info row (readonly) ──────────────────────────────────────────────────────
+
+function InfoRow({
+  icon: Icon,
+  label,
+  children,
+}: {
+  icon: React.ElementType
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex items-start gap-3 py-3">
+      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/60">
+          {label}
+        </p>
+        <div className="mt-0.5 text-sm font-medium text-foreground">{children}</div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Preference row ───────────────────────────────────────────────────────────
+
+function PrefRow({
+  icon: Icon,
+  label,
+  children,
+  onReset,
+}: {
+  icon: React.ElementType
+  label: string
+  children: React.ReactNode
+  onReset?: () => void
+}) {
+  return (
+    <div className="flex items-center gap-3 py-3">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/60">
+          {label}
+        </p>
+        <div className="mt-0.5 text-sm font-medium">{children}</div>
+      </div>
+      {onReset && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 shrink-0 text-muted-foreground/40 hover:text-foreground"
+          onClick={onReset}
+          title="Ripristina default"
+        >
+          <RotateCcw className="h-3.5 w-3.5" />
+        </Button>
+      )}
+    </div>
+  )
+}
+
+// ─── Section header ───────────────────────────────────────────────────────────
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="mb-1 text-base font-semibold text-foreground">{children}</h2>
+  )
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+
+export function ProfilePageContent() {
+  const { data: session } = useSession()
+  const queryClient = useQueryClient()
+  const { preferences, updatePreferences } = usePreferences()
+
+  const userId = session?.user?.id ?? ''
+
+  const { data: userDetail, isLoading } = useQuery<UserDetail>({
+    queryKey: ['user', userId],
+    queryFn: () => api.getUser(userId),
+    enabled: !!userId,
+    staleTime: 30_000,
+  })
+
+  // Editable name state
+  const [editing, setEditing] = useState(false)
+  const [nameValue, setNameValue] = useState('')
+
+  useEffect(() => {
+    if (session?.user?.name) setNameValue(session.user.name)
+  }, [session?.user?.name])
+
+  const { mutate: saveName, isPending } = useMutation({
+    mutationFn: (name: string) => api.updateUser(userId, { name }),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<UserDetail>(['user', userId], updated)
+      queryClient.invalidateQueries({ queryKey: ['user', userId] })
+      toast.success('Nome aggiornato con successo')
+      setEditing(false)
+    },
+    onError: () => {
+      toast.error('Errore durante il salvataggio')
+    },
+  })
+
+  const handleSave = () => {
+    const trimmed = nameValue.trim()
+    if (!trimmed || trimmed === session?.user?.name) {
+      setEditing(false)
+      return
+    }
+    saveName(trimmed)
+  }
+
+  const handleCancel = () => {
+    setNameValue(session?.user?.name ?? '')
+    setEditing(false)
+  }
+
+  // ─── Column settings expand state ────────────────────────────────────────────
+  const [expandedLists, setExpandedLists] = useState<Set<string>>(new Set())
+  const toggleExpand = (key: string) => {
+    setExpandedLists((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  // ─── Reset handlers ──────────────────────────────────────────────────────────
+
+  const handleResetTheme = useCallback(() => {
+    updatePreferences({ theme: 'system' })
+    toast.success('Tema ripristinato a "Sistema"')
+  }, [updatePreferences])
+
+  const handleResetPageSize = useCallback(() => {
+    updatePreferences({ pageSize: 10 })
+    toast.success('Righe per pagina ripristinate a 10')
+  }, [updatePreferences])
+
+  const handleResetSidebar = useCallback(() => {
+    updatePreferences({ sidebarCollapsed: false })
+    toast.success('Sidebar ripristinata a espansa')
+  }, [updatePreferences])
+
+  const handleResetFilters = useCallback(() => {
+    updatePreferences({ analysisFiltersCollapsed: true })
+    toast.success('Filtri analisi ripristinati a collassati')
+  }, [updatePreferences])
+
+  const handleResetAllColumns = useCallback((listKey: string) => {
+    const current = preferences.columnSettings ?? {}
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { [listKey]: _removed, ...rest } = current
+    updatePreferences({ columnSettings: rest })
+    toast.success(`Colonne "${LIST_LABELS[listKey] ?? listKey}" ripristinate`)
+  }, [preferences.columnSettings, updatePreferences])
+
+  const handleResetColumnWidth = useCallback((listKey: string, columnId: string) => {
+    const current = preferences.columnSettings ?? {}
+    const listSettings = current[listKey]
+    if (!listSettings) return
+    const { [columnId]: _removed, ...restWidths } = listSettings.widths ?? {}
+    updatePreferences({
+      columnSettings: {
+        ...current,
+        [listKey]: { ...listSettings, widths: restWidths },
+      },
+    })
+    toast.success('Larghezza colonna ripristinata')
+  }, [preferences.columnSettings, updatePreferences])
+
+  const handleResetColumnRename = useCallback((listKey: string, columnId: string) => {
+    const current = preferences.columnSettings ?? {}
+    const listSettings = current[listKey]
+    if (!listSettings) return
+    const { [columnId]: _removed, ...restRenames } = listSettings.renames ?? {}
+    updatePreferences({
+      columnSettings: {
+        ...current,
+        [listKey]: { ...listSettings, renames: restRenames },
+      },
+    })
+    toast.success('Nome colonna ripristinato')
+  }, [preferences.columnSettings, updatePreferences])
+
+  // ─── Derived values ──────────────────────────────────────────────────────────
+
+  const displayName = session?.user?.name ?? '—'
+  const email = session?.user?.email ?? '—'
+  const roleName = session?.user?.roleName ?? '—'
+  const provider = userDetail?.provider ?? ''
+  const createdAt = userDetail?.createdAt
+  const updatedAt = userDetail?.updatedAt
+
+  const theme = preferences.theme ?? 'system'
+  const ThemeIcon = THEME_CONFIG[theme]?.icon ?? Monitor
+  const themeLabel = THEME_CONFIG[theme]?.label ?? 'Sistema'
+  const pageSize = preferences.pageSize ?? 10
+  const sidebarCollapsed = preferences.sidebarCollapsed ?? false
+  const filtersCollapsed = preferences.analysisFiltersCollapsed ?? true
+
+  const columnSettingsEntries = Object.entries(preferences.columnSettings ?? {})
+
+  return (
+    <div className="mx-auto max-w-4xl space-y-6">
+
+      {/* ── Profile header card ── */}
+      <div className="rounded-xl border border-border bg-card p-6">
+        <div className="flex items-center gap-5">
+          {isLoading || !session ? (
+            <Skeleton className="h-20 w-20 rounded-full" />
+          ) : (
+            <Avatar name={displayName} className="h-20 w-20 text-2xl" />
+          )}
+
+          <div className="min-w-0 flex-1">
+            {isLoading || !session ? (
+              <div className="space-y-2">
+                <Skeleton className="h-7 w-48" />
+                <Skeleton className="h-4 w-64" />
+                <Skeleton className="h-5 w-24" />
+              </div>
+            ) : (
+              <>
+                <h1 className="text-2xl font-bold tracking-tight">{displayName}</h1>
+                <p className="mt-0.5 text-sm text-muted-foreground">{email}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <Badge variant="secondary" className="text-xs">
+                    <Shield className="mr-1 h-3 w-3" />
+                    {roleName}
+                  </Badge>
+                  {provider && (
+                    <Badge variant="outline" className="text-xs">
+                      <KeyRound className="mr-1 h-3 w-3" />
+                      {PROVIDER_LABELS[provider] ?? provider}
+                    </Badge>
+                  )}
+                  {userDetail?.isActive === false && (
+                    <Badge variant="destructive" className="text-xs">
+                      Disattivato
+                    </Badge>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Two-column body ── */}
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+
+        {/* ── Dati profilo ── */}
+        <div className="rounded-xl border border-border bg-card p-6">
+          <SectionTitle>Dati profilo</SectionTitle>
+          <p className="mb-4 text-sm text-muted-foreground">
+            Puoi modificare solo il tuo nome completo.
+          </p>
+
+          {/* Editable name */}
+          <div className="mb-2">
+            <Label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground/60">
+              Nome completo
+            </Label>
+            {editing ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  value={nameValue}
+                  onChange={(e) => setNameValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSave()
+                    if (e.key === 'Escape') handleCancel()
+                  }}
+                  className="h-9 flex-1"
+                  disabled={isPending}
+                />
+                <Button
+                  size="icon"
+                  className="h-9 w-9 shrink-0"
+                  onClick={handleSave}
+                  disabled={isPending}
+                >
+                  {isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Check className="h-4 w-4" />
+                  )}
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-9 w-9 shrink-0"
+                  onClick={handleCancel}
+                  disabled={isPending}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2">
+                <span className="text-sm font-medium">{displayName}</span>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7 shrink-0"
+                  onClick={() => setEditing(true)}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <Separator className="my-4" />
+
+          {/* Readonly fields */}
+          <div className="divide-y divide-border/60">
+            <InfoRow icon={Mail} label="Email">
+              <span className="text-muted-foreground">{email}</span>
+            </InfoRow>
+            <InfoRow icon={Shield} label="Ruolo">
+              <span className="text-muted-foreground">{roleName}</span>
+            </InfoRow>
+            <InfoRow icon={KeyRound} label="Accesso tramite">
+              {isLoading ? (
+                <Skeleton className="h-4 w-24" />
+              ) : (
+                <span className="text-muted-foreground">
+                  {PROVIDER_LABELS[provider] ?? provider ?? '—'}
+                </span>
+              )}
+            </InfoRow>
+            <InfoRow icon={CalendarDays} label="Membro dal">
+              {isLoading ? (
+                <Skeleton className="h-4 w-32" />
+              ) : (
+                <span className="text-muted-foreground">
+                  {createdAt ? formatDate(createdAt) : '—'}
+                </span>
+              )}
+            </InfoRow>
+            {updatedAt && updatedAt !== createdAt && (
+              <InfoRow icon={CalendarDays} label="Ultimo aggiornamento">
+                <span className="text-muted-foreground">{formatDate(updatedAt)}</span>
+              </InfoRow>
+            )}
+          </div>
+        </div>
+
+        {/* ── Preferenze ── */}
+        <div className="rounded-xl border border-border bg-card p-6">
+          <SectionTitle>Preferenze</SectionTitle>
+          <p className="mb-4 text-sm text-muted-foreground">
+            Impostazioni dell&apos;interfaccia. Usa{' '}
+            <RotateCcw className="inline h-3 w-3 text-muted-foreground" />{' '}
+            per ripristinare il valore di default.
+          </p>
+
+          <div className="divide-y divide-border/60">
+            <PrefRow
+              icon={ThemeIcon}
+              label="Tema"
+              onReset={theme !== 'system' ? handleResetTheme : undefined}
+            >
+              <span>{themeLabel}</span>
+            </PrefRow>
+
+            <PrefRow
+              icon={Rows3}
+              label="Righe per pagina"
+              onReset={pageSize !== 10 ? handleResetPageSize : undefined}
+            >
+              <span>{pageSize} righe</span>
+            </PrefRow>
+
+            <PrefRow
+              icon={PanelLeft}
+              label="Sidebar"
+              onReset={sidebarCollapsed ? handleResetSidebar : undefined}
+            >
+              <span>{sidebarCollapsed ? 'Compressa' : 'Espansa'}</span>
+            </PrefRow>
+
+            <PrefRow
+              icon={SlidersHorizontal}
+              label="Filtri analisi"
+              onReset={!filtersCollapsed ? handleResetFilters : undefined}
+            >
+              <span>{filtersCollapsed ? 'Collassati' : 'Espansi'}</span>
+            </PrefRow>
+
+            {preferences.locale && (
+              <PrefRow icon={Globe} label="Lingua">
+                <span>{preferences.locale}</span>
+              </PrefRow>
+            )}
+          </div>
+
+          <Separator className="my-4" />
+
+          <div className="rounded-lg bg-muted/40 px-4 py-3">
+            <p className="text-xs text-muted-foreground">
+              Le preferenze vengono aggiornate automaticamente mentre usi
+              l&apos;applicazione (tema, sidebar, filtri, righe per pagina).
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Impostazioni colonne ── */}
+      {columnSettingsEntries.length > 0 && (
+        <div className="rounded-xl border border-border bg-card p-6">
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <div>
+              <SectionTitle>Impostazioni colonne</SectionTitle>
+              <p className="text-sm text-muted-foreground">
+                Personalizzazioni di visibilità, ordine, larghezze e rinominazioni per le liste.
+                Le celle in <span className="font-medium text-amber-700 dark:text-amber-400">ambra</span> indicano valori modificati rispetto al default.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {columnSettingsEntries.map(([listKey, settings]) => {
+              const isExpanded = expandedLists.has(listKey)
+              const definitions = COLUMN_REGISTRY[listKey]
+              const overrideCount = definitions
+                ? buildColumnStates(settings, definitions).filter((c) => c.hasAnyOverride).length
+                : 0
+
+              return (
+                <div key={listKey} className="rounded-lg border border-border overflow-hidden">
+                  {/* List header */}
+                  <div className="flex items-center justify-between gap-3 px-4 py-3 bg-muted/20">
+                    <button
+                      className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
+                      onClick={() => toggleExpand(listKey)}
+                    >
+                      {isExpanded
+                        ? <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        : <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      }
+                      <span className="text-sm font-semibold">
+                        {LIST_LABELS[listKey] ?? listKey}
+                      </span>
+                      {overrideCount > 0 && (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+                          {overrideCount} personalizzate
+                        </span>
+                      )}
+                    </button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 shrink-0 gap-1.5 text-xs"
+                      onClick={() => handleResetAllColumns(listKey)}
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      Ripristina tutto
+                    </Button>
+                  </div>
+
+                  {/* Detail table (expandable) */}
+                  {isExpanded && (
+                    <div className="border-t border-border p-4">
+                      <ColumnSettingsDetail
+                        listKey={listKey}
+                        settings={settings}
+                        onResetWidth={(columnId) => handleResetColumnWidth(listKey, columnId)}
+                        onResetRename={(columnId) => handleResetColumnRename(listKey, columnId)}
+                      />
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

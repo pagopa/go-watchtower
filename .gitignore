@@ -1,0 +1,65 @@
+# Dependencies
+node_modules/
+package-lock.json
+dist/
+tsconfig.tsbuildinfo
+.pnpm-store/
+
+# Prisma generated client
+packages/database/generated/
+
+# Ignora cartelle di dati e artifacts, ma mantieni i file .gitkeep
+artifacts/*
+!artifacts/.gitkeep
+data/*
+!data/.gitkeep
+
+# Reports generati
+reports/
+*.csv
+# Eccezione: mantieni l'esempio
+!example_output.csv
+
+# Log files
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment files
+.env
+.env.local
+.env.*.local
+.env.docker
+.env.prod
+
+# Private seed data (real users, products, alarms — never commit)
+packages/database/prisma/seed.private.*
+packages/database/prisma/seed.private/
+
+# CSV import files
+import/
+
+# Docker environment files in script directories
+**/docker/.env
+
+# Keep .env.example templates
+!.env.example
+!.env.docker.example
+!**/docker/.env.example
+
+# Temporary files
+*.tmp
+.cache/
+temp/
+tmp/

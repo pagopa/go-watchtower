@@ -1,0 +1,36 @@
+{
+  "name": "go-watchtower",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Watchtower veglia sull'infrastruttura digitale di PagoPa 24 ore su 24. Un punto unico di osservazione per allarmi, incidenti e azioni — perché nessun problema passi inosservato.",
+  "scripts": {
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [],
+  "author": "Team GO - Gestione Operativa",
+  "license": "ISC",
+  "engines": {
+    "node": ">=25.2.0",
+    "pnpm": ">=10.28.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.3",
+    "@typescript-eslint/eslint-plugin": "^8.56.1",
+    "@typescript-eslint/parser": "^8.56.1",
+    "eslint": "^9.39.3",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.5",
+    "globals": "^17.3.0",
+    "prettier": "3.8.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.56.1"
+  },
+  "pnpm": {
+    "overrides": {
+      "@types/react": "^19.2.14",
+      "@types/react-dom": "^19.2.3"
+    }
+  }
+}
