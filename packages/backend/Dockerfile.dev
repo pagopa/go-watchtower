@@ -12,7 +12,7 @@ COPY tsconfig.base.json tsconfig.json ./
 
 # Copy full package sources
 COPY packages/database ./packages/database
-COPY packages/api ./packages/api
+COPY packages/backend ./packages/backend
 
 # Install all dependencies (including devDependencies for tsx)
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
@@ -28,11 +28,11 @@ RUN pnpm --filter @go-watchtower/database build
 RUN npm install -g prisma@7.4.1
 
 # Copy entrypoint
-COPY packages/api/entrypoint.sh /app/entrypoint.sh
+COPY packages/backend/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
 # Set working directory to API
-WORKDIR /app/packages/api
+WORKDIR /app/packages/backend
 
 # Expose port
 EXPOSE 3000

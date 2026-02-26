@@ -6,7 +6,7 @@
   },
   "files": [],
   "references": [
-    { "path": "./packages/api" },
+    { "path": "./packages/backend" },
     { "path": "./packages/database" },
     { "path": "./packages/frontend" }
   ]

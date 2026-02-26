@@ -1,11 +1,11 @@
 # Development override - use with: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 services:
-  api:
+  backend:
     build:
       context: .
-      dockerfile: packages/api/Dockerfile.dev
+      dockerfile: packages/backend/Dockerfile.dev
     volumes:
-      - ./packages/api/src:/app/packages/api/src:ro
+      - ./packages/backend/src:/app/packages/backend/src:ro
       - ./packages/database/src:/app/packages/database/src:ro
     environment:
       NODE_ENV: development

@@ -14,7 +14,7 @@ COPY tsconfig.base.json tsconfig.json ./
 
 # Copy full package sources (before install, so pnpm resolves workspace links correctly)
 COPY packages/database ./packages/database
-COPY packages/api ./packages/api
+COPY packages/backend ./packages/backend
 
 # Install dependencies (no --frozen-lockfile: ensures workspace links are created in Docker)
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
@@ -25,7 +25,7 @@ RUN pnpm --filter @go-watchtower/database exec prisma generate
 
 # Build packages in dependency order
 RUN pnpm --filter @go-watchtower/database build
-RUN pnpm --filter @go-watchtower/api build
+RUN pnpm --filter @go-watchtower/backend build
 
 # Production stage
 FROM node:25-alpine AS runner
@@ -38,7 +38,7 @@ WORKDIR /app
 # Copy workspace configuration and package sources
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/database/package.json ./packages/database/
-COPY packages/api/package.json ./packages/api/
+COPY packages/backend/package.json ./packages/backend/
 
 # Install production dependencies only
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
@@ -56,14 +56,14 @@ RUN cd packages/database && NODE_PATH=/usr/local/lib/node_modules prisma generat
 
 # Copy built files from builder
 COPY --from=builder /app/packages/database/dist ./packages/database/dist
-COPY --from=builder /app/packages/api/dist ./packages/api/dist
+COPY --from=builder /app/packages/backend/dist ./packages/backend/dist
 
 # Copy entrypoint
-COPY packages/api/entrypoint.sh /app/entrypoint.sh
+COPY packages/backend/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
 # Set working directory to API
-WORKDIR /app/packages/api
+WORKDIR /app/packages/backend
 
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs && \
