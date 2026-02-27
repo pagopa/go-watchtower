@@ -42,7 +42,7 @@ RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
 # Copy standalone output
-COPY --from=builder /app/packages/frontend/public ./public
+COPY --from=builder /app/packages/frontend/public ./packages/frontend/public
 COPY --from=builder --chown=nextjs:nodejs /app/packages/frontend/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/packages/frontend/.next/static ./packages/frontend/.next/static
 
