@@ -1,5 +1,6 @@
 services:
   backend:
+    image: ${ECR_REGISTRY}/go-watchtower/backend:latest
     build:
       context: .
       dockerfile: packages/backend/Dockerfile
@@ -29,6 +30,7 @@ services:
       retries: 3
 
   frontend:
+    image: ${ECR_REGISTRY}/go-watchtower/frontend:latest
     build:
       context: .
       dockerfile: packages/frontend/Dockerfile
