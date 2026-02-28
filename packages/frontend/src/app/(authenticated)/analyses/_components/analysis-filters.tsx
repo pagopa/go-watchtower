@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { Search, X, ChevronDown, ChevronUp, SlidersHorizontal } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { DateTimePicker } from '@/components/ui/date-time-picker'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import {
@@ -211,23 +212,23 @@ export function AnalysisFilters({
 
         {/* Date From */}
         <div className="space-y-2">
-          <Label htmlFor="filter-date-from">Data da</Label>
-          <Input
-            id="filter-date-from"
-            type="date"
+          <Label>Data da</Label>
+          <DateTimePicker
             value={filters.dateFrom}
-            onChange={(e) => updateFilter('dateFrom', e.target.value)}
+            onChange={(v) => updateFilter('dateFrom', v)}
+            dateOnly
+            showNow
           />
         </div>
 
         {/* Date To */}
         <div className="space-y-2">
-          <Label htmlFor="filter-date-to">Data a</Label>
-          <Input
-            id="filter-date-to"
-            type="date"
+          <Label>Data a</Label>
+          <DateTimePicker
             value={filters.dateTo}
-            onChange={(e) => updateFilter('dateTo', e.target.value)}
+            onChange={(v) => updateFilter('dateTo', v)}
+            dateOnly
+            showNow
           />
         </div>
 

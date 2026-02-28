@@ -1,12 +1,12 @@
-import { prisma, Resource } from "@go-watchtower/database";
+import { prisma, Resource, PermissionScope } from "@go-watchtower/database";
 
 export type PermissionAction = "read" | "write" | "delete";
 
 export interface UserPermissions {
   [resource: string]: {
-    canRead: boolean;
-    canWrite: boolean;
-    canDelete: boolean;
+    canRead: PermissionScope;
+    canWrite: PermissionScope;
+    canDelete: PermissionScope;
   };
 }
 
@@ -47,9 +47,9 @@ export async function getUserPermissions(userId: string): Promise<UserPermission
     let resourcePerm = permissions[override.resource];
     if (!resourcePerm) {
       resourcePerm = {
-        canRead: false,
-        canWrite: false,
-        canDelete: false,
+        canRead: PermissionScope.NONE,
+        canWrite: PermissionScope.NONE,
+        canDelete: PermissionScope.NONE,
       };
       permissions[override.resource] = resourcePerm;
     }
@@ -70,18 +70,18 @@ export async function getUserPermissions(userId: string): Promise<UserPermission
 }
 
 /**
- * Check if a user has a specific permission on a resource.
+ * Get the effective PermissionScope for a user on a specific resource/action.
  */
-export async function hasPermission(
+export async function getPermissionScope(
   userId: string,
   resource: Resource,
   action: PermissionAction
-): Promise<boolean> {
+): Promise<PermissionScope> {
   const permissions = await getUserPermissions(userId);
   const resourcePermissions = permissions[resource];
 
   if (!resourcePermissions) {
-    return false;
+    return PermissionScope.NONE;
   }
 
   switch (action) {
@@ -91,6 +91,47 @@ export async function hasPermission(
       return resourcePermissions.canWrite;
     case "delete":
       return resourcePermissions.canDelete;
+    default:
+      return PermissionScope.NONE;
+  }
+}
+
+/**
+ * Check if a user has a specific permission on a resource.
+ * Backward-compatible: returns true if scope is not NONE (i.e. OWN or ALL).
+ */
+export async function hasPermission(
+  userId: string,
+  resource: Resource,
+  action: PermissionAction
+): Promise<boolean> {
+  const scope = await getPermissionScope(userId, resource, action);
+  return scope !== PermissionScope.NONE;
+}
+
+/**
+ * Check if a user has permission for a specific resource instance,
+ * taking ownership into account.
+ *
+ * - ALL: always allowed
+ * - OWN: allowed only if ownerId === userId
+ * - NONE: never allowed
+ */
+export async function hasPermissionForResource(
+  userId: string,
+  resource: Resource,
+  action: PermissionAction,
+  ownerId: string
+): Promise<boolean> {
+  const scope = await getPermissionScope(userId, resource, action);
+
+  switch (scope) {
+    case PermissionScope.ALL:
+      return true;
+    case PermissionScope.OWN:
+      return ownerId === userId;
+    case PermissionScope.NONE:
+      return false;
     default:
       return false;
   }
@@ -104,9 +145,9 @@ export async function setUserPermissionOverride(
   userId: string,
   resource: Resource,
   permissions: {
-    canRead?: boolean | null;
-    canWrite?: boolean | null;
-    canDelete?: boolean | null;
+    canRead?: PermissionScope | null;
+    canWrite?: PermissionScope | null;
+    canDelete?: PermissionScope | null;
   },
   grantedBy?: string,
   reason?: string
@@ -224,4 +265,92 @@ export async function getRoleByName(name: string) {
       permissions: true,
     },
   });
+}
+
+/**
+ * Get a single role by ID with permissions and user count.
+ */
+export async function getRoleById(id: string) {
+  return prisma.role.findUnique({
+    where: { id },
+    include: { permissions: true, _count: { select: { users: true } } },
+  });
+}
+
+/**
+ * Create a new role with NONE permissions for all resources.
+ */
+export async function createRole(name: string, description?: string) {
+  const resources = Object.values(Resource);
+  return prisma.role.create({
+    data: {
+      name,
+      description: description ?? null,
+      isDefault: false,
+      permissions: {
+        create: resources.map((r) => ({
+          resource: r,
+          canRead: PermissionScope.NONE,
+          canWrite: PermissionScope.NONE,
+          canDelete: PermissionScope.NONE,
+        })),
+      },
+    },
+    include: { permissions: true, _count: { select: { users: true } } },
+  });
+}
+
+/**
+ * Update a role's name and/or description.
+ */
+export async function updateRole(
+  id: string,
+  data: { name?: string; description?: string | null }
+) {
+  return prisma.role.update({
+    where: { id },
+    data,
+    include: { permissions: true, _count: { select: { users: true } } },
+  });
+}
+
+/**
+ * Delete a role by ID.
+ */
+export async function deleteRole(id: string) {
+  return prisma.role.delete({ where: { id } });
+}
+
+/**
+ * Update all permissions for a role using upsert per resource.
+ */
+export async function updateRolePermissions(
+  roleId: string,
+  permissions: Array<{
+    resource: Resource;
+    canRead: PermissionScope;
+    canWrite: PermissionScope;
+    canDelete: PermissionScope;
+  }>
+) {
+  await prisma.$transaction(
+    permissions.map((p) =>
+      prisma.rolePermission.upsert({
+        where: { roleId_resource: { roleId, resource: p.resource } },
+        update: {
+          canRead: p.canRead,
+          canWrite: p.canWrite,
+          canDelete: p.canDelete,
+        },
+        create: {
+          roleId,
+          resource: p.resource,
+          canRead: p.canRead,
+          canWrite: p.canWrite,
+          canDelete: p.canDelete,
+        },
+      })
+    )
+  );
+  return getRoleById(roleId);
 }

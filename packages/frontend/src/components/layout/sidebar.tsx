@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
-import { LayoutDashboard, Package, Users, ChevronLeft, ChevronRight, ChevronDown, ClipboardList, FileBarChart } from 'lucide-react'
+import { LayoutDashboard, Package, Users, ChevronLeft, ChevronRight, ChevronDown, ClipboardList, FileBarChart, Shield } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -60,6 +60,13 @@ const navItems: NavItem[] = [
     icon: Users,
     resource: 'USER',
     action: 'read',
+  },
+  {
+    title: 'Ruoli',
+    href: '/roles',
+    icon: Shield,
+    resource: 'USER',
+    action: 'write',
   },
 ]
 

@@ -1,8 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
+import { Type } from "@sinclair/typebox";
 import {
   prisma,
   Resource,
+  PermissionScope,
   AuthProvider,
   type User,
   type Role,
@@ -16,6 +18,11 @@ import {
   setUserPermissionOverride,
   removeUserPermissionOverride,
   getAllRoles,
+  getRoleById,
+  createRole,
+  updateRole,
+  deleteRole,
+  updateRolePermissions,
 } from "../../services/permission.service.js";
 import { hashPassword } from "../../utils/password.js";
 import {
@@ -31,6 +38,11 @@ import {
   UserIdParamsSchema,
   UserPermissionResourceParamsSchema,
   RolesResponseSchema,
+  RoleResponseSchema,
+  RoleIdParamsSchema,
+  CreateRoleBodySchema,
+  UpdateRoleBodySchema,
+  UpdateRolePermissionsBodySchema,
   ErrorResponseSchema,
   MessageResponseSchema,
   type CreateUserBody,
@@ -39,6 +51,10 @@ import {
   type UserPreferencesBody,
   type UserIdParams,
   type UserPermissionResourceParams,
+  type RoleIdParams,
+  type CreateRoleBody,
+  type UpdateRoleBody,
+  type UpdateRolePermissionsBody,
 } from "./schemas.js";
 
 export async function userRoutes(fastify: FastifyInstance): Promise<void> {
@@ -665,6 +681,299 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         );
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to fetch roles";
+        reply.status(500).send({ error: message });
+      }
+    }
+  );
+
+  // Get role by ID
+  app.get<{ Params: RoleIdParams }>(
+    "/roles/:id",
+    {
+      onRequest: [app.authenticate],
+      schema: {
+        tags: ["roles"],
+        summary: "Get role by ID with permissions",
+        security: [{ bearerAuth: [] }],
+        params: RoleIdParamsSchema,
+        response: {
+          200: RoleResponseSchema,
+          403: ErrorResponseSchema,
+          404: ErrorResponseSchema,
+          500: ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const canRead = await hasPermission(request.user.userId, Resource.USER, "read");
+        if (!canRead) {
+          return reply.status(403).send({ error: "Permission denied" });
+        }
+
+        const role = await getRoleById(request.params.id);
+
+        if (!role) {
+          return reply.status(404).send({ error: "Role not found" });
+        }
+
+        reply.send({
+          id: role.id,
+          name: role.name,
+          description: role.description,
+          isDefault: role.isDefault,
+          permissions: role.permissions.map((p: RolePermission) => ({
+            resource: p.resource,
+            canRead: p.canRead,
+            canWrite: p.canWrite,
+            canDelete: p.canDelete,
+          })),
+          _count: role._count,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to fetch role";
+        reply.status(500).send({ error: message });
+      }
+    }
+  );
+
+  // Create role
+  app.post<{ Body: CreateRoleBody }>(
+    "/roles",
+    {
+      onRequest: [app.authenticate],
+      schema: {
+        tags: ["roles"],
+        summary: "Create a new role",
+        security: [{ bearerAuth: [] }],
+        body: CreateRoleBodySchema,
+        response: {
+          201: RoleResponseSchema,
+          403: ErrorResponseSchema,
+          409: ErrorResponseSchema,
+          500: ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const canWrite = await hasPermission(request.user.userId, Resource.USER, "write");
+        if (!canWrite) {
+          return reply.status(403).send({ error: "Permission denied" });
+        }
+
+        // Check for duplicate name
+        const existing = await prisma.role.findUnique({
+          where: { name: request.body.name },
+        });
+        if (existing) {
+          return reply.status(409).send({ error: "A role with this name already exists" });
+        }
+
+        const role = await createRole(request.body.name, request.body.description);
+
+        reply.status(201).send({
+          id: role.id,
+          name: role.name,
+          description: role.description,
+          isDefault: role.isDefault,
+          permissions: role.permissions.map((p: RolePermission) => ({
+            resource: p.resource,
+            canRead: p.canRead,
+            canWrite: p.canWrite,
+            canDelete: p.canDelete,
+          })),
+          _count: role._count,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to create role";
+        reply.status(500).send({ error: message });
+      }
+    }
+  );
+
+  // Update role
+  app.put<{ Params: RoleIdParams; Body: UpdateRoleBody }>(
+    "/roles/:id",
+    {
+      onRequest: [app.authenticate],
+      schema: {
+        tags: ["roles"],
+        summary: "Update a role",
+        security: [{ bearerAuth: [] }],
+        params: RoleIdParamsSchema,
+        body: UpdateRoleBodySchema,
+        response: {
+          200: RoleResponseSchema,
+          403: ErrorResponseSchema,
+          404: ErrorResponseSchema,
+          409: ErrorResponseSchema,
+          500: ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const canWrite = await hasPermission(request.user.userId, Resource.USER, "write");
+        if (!canWrite) {
+          return reply.status(403).send({ error: "Permission denied" });
+        }
+
+        const existing = await getRoleById(request.params.id);
+        if (!existing) {
+          return reply.status(404).send({ error: "Role not found" });
+        }
+
+        if (existing.isDefault) {
+          return reply.status(403).send({ error: "Cannot modify a default role" });
+        }
+
+        // Check for duplicate name if name is being changed
+        if (request.body.name && request.body.name !== existing.name) {
+          const duplicate = await prisma.role.findUnique({
+            where: { name: request.body.name },
+          });
+          if (duplicate) {
+            return reply.status(409).send({ error: "A role with this name already exists" });
+          }
+        }
+
+        const role = await updateRole(request.params.id, {
+          name: request.body.name,
+          description: request.body.description,
+        });
+
+        reply.send({
+          id: role.id,
+          name: role.name,
+          description: role.description,
+          isDefault: role.isDefault,
+          permissions: role.permissions.map((p: RolePermission) => ({
+            resource: p.resource,
+            canRead: p.canRead,
+            canWrite: p.canWrite,
+            canDelete: p.canDelete,
+          })),
+          _count: role._count,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to update role";
+        reply.status(500).send({ error: message });
+      }
+    }
+  );
+
+  // Delete role
+  app.delete<{ Params: RoleIdParams }>(
+    "/roles/:id",
+    {
+      onRequest: [app.authenticate],
+      schema: {
+        tags: ["roles"],
+        summary: "Delete a role",
+        security: [{ bearerAuth: [] }],
+        params: RoleIdParamsSchema,
+        response: {
+          204: Type.Null(),
+          403: ErrorResponseSchema,
+          404: ErrorResponseSchema,
+          409: ErrorResponseSchema,
+          500: ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const canDel = await hasPermission(request.user.userId, Resource.USER, "delete");
+        if (!canDel) {
+          return reply.status(403).send({ error: "Permission denied" });
+        }
+
+        const existing = await getRoleById(request.params.id);
+        if (!existing) {
+          return reply.status(404).send({ error: "Role not found" });
+        }
+
+        if (existing.isDefault) {
+          return reply.status(403).send({ error: "Cannot delete a default role" });
+        }
+
+        if (existing._count.users > 0) {
+          return reply.status(409).send({
+            error: "Cannot delete a role that has users assigned to it",
+          });
+        }
+
+        await deleteRole(request.params.id);
+
+        reply.status(204).send();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to delete role";
+        reply.status(500).send({ error: message });
+      }
+    }
+  );
+
+  // Update role permissions
+  app.put<{ Params: RoleIdParams; Body: UpdateRolePermissionsBody }>(
+    "/roles/:id/permissions",
+    {
+      onRequest: [app.authenticate],
+      schema: {
+        tags: ["roles"],
+        summary: "Update permissions for a role",
+        security: [{ bearerAuth: [] }],
+        params: RoleIdParamsSchema,
+        body: UpdateRolePermissionsBodySchema,
+        response: {
+          200: RoleResponseSchema,
+          403: ErrorResponseSchema,
+          404: ErrorResponseSchema,
+          500: ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const canWrite = await hasPermission(request.user.userId, Resource.USER, "write");
+        if (!canWrite) {
+          return reply.status(403).send({ error: "Permission denied" });
+        }
+
+        const existing = await getRoleById(request.params.id);
+        if (!existing) {
+          return reply.status(404).send({ error: "Role not found" });
+        }
+
+        const role = await updateRolePermissions(
+          request.params.id,
+          request.body.permissions.map((p) => ({
+            resource: p.resource as Resource,
+            canRead: p.canRead as PermissionScope,
+            canWrite: p.canWrite as PermissionScope,
+            canDelete: p.canDelete as PermissionScope,
+          }))
+        );
+
+        if (!role) {
+          return reply.status(500).send({ error: "Failed to update role permissions" });
+        }
+
+        reply.send({
+          id: role.id,
+          name: role.name,
+          description: role.description,
+          isDefault: role.isDefault,
+          permissions: role.permissions.map((p: RolePermission) => ({
+            resource: p.resource,
+            canRead: p.canRead,
+            canWrite: p.canWrite,
+            canDelete: p.canDelete,
+          })),
+          _count: role._count,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to update role permissions";
         reply.status(500).send({ error: message });
       }
     }

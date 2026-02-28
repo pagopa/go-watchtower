@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient, AuthProvider, Resource } from "../generated/prisma/client.js";
+import { PrismaClient, AuthProvider, Resource, PermissionScope } from "../generated/prisma/client.js";
 import bcrypt from "bcrypt";
 import pg from "pg";
 
@@ -20,49 +20,50 @@ async function hashPassword(password: string): Promise<string> {
 }
 
 // Permission matrix: [canRead, canWrite, canDelete]
-type PermissionTuple = [boolean, boolean, boolean];
+const { NONE, OWN, ALL } = PermissionScope;
+type PermissionTuple = [PermissionScope, PermissionScope, PermissionScope];
 type RolePermissions = Record<Resource, PermissionTuple>;
 
 const ROLE_PERMISSIONS: Record<string, RolePermissions> = {
   GUEST: {
-    PRODUCT: [true, false, false],
-    ENVIRONMENT: [true, false, false],
-    MICROSERVICE: [true, false, false],
-    IGNORED_ALARM: [true, false, false],
-    RUNBOOK: [true, false, false],
-    FINAL_ACTION: [true, false, false],
-    ALARM_ANALYSIS: [true, false, false],
-    USER: [false, false, false],
+    PRODUCT: [ALL, NONE, NONE],
+    ENVIRONMENT: [ALL, NONE, NONE],
+    MICROSERVICE: [ALL, NONE, NONE],
+    IGNORED_ALARM: [ALL, NONE, NONE],
+    RUNBOOK: [ALL, NONE, NONE],
+    FINAL_ACTION: [ALL, NONE, NONE],
+    ALARM_ANALYSIS: [ALL, NONE, NONE],
+    USER: [NONE, NONE, NONE],
   },
   OPERATOR: {
-    PRODUCT: [true, false, false],
-    ENVIRONMENT: [true, false, false],
-    MICROSERVICE: [true, false, false],
-    IGNORED_ALARM: [true, false, false],
-    RUNBOOK: [true, false, false],
-    FINAL_ACTION: [true, false, false],
-    ALARM_ANALYSIS: [true, true, false],
-    USER: [false, false, false],
+    PRODUCT: [ALL, NONE, NONE],
+    ENVIRONMENT: [ALL, NONE, NONE],
+    MICROSERVICE: [ALL, NONE, NONE],
+    IGNORED_ALARM: [ALL, NONE, NONE],
+    RUNBOOK: [ALL, NONE, NONE],
+    FINAL_ACTION: [ALL, NONE, NONE],
+    ALARM_ANALYSIS: [ALL, OWN, NONE],
+    USER: [NONE, NONE, NONE],
   },
   TEAM_LEAD: {
-    PRODUCT: [true, false, false],
-    ENVIRONMENT: [true, false, false],
-    MICROSERVICE: [true, false, false],
-    IGNORED_ALARM: [true, true, false],
-    RUNBOOK: [true, true, false],
-    FINAL_ACTION: [true, true, false],
-    ALARM_ANALYSIS: [true, true, true],
-    USER: [true, false, false],
+    PRODUCT: [ALL, NONE, NONE],
+    ENVIRONMENT: [ALL, NONE, NONE],
+    MICROSERVICE: [ALL, NONE, NONE],
+    IGNORED_ALARM: [ALL, ALL, NONE],
+    RUNBOOK: [ALL, ALL, NONE],
+    FINAL_ACTION: [ALL, ALL, NONE],
+    ALARM_ANALYSIS: [ALL, ALL, ALL],
+    USER: [ALL, NONE, NONE],
   },
   ADMIN: {
-    PRODUCT: [true, true, true],
-    ENVIRONMENT: [true, true, true],
-    MICROSERVICE: [true, true, true],
-    IGNORED_ALARM: [true, true, true],
-    RUNBOOK: [true, true, true],
-    FINAL_ACTION: [true, true, true],
-    ALARM_ANALYSIS: [true, true, true],
-    USER: [true, true, true],
+    PRODUCT: [ALL, ALL, ALL],
+    ENVIRONMENT: [ALL, ALL, ALL],
+    MICROSERVICE: [ALL, ALL, ALL],
+    IGNORED_ALARM: [ALL, ALL, ALL],
+    RUNBOOK: [ALL, ALL, ALL],
+    FINAL_ACTION: [ALL, ALL, ALL],
+    ALARM_ANALYSIS: [ALL, ALL, ALL],
+    USER: [ALL, ALL, ALL],
   },
 };
 

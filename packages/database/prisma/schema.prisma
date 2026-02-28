@@ -39,6 +39,12 @@ enum Resource {
   USER
 }
 
+enum PermissionScope {
+  NONE
+  OWN
+  ALL
+}
+
 // ═══════════════════════════════════════════════════════════
 // ROLES & PERMISSIONS
 // ═══════════════════════════════════════════════════════════
@@ -58,14 +64,14 @@ model Role {
 }
 
 model RolePermission {
-  id        String   @id @default(uuid(7)) @db.Uuid
-  roleId    String   @map("role_id") @db.Uuid
+  id        String          @id @default(uuid(7)) @db.Uuid
+  roleId    String          @map("role_id") @db.Uuid
   resource  Resource
-  canRead   Boolean  @default(false) @map("can_read")
-  canWrite  Boolean  @default(false) @map("can_write")
-  canDelete Boolean  @default(false) @map("can_delete")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  canRead   PermissionScope @default(NONE) @map("can_read")
+  canWrite  PermissionScope @default(NONE) @map("can_write")
+  canDelete PermissionScope @default(NONE) @map("can_delete")
+  createdAt DateTime        @default(now()) @map("created_at")
+  updatedAt DateTime        @updatedAt @map("updated_at")
 
   role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
@@ -75,16 +81,16 @@ model RolePermission {
 }
 
 model UserPermissionOverride {
-  id        String   @id @default(uuid(7)) @db.Uuid
-  userId    String   @map("user_id") @db.Uuid
+  id        String           @id @default(uuid(7)) @db.Uuid
+  userId    String           @map("user_id") @db.Uuid
   resource  Resource
-  canRead   Boolean? @map("can_read")
-  canWrite  Boolean? @map("can_write")
-  canDelete Boolean? @map("can_delete")
-  grantedBy String?  @map("granted_by") @db.Uuid
+  canRead   PermissionScope? @map("can_read")
+  canWrite  PermissionScope? @map("can_write")
+  canDelete PermissionScope? @map("can_delete")
+  grantedBy String?          @map("granted_by") @db.Uuid
   reason    String?
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
 
   user          User  @relation("UserOverrides", fields: [userId], references: [id], onDelete: Cascade)
   grantedByUser User? @relation("GrantedOverrides", fields: [grantedBy], references: [id], onDelete: SetNull)

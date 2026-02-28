@@ -2,6 +2,7 @@
 
 import { Suspense, useState, useCallback, useMemo, type ReactNode } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, Plus, Inbox,
@@ -203,7 +204,8 @@ export function AnalysesPageWrapper() {
 
 function AnalysesPageContent() {
   const queryClient = useQueryClient()
-  const { can, isLoading: permissionsLoading } = usePermissions()
+  const { data: session } = useSession()
+  const { can, canFor, isLoading: permissionsLoading } = usePermissions()
   const { preferences, updatePreferences } = usePreferences()
   const searchParams = useSearchParams()
 
@@ -245,6 +247,14 @@ function AnalysesPageContent() {
   // Permissions
   const canWrite = !permissionsLoading && can('ALARM_ANALYSIS', 'write')
   const canDelete = !permissionsLoading && can('ALARM_ANALYSIS', 'delete')
+  const currentUserId = session?.user?.id
+
+  const canEditAnalysis = useCallback(
+    (analysis: AlarmAnalysis): boolean => {
+      return canFor('ALARM_ANALYSIS', 'write', analysis.createdById, currentUserId)
+    },
+    [canFor, currentUserId]
+  )
 
   // Is this the "all products" view?
   const isAllView = !effectiveProductId
@@ -650,7 +660,7 @@ function AnalysesPageContent() {
                     {(canWrite || canDelete) && (
                       <TableCell className="sticky right-0 z-10 border-l border-border/40 bg-card py-2 text-right group-hover:bg-muted/30">
                         <div className="flex justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                          {canWrite && (
+                          {canEditAnalysis(analysis) && (
                             <Button
                               variant="ghost"
                               size="icon"
@@ -709,7 +719,7 @@ function AnalysesPageContent() {
                 setPage(1)
               }}
             >
-              <SelectTrigger className="h-7 w-[60px] text-xs">
+              <SelectTrigger className="h-7 w-[70px] text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -757,7 +767,7 @@ function AnalysesPageContent() {
         onClose={handleCloseDetailPanel}
         onEdit={handleEdit}
         onDelete={handleDelete}
-        canWrite={canWrite}
+        canWrite={selectedAnalysis ? canEditAnalysis(selectedAnalysis) : false}
         canDelete={canDelete}
       />
 

@@ -1,10 +1,16 @@
 import { Type, type Static } from "@sinclair/typebox";
 
+export const PermissionScopeSchema = Type.Union([
+  Type.Literal("NONE"),
+  Type.Literal("OWN"),
+  Type.Literal("ALL"),
+]);
+
 // Response schemas
 export const ResourcePermissionSchema = Type.Object({
-  canRead: Type.Boolean(),
-  canWrite: Type.Boolean(),
-  canDelete: Type.Boolean(),
+  canRead: PermissionScopeSchema,
+  canWrite: PermissionScopeSchema,
+  canDelete: PermissionScopeSchema,
 });
 
 export const PermissionsResponseSchema = Type.Object({

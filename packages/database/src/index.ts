@@ -7,6 +7,7 @@ export {
   AnalysisType,
   AnalysisStatus,
   Resource,
+  PermissionScope,
   type User,
   type Role,
   type RolePermission,

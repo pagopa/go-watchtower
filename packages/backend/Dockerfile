@@ -58,6 +58,13 @@ RUN cd packages/database && NODE_PATH=/usr/local/lib/node_modules prisma generat
 COPY --from=builder /app/packages/database/dist ./packages/database/dist
 COPY --from=builder /app/packages/backend/dist ./packages/backend/dist
 
+# Download AWS RDS CA bundle (required for TLS verification against Aurora)
+RUN mkdir -p /usr/local/share/ca-certificates && \
+    wget -O /usr/local/share/ca-certificates/rds-ca-bundle.pem \
+    https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem
+
+ENV NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/rds-ca-bundle.pem
+
 # Copy entrypoint
 COPY packages/backend/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh

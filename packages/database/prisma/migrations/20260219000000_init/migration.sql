@@ -6,6 +6,7 @@ CREATE TYPE "AuthProvider" AS ENUM ('LOCAL', 'GOOGLE');
 CREATE TYPE "AnalysisType" AS ENUM ('ANALYZABLE', 'IGNORED_RELEASE', 'IGNORED_MAINTENANCE', 'IGNORED_LISTED', 'IGNORED_NOT_MANAGED');
 CREATE TYPE "AnalysisStatus" AS ENUM ('CREATED', 'IN_PROGRESS', 'COMPLETED');
 CREATE TYPE "Resource" AS ENUM ('PRODUCT', 'ENVIRONMENT', 'MICROSERVICE', 'IGNORED_ALARM', 'RUNBOOK', 'FINAL_ACTION', 'ALARM', 'ALARM_ANALYSIS', 'DOWNSTREAM', 'USER');
+CREATE TYPE "PermissionScope" AS ENUM ('NONE', 'OWN', 'ALL');
 
 -- ═══════════════════════════════════════════════════════════
 -- ROLES & PERMISSIONS
@@ -26,9 +27,9 @@ CREATE TABLE "role_permissions" (
     "id" UUID NOT NULL,
     "role_id" UUID NOT NULL,
     "resource" "Resource" NOT NULL,
-    "can_read" BOOLEAN NOT NULL DEFAULT false,
-    "can_write" BOOLEAN NOT NULL DEFAULT false,
-    "can_delete" BOOLEAN NOT NULL DEFAULT false,
+    "can_read" "PermissionScope" NOT NULL DEFAULT 'NONE'::"PermissionScope",
+    "can_write" "PermissionScope" NOT NULL DEFAULT 'NONE'::"PermissionScope",
+    "can_delete" "PermissionScope" NOT NULL DEFAULT 'NONE'::"PermissionScope",
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -39,9 +40,9 @@ CREATE TABLE "user_permission_overrides" (
     "id" UUID NOT NULL,
     "user_id" UUID NOT NULL,
     "resource" "Resource" NOT NULL,
-    "can_read" BOOLEAN,
-    "can_write" BOOLEAN,
-    "can_delete" BOOLEAN,
+    "can_read" "PermissionScope",
+    "can_write" "PermissionScope",
+    "can_delete" "PermissionScope",
     "granted_by" UUID,
     "reason" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,

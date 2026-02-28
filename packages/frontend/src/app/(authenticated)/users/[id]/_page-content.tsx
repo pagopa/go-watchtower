@@ -12,11 +12,11 @@ import {
   type UserDetailWithOverrides,
   type UserWithPermissions,
   type Role,
+  type PermissionScope,
 } from '@/lib/api-client'
 import { usePermissions } from '@/hooks/use-permissions'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Switch } from '@/components/ui/switch'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Select,
@@ -62,14 +62,39 @@ const RESOURCE_LABELS: Record<string, string> = {
   USER: 'Utente',
 }
 
+const SCOPE_LABELS: Record<PermissionScope, string> = {
+  NONE: 'Nessuno',
+  OWN: 'Solo propri',
+  ALL: 'Tutti',
+}
+
+const SCOPE_BADGE_VARIANT: Record<PermissionScope, 'secondary' | 'default' | 'success'> = {
+  NONE: 'secondary',
+  OWN: 'default',
+  ALL: 'success',
+}
 
 type PermAction = 'canRead' | 'canWrite' | 'canDelete'
+
+/**
+ * Value for the select: "inherit" means remove the override (null),
+ * otherwise it is the PermissionScope string.
+ */
+type OverrideSelectValue = 'inherit' | PermissionScope
 
 function UserAvatar({ name }: { name: string }) {
   return (
     <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-base font-bold select-none">
       {name.charAt(0).toUpperCase()}
     </div>
+  )
+}
+
+function ScopeBadge({ scope }: { scope: PermissionScope }) {
+  return (
+    <Badge variant={SCOPE_BADGE_VARIANT[scope]} className="px-2 py-0.5 text-xs">
+      {SCOPE_LABELS[scope]}
+    </Badge>
   )
 }
 
@@ -126,7 +151,7 @@ export function UserDetailPage() {
   })
 
   const setOverrideMutation = useMutation({
-    mutationFn: ({ resource, action, value }: { resource: string; action: PermAction; value: boolean }) =>
+    mutationFn: ({ resource, action, value }: { resource: string; action: PermAction; value: PermissionScope | null }) =>
       api.setUserPermissionOverride(userId, { resource, [action]: value }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users', userId] })
@@ -202,10 +227,10 @@ export function UserDetailPage() {
     )
   }
 
-  const getRolePermission = (resource: string, action: PermAction): boolean => {
-    if (!userPermissions) return false
+  const getRolePermission = (resource: string, action: PermAction): PermissionScope => {
+    if (!userPermissions) return 'NONE'
     const rp = userPermissions.rolePermissions.find((p) => p.resource === resource)
-    if (!rp) return false
+    if (!rp) return 'NONE'
     return rp[action]
   }
 
@@ -214,10 +239,33 @@ export function UserDetailPage() {
     return userPermissions.overrides.find((o) => o.resource === resource) ?? null
   }
 
-  const getOverrideValue = (resource: string, action: PermAction): boolean | null => {
+  const getOverrideValue = (resource: string, action: PermAction): PermissionScope | null => {
     const override = getOverride(resource)
     if (!override) return null
     return override[action]
+  }
+
+  const handleOverrideChange = (resource: string, action: PermAction, selectValue: OverrideSelectValue) => {
+    if (selectValue === 'inherit') {
+      // Setting to "inherit" means we want to null out this specific action.
+      // If all three actions in the override are null after this, we remove the entire override.
+      const override = getOverride(resource)
+      if (!override) return
+
+      // Check if other actions still have overrides
+      const otherActions = (['canRead', 'canWrite', 'canDelete'] as PermAction[]).filter((a) => a !== action)
+      const hasOtherOverrides = otherActions.some((a) => override[a] !== null)
+
+      if (!hasOtherOverrides) {
+        // No other action overrides remain -- remove the entire resource override
+        removeOverrideMutation.mutate(resource)
+      } else {
+        // Null out just this action
+        setOverrideMutation.mutate({ resource, action, value: null })
+      }
+    } else {
+      setOverrideMutation.mutate({ resource, action, value: selectValue })
+    }
   }
 
   const currentRole = roles?.find((r) => r.name === user.roleName)
@@ -368,7 +416,7 @@ export function UserDetailPage() {
               Permessi
             </h2>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              Valori da ruolo in grigio · override specifici in colore
+              Valori da ruolo in grigio &middot; override specifici in colore
               {overrideCount > 0 && (
                 <span className="ml-2 inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
                   {overrideCount} override
@@ -444,31 +492,35 @@ export function UserDetailPage() {
 
                         return (
                           <div key={action} className="flex flex-1 flex-col items-center gap-1.5">
-                            {hasActionOverride ? (
-                              <Badge
-                                variant={effectiveValue ? 'success' : 'destructive'}
-                                className="px-2 py-0.5 text-xs"
-                              >
-                                {effectiveValue ? 'Sì' : 'No'}
-                              </Badge>
-                            ) : canWrite ? (
-                              <Switch
-                                checked={effectiveValue}
-                                onCheckedChange={(checked) =>
-                                  setOverrideMutation.mutate({ resource, action, value: checked })
+                            {canWrite ? (
+                              <Select
+                                value={hasActionOverride ? overrideValue : 'inherit'}
+                                onValueChange={(val) =>
+                                  handleOverrideChange(resource, action, val as OverrideSelectValue)
                                 }
                                 disabled={setOverrideMutation.isPending || removeOverrideMutation.isPending}
-                              />
-                            ) : (
-                              <Badge
-                                variant={effectiveValue ? 'success' : 'secondary'}
-                                className="px-2 py-0.5 text-xs"
                               >
-                                {effectiveValue ? 'Sì' : 'No'}
-                              </Badge>
+                                <SelectTrigger className={cn(
+                                  "h-7 w-[120px] text-xs",
+                                  hasActionOverride && "border-primary/30"
+                                )}>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="inherit" className="text-xs">
+                                    <span className="text-muted-foreground">Eredita dal ruolo</span>
+                                    <span className="ml-1 text-[10px] text-muted-foreground/60">({SCOPE_LABELS[roleValue]})</span>
+                                  </SelectItem>
+                                  <SelectItem value="NONE" className="text-xs">Nessuno (NONE)</SelectItem>
+                                  <SelectItem value="OWN" className="text-xs">Solo propri (OWN)</SelectItem>
+                                  <SelectItem value="ALL" className="text-xs">Tutti (ALL)</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <ScopeBadge scope={effectiveValue} />
                             )}
                             <span className="text-[10px] text-muted-foreground/60 tabular-nums">
-                              ruolo: {roleValue ? 'sì' : 'no'}
+                              ruolo: {SCOPE_LABELS[roleValue]}
                             </span>
                           </div>
                         )
@@ -507,7 +559,7 @@ export function UserDetailPage() {
             <AlertDialogTitle>Conferma eliminazione</AlertDialogTitle>
             <AlertDialogDescription>
               Sei sicuro di voler eliminare l&apos;utente &quot;{user.name}&quot;?
-              Questa azione non può essere annullata.
+              Questa azione non pu&ograve; essere annullata.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

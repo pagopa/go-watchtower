@@ -1,5 +1,11 @@
 import { Type, type Static } from "@sinclair/typebox";
 
+export const PermissionScopeSchema = Type.Union([
+  Type.Literal("NONE"),
+  Type.Literal("OWN"),
+  Type.Literal("ALL"),
+]);
+
 // ============================================================================
 // User Schemas
 // ============================================================================
@@ -17,9 +23,9 @@ export const UserResponseSchema = Type.Object({
 
 export const PermissionOverrideSchema = Type.Object({
   resource: Type.String(),
-  canRead: Type.Union([Type.Boolean(), Type.Null()]),
-  canWrite: Type.Union([Type.Boolean(), Type.Null()]),
-  canDelete: Type.Union([Type.Boolean(), Type.Null()]),
+  canRead: Type.Union([PermissionScopeSchema, Type.Null()]),
+  canWrite: Type.Union([PermissionScopeSchema, Type.Null()]),
+  canDelete: Type.Union([PermissionScopeSchema, Type.Null()]),
   reason: Type.Union([Type.String(), Type.Null()]),
   grantedByUser: Type.Union([
     Type.Object({
@@ -33,9 +39,9 @@ export const PermissionOverrideSchema = Type.Object({
 
 export const RolePermissionSchema = Type.Object({
   resource: Type.String(),
-  canRead: Type.Boolean(),
-  canWrite: Type.Boolean(),
-  canDelete: Type.Boolean(),
+  canRead: PermissionScopeSchema,
+  canWrite: PermissionScopeSchema,
+  canDelete: PermissionScopeSchema,
 });
 
 export const UserDetailResponseSchema = Type.Object({
@@ -54,9 +60,9 @@ export const UserPermissionsResponseSchema = Type.Object({
   permissions: Type.Record(
     Type.String(),
     Type.Object({
-      canRead: Type.Boolean(),
-      canWrite: Type.Boolean(),
-      canDelete: Type.Boolean(),
+      canRead: PermissionScopeSchema,
+      canWrite: PermissionScopeSchema,
+      canDelete: PermissionScopeSchema,
     })
   ),
   rolePermissions: Type.Array(RolePermissionSchema),
@@ -85,9 +91,9 @@ export type UpdateUserBody = Static<typeof UpdateUserBodySchema>;
 
 export const SetPermissionOverrideBodySchema = Type.Object({
   resource: Type.String(),
-  canRead: Type.Optional(Type.Union([Type.Boolean(), Type.Null()])),
-  canWrite: Type.Optional(Type.Union([Type.Boolean(), Type.Null()])),
-  canDelete: Type.Optional(Type.Union([Type.Boolean(), Type.Null()])),
+  canRead: Type.Optional(Type.Union([PermissionScopeSchema, Type.Null()])),
+  canWrite: Type.Optional(Type.Union([PermissionScopeSchema, Type.Null()])),
+  canDelete: Type.Optional(Type.Union([PermissionScopeSchema, Type.Null()])),
   reason: Type.Optional(Type.String()),
 });
 
@@ -151,6 +157,43 @@ export const RoleResponseSchema = Type.Object({
 });
 
 export const RolesResponseSchema = Type.Array(RoleResponseSchema);
+
+export const RoleIdParamsSchema = Type.Object({
+  id: Type.String(),
+});
+
+export type RoleIdParams = Static<typeof RoleIdParamsSchema>;
+
+export const CreateRoleBodySchema = Type.Object({
+  name: Type.String({ minLength: 1, maxLength: 50 }),
+  description: Type.Optional(Type.String({ maxLength: 255 })),
+});
+
+export type CreateRoleBody = Static<typeof CreateRoleBodySchema>;
+
+export const UpdateRoleBodySchema = Type.Object({
+  name: Type.Optional(Type.String({ minLength: 1, maxLength: 50 })),
+  description: Type.Optional(
+    Type.Union([Type.String({ maxLength: 255 }), Type.Null()])
+  ),
+});
+
+export type UpdateRoleBody = Static<typeof UpdateRoleBodySchema>;
+
+export const UpdateRolePermissionsBodySchema = Type.Object({
+  permissions: Type.Array(
+    Type.Object({
+      resource: Type.String(),
+      canRead: PermissionScopeSchema,
+      canWrite: PermissionScopeSchema,
+      canDelete: PermissionScopeSchema,
+    })
+  ),
+});
+
+export type UpdateRolePermissionsBody = Static<
+  typeof UpdateRolePermissionsBodySchema
+>;
 
 // ============================================================================
 // Common Error Schemas (reused)

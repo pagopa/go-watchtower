@@ -210,7 +210,6 @@ export function FirstAlarmField({ control, errors, disabled, onAutoFill }: First
                 onChange={(v) =>
                   onAutoFill ? onAutoFill(v, field.onChange) : field.onChange(v)
                 }
-                placeholder="Seleziona primo allarme"
                 disabled={disabled}
               />
               {romeDisplay && <TzCompanion label="Roma" value={romeDisplay} />}
@@ -258,7 +257,6 @@ export function LastAlarmField({ control, errors, disabled, dateError }: LastAla
               <DateTimePicker
                 value={field.value}
                 onChange={field.onChange}
-                placeholder="Seleziona ultimo allarme"
                 disabled={disabled}
               />
               {romeDisplay && <TzCompanion label="Roma" value={romeDisplay} />}
@@ -290,10 +288,6 @@ interface AnalysisDateFieldProps {
 export function AnalysisDateField({ control, errors, disabled, dateError }: AnalysisDateFieldProps) {
   return (
     <div className="space-y-2">
-      <div className="flex items-baseline gap-1.5">
-        <Label>Data analisi *</Label>
-        <span className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wide">ora Roma</span>
-      </div>
       <Controller
         name="analysisDate"
         control={control}
@@ -305,15 +299,22 @@ export function AnalysisDateField({ control, errors, disabled, dateError }: Anal
             } catch { /* ignore */ }
           }
           return (
-            <div>
-              <DateTimePicker
-                value={field.value}
-                onChange={field.onChange}
-                placeholder="Seleziona data analisi"
-                disabled={disabled}
-              />
-              {utcDisplay && <TzCompanion label="UTC" value={utcDisplay} />}
-            </div>
+            <>
+              <div className="flex items-baseline gap-1.5">
+                <Label>Data analisi *</Label>
+                <span className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wide">ora Roma</span>
+              </div>
+              <div>
+                <DateTimePicker
+                  value={field.value}
+                  onChange={field.onChange}
+                  disabled={disabled}
+                  showNow
+                  nowTimezone="Europe/Rome"
+                />
+                {utcDisplay && <TzCompanion label="UTC" value={utcDisplay} />}
+              </div>
+            </>
           )
         }}
       />

@@ -3,7 +3,7 @@ import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import { prisma, Resource, type PrismaClient } from "@go-watchtower/database";
 
 type TransactionClient = Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends">;
-import { hasPermission } from "../../services/permission.service.js";
+import { hasPermission, hasPermissionForResource } from "../../services/permission.service.js";
 import {
   ProductIdParamsSchema,
   AlarmAnalysisParamsSchema,
@@ -673,15 +673,6 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canWrite = await hasPermission(
-          request.user.userId,
-          Resource.ALARM_ANALYSIS,
-          "write"
-        );
-        if (!canWrite) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const { productId, id } = request.params;
 
         // Verify analysis exists and belongs to product
@@ -691,6 +682,17 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
 
         if (!existing) {
           return reply.status(404).send({ error: "Analysis not found" });
+        }
+
+        // Scope-aware ownership check: ALL can edit any, OWN only own, NONE denied
+        const canWriteForThis = await hasPermissionForResource(
+          request.user.userId,
+          Resource.ALARM_ANALYSIS,
+          "write",
+          existing.createdById
+        );
+        if (!canWriteForThis) {
+          return reply.status(403).send({ error: "Permission denied" });
         }
 
         // Verify operator exists (if provided)
@@ -1218,15 +1220,6 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canDelete = await hasPermission(
-          request.user.userId,
-          Resource.ALARM_ANALYSIS,
-          "delete"
-        );
-        if (!canDelete) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         // Verify analysis exists and belongs to product
         const existing = await prisma.alarmAnalysis.findFirst({
           where: {
@@ -1237,6 +1230,17 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
 
         if (!existing) {
           return reply.status(404).send({ error: "Analysis not found" });
+        }
+
+        // Scope-aware ownership check for delete
+        const canDeleteThis = await hasPermissionForResource(
+          request.user.userId,
+          Resource.ALARM_ANALYSIS,
+          "delete",
+          existing.createdById
+        );
+        if (!canDeleteThis) {
+          return reply.status(403).send({ error: "Permission denied" });
         }
 
         await prisma.alarmAnalysis.delete({

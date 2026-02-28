@@ -499,11 +499,13 @@ export interface UserDetail {
   updatedAt: string
 }
 
+export type PermissionScope = "NONE" | "OWN" | "ALL"
+
 export interface UserPermissionOverride {
   resource: string
-  canRead: boolean | null
-  canWrite: boolean | null
-  canDelete: boolean | null
+  canRead: PermissionScope | null
+  canWrite: PermissionScope | null
+  canDelete: PermissionScope | null
   reason: string | null
   grantedByUser: { id: string; name: string; email: string } | null
 }
@@ -514,9 +516,9 @@ export interface UserDetailWithOverrides extends UserDetail {
 
 export interface RolePermission {
   resource: string
-  canRead: boolean
-  canWrite: boolean
-  canDelete: boolean
+  canRead: PermissionScope
+  canWrite: PermissionScope
+  canDelete: PermissionScope
 }
 
 export interface UserWithPermissions {
@@ -550,16 +552,16 @@ export interface UpdateUserData {
 
 export interface SetPermissionOverrideData {
   resource: string
-  canRead?: boolean | null
-  canWrite?: boolean | null
-  canDelete?: boolean | null
+  canRead?: PermissionScope | null
+  canWrite?: PermissionScope | null
+  canDelete?: PermissionScope | null
   reason?: string
 }
 
 export interface ResourcePermission {
-  canRead: boolean
-  canWrite: boolean
-  canDelete: boolean
+  canRead: PermissionScope
+  canWrite: PermissionScope
+  canDelete: PermissionScope
 }
 
 export interface UserPermissions {
@@ -671,6 +673,25 @@ export interface AlarmRankingItem {
   productName: string
   totalAnalyses: number
   totalOccurrences: number
+}
+
+export interface CreateRoleData {
+  name: string
+  description?: string
+}
+
+export interface UpdateRoleData {
+  name?: string
+  description?: string | null
+}
+
+export interface UpdateRolePermissionsData {
+  permissions: Array<{
+    resource: string
+    canRead: PermissionScope
+    canWrite: PermissionScope
+    canDelete: PermissionScope
+  }>
 }
 
 // API methods
@@ -812,6 +833,15 @@ export const api = {
 
   // Roles
   getRoles: () => request<Role[]>('/api/roles'),
+  getRoleById: (id: string) => request<Role>(`/api/roles/${id}`),
+  createRole: (data: CreateRoleData) =>
+    request<Role>('/api/roles', { method: 'POST', body: data }),
+  updateRole: (id: string, data: UpdateRoleData) =>
+    request<Role>(`/api/roles/${id}`, { method: 'PUT', body: data }),
+  deleteRole: (id: string) =>
+    request<void>(`/api/roles/${id}`, { method: 'DELETE' }),
+  updateRolePermissions: (id: string, data: UpdateRolePermissionsData) =>
+    request<Role>(`/api/roles/${id}/permissions`, { method: 'PUT', body: data }),
 
   // User Preferences
   getMyPreferences: () => request<UserPreferences>('/api/users/me/preferences'),
