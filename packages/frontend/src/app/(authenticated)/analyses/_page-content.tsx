@@ -17,6 +17,7 @@ import {
   type Environment,
   type Alarm,
   type FinalAction,
+  type AnalysisAuthor,
   type UserDetail,
   type PaginatedResponse,
   type AnalysisType,
@@ -301,6 +302,13 @@ function AnalysesPageContent() {
   const { data: users } = useQuery<UserDetail[]>({
     queryKey: ['users'],
     queryFn: api.getUsers,
+    enabled: can('USER', 'read'),
+  })
+
+  const { data: analysisAuthors } = useQuery<AnalysisAuthor[]>({
+    queryKey: ['analysis-authors'],
+    queryFn: api.getAnalysisAuthors,
+    enabled: can('ALARM_ANALYSIS', 'read'),
   })
 
   // Reference data for filter dropdowns (only when viewing a specific product)
@@ -530,7 +538,7 @@ function AnalysesPageContent() {
         environments={!isAllView ? environments : undefined}
         alarms={!isAllView ? alarms : undefined}
         finalActions={!isAllView ? finalActions : undefined}
-        users={users}
+        users={analysisAuthors}
         collapsed={filtersCollapsed}
         onToggleCollapsed={handleToggleFiltersCollapsed}
       />

@@ -202,12 +202,18 @@ export function AnalysisFormDialog({
   })
 
   const availableUsers = useMemo(() => {
-    if (!users) return []
     if (!can('USER', 'read')) {
-      return users.filter((u) => u.id === session?.user?.id)
+      // Operator: can only select themselves.
+      // Prefer the entry from the users list; fall back to session data.
+      const self = users?.find((u) => u.id === session?.user?.id)
+      if (self) return [self]
+      if (session?.user?.id) {
+        return [{ id: session.user.id, name: session.user.name, email: session.user.email } as UserDetail]
+      }
+      return []
     }
-    return users
-  }, [users, can, session?.user?.id])
+    return users ?? []
+  }, [users, can, session?.user?.id, session?.user?.name, session?.user?.email])
 
   const isOperatorLocked = availableUsers.length <= 1
 

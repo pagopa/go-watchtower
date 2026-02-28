@@ -11,6 +11,7 @@ import {
   AllAnalysesQuerySchema,
   AnalysisStatsQuerySchema,
   AnalysisStatsResponseSchema,
+  AnalysisAuthorsResponseSchema,
   CreateAlarmAnalysisBodySchema,
   UpdateAlarmAnalysisBodySchema,
   AlarmAnalysisResponseSchema,
@@ -914,6 +915,53 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
           return reply.status(404).send({ error: "Analysis not found" });
         }
         reply.status(400).send({ error: message });
+      }
+    }
+  );
+
+  // ============================================================================
+  // ANALYSIS AUTHORS (users who created at least one analysis)
+  // ============================================================================
+
+  app.get(
+    "/analyses/authors",
+    {
+      onRequest: [app.authenticate],
+      schema: {
+        tags: ["analyses"],
+        summary: "Get distinct users who created at least one analysis",
+        security: [{ bearerAuth: [] }],
+        response: {
+          200: AnalysisAuthorsResponseSchema,
+          403: ErrorResponseSchema,
+          500: ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const canRead = await hasPermission(
+          request.user.userId,
+          Resource.ALARM_ANALYSIS,
+          "read"
+        );
+        if (!canRead) {
+          return reply.status(403).send({ error: "Permission denied" });
+        }
+
+        const authors = await prisma.user.findMany({
+          where: {
+            createdAnalyses: { some: {} },
+          },
+          select: { id: true, name: true, email: true },
+          orderBy: { name: "asc" },
+        });
+
+        reply.send(authors);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Failed to fetch authors";
+        reply.status(500).send({ error: message });
       }
     }
   );

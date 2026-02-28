@@ -19,6 +19,12 @@ const ACCESS_TOKEN_LIFETIME_MS = 14 * 60 * 1000
 // client-side so we know when a refresh is hopeless (avoid pointless calls).
 const REFRESH_TOKEN_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000
 
+// When the backend is temporarily unreachable, extend the session by this
+// amount before retrying, instead of immediately logging the user out.
+const NETWORK_ERROR_RETRY_MS = 2 * 60 * 1000 // 2 minutes
+// After this many consecutive network errors, give up and clear the session.
+const MAX_NETWORK_ERROR_RETRIES = 3 // 3 × 2min = up to 6 minutes of tolerance
+
 interface ExtendedJWT extends JWT {
   id: string
   email: string
@@ -31,6 +37,9 @@ interface ExtendedJWT extends JWT {
   // whether the refresh token has likely expired, avoiding a doomed refresh
   // call that would trigger token-reuse detection on the backend.
   refreshTokenIssuedAt: number
+  // Counts consecutive network errors during refresh. Used to give the backend
+  // time to recover before logging the user out.
+  networkErrorCount?: number
 }
 
 // Deduplicates concurrent refresh calls for the same refresh token AND
@@ -86,32 +95,54 @@ async function refreshAccessToken(token: ExtendedJWT): Promise<ExtendedJWT | nul
 }
 
 async function doRefreshAccessToken(token: ExtendedJWT): Promise<ExtendedJWT | null> {
+  // Use AbortController + setTimeout instead of AbortSignal.timeout() for
+  // reliable cancellation across all Node.js/undici versions.
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 5_000)
+
+  let response: Response
   try {
-    const response = await fetch(`${API_URL}/auth/refresh`, {
+    response = await fetch(`${API_URL}/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken: token.refreshToken }),
-      signal: AbortSignal.timeout(10_000),
+      signal: controller.signal,
     })
-
-    if (!response.ok) {
-      const body = await response.text().catch(() => '')
-      console.error(`[auth] Refresh failed: ${response.status} ${body}`)
-      throw new Error('Refresh token failed')
+  } catch (err) {
+    // Network error or timeout: backend is temporarily unreachable.
+    // Don't log the user out immediately — extend the session and retry later.
+    clearTimeout(timeoutId)
+    const errorCount = (token.networkErrorCount ?? 0) + 1
+    if (errorCount > MAX_NETWORK_ERROR_RETRIES) {
+      console.error(`[auth] Backend unreachable after ${MAX_NETWORK_ERROR_RETRIES} retries, clearing session`, err)
+      return null
     }
-
-    const data = await response.json()
-
+    console.warn(`[auth] Backend unreachable during token refresh (attempt ${errorCount}/${MAX_NETWORK_ERROR_RETRIES}), retrying in ${NETWORK_ERROR_RETRY_MS / 1000}s`, err)
     return {
       ...token,
-      accessToken: data.accessToken,
-      refreshToken: data.refreshToken ?? token.refreshToken,
-      accessTokenExpires: Date.now() + ACCESS_TOKEN_LIFETIME_MS,
-      refreshTokenIssuedAt: Date.now(),
+      accessTokenExpires: Date.now() + NETWORK_ERROR_RETRY_MS,
+      networkErrorCount: errorCount,
     }
-  } catch (err) {
-    console.error('[auth] Refresh token expired or invalid, clearing session', err)
+  }
+
+  clearTimeout(timeoutId)
+
+  if (!response.ok) {
+    // Auth error: the token is invalid or expired on the server side.
+    // Clear the session so the user is redirected to login.
+    const body = await response.text().catch(() => '')
+    console.error(`[auth] Refresh token rejected by server: ${response.status} ${body}`)
     return null
+  }
+
+  const data = await response.json()
+  return {
+    ...token,
+    accessToken: data.accessToken,
+    refreshToken: data.refreshToken ?? token.refreshToken,
+    accessTokenExpires: Date.now() + ACCESS_TOKEN_LIFETIME_MS,
+    refreshTokenIssuedAt: Date.now(),
+    networkErrorCount: 0,
   }
 }
 
@@ -271,6 +302,7 @@ export const authConfig: NextAuthConfig = {
           refreshToken: '',
           accessTokenExpires: 0,
           refreshTokenIssuedAt: 0,
+          networkErrorCount: 0,
         } as ExtendedJWT
       }
 

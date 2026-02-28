@@ -18,7 +18,7 @@ import type {
   Environment,
   Alarm,
   FinalAction,
-  UserDetail,
+  AnalysisAuthor,
   AnalysisType,
   AnalysisStatus,
 } from '@/lib/api-client'
@@ -46,7 +46,7 @@ interface AnalysisFiltersProps {
   environments: Environment[] | undefined
   alarms: Alarm[] | undefined
   finalActions: FinalAction[] | undefined
-  users: UserDetail[] | undefined
+  users: AnalysisAuthor[] | undefined
   collapsed?: boolean
   onToggleCollapsed?: () => void
 }

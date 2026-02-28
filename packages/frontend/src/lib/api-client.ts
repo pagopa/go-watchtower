@@ -487,6 +487,13 @@ export interface UpdateFinalActionData {
   isOther?: boolean
 }
 
+// Analysis author (user who created at least one analysis)
+export interface AnalysisAuthor {
+  id: string
+  name: string
+  email: string
+}
+
 // User Management Types
 export interface UserDetail {
   id: string
@@ -802,6 +809,7 @@ export const api = {
     request<AnalysisStats>('/api/analyses/stats', {
       params: filters as Record<string, string | number | boolean | undefined>,
     }),
+  getAnalysisAuthors: () => request<AnalysisAuthor[]>('/api/analyses/authors'),
 
   // Reports
   getOperatorWorkload: (filters?: ReportFilters) =>

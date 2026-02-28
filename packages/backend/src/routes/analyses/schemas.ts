@@ -246,6 +246,20 @@ export const PaginatedAlarmAnalysisResponseSchema = Type.Object({
 });
 
 // ============================================================================
+// Analysis Authors Schema
+// ============================================================================
+
+export const AnalysisAuthorSchema = Type.Object({
+  id: Type.String(),
+  name: Type.String(),
+  email: Type.String(),
+});
+
+export const AnalysisAuthorsResponseSchema = Type.Array(AnalysisAuthorSchema);
+
+export type AnalysisAuthor = Static<typeof AnalysisAuthorSchema>;
+
+// ============================================================================
 // Common Schemas
 // ============================================================================
 
