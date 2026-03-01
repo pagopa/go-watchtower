@@ -1,10 +1,13 @@
 'use client'
 
-import { Package } from 'lucide-react'
-import { Controller, type Control, type FieldErrors, type UseFormRegisterReturn } from 'react-hook-form'
+import { Package, Plus, Trash2 } from 'lucide-react'
+import { Controller, type Control, type FieldErrors, type UseFormRegister, type UseFormRegisterReturn } from 'react-hook-form'
 import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
+import { inferLinkType } from '@go-watchtower/shared'
 import {
   Select,
   SelectContent,
@@ -524,6 +527,176 @@ export function ProductSelectorCard({
           </p>
         )}
       </div>
+    </div>
+  )
+}
+
+// --- TrackingIdsField ---
+
+interface TrackingIdsFieldProps {
+  fields: { id: string }[]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  append: (value: any) => void
+  remove: (index: number) => void
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  register: UseFormRegister<any>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  errors: FieldErrors<any>
+  disabled: boolean
+}
+
+export function TrackingIdsField({ fields, append, remove, register, errors, disabled }: TrackingIdsFieldProps) {
+  return (
+    <div className="space-y-3 sm:col-span-2">
+      <Label>ID di Tracciamento</Label>
+      {fields.map((field, index) => (
+        <div key={field.id} className="overflow-hidden rounded-lg border border-blue-200/60 dark:border-blue-500/20">
+          <div className="flex items-center gap-2 border-b border-blue-200/50 bg-blue-50/80 px-3 py-2 dark:border-blue-500/15 dark:bg-blue-950/20">
+            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-500/15 text-[10px] font-bold text-blue-600 dark:text-blue-400">
+              {index + 1}
+            </span>
+            <span className="text-xs font-medium text-blue-700 dark:text-blue-400">
+              ID Tracciamento
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="ml-auto h-6 w-6 text-muted-foreground/60 hover:text-destructive"
+              onClick={() => remove(index)}
+              disabled={disabled}
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          </div>
+          <div className="space-y-2 p-3">
+            <div className="flex-1">
+              <Input
+                placeholder="Trace ID"
+                className="font-mono text-sm"
+                {...register(`trackingIds.${index}.traceId`)}
+                disabled={disabled}
+              />
+              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+              {(errors.trackingIds as any)?.[index]?.traceId && (
+                <p className="mt-1 text-xs text-destructive">
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                  {(errors.trackingIds as any)[index]?.traceId?.message}
+                </p>
+              )}
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Input
+                placeholder="Codice errore (es. 500)"
+                {...register(`trackingIds.${index}.errorCode`)}
+                disabled={disabled}
+              />
+              <Input
+                type="datetime-local"
+                step="1"
+                {...register(`trackingIds.${index}.timestamp`)}
+                disabled={disabled}
+              />
+            </div>
+            <Textarea
+              placeholder="Dettaglio errore..."
+              rows={2}
+              {...register(`trackingIds.${index}.errorDetail`)}
+              disabled={disabled}
+            />
+          </div>
+        </div>
+      ))}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => append({ traceId: '', errorCode: '', errorDetail: '', timestamp: '' })}
+        disabled={disabled}
+      >
+        <Plus className="mr-1 h-4 w-4" />
+        Aggiungi ID
+      </Button>
+    </div>
+  )
+}
+
+// --- LinksField ---
+
+interface LinksFieldProps {
+  fields: { id: string }[]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  append: (value: any) => void
+  remove: (index: number) => void
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  register: UseFormRegister<any>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  errors: FieldErrors<any>
+  linkUrlValues: string[]
+  disabled: boolean
+}
+
+export function LinksField({ fields, append, remove, register, errors, linkUrlValues, disabled }: LinksFieldProps) {
+  return (
+    <div className="space-y-3 sm:col-span-2">
+      <Label>Link</Label>
+      {fields.map((field, index) => {
+        const urlValue = linkUrlValues[index] ?? ''
+        const linkType = urlValue ? inferLinkType(urlValue) : ''
+        return (
+          <div key={field.id} className="overflow-hidden rounded-lg border border-border">
+            <div className="flex items-center gap-2 border-b border-border/60 bg-muted/30 px-3 py-2">
+              <span className="text-xs font-medium text-muted-foreground">
+                Link #{index + 1}
+              </span>
+              {linkType && (
+                <span className="rounded bg-secondary px-1.5 py-px text-[10px] font-medium text-secondary-foreground">
+                  {linkType}
+                </span>
+              )}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="ml-auto h-6 w-6 text-muted-foreground/60 hover:text-destructive"
+                onClick={() => remove(index)}
+                disabled={disabled}
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            </div>
+            <div className="space-y-2 p-3">
+              <Input
+                placeholder="https://..."
+                {...register(`links.${index}.url`)}
+                disabled={disabled}
+              />
+              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+              {(errors.links as any)?.[index]?.url && (
+                <p className="text-xs text-destructive">
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                  {(errors.links as any)[index]?.url?.message}
+                </p>
+              )}
+              <Input
+                placeholder="Nome (opzionale)"
+                {...register(`links.${index}.name`)}
+                disabled={disabled}
+              />
+            </div>
+          </div>
+        )
+      })}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => append({ url: '', name: '', type: '' })}
+        disabled={disabled}
+      >
+        <Plus className="mr-1 h-4 w-4" />
+        Aggiungi Link
+      </Button>
     </div>
   )
 }

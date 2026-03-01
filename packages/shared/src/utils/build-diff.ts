@@ -13,7 +13,7 @@ export function buildDiff(
   for (const key of keys) {
     const b = before[key];
     const a = after[key];
-    if (JSON.stringify(b) !== JSON.stringify(a)) {
+    if (b !== a && JSON.stringify(b) !== JSON.stringify(a)) {
       diff[key] = { before: b, after: a };
     }
   }

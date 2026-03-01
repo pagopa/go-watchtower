@@ -1,8 +1,9 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import type { SortDirection } from '@go-watchtower/shared'
 
-export type SortDirection = 'asc' | 'desc'
+export type { SortDirection }
 
 export interface SortConfig<K extends string> {
   key: K

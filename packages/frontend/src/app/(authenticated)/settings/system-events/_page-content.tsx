@@ -169,7 +169,7 @@ function ActionMultiSelect({
 
 function MetadataPanel({ event }: { event: SystemEvent }) {
   const metadata = event.metadata
-  const hasMetadata = metadata && typeof metadata === 'object' && Object.keys(metadata).length > 0
+  const hasMetadata = Object.keys(metadata).length > 0
 
   return (
     <div className="px-6 py-4 bg-muted/30 space-y-3 text-xs">
@@ -283,13 +283,11 @@ export function SystemEventsPage() {
             Filtri
             {hasActiveFilters && (
               <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-[10px]">
-                {[
-                  filters.action?.length ? 1 : 0,
-                  filters.resource ? 1 : 0,
-                  filters.userId ? 1 : 0,
-                  filters.dateFrom ? 1 : 0,
-                  filters.dateTo ? 1 : 0,
-                ].reduce((a, b) => a + b, 0)}
+                {(filters.action?.length ? 1 : 0) +
+                (filters.resource ? 1 : 0) +
+                (filters.userId ? 1 : 0) +
+                (filters.dateFrom ? 1 : 0) +
+                (filters.dateTo ? 1 : 0)}
               </Badge>
             )}
           </Button>

@@ -5,9 +5,8 @@ import { useForm, Controller, useFieldArray } from 'react-hook-form'
 import { useSession } from 'next-auth/react'
 import { useQuery } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Bell, CheckSquare, FileSearch, Loader2, Plus, Trash2, type LucideIcon } from 'lucide-react'
+import { Bell, CheckSquare, FileSearch, Loader2, type LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
@@ -29,7 +28,7 @@ import {
 import { MultiSelectCombobox } from '@/components/ui/multi-select-combobox'
 import { Combobox } from '@/components/ui/combobox'
 import { usePermissions } from '@/hooks/use-permissions'
-import { inferLinkType } from '@/lib/infer-link-type'
+import { inferLinkType } from '@go-watchtower/shared'
 import {
   api,
   type AlarmAnalysis,
@@ -65,6 +64,8 @@ import {
   OperatorField,
   IgnoreReasonField,
   ProductSelectorCard,
+  TrackingIdsField,
+  LinksField,
 } from './analysis-form-fields'
 import { DynamicIgnoreDetailsForm } from '@/components/ui/json-schema-form'
 
@@ -335,6 +336,7 @@ export function AnalysisFormDialog({
   const watchedAnalysisDate = watch('analysisDate')
   const watchedAnalysisType = watch('analysisType')
   const watchedIgnoreReasonCode = watch('ignoreReasonCode')
+  const watchedLinkUrls = watch('links')?.map((l) => l?.url ?? '') ?? []
 
   // Find the selected ignore reason to get its detailsSchema
   const selectedIgnoreReason = ignoreReasons?.find((r) => r.code === watchedIgnoreReasonCode)
@@ -544,78 +546,14 @@ export function AnalysisFormDialog({
               </div>
 
               {/* ID di Tracciamento (full width) */}
-              <div className="space-y-3 sm:col-span-2">
-                <Label>ID di Tracciamento</Label>
-                {trackingFields.map((field, index) => (
-                  <div
-                    key={field.id}
-                    className="overflow-hidden rounded-lg border border-blue-200/60 dark:border-blue-500/20"
-                  >
-                    <div className="flex items-center gap-2 border-b border-blue-200/50 bg-blue-50/80 px-3 py-2 dark:border-blue-500/15 dark:bg-blue-950/20">
-                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-500/15 text-[10px] font-bold text-blue-600 dark:text-blue-400">
-                        {index + 1}
-                      </span>
-                      <span className="text-xs font-medium text-blue-700 dark:text-blue-400">
-                        ID Tracciamento
-                      </span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="ml-auto h-6 w-6 text-muted-foreground/60 hover:text-destructive"
-                        onClick={() => removeTracking(index)}
-                        disabled={isPending}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                    <div className="space-y-2 p-3">
-                      <div className="flex-1">
-                        <Input
-                          placeholder="Trace ID"
-                          className="font-mono text-sm"
-                          {...register(`trackingIds.${index}.traceId`)}
-                          disabled={isPending}
-                        />
-                        {errors.trackingIds?.[index]?.traceId && (
-                          <p className="mt-1 text-xs text-destructive">
-                            {errors.trackingIds[index]?.traceId?.message}
-                          </p>
-                        )}
-                      </div>
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        <Input
-                          placeholder="Codice errore (es. 500)"
-                          {...register(`trackingIds.${index}.errorCode`)}
-                          disabled={isPending}
-                        />
-                        <Input
-                          type="datetime-local"
-                          step="1"
-                          {...register(`trackingIds.${index}.timestamp`)}
-                          disabled={isPending}
-                        />
-                      </div>
-                      <Textarea
-                        placeholder="Dettaglio errore..."
-                        rows={2}
-                        {...register(`trackingIds.${index}.errorDetail`)}
-                        disabled={isPending}
-                      />
-                    </div>
-                  </div>
-                ))}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => appendTracking({ traceId: '', errorCode: '', errorDetail: '', timestamp: '' })}
-                  disabled={isPending}
-                >
-                  <Plus className="mr-1 h-4 w-4" />
-                  Aggiungi ID
-                </Button>
-              </div>
+              <TrackingIdsField
+                fields={trackingFields}
+                append={appendTracking}
+                remove={removeTracking}
+                register={register}
+                errors={errors}
+                disabled={isPending}
+              />
 
               {/* Microservizi (full width) */}
               <div className="space-y-2 sm:col-span-2">
@@ -658,64 +596,15 @@ export function AnalysisFormDialog({
               </div>
 
               {/* Link (full width) */}
-              <div className="space-y-3 sm:col-span-2">
-                <Label>Link</Label>
-                {linkFields.map((field, index) => {
-                  const urlValue = watch(`links.${index}.url`) || ''
-                  const linkType = urlValue ? inferLinkType(urlValue) : ''
-                  return (
-                    <div key={field.id} className="overflow-hidden rounded-lg border border-border">
-                      <div className="flex items-center gap-2 border-b border-border/60 bg-muted/30 px-3 py-2">
-                        <span className="text-xs font-medium text-muted-foreground">
-                          Link #{index + 1}
-                        </span>
-                        {linkType && (
-                          <span className="rounded bg-secondary px-1.5 py-px text-[10px] font-medium text-secondary-foreground">
-                            {linkType}
-                          </span>
-                        )}
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="ml-auto h-6 w-6 text-muted-foreground/60 hover:text-destructive"
-                          onClick={() => removeLink(index)}
-                          disabled={isPending}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                      <div className="space-y-2 p-3">
-                        <Input
-                          placeholder="https://..."
-                          {...register(`links.${index}.url`)}
-                          disabled={isPending}
-                        />
-                        {errors.links?.[index]?.url && (
-                          <p className="text-xs text-destructive">
-                            {errors.links[index]?.url?.message}
-                          </p>
-                        )}
-                        <Input
-                          placeholder="Nome (opzionale)"
-                          {...register(`links.${index}.name`)}
-                          disabled={isPending}
-                        />
-                      </div>
-                    </div>
-                  )
-                })}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => appendLink({ url: '', name: '', type: '' })}
-                  disabled={isPending}
-                >
-                  <Plus className="mr-1 h-4 w-4" />
-                  Aggiungi Link
-                </Button>
-              </div>
+              <LinksField
+                fields={linkFields}
+                append={appendLink}
+                remove={removeLink}
+                register={register}
+                errors={errors}
+                linkUrlValues={watchedLinkUrls}
+                disabled={isPending}
+              />
             </div>
           </FormSection>
 
