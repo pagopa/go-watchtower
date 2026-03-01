@@ -705,10 +705,18 @@ export function AnalysisDetailPanel({
                           className="group inline-flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2.5 text-sm font-medium transition-colors hover:border-primary/25 hover:bg-muted/60 hover:text-primary"
                         >
                           {analysis.runbook.name}
+                          {analysis.runbook.status === 'DRAFT' && (
+                            <Badge variant="secondary" className="text-xs">Bozza</Badge>
+                          )}
                           <ExternalLink className="h-3.5 w-3.5 text-muted-foreground/40 transition-colors group-hover:text-primary" />
                         </a>
                       ) : (
-                        <span className="text-[15px] font-medium">{analysis.runbook?.name}</span>
+                        <span className="inline-flex items-center gap-2 text-[15px] font-medium">
+                          {analysis.runbook?.name}
+                          {analysis.runbook?.status === 'DRAFT' && (
+                            <Badge variant="secondary" className="text-xs">Bozza</Badge>
+                          )}
+                        </span>
                       )}
                     </dd>
                   </div>

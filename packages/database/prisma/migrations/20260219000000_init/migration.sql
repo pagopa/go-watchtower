@@ -7,6 +7,7 @@ CREATE TYPE "AnalysisType" AS ENUM ('ANALYZABLE', 'IGNORABLE');
 CREATE TYPE "AnalysisStatus" AS ENUM ('CREATED', 'IN_PROGRESS', 'COMPLETED');
 CREATE TYPE "Resource" AS ENUM ('PRODUCT', 'ENVIRONMENT', 'MICROSERVICE', 'IGNORED_ALARM', 'RUNBOOK', 'FINAL_ACTION', 'ALARM', 'ALARM_ANALYSIS', 'DOWNSTREAM', 'USER', 'SYSTEM_SETTING');
 CREATE TYPE "PermissionScope" AS ENUM ('NONE', 'OWN', 'ALL');
+CREATE TYPE "RunbookStatus" AS ENUM ('DRAFT', 'COMPLETE');
 
 -- ═══════════════════════════════════════════════════════════
 -- ROLES & PERMISSIONS
@@ -143,6 +144,7 @@ CREATE TABLE "runbooks" (
     "name" TEXT NOT NULL,
     "description" TEXT,
     "link" TEXT NOT NULL,
+    "status" "RunbookStatus" NOT NULL DEFAULT 'DRAFT',
     "product_id" UUID NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,

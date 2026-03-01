@@ -1,4 +1,5 @@
 import { Type, type Static } from "@sinclair/typebox";
+import { RunbookStatuses } from "@go-watchtower/shared";
 import { ErrorResponseSchema, MessageResponseSchema } from "../../schemas/common.js";
 
 export { ErrorResponseSchema, MessageResponseSchema };
@@ -125,10 +126,16 @@ export const MicroservicesResponseSchema = Type.Array(MicroserviceResponseSchema
 // Runbook Schemas
 // ============================================================================
 
+export const RunbookStatusSchema = Type.Union([
+  Type.Literal(RunbookStatuses.DRAFT),
+  Type.Literal(RunbookStatuses.COMPLETE),
+]);
+
 export const CreateRunbookBodySchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 255 }),
   description: Type.Optional(Type.String()),
   link: Type.String({ minLength: 1 }),
+  status: Type.Optional(RunbookStatusSchema),
 });
 
 export type CreateRunbookBody = Static<typeof CreateRunbookBodySchema>;
@@ -137,6 +144,7 @@ export const UpdateRunbookBodySchema = Type.Object({
   name: Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
   description: Type.Optional(Type.Union([Type.String(), Type.Null()])),
   link: Type.Optional(Type.String({ minLength: 1 })),
+  status: Type.Optional(RunbookStatusSchema),
 });
 
 export type UpdateRunbookBody = Static<typeof UpdateRunbookBodySchema>;
@@ -153,6 +161,7 @@ export const RunbookResponseSchema = Type.Object({
   name: Type.String(),
   description: Type.Union([Type.String(), Type.Null()]),
   link: Type.String(),
+  status: RunbookStatusSchema,
   productId: Type.String(),
   createdAt: Type.String(),
   updatedAt: Type.String(),

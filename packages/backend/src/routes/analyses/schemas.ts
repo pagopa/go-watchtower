@@ -4,6 +4,7 @@ import {
   AnalysisStatuses,
   AnalysisSortFields,
   SortDirections,
+  RunbookStatuses,
 } from "@go-watchtower/shared";
 import { ErrorResponseSchema, MessageResponseSchema } from "../../schemas/common.js";
 
@@ -208,10 +209,16 @@ const RelatedEntitySchema = Type.Object({
   name: Type.String(),
 });
 
+const RunbookStatusSchema = Type.Union([
+  Type.Literal(RunbookStatuses.DRAFT),
+  Type.Literal(RunbookStatuses.COMPLETE),
+]);
+
 const RunbookResponseSchema = Type.Object({
   id: Type.String(),
   name: Type.String(),
   link: Type.Optional(Type.String()),
+  status: RunbookStatusSchema,
 });
 
 export const AlarmAnalysisResponseSchema = Type.Object({

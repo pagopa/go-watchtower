@@ -20,6 +20,9 @@ export type { AnalysisType } from './constants/analysis-types.js';
 export { AnalysisStatuses, ANALYSIS_STATUS_VALUES } from './constants/analysis-statuses.js';
 export type { AnalysisStatus } from './constants/analysis-statuses.js';
 
+export { RunbookStatuses, RUNBOOK_STATUS_VALUES } from './constants/runbook-statuses.js';
+export type { RunbookStatus } from './constants/runbook-statuses.js';
+
 export { PermissionScopes, PERMISSION_SCOPE_VALUES } from './constants/permission-scopes.js';
 export type { PermissionScope } from './constants/permission-scopes.js';
 
@@ -57,6 +60,7 @@ export type { SystemEvent, SystemEventsResponse } from './types/system-event.js'
 // ─── Label ─────────────────────────────────────────────────────────────────────
 
 export { ANALYSIS_TYPE_LABELS, ANALYSIS_STATUS_LABELS } from './labels/analysis-labels.js';
+export { RUNBOOK_STATUS_LABELS } from './labels/runbook-labels.js';
 export { SYSTEM_EVENT_RESOURCE_LABELS, SYSTEM_EVENT_ACTION_LABELS } from './labels/system-event-labels.js';
 
 // ─── Utility ───────────────────────────────────────────────────────────────────

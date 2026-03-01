@@ -856,6 +856,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
             name: r.name,
             description: r.description,
             link: r.link,
+            status: r.status,
             productId: r.productId,
             createdAt: r.createdAt.toISOString(),
             updatedAt: r.updatedAt.toISOString(),
@@ -909,6 +910,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
             name: request.body.name,
             description: request.body.description,
             link: request.body.link,
+            status: request.body.status,
             productId: request.params.productId,
           },
         });
@@ -918,6 +920,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           name: runbook.name,
           description: runbook.description,
           link: runbook.link,
+          status: runbook.status,
           productId: runbook.productId,
           createdAt: runbook.createdAt.toISOString(),
           updatedAt: runbook.updatedAt.toISOString(),
@@ -965,6 +968,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
             name: request.body.name,
             description: request.body.description,
             link: request.body.link,
+            status: request.body.status,
           },
         });
 
@@ -973,6 +977,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           name: runbook.name,
           description: runbook.description,
           link: runbook.link,
+          status: runbook.status,
           productId: runbook.productId,
           createdAt: runbook.createdAt.toISOString(),
           updatedAt: runbook.updatedAt.toISOString(),

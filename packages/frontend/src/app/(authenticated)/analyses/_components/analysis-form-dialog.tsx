@@ -621,7 +621,10 @@ export function AnalysisFormDialog({
                     <Combobox
                       options={[
                         { value: NO_VALUE, label: 'Nessuno' },
-                        ...(runbooks?.map((rb) => ({ value: rb.id, label: rb.name })) ?? []),
+                        ...(runbooks?.map((rb) => ({
+                          value: rb.id,
+                          label: rb.status === 'DRAFT' ? `${rb.name} (Bozza)` : rb.name,
+                        })) ?? []),
                       ]}
                       value={field.value || NO_VALUE}
                       onValueChange={(val) => field.onChange(val === NO_VALUE || val === '' ? undefined : val)}

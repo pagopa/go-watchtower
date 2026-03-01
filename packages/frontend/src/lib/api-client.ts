@@ -275,6 +275,7 @@ export interface Runbook {
   name: string
   description: string | null
   link: string
+  status: 'DRAFT' | 'COMPLETE'
   productId: string
   createdAt: string
   updatedAt: string
@@ -284,12 +285,14 @@ export interface CreateRunbookData {
   name: string
   description?: string
   link: string
+  status?: 'DRAFT' | 'COMPLETE'
 }
 
 export interface UpdateRunbookData {
   name?: string
   description?: string | null
   link?: string
+  status?: 'DRAFT' | 'COMPLETE'
 }
 
 export interface Alarm {
@@ -410,7 +413,7 @@ export interface AlarmAnalysis {
   operator: RelatedUser
   environment: RelatedEntity
   finalActions: RelatedEntity[]
-  runbook: (RelatedEntity & { link?: string }) | null
+  runbook: (RelatedEntity & { link?: string; status?: 'DRAFT' | 'COMPLETE' }) | null
   createdBy: RelatedUser
   updatedBy: RelatedUser | null
   microservices: RelatedEntity[]

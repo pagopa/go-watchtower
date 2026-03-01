@@ -7,12 +7,21 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Plus, Pencil, Trash2, Loader2, ExternalLink, BookOpen, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import { toast } from 'sonner'
+import { RunbookStatuses, RUNBOOK_STATUS_LABELS } from '@go-watchtower/shared'
 import { api, type Runbook } from '@/lib/api-client'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useSortable } from '@/hooks/use-sortable'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Dialog,
@@ -38,6 +47,7 @@ const runbookSchema = z.object({
   name: z.string().min(1, 'Il nome è obbligatorio'),
   description: z.string().optional(),
   link: z.string().url('Inserisci un URL valido'),
+  status: z.enum([RunbookStatuses.DRAFT, RunbookStatuses.COMPLETE]),
 })
 
 type RunbookFormData = z.infer<typeof runbookSchema>
@@ -80,10 +90,12 @@ export function RunbooksTab({ productId }: RunbooksTabProps) {
     register,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors },
   } = useForm<RunbookFormData>({
     resolver: zodResolver(runbookSchema),
-    defaultValues: { name: '', description: '', link: '' },
+    defaultValues: { name: '', description: '', link: '', status: RunbookStatuses.DRAFT },
   })
 
   const handleEdit = (item: Runbook) => {
@@ -91,6 +103,7 @@ export function RunbooksTab({ productId }: RunbooksTabProps) {
       name: item.name,
       description: item.description || '',
       link: item.link,
+      status: item.status,
     })
     setEditItem(item)
   }
@@ -114,6 +127,7 @@ export function RunbooksTab({ productId }: RunbooksTabProps) {
         name: data.name,
         description: data.description,
         link: data.link,
+        status: data.status,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products', productId, 'runbooks'] })
@@ -145,7 +159,7 @@ export function RunbooksTab({ productId }: RunbooksTabProps) {
     if (!open) {
       setShowCreateDialog(false)
       setEditItem(null)
-      reset({ name: '', description: '', link: '' })
+      reset({ name: '', description: '', link: '', status: RunbookStatuses.DRAFT })
     }
   }
 
@@ -212,7 +226,7 @@ export function RunbooksTab({ productId }: RunbooksTabProps) {
           <Button
             size="sm"
             onClick={() => {
-              reset({ name: '', description: '', link: '' })
+              reset({ name: '', description: '', link: '', status: RunbookStatuses.DRAFT })
               setShowCreateDialog(true)
             }}
           >
@@ -241,6 +255,9 @@ export function RunbooksTab({ productId }: RunbooksTabProps) {
                 )}
               </div>
               <div className="flex shrink-0 items-center gap-2">
+                <Badge variant={rb.status === RunbookStatuses.COMPLETE ? 'default' : 'secondary'} className="text-xs">
+                  {RUNBOOK_STATUS_LABELS[rb.status]}
+                </Badge>
                 <a
                   href={rb.link}
                   target="_blank"
@@ -291,7 +308,7 @@ export function RunbooksTab({ productId }: RunbooksTabProps) {
               size="sm"
               className="mt-5"
               onClick={() => {
-                reset({ name: '', description: '', link: '' })
+                reset({ name: '', description: '', link: '', status: RunbookStatuses.DRAFT })
                 setShowCreateDialog(true)
               }}
             >
@@ -352,6 +369,22 @@ export function RunbooksTab({ productId }: RunbooksTabProps) {
               {errors.link && (
                 <p className="text-xs text-destructive">{errors.link.message}</p>
               )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="rb-status">Stato</Label>
+              <Select
+                value={watch('status')}
+                onValueChange={(v) => setValue('status', v as 'DRAFT' | 'COMPLETE')}
+                disabled={isMutating}
+              >
+                <SelectTrigger id="rb-status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={RunbookStatuses.DRAFT}>{RUNBOOK_STATUS_LABELS.DRAFT}</SelectItem>
+                  <SelectItem value={RunbookStatuses.COMPLETE}>{RUNBOOK_STATUS_LABELS.COMPLETE}</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="rb-description">

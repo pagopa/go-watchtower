@@ -47,7 +47,7 @@ const analysisInclude = {
   finalActions: {
     include: { finalAction: { select: { id: true, name: true } } },
   },
-  runbook: { select: { id: true, name: true, link: true } },
+  runbook: { select: { id: true, name: true, link: true, status: true } },
   createdBy: { select: { id: true, name: true, email: true } },
   updatedBy: { select: { id: true, name: true, email: true } },
   microservices: {
