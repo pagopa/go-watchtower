@@ -281,7 +281,7 @@ export function AnalysisDetailPanel({
   if (!analysis) return null
 
   const hasDettagliAnalisi = !!(
-    analysis.externalTeamName ||
+    analysis.ignoreReason ||
     analysis.errorDetails ||
     (analysis.trackingIds?.length ?? 0) > 0 ||
     analysis.microservices.length > 0 ||
@@ -580,9 +580,20 @@ export function AnalysisDetailPanel({
               <section className="space-y-4">
                 <SectionHeader label="Dettagli Analisi" icon={FileText} />
 
-                {analysis.externalTeamName && (
-                  <dl>
-                    <Field label="Gestito da">{analysis.externalTeamName}</Field>
+                {analysis.ignoreReason && (
+                  <dl className="space-y-3">
+                    <Field label="Motivo">{analysis.ignoreReason.label}</Field>
+                    {analysis.ignoreReason.detailsSchema?.properties &&
+                      analysis.ignoreDetails &&
+                      Object.entries(analysis.ignoreReason.detailsSchema.properties).map(([key, def]) => {
+                        const value = analysis.ignoreDetails?.[key]
+                        if (!value) return null
+                        return (
+                          <Field key={key} label={def.title}>
+                            {String(value)}
+                          </Field>
+                        )
+                      })}
                   </dl>
                 )}
 

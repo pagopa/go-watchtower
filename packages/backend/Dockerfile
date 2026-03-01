@@ -13,6 +13,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY tsconfig.base.json tsconfig.json ./
 
 # Copy full package sources (before install, so pnpm resolves workspace links correctly)
+COPY packages/shared ./packages/shared
 COPY packages/database ./packages/database
 COPY packages/backend ./packages/backend
 
@@ -24,6 +25,7 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
 RUN pnpm --filter @go-watchtower/database exec prisma generate
 
 # Build packages in dependency order
+RUN pnpm --filter @go-watchtower/shared build
 RUN pnpm --filter @go-watchtower/database build
 RUN pnpm --filter @go-watchtower/backend build
 
@@ -37,6 +39,7 @@ WORKDIR /app
 
 # Copy workspace configuration and package sources
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY packages/shared/package.json ./packages/shared/
 COPY packages/database/package.json ./packages/database/
 COPY packages/backend/package.json ./packages/backend/
 
@@ -55,6 +58,7 @@ COPY packages/database/prisma.config.ts ./packages/database/
 RUN cd packages/database && NODE_PATH=/usr/local/lib/node_modules prisma generate
 
 # Copy built files from builder
+COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /app/packages/database/dist ./packages/database/dist
 COPY --from=builder /app/packages/backend/dist ./packages/backend/dist
 

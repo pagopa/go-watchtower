@@ -1,0 +1,127 @@
+'use client'
+
+/**
+ * DynamicIgnoreDetailsForm
+ *
+ * Renders form fields dynamically from an IgnoreReasonDetailsSchema.
+ * Supports: string (input), string+x-ui:textarea (textarea), number (input).
+ * Required fields are validated by the parent Zod schema via ignoreDetails.
+ */
+
+import { Controller, type Control } from 'react-hook-form'
+import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import type { IgnoreReasonDetailsSchema, IgnoreReasonFieldDef } from '@/lib/api-client'
+
+interface DynamicIgnoreDetailsFormProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  control: Control<any>
+  schema: IgnoreReasonDetailsSchema
+  disabled?: boolean
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  errors?: Record<string, any>
+}
+
+function DynamicField({
+  name,
+  def,
+  required,
+  control,
+  disabled,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  errors,
+}: {
+  name: string
+  def: IgnoreReasonFieldDef
+  required: boolean
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  control: Control<any>
+  disabled?: boolean
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  errors?: Record<string, any>
+}) {
+  const fieldPath = `ignoreDetails.${name}`
+  const fieldError = errors?.[name]
+
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={fieldPath}>
+        {def.title}
+        {required && <span className="ml-0.5 text-destructive">*</span>}
+      </Label>
+      <Controller
+        name={fieldPath}
+        control={control}
+        render={({ field }) => {
+          if (def['x-ui'] === 'textarea') {
+            return (
+              <Textarea
+                id={fieldPath}
+                placeholder={def.description}
+                rows={3}
+                value={field.value ?? ''}
+                onChange={field.onChange}
+                disabled={disabled}
+              />
+            )
+          }
+          if (def.type === 'number') {
+            return (
+              <Input
+                id={fieldPath}
+                type="number"
+                placeholder={def.description}
+                value={field.value ?? ''}
+                onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                disabled={disabled}
+              />
+            )
+          }
+          // default: string input
+          return (
+            <Input
+              id={fieldPath}
+              type="text"
+              placeholder={def.description}
+              value={field.value ?? ''}
+              onChange={field.onChange}
+              disabled={disabled}
+            />
+          )
+        }}
+      />
+      {fieldError && (
+        <p className="text-sm text-destructive">{fieldError.message as string}</p>
+      )}
+    </div>
+  )
+}
+
+export function DynamicIgnoreDetailsForm({
+  control,
+  schema,
+  disabled,
+  errors,
+}: DynamicIgnoreDetailsFormProps) {
+  if (!schema.properties || Object.keys(schema.properties).length === 0) return null
+
+  const required = schema.required ?? []
+  const detailsErrors = errors?.ignoreDetails
+
+  return (
+    <div className="space-y-3 rounded-lg border border-dashed border-border bg-muted/30 p-4">
+      {Object.entries(schema.properties).map(([key, def]) => (
+        <DynamicField
+          key={key}
+          name={key}
+          def={def}
+          required={required.includes(key)}
+          control={control}
+          disabled={disabled}
+          errors={detailsErrors}
+        />
+      ))}
+    </div>
+  )
+}

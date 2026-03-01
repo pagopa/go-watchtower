@@ -16,6 +16,7 @@ type Resource =
   | 'ALARM_ANALYSIS'
   | 'DOWNSTREAM'
   | 'USER'
+  | 'SYSTEM_SETTING'
 
 type Action = 'read' | 'write' | 'delete'
 

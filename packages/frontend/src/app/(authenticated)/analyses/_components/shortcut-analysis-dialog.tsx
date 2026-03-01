@@ -42,8 +42,8 @@ import {
   OccurrencesField,
   FirstAlarmField,
   LastAlarmField,
-  AnalysisTypeSelect,
-  ExternalTeamNameField,
+  IgnoreReasonField,
+  HandlerField,
   ProductSelectorCard,
 } from './analysis-form-fields'
 
@@ -86,7 +86,7 @@ const DEFAULT_VALUES: Record<ShortcutDialogVariant, FieldValues> = {
   },
   'non-gestito': {
     alarmId: '',
-    externalTeamName: '',
+    handler: '',
     occurrences: '' as unknown as number,
     environmentId: '',
     firstAlarmAt: '',
@@ -189,7 +189,8 @@ function toAnalysisFormData(
       const data = rawData as ShortcutDisservizioData
       return {
         alarmId: data.alarmId,
-        analysisType: data.analysisType,
+        analysisType: 'IGNORABLE',
+        ignoreReasonCode: data.ignoreReasonCode,
         occurrences: data.occurrences,
         environmentId: data.environmentId,
         firstAlarmAt: fromDatetimeLocal(data.firstAlarmAt),
@@ -209,7 +210,8 @@ function toAnalysisFormData(
         lastAlarmAt: fromDatetimeLocal(data.lastAlarmAt),
         analysisDate: fromDatetimeLocal(now),
         operatorId,
-        analysisType: 'IGNORED_LISTED',
+        analysisType: 'IGNORABLE',
+        ignoreReasonCode: 'LISTED',
         status: 'COMPLETED',
       }
     }
@@ -217,14 +219,15 @@ function toAnalysisFormData(
       const data = rawData as ShortcutNonGestitoData
       return {
         alarmId: data.alarmId,
-        externalTeamName: data.externalTeamName,
         occurrences: data.occurrences,
         environmentId: data.environmentId,
         firstAlarmAt: fromDatetimeLocal(data.firstAlarmAt),
         lastAlarmAt: fromDatetimeLocal(data.lastAlarmAt),
         analysisDate: fromDatetimeLocal(now),
         operatorId,
-        analysisType: 'IGNORED_NOT_MANAGED',
+        analysisType: 'IGNORABLE',
+        ignoreReasonCode: 'EXTERNAL',
+        ignoreDetails: { handler: data.handler },
         status: 'COMPLETED',
       }
     }
@@ -346,19 +349,19 @@ export function ShortcutAnalysisDialog({
               />
 
               {variant === 'disservizio' && (
-                <AnalysisTypeSelect
+                <IgnoreReasonField
                   control={control}
                   disabled={isPending}
                   options={[
-                    { value: 'IGNORED_RELEASE', label: 'Ignorato - Release' },
-                    { value: 'IGNORED_MAINTENANCE', label: 'Ignorato - Manutenzione' },
+                    { value: 'RELEASE', label: 'Release' },
+                    { value: 'MAINTENANCE', label: 'Manutenzione pianificata' },
                   ]}
                 />
               )}
 
               {variant === 'non-gestito' && (
-                <ExternalTeamNameField
-                  registration={register('externalTeamName')}
+                <HandlerField
+                  registration={register('handler')}
                   errors={errors}
                   disabled={isPending}
                 />

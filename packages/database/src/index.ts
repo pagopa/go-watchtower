@@ -1,6 +1,9 @@
 export { prisma } from "./client.js";
 export type { PrismaClient } from "./client.js";
 
+// Re-export Prisma namespace (for DbNull, JsonNull, etc.)
+export { Prisma } from "../generated/prisma/client.js";
+
 // Re-export generated Prisma types
 export {
   AuthProvider,
@@ -24,4 +27,6 @@ export {
   type AnalysisMicroservice,
   type Downstream,
   type AnalysisDownstream,
+  type SystemSetting,
+  type SystemEvent,
 } from "../generated/prisma/client.js";

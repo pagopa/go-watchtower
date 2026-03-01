@@ -13,6 +13,8 @@ import {
   type IgnoredAlarm,
 } from "@go-watchtower/database";
 import { hasPermission } from "../../services/permission.service.js";
+import { logEvent } from "../../services/system-event.service.js";
+import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
 import {
   CreateProductBodySchema,
   UpdateProductBodySchema,
@@ -216,6 +218,17 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           },
         });
 
+        logEvent({
+          action: SystemEventActions.PRODUCT_CREATED,
+          resource: SystemEventResources.PRODUCTS,
+          resourceId: product.id,
+          resourceLabel: product.name,
+          userId: request.user.userId,
+          userLabel: request.user.email,
+          ipAddress: request.ip,
+          userAgent: request.headers["user-agent"] ?? null,
+        });
+
         reply.status(201).send({
           id: product.id,
           name: product.name,
@@ -267,6 +280,17 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           },
         });
 
+        logEvent({
+          action: SystemEventActions.PRODUCT_UPDATED,
+          resource: SystemEventResources.PRODUCTS,
+          resourceId: product.id,
+          resourceLabel: product.name,
+          userId: request.user.userId,
+          userLabel: request.user.email,
+          ipAddress: request.ip,
+          userAgent: request.headers["user-agent"] ?? null,
+        });
+
         reply.send({
           id: product.id,
           name: product.name,
@@ -310,8 +334,25 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           return reply.status(403).send({ error: "Permission denied" });
         }
 
+        // Fetch name before deletion for audit
+        const productToDelete = await prisma.product.findUnique({
+          where: { id: request.params.id },
+          select: { name: true },
+        });
+
         await prisma.product.delete({
           where: { id: request.params.id },
+        });
+
+        logEvent({
+          action: SystemEventActions.PRODUCT_DELETED,
+          resource: SystemEventResources.PRODUCTS,
+          resourceId: request.params.id,
+          resourceLabel: productToDelete?.name ?? null,
+          userId: request.user.userId,
+          userLabel: request.user.email,
+          ipAddress: request.ip,
+          userAgent: request.headers["user-agent"] ?? null,
         });
 
         reply.send({ message: "Product deleted successfully" });
@@ -1326,6 +1367,17 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           include: { runbook: { select: { id: true, name: true } } },
         });
 
+        logEvent({
+          action: SystemEventActions.ALARM_CREATED,
+          resource: SystemEventResources.ALARMS,
+          resourceId: alarm.id,
+          resourceLabel: alarm.name,
+          userId: request.user.userId,
+          userLabel: request.user.email,
+          ipAddress: request.ip,
+          userAgent: request.headers["user-agent"] ?? null,
+        });
+
         reply.status(201).send({
           id: alarm.id,
           name: alarm.name,
@@ -1385,6 +1437,17 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           include: { runbook: { select: { id: true, name: true } } },
         });
 
+        logEvent({
+          action: SystemEventActions.ALARM_UPDATED,
+          resource: SystemEventResources.ALARMS,
+          resourceId: alarm.id,
+          resourceLabel: alarm.name,
+          userId: request.user.userId,
+          userLabel: request.user.email,
+          ipAddress: request.ip,
+          userAgent: request.headers["user-agent"] ?? null,
+        });
+
         reply.send({
           id: alarm.id,
           name: alarm.name,
@@ -1430,11 +1493,28 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           return reply.status(403).send({ error: "Permission denied" });
         }
 
+        // Fetch name before deletion for audit
+        const alarmToDelete = await prisma.alarm.findUnique({
+          where: { id: request.params.id },
+          select: { name: true },
+        });
+
         await prisma.alarm.delete({
           where: {
             id: request.params.id,
             productId: request.params.productId,
           },
+        });
+
+        logEvent({
+          action: SystemEventActions.ALARM_DELETED,
+          resource: SystemEventResources.ALARMS,
+          resourceId: request.params.id,
+          resourceLabel: alarmToDelete?.name ?? null,
+          userId: request.user.userId,
+          userLabel: request.user.email,
+          ipAddress: request.ip,
+          userAgent: request.headers["user-agent"] ?? null,
         });
 
         reply.send({ message: "Alarm deleted successfully" });
@@ -1834,6 +1914,17 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           },
         });
 
+        logEvent({
+          action: SystemEventActions.IGNORED_ALARM_CREATED,
+          resource: SystemEventResources.IGNORED_ALARMS,
+          resourceId: ignoredAlarm.id,
+          resourceLabel: ignoredAlarm.alarm?.name ?? null,
+          userId: request.user.userId,
+          userLabel: request.user.email,
+          ipAddress: request.ip,
+          userAgent: request.headers["user-agent"] ?? null,
+        });
+
         reply.status(201).send(formatIgnoredAlarm(ignoredAlarm));
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to create ignored alarm";
@@ -1891,6 +1982,17 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           },
         });
 
+        logEvent({
+          action: SystemEventActions.IGNORED_ALARM_UPDATED,
+          resource: SystemEventResources.IGNORED_ALARMS,
+          resourceId: ignoredAlarm.id,
+          resourceLabel: ignoredAlarm.alarm?.name ?? null,
+          userId: request.user.userId,
+          userLabel: request.user.email,
+          ipAddress: request.ip,
+          userAgent: request.headers["user-agent"] ?? null,
+        });
+
         reply.send(formatIgnoredAlarm(ignoredAlarm));
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to update ignored alarm";
@@ -1930,11 +2032,28 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           return reply.status(403).send({ error: "Permission denied" });
         }
 
+        // Fetch name before deletion for audit
+        const ignoredAlarmToDelete = await prisma.ignoredAlarm.findUnique({
+          where: { id: request.params.id },
+          include: { alarm: { select: { name: true } } },
+        });
+
         await prisma.ignoredAlarm.delete({
           where: {
             id: request.params.id,
             productId: request.params.productId,
           },
+        });
+
+        logEvent({
+          action: SystemEventActions.IGNORED_ALARM_DELETED,
+          resource: SystemEventResources.IGNORED_ALARMS,
+          resourceId: request.params.id,
+          resourceLabel: ignoredAlarmToDelete?.alarm?.name ?? null,
+          userId: request.user.userId,
+          userLabel: request.user.email,
+          ipAddress: request.ip,
+          userAgent: request.headers["user-agent"] ?? null,
         });
 
         reply.send({ message: "Ignored alarm deleted successfully" });

@@ -14,10 +14,7 @@ enum AuthProvider {
 
 enum AnalysisType {
   ANALYZABLE
-  IGNORED_RELEASE
-  IGNORED_MAINTENANCE
-  IGNORED_LISTED
-  IGNORED_NOT_MANAGED
+  IGNORABLE
 }
 
 enum AnalysisStatus {
@@ -37,6 +34,7 @@ enum Resource {
   ALARM_ANALYSIS
   DOWNSTREAM
   USER
+  SYSTEM_SETTING
 }
 
 enum PermissionScope {
@@ -125,6 +123,8 @@ model User {
   analyses            AlarmAnalysis[]          @relation("OperatorAnalyses")
   createdAnalyses     AlarmAnalysis[]          @relation("CreatedByUser")
   updatedAnalyses     AlarmAnalysis[]          @relation("UpdatedByUser")
+  updatedSettings     SystemSetting[]          @relation("UpdatedSettings")
+  systemEvents        SystemEvent[]            @relation("UserSystemEvents")
 
   @@index([roleId])
   @@map("users")
@@ -274,37 +274,53 @@ model FinalAction {
   @@map("final_actions")
 }
 
-model AlarmAnalysis {
-  id              String       @id @default(uuid(7)) @db.Uuid
-  analysisDate    DateTime     @map("analysis_date")
-  firstAlarmAt    DateTime     @map("first_alarm_at")
-  lastAlarmAt     DateTime     @map("last_alarm_at")
-  occurrences     Int          @default(1)
-  isOnCall        Boolean      @default(false) @map("is_on_call")
-  analysisType    AnalysisType   @default(ANALYZABLE) @map("analysis_type")
-  status          AnalysisStatus @default(CREATED) @map("status")
-  alarmId         String         @map("alarm_id") @db.Uuid
-  errorDetails    String?        @map("error_details")
-  conclusionNotes   String?        @map("conclusion_notes")
-  externalTeamName  String?        @map("external_team_name")
-  operatorId        String         @map("operator_id") @db.Uuid
-  productId       String         @map("product_id") @db.Uuid
-  environmentId   String         @map("environment_id") @db.Uuid
-  runbookId       String?      @map("runbook_id") @db.Uuid
-  links           Json         @default("[]")
-  trackingIds     Json         @default("[]") @map("tracking_ids")
-  createdAt       DateTime     @default(now()) @map("created_at")
-  updatedAt       DateTime     @updatedAt @map("updated_at")
-  createdById     String       @map("created_by_id") @db.Uuid
-  updatedById     String?      @map("updated_by_id") @db.Uuid
+model IgnoreReason {
+  code          String  @id
+  label         String
+  description   String?
+  sortOrder     Int     @default(0) @map("sort_order")
+  // JSON Schema (draft-07) che descrive i campi attesi in ignoreDetails
+  // null = nessun dettaglio richiesto
+  detailsSchema Json?   @map("details_schema")
 
-  alarm       Alarm       @relation(fields: [alarmId], references: [id], onDelete: Restrict)
-  operator    User        @relation("OperatorAnalyses", fields: [operatorId], references: [id], onDelete: Restrict)
-  product     Product     @relation(fields: [productId], references: [id], onDelete: Restrict)
-  environment Environment @relation(fields: [environmentId], references: [id], onDelete: Restrict)
-  runbook     Runbook?    @relation(fields: [runbookId], references: [id], onDelete: Restrict)
-  createdBy   User        @relation("CreatedByUser", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy   User?       @relation("UpdatedByUser", fields: [updatedById], references: [id], onDelete: Restrict)
+  analyses AlarmAnalysis[]
+
+  @@map("ignore_reasons")
+}
+
+model AlarmAnalysis {
+  id               String         @id @default(uuid(7)) @db.Uuid
+  analysisDate     DateTime       @map("analysis_date")
+  firstAlarmAt     DateTime       @map("first_alarm_at")
+  lastAlarmAt      DateTime       @map("last_alarm_at")
+  occurrences      Int            @default(1)
+  isOnCall         Boolean        @default(false) @map("is_on_call")
+  analysisType     AnalysisType   @default(ANALYZABLE) @map("analysis_type")
+  status           AnalysisStatus @default(CREATED) @map("status")
+  alarmId          String         @map("alarm_id") @db.Uuid
+  errorDetails     String?        @map("error_details")
+  conclusionNotes  String?        @map("conclusion_notes")
+  ignoreReasonCode String?        @map("ignore_reason_code")
+  ignoreDetails    Json?          @map("ignore_details")
+  operatorId       String         @map("operator_id") @db.Uuid
+  productId        String         @map("product_id") @db.Uuid
+  environmentId    String         @map("environment_id") @db.Uuid
+  runbookId        String?        @map("runbook_id") @db.Uuid
+  links            Json           @default("[]")
+  trackingIds      Json           @default("[]") @map("tracking_ids")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+  createdById      String         @map("created_by_id") @db.Uuid
+  updatedById      String?        @map("updated_by_id") @db.Uuid
+
+  alarm        Alarm        @relation(fields: [alarmId], references: [id], onDelete: Restrict)
+  operator     User         @relation("OperatorAnalyses", fields: [operatorId], references: [id], onDelete: Restrict)
+  product      Product      @relation(fields: [productId], references: [id], onDelete: Restrict)
+  environment  Environment  @relation(fields: [environmentId], references: [id], onDelete: Restrict)
+  runbook      Runbook?     @relation(fields: [runbookId], references: [id], onDelete: Restrict)
+  createdBy    User         @relation("CreatedByUser", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy    User?        @relation("UpdatedByUser", fields: [updatedById], references: [id], onDelete: Restrict)
+  ignoreReason IgnoreReason? @relation(fields: [ignoreReasonCode], references: [code])
 
   microservices AnalysisMicroservice[]
   downstreams   AnalysisDownstream[]
@@ -317,9 +333,10 @@ model AlarmAnalysis {
   @@index([alarmId])
   @@index([productId, analysisDate])
   @@index([createdAt])
-  // @@index([analysisType]) — low cardinality (5 values), never used as leading filter
+  // @@index([analysisType]) — low cardinality (2 values), never used as leading filter
   // @@index([status]) — low cardinality (3 values), never used as leading filter
   @@index([runbookId])
+  @@index([ignoreReasonCode])
   @@index([createdById])
   @@index([updatedById])
   @@map("alarm_analyses")
@@ -374,4 +391,58 @@ model AnalysisFinalAction {
   @@id([analysisId, finalActionId])
   @@index([finalActionId])
   @@map("analysis_final_actions")
+}
+
+// ═══════════════════════════════════════════════════════════
+// IMPOSTAZIONI DI SISTEMA
+// ═══════════════════════════════════════════════════════════
+
+model SystemSetting {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  key         String   @unique
+  value       Json
+  // valori gestiti dalla costante SettingType in @go-watchtower/shared
+  type        String
+  // valori gestiti dalla costante SettingCategory in @go-watchtower/shared
+  category    String
+  label       String
+  description String?
+  updatedById String?  @map("updated_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  updatedBy User? @relation("UpdatedSettings", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([category])
+  @@map("system_settings")
+}
+
+// ═══════════════════════════════════════════════════════════
+// LOG DEGLI EVENTI DI SISTEMA
+// ═══════════════════════════════════════════════════════════
+
+model SystemEvent {
+  id            String   @id @default(uuid(7)) @db.Uuid
+  userId        String?  @map("user_id") @db.Uuid
+  // nome/email dell'utente al momento dell'evento (denormalizzato)
+  userLabel     String?  @map("user_label")
+  // valori gestiti dalla costante SystemEventAction in @go-watchtower/shared
+  action        String
+  // valori gestiti dalla costante SystemEventResource in @go-watchtower/shared
+  resource      String?
+  resourceId    String?  @map("resource_id")
+  // label della risorsa al momento dell'evento (denormalizzato)
+  resourceLabel String?  @map("resource_label")
+  metadata      Json     @default("{}")
+  ipAddress     String?  @map("ip_address")
+  userAgent     String?  @map("user_agent")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  user User? @relation("UserSystemEvents", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([resource, resourceId])
+  @@index([createdAt])
+  @@map("system_events")
 }

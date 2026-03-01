@@ -2,10 +2,7 @@ import type { AnalysisType } from '@/lib/api-client'
 
 export const ANALYSIS_TYPE_LABELS: Record<AnalysisType, string> = {
   ANALYZABLE: 'Analizzabile',
-  IGNORED_RELEASE: 'Ignorato - Release',
-  IGNORED_MAINTENANCE: 'Ignorato - Manutenzione',
-  IGNORED_LISTED: 'Ignorato - In lista',
-  IGNORED_NOT_MANAGED: 'Ignorato - Non gestito',
+  IGNORABLE:  'Da ignorare',
 }
 
 export const CHART_COLORS = [

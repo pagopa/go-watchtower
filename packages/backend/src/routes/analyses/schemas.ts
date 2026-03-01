@@ -6,11 +6,16 @@ import { Type, type Static } from "@sinclair/typebox";
 
 export const AnalysisTypeSchema = Type.Union([
   Type.Literal("ANALYZABLE"),
-  Type.Literal("IGNORED_RELEASE"),
-  Type.Literal("IGNORED_MAINTENANCE"),
-  Type.Literal("IGNORED_LISTED"),
-  Type.Literal("IGNORED_NOT_MANAGED"),
+  Type.Literal("IGNORABLE"),
 ]);
+
+export const IgnoreReasonSchema = Type.Object({
+  code:          Type.String(),
+  label:         Type.String(),
+  description:   Type.Union([Type.String(), Type.Null()]),
+  sortOrder:     Type.Integer(),
+  detailsSchema: Type.Union([Type.Record(Type.String(), Type.Unknown()), Type.Null()]),
+});
 
 export type AnalysisTypeValue = Static<typeof AnalysisTypeSchema>;
 
@@ -140,7 +145,8 @@ export const CreateAlarmAnalysisBodySchema = Type.Object({
   alarmId: Type.String(),
   errorDetails: Type.Optional(Type.Union([Type.String(), Type.Null()])),
   conclusionNotes: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-  externalTeamName: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  ignoreReasonCode: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  ignoreDetails: Type.Optional(Type.Union([Type.Record(Type.String(), Type.Unknown()), Type.Null()])),
   operatorId: Type.String(),
   environmentId: Type.String(),
   finalActionIds: Type.Optional(Type.Array(Type.String())),
@@ -164,7 +170,8 @@ export const UpdateAlarmAnalysisBodySchema = Type.Object({
   alarmId: Type.Optional(Type.String()),
   errorDetails: Type.Optional(Type.Union([Type.String(), Type.Null()])),
   conclusionNotes: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-  externalTeamName: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  ignoreReasonCode: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  ignoreDetails: Type.Optional(Type.Union([Type.Record(Type.String(), Type.Unknown()), Type.Null()])),
   operatorId: Type.Optional(Type.String()),
   environmentId: Type.Optional(Type.String()),
   finalActionIds: Type.Optional(Type.Array(Type.String())),
@@ -210,7 +217,8 @@ export const AlarmAnalysisResponseSchema = Type.Object({
   alarmId: Type.String(),
   errorDetails: Type.Union([Type.String(), Type.Null()]),
   conclusionNotes: Type.Union([Type.String(), Type.Null()]),
-  externalTeamName: Type.Union([Type.String(), Type.Null()]),
+  ignoreReasonCode: Type.Union([Type.String(), Type.Null()]),
+  ignoreDetails: Type.Union([Type.Record(Type.String(), Type.Unknown()), Type.Null()]),
   operatorId: Type.String(),
   productId: Type.String(),
   environmentId: Type.String(),
@@ -229,9 +237,12 @@ export const AlarmAnalysisResponseSchema = Type.Object({
   updatedBy: Type.Union([RelatedUserSchema, Type.Null()]),
   microservices: Type.Array(RelatedEntitySchema),
   downstreams: Type.Array(RelatedEntitySchema),
+  ignoreReason: Type.Union([IgnoreReasonSchema, Type.Null()]),
   links: Type.Array(LinkSchema),
   trackingIds: Type.Array(TrackingEntrySchema),
 });
+
+export const IgnoreReasonsResponseSchema = Type.Array(IgnoreReasonSchema);
 
 export const PaginatedAlarmAnalysisResponseSchema = Type.Object({
   data: Type.Array(AlarmAnalysisResponseSchema),
@@ -305,7 +316,7 @@ const DailyByEnvironmentSchema = Type.Object({
   totalOccurrences: Type.Integer(),
 });
 
-const CountByAnalysisTypeSchema = Type.Object({
+export const CountByAnalysisTypeSchema = Type.Object({
   analysisType: AnalysisTypeSchema,
   count: Type.Integer(),
 });

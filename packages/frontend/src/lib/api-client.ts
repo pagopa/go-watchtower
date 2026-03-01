@@ -15,15 +15,18 @@ export class ApiClientError extends Error {
 
 interface RequestOptions extends Omit<RequestInit, 'body'> {
   body?: unknown
-  params?: Record<string, string | number | boolean | undefined>
+  params?: Record<string, string | number | boolean | string[] | undefined>
 }
 
-function buildUrl(endpoint: string, params?: Record<string, string | number | boolean | undefined>): string {
+function buildUrl(endpoint: string, params?: Record<string, string | number | boolean | string[] | undefined>): string {
   let url = `${API_URL}${endpoint}`
   if (params) {
     const searchParams = new URLSearchParams()
     Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined) {
+      if (value === undefined) return
+      if (Array.isArray(value)) {
+        value.forEach((v) => searchParams.append(key, v))
+      } else {
         searchParams.append(key, String(value))
       }
     })
@@ -331,7 +334,45 @@ export interface UpdateIgnoredAlarmData {
 }
 
 // Alarm Analysis Types
-export type AnalysisType = 'ANALYZABLE' | 'IGNORED_RELEASE' | 'IGNORED_MAINTENANCE' | 'IGNORED_LISTED' | 'IGNORED_NOT_MANAGED'
+export type AnalysisType = 'ANALYZABLE' | 'IGNORABLE'
+
+export interface IgnoreReason {
+  code: string
+  label: string
+  description: string | null
+  sortOrder: number
+  detailsSchema: IgnoreReasonDetailsSchema | null
+}
+
+export interface IgnoreReasonDetailsSchema {
+  type: 'object'
+  properties?: Record<string, IgnoreReasonFieldDef>
+  required?: string[]
+}
+
+export interface IgnoreReasonFieldDef {
+  type: 'string' | 'number' | 'boolean'
+  title: string
+  description?: string
+  minLength?: number
+  minimum?: number
+  'x-ui'?: 'textarea'
+}
+
+export interface CreateIgnoreReasonData {
+  code: string
+  label: string
+  description?: string | null
+  sortOrder?: number
+  detailsSchema?: IgnoreReasonDetailsSchema | null
+}
+
+export interface UpdateIgnoreReasonData {
+  label?: string
+  description?: string | null
+  sortOrder?: number
+  detailsSchema?: IgnoreReasonDetailsSchema | null
+}
 export type AnalysisStatus = 'CREATED' | 'IN_PROGRESS' | 'COMPLETED'
 
 export interface RelatedUser {
@@ -357,7 +398,8 @@ export interface AlarmAnalysis {
   alarmId: string
   errorDetails: string | null
   conclusionNotes: string | null
-  externalTeamName: string | null
+  ignoreReasonCode: string | null
+  ignoreDetails: Record<string, unknown> | null
   operatorId: string
   productId: string
   environmentId: string
@@ -376,6 +418,7 @@ export interface AlarmAnalysis {
   updatedBy: RelatedUser | null
   microservices: RelatedEntity[]
   downstreams: RelatedEntity[]
+  ignoreReason: IgnoreReason | null
   links: Array<{ url: string; name?: string; type?: string }>
   trackingIds: Array<TrackingEntry>
 }
@@ -428,7 +471,8 @@ export interface CreateAlarmAnalysisData {
   alarmId: string
   errorDetails?: string | null
   conclusionNotes?: string | null
-  externalTeamName?: string | null
+  ignoreReasonCode?: string | null
+  ignoreDetails?: Record<string, unknown> | null
   operatorId: string
   environmentId: string
   finalActionIds?: string[]
@@ -450,7 +494,8 @@ export interface UpdateAlarmAnalysisData {
   alarmId?: string
   errorDetails?: string | null
   conclusionNotes?: string | null
-  externalTeamName?: string | null
+  ignoreReasonCode?: string | null
+  ignoreDetails?: Record<string, unknown> | null
   operatorId?: string
   environmentId?: string
   finalActionIds?: string[]
@@ -701,10 +746,59 @@ export interface UpdateRolePermissionsData {
   }>
 }
 
+// System Setting Types
+export type SettingType = 'STRING' | 'NUMBER' | 'BOOLEAN'
+
+export interface SystemSetting {
+  id: string
+  key: string
+  value: unknown
+  type: SettingType
+  category: string
+  label: string
+  description: string | null
+  updatedById: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+// System Event Types
+export interface SystemEvent {
+  id: string
+  action: string
+  resource: string | null
+  resourceId: string | null
+  resourceLabel: string | null
+  userId: string | null
+  userLabel: string | null
+  metadata: Record<string, unknown>
+  ipAddress: string | null
+  userAgent: string | null
+  createdAt: string
+}
+
+export interface SystemEventsResponse {
+  data: SystemEvent[]
+  total: number
+  page: number
+  totalPages: number
+}
+
+export interface SystemEventsFilters {
+  action?: string[]
+  resource?: string
+  userId?: string
+  dateFrom?: string
+  dateTo?: string
+  page?: number
+  limit?: number
+}
+
 // API methods
 export const api = {
   // Auth
   me: () => request<User>('/auth/me'),
+  logout: () => request<{ message: string }>('/auth/logout', { method: 'POST' }),
 
   // Products
   getProducts: () => request<Product[]>('/api/products'),
@@ -810,6 +904,14 @@ export const api = {
       params: filters as Record<string, string | number | boolean | undefined>,
     }),
   getAnalysisAuthors: () => request<AnalysisAuthor[]>('/api/analyses/authors'),
+  getIgnoreReasons: () => request<IgnoreReason[]>('/api/ignore-reasons'),
+  getIgnoreReason: (code: string) => request<IgnoreReason>(`/api/ignore-reasons/${code}`),
+  createIgnoreReason: (data: CreateIgnoreReasonData) =>
+    request<IgnoreReason>('/api/ignore-reasons', { method: 'POST', body: data }),
+  updateIgnoreReason: (code: string, data: UpdateIgnoreReasonData) =>
+    request<IgnoreReason>(`/api/ignore-reasons/${code}`, { method: 'PATCH', body: data }),
+  deleteIgnoreReason: (code: string) =>
+    request<{ message: string }>(`/api/ignore-reasons/${code}`, { method: 'DELETE' }),
 
   // Reports
   getOperatorWorkload: (filters?: ReportFilters) =>
@@ -861,6 +963,18 @@ export const api = {
     const response = await request<{ permissions: UserPermissions }>('/api/permissions/me')
     return response.permissions
   },
+
+  // System Events (Audit Log)
+  getSystemEvents: (filters?: SystemEventsFilters) =>
+    request<SystemEventsResponse>('/api/system-events', {
+      params: filters as Record<string, string | number | boolean | string[] | undefined>,
+    }),
+
+  // System Settings
+  getSettings: () => request<SystemSetting[]>('/api/settings'),
+  getSetting: (key: string) => request<SystemSetting>(`/api/settings/${key}`),
+  updateSetting: (key: string, value: unknown) =>
+    request<SystemSetting>(`/api/settings/${key}`, { method: 'PATCH', body: { value } }),
 }
 
 // Server-side API client (for Server Components)

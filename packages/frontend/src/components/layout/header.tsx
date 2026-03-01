@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useSession, signOut } from 'next-auth/react'
+import { api } from '@/lib/api-client'
 import { useTheme } from 'next-themes'
 import { LogOut, Moon, Sun, User } from 'lucide-react'
 import Link from 'next/link'
@@ -39,6 +40,11 @@ export function Header() {
   }
 
   const handleLogout = async () => {
+    try {
+      await api.logout()
+    } catch {
+      // ignore — backend may be unreachable, proceed with local signout anyway
+    }
     await signOut({ callbackUrl: '/login' })
   }
 

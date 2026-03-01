@@ -1,255 +1,280 @@
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient, AuthProvider, Resource, PermissionScope } from "../generated/prisma/client.js";
+import { PrismaClient, Resource, PermissionScope } from "../generated/prisma/client.js";
 import bcrypt from "bcrypt";
 import pg from "pg";
 
 const connectionString = process.env["DATABASE_URL"];
-if (!connectionString) {
-  throw new Error("DATABASE_URL is required");
-}
+if (!connectionString) throw new Error("DATABASE_URL is required");
 
 const pool = new pg.Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
-const SALT_ROUNDS = 12;
+// ─── Deterministic UUIDs ───────────────────────────────────────────────────
+// Stabili tra deploy. Referenziabili direttamente da seed.private.sql senza lookup.
+const ROLE_IDS = {
+  GUEST:     "a0000000-0000-0000-0000-000000000001",
+  OPERATOR:  "a0000000-0000-0000-0000-000000000002",
+  TEAM_LEAD: "a0000000-0000-0000-0000-000000000003",
+  ADMIN:     "a0000000-0000-0000-0000-000000000004",
+} as const;
 
-async function hashPassword(password: string): Promise<string> {
-  return bcrypt.hash(password, SALT_ROUNDS);
-}
+// Prefisso "00" = entità di sistema, non confligge con gli UUID del seed privato
+const ADMIN_USER_ID = "00000000-0000-0000-0000-000000000001";
 
-// Permission matrix: [canRead, canWrite, canDelete]
+// ─── Permission matrix ─────────────────────────────────────────────────────
 const { NONE, OWN, ALL } = PermissionScope;
-type PermissionTuple = [PermissionScope, PermissionScope, PermissionScope];
-type RolePermissions = Record<Resource, PermissionTuple>;
+type Tuple = [PermissionScope, PermissionScope, PermissionScope];
 
-const ROLE_PERMISSIONS: Record<string, RolePermissions> = {
+const PERMISSIONS: Record<keyof typeof ROLE_IDS, Record<Resource, Tuple>> = {
   GUEST: {
-    PRODUCT: [ALL, NONE, NONE],
-    ENVIRONMENT: [ALL, NONE, NONE],
-    MICROSERVICE: [ALL, NONE, NONE],
-    IGNORED_ALARM: [ALL, NONE, NONE],
-    RUNBOOK: [ALL, NONE, NONE],
-    FINAL_ACTION: [ALL, NONE, NONE],
-    ALARM_ANALYSIS: [ALL, NONE, NONE],
-    USER: [NONE, NONE, NONE],
+    PRODUCT:        [ALL,  NONE, NONE],
+    ENVIRONMENT:    [ALL,  NONE, NONE],
+    MICROSERVICE:   [ALL,  NONE, NONE],
+    IGNORED_ALARM:  [ALL,  NONE, NONE],
+    RUNBOOK:        [ALL,  NONE, NONE],
+    FINAL_ACTION:   [ALL,  NONE, NONE],
+    ALARM:          [ALL,  NONE, NONE],
+    ALARM_ANALYSIS: [ALL,  NONE, NONE],
+    DOWNSTREAM:     [ALL,  NONE, NONE],
+    USER:           [NONE, NONE, NONE],
+    SYSTEM_SETTING: [NONE, NONE, NONE],
   },
   OPERATOR: {
-    PRODUCT: [ALL, NONE, NONE],
-    ENVIRONMENT: [ALL, NONE, NONE],
-    MICROSERVICE: [ALL, NONE, NONE],
-    IGNORED_ALARM: [ALL, NONE, NONE],
-    RUNBOOK: [ALL, NONE, NONE],
-    FINAL_ACTION: [ALL, NONE, NONE],
-    ALARM_ANALYSIS: [ALL, OWN, NONE],
-    USER: [NONE, NONE, NONE],
+    PRODUCT:        [ALL,  NONE, NONE],
+    ENVIRONMENT:    [ALL,  NONE, NONE],
+    MICROSERVICE:   [ALL,  NONE, NONE],
+    IGNORED_ALARM:  [ALL,  NONE, NONE],
+    RUNBOOK:        [ALL,  NONE, NONE],
+    FINAL_ACTION:   [ALL,  NONE, NONE],
+    ALARM:          [ALL,  NONE, NONE],
+    ALARM_ANALYSIS: [ALL,  OWN,  NONE],
+    DOWNSTREAM:     [ALL,  NONE, NONE],
+    USER:           [NONE, NONE, NONE],
+    SYSTEM_SETTING: [NONE, NONE, NONE],
   },
   TEAM_LEAD: {
-    PRODUCT: [ALL, NONE, NONE],
-    ENVIRONMENT: [ALL, NONE, NONE],
-    MICROSERVICE: [ALL, NONE, NONE],
-    IGNORED_ALARM: [ALL, ALL, NONE],
-    RUNBOOK: [ALL, ALL, NONE],
-    FINAL_ACTION: [ALL, ALL, NONE],
-    ALARM_ANALYSIS: [ALL, ALL, ALL],
-    USER: [ALL, NONE, NONE],
+    PRODUCT:        [ALL,  NONE, NONE],
+    ENVIRONMENT:    [ALL,  NONE, NONE],
+    MICROSERVICE:   [ALL,  NONE, NONE],
+    IGNORED_ALARM:  [ALL,  ALL,  NONE],
+    RUNBOOK:        [ALL,  ALL,  NONE],
+    FINAL_ACTION:   [ALL,  ALL,  NONE],
+    ALARM:          [ALL,  ALL,  NONE],
+    ALARM_ANALYSIS: [ALL,  ALL,  ALL],
+    DOWNSTREAM:     [ALL,  ALL,  NONE],
+    USER:           [ALL,  NONE, NONE],
+    SYSTEM_SETTING: [NONE, NONE, NONE],
   },
   ADMIN: {
-    PRODUCT: [ALL, ALL, ALL],
-    ENVIRONMENT: [ALL, ALL, ALL],
-    MICROSERVICE: [ALL, ALL, ALL],
-    IGNORED_ALARM: [ALL, ALL, ALL],
-    RUNBOOK: [ALL, ALL, ALL],
-    FINAL_ACTION: [ALL, ALL, ALL],
+    PRODUCT:        [ALL, ALL, ALL],
+    ENVIRONMENT:    [ALL, ALL, ALL],
+    MICROSERVICE:   [ALL, ALL, ALL],
+    IGNORED_ALARM:  [ALL, ALL, ALL],
+    RUNBOOK:        [ALL, ALL, ALL],
+    FINAL_ACTION:   [ALL, ALL, ALL],
+    ALARM:          [ALL, ALL, ALL],
     ALARM_ANALYSIS: [ALL, ALL, ALL],
-    USER: [ALL, ALL, ALL],
+    DOWNSTREAM:     [ALL, ALL, ALL],
+    USER:           [ALL, ALL, ALL],
+    SYSTEM_SETTING: [ALL, ALL, ALL],
   },
 };
 
-const ROLE_DESCRIPTIONS: Record<string, string> = {
-  GUEST: "Default role for new users. Read-only access to most resources.",
-  OPERATOR: "Can create and edit alarm analyses.",
-  TEAM_LEAD: "Can manage configurations and delete analyses.",
-  ADMIN: "Full access to all resources including user management.",
-};
+// ─── Seeders ───────────────────────────────────────────────────────────────
 
-async function seedRolesAndPermissions() {
-  console.log("🔐 Seeding roles and permissions...");
+async function seedRoles() {
+  console.log("🔐 Seeding roles...");
 
-  const roles: Record<string, string> = {};
-
-  for (const [roleName, description] of Object.entries(ROLE_DESCRIPTIONS)) {
-    const role = await prisma.role.upsert({
-      where: { name: roleName },
-      update: { description },
-      create: {
-        name: roleName,
-        description,
-        isDefault: roleName === "GUEST",
-      },
-    });
-    roles[roleName] = role.id;
-    console.log(`  ✅ Role: ${roleName}${roleName === "GUEST" ? " (default)" : ""}`);
-
-    // Create permissions for this role
-    const permissions = ROLE_PERMISSIONS[roleName];
-    if (permissions) {
-      for (const [resource, [canRead, canWrite, canDelete]] of Object.entries(permissions)) {
-        await prisma.rolePermission.upsert({
-          where: {
-            roleId_resource: {
-              roleId: role.id,
-              resource: resource as Resource,
-            },
-          },
-          update: { canRead, canWrite, canDelete },
-          create: {
-            roleId: role.id,
-            resource: resource as Resource,
-            canRead,
-            canWrite,
-            canDelete,
-          },
-        });
-      }
-    }
-  }
-
-  console.log("  └─ Permissions configured for all roles");
-  return roles;
-}
-
-async function seedUsers(roles: Record<string, string>) {
-  console.log("\n👤 Seeding users...");
-
-  // Create admin user
-  const adminPassword = await hashPassword("admin123!");
-  const admin = await prisma.user.upsert({
-    where: { email: "admin@example.com" },
-    update: { roleId: roles["ADMIN"] },
-    create: {
-      email: "admin@example.com",
-      name: "Admin User",
-      passwordHash: adminPassword,
-      roleId: roles["ADMIN"],
-      provider: AuthProvider.LOCAL,
-    },
-  });
-  console.log(`  ✅ Admin user: ${admin.email}`);
-
-  // Create test operator
-  const operatorPassword = await hashPassword("operator123!");
-  const operator = await prisma.user.upsert({
-    where: { email: "operator@example.com" },
-    update: { roleId: roles["OPERATOR"] },
-    create: {
-      email: "operator@example.com",
-      name: "Test Operator",
-      passwordHash: operatorPassword,
-      roleId: roles["OPERATOR"],
-      provider: AuthProvider.LOCAL,
-    },
-  });
-  console.log(`  ✅ Operator user: ${operator.email}`);
-
-  // Create test guest
-  const guestPassword = await hashPassword("guest123!");
-  const guest = await prisma.user.upsert({
-    where: { email: "guest@example.com" },
-    update: { roleId: roles["GUEST"] },
-    create: {
-      email: "guest@example.com",
-      name: "Test Guest",
-      passwordHash: guestPassword,
-      roleId: roles["GUEST"],
-      provider: AuthProvider.LOCAL,
-    },
-  });
-  console.log(`  ✅ Guest user: ${guest.email}`);
-}
-
-async function seedProducts() {
-  console.log("\n📦 Seeding products...");
-
-  const products = [
-    { name: "IO App", description: "App IO - Servizi digitali" },
-    { name: "pagoPA", description: "Piattaforma pagamenti" },
-    { name: "SEND", description: "Notifiche digitali" },
+  const roles = [
+    { id: ROLE_IDS.GUEST,     name: "GUEST",     description: "Default role for new users. Read-only access to most resources.", isDefault: true  },
+    { id: ROLE_IDS.OPERATOR,  name: "OPERATOR",  description: "Can create and edit alarm analyses.",                             isDefault: false },
+    { id: ROLE_IDS.TEAM_LEAD, name: "TEAM_LEAD", description: "Can manage configurations and delete analyses.",                  isDefault: false },
+    { id: ROLE_IDS.ADMIN,     name: "ADMIN",     description: "Full access to all resources including user management.",         isDefault: false },
   ];
 
-  for (const productData of products) {
-    const product = await prisma.product.upsert({
-      where: { name: productData.name },
-      update: {},
-      create: productData,
+  for (const role of roles) {
+    await prisma.role.upsert({
+      where: { id: role.id },
+      update: { description: role.description, isDefault: role.isDefault },
+      create: role,
     });
-    console.log(`  ✅ Product: ${product.name}`);
-
-    // Create environments for each product
-    const environments = [
-      { name: "DEV", description: "Development", order: 1 },
-      { name: "UAT", description: "User Acceptance Testing", order: 2 },
-      { name: "PROD", description: "Production", order: 3 },
-    ];
-
-    for (const envData of environments) {
-      await prisma.environment.upsert({
-        where: {
-          productId_name: { productId: product.id, name: envData.name },
-        },
-        update: {},
-        create: {
-          ...envData,
-          productId: product.id,
-        },
-      });
-    }
-    console.log(`    └─ Environments: DEV, UAT, PROD`);
-
-    // Create sample final actions
-    const finalActions = [
-      { name: "Risolto", description: "Problema risolto", order: 1 },
-      { name: "Falso positivo", description: "Allarme non significativo", order: 2 },
-      { name: "Escalation", description: "Richiede intervento team", order: 3 },
-      { name: "Monitoraggio", description: "Da tenere sotto controllo", order: 4 },
-      { name: "Altro", description: "Altra azione finale", order: 5, isOther: true },
-    ];
-
-    for (const finalActionData of finalActions) {
-      await prisma.finalAction.upsert({
-        where: {
-          productId_name: { productId: product.id, name: finalActionData.name },
-        },
-        update: {},
-        create: {
-          ...finalActionData,
-          productId: product.id,
-        },
-      });
-    }
-    console.log(`    └─ Final Actions: ${finalActions.length} created`);
+    console.log(`  ✅ ${role.name}${role.isDefault ? " (default)" : ""}`);
   }
 }
 
+async function seedPermissions() {
+  console.log("\n🛡️  Seeding permissions...");
+
+  for (const [roleName, matrix] of Object.entries(PERMISSIONS) as [keyof typeof ROLE_IDS, Record<Resource, Tuple>][]) {
+    const roleId = ROLE_IDS[roleName];
+    for (const [resource, [canRead, canWrite, canDelete]] of Object.entries(matrix) as [Resource, Tuple][]) {
+      await prisma.rolePermission.upsert({
+        where: { roleId_resource: { roleId, resource } },
+        update: { canRead, canWrite, canDelete },
+        create: { roleId, resource, canRead, canWrite, canDelete },
+      });
+    }
+    console.log(`  ✅ ${roleName} (${Object.keys(matrix).length} resources)`);
+  }
+}
+
+async function seedIgnoreReasons() {
+  console.log("\n🚫 Seeding ignore reasons...");
+
+  const reasons = [
+    {
+      code: "LISTED",
+      label: "Allarme catalogato",
+      description: "Allarme già noto e presente in ignore list.",
+      sortOrder: 1,
+      detailsSchema: null,
+    },
+    {
+      code: "EXTERNAL",
+      label: "Gestito da team esterno",
+      description: "Allarme gestito da un team o soggetto esterno al nostro team.",
+      sortOrder: 2,
+      detailsSchema: {
+        type: "object",
+        properties: {
+          handler: {
+            type: "string",
+            title: "Gestito da",
+            description: "Nome del team o persona che ha gestito l'allarme",
+            minLength: 1,
+          },
+        },
+        required: ["handler"],
+      },
+    },
+    {
+      code: "RELEASE",
+      label: "Causato da release",
+      description: "Allarme scaturito da un'attività di rilascio in produzione.",
+      sortOrder: 3,
+      detailsSchema: {
+        type: "object",
+        properties: {
+          version: {
+            type: "string",
+            title: "Versione",
+            description: "Versione del software rilasciato (es. 1.4.2)",
+            minLength: 1,
+          },
+        },
+        required: ["version"],
+      },
+    },
+    {
+      code: "MAINTENANCE",
+      label: "Manutenzione pianificata",
+      description: "Allarme atteso durante una finestra di manutenzione pianificata.",
+      sortOrder: 4,
+      detailsSchema: {
+        type: "object",
+        properties: {
+          activity: {
+            type: "string",
+            title: "Attività",
+            description: "Descrizione dell'attività di manutenzione",
+            "x-ui": "textarea",
+            minLength: 1,
+          },
+          performedBy: {
+            type: "string",
+            title: "Eseguita da",
+            description: "Team o persona che ha eseguito la manutenzione",
+          },
+        },
+        required: ["activity"],
+      },
+    },
+  ];
+
+  for (const reason of reasons) {
+    await prisma.ignoreReason.upsert({
+      where:  { code: reason.code },
+      update: { label: reason.label, description: reason.description, sortOrder: reason.sortOrder, detailsSchema: reason.detailsSchema },
+      create: reason,
+    });
+    console.log(`  ✅ ${reason.code} — ${reason.label}`);
+  }
+}
+
+async function seedAdmin() {
+  console.log("\n👤 Seeding default admin user...");
+
+  const email    = process.env["SEED_ADMIN_EMAIL"]    ?? "admin@example.com";
+  const password = process.env["SEED_ADMIN_PASSWORD"] ?? "changeme";
+  const name     = process.env["SEED_ADMIN_NAME"]     ?? "Admin";
+
+  const passwordHash = await bcrypt.hash(password, 12);
+
+  await prisma.user.upsert({
+    where:  { email },
+    update: {},
+    create: {
+      id:           ADMIN_USER_ID,
+      email,
+      name,
+      passwordHash,
+      roleId:   ROLE_IDS.ADMIN,
+      provider: "LOCAL",
+    },
+  });
+
+  console.log(`  ✅ ${email} (password: ${password === "changeme" ? "⚠️  default — change on first login" : "***"})`);
+}
+
+async function seedSystemSettings() {
+  console.log("\n⚙️  Seeding system settings...");
+
+  const settings = [
+    {
+      key:         "default_google_role_id",
+      value:       ROLE_IDS.GUEST,
+      type:        "STRING",
+      category:    "AUTH",
+      label:       "Ruolo predefinito Google",
+      description: "Ruolo assegnato automaticamente ai nuovi utenti che accedono per la prima volta tramite Google OAuth",
+    },
+    {
+      key:         "analysis_edit_lock_days",
+      value:       7,
+      type:        "NUMBER",
+      category:    "ANALYSIS",
+      label:       "Giorni blocco modifica analisi",
+      description: "Numero di giorni dopo i quali un operatore non può più modificare la propria analisi",
+    },
+  ];
+
+  for (const setting of settings) {
+    await prisma.systemSetting.upsert({
+      where:  { key: setting.key },
+      update: {},
+      create: setting,
+    });
+    console.log(`  ✅ ${setting.key}`);
+  }
+}
+
+// ─── Main ──────────────────────────────────────────────────────────────────
+
 async function main() {
-  console.log("🌱 Seeding database...\n");
-
-  // Seed roles and permissions first
-  const roles = await seedRolesAndPermissions();
-
-  // Seed users with roles
-  await seedUsers(roles);
-
-  // Seed products and related data
-  await seedProducts();
-
-  console.log("\n✨ Seeding completed!");
+  console.log("🌱 System seed\n");
+  await seedRoles();
+  await seedPermissions();
+  await seedIgnoreReasons();
+  await seedAdmin();
+  await seedSystemSettings();
+  console.log("\n✨ Done.");
 }
 
 main()
   .catch((e) => {
-    console.error("❌ Seeding failed:", e);
+    console.error("❌ Seed failed:", e);
     process.exit(1);
   })
   .finally(async () => {

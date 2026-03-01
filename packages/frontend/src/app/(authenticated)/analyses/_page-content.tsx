@@ -6,7 +6,7 @@ import { useSession } from 'next-auth/react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, Plus, Inbox,
-  Clock, CheckCircle2, Search, Tag, Wrench, EyeOff, HelpCircle,
+  Clock, CheckCircle2, Search, EyeOff,
   type LucideIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -124,11 +124,8 @@ const STATUS_ICONS: Record<AnalysisStatus, { Icon: LucideIcon; className: string
 }
 
 const TYPE_ICONS: Record<AnalysisType, { Icon: LucideIcon; className: string }> = {
-  ANALYZABLE:          { Icon: Search,      className: 'text-blue-500 dark:text-blue-400' },
-  IGNORED_RELEASE:     { Icon: Tag,         className: 'text-violet-400 dark:text-violet-300' },
-  IGNORED_MAINTENANCE: { Icon: Wrench,      className: 'text-orange-400 dark:text-orange-300' },
-  IGNORED_LISTED:      { Icon: EyeOff,      className: 'text-slate-400 dark:text-slate-500' },
-  IGNORED_NOT_MANAGED: { Icon: HelpCircle,  className: 'text-rose-400 dark:text-rose-400' },
+  ANALYZABLE: { Icon: Search, className: 'text-blue-500 dark:text-blue-400' },
+  IGNORABLE:  { Icon: EyeOff, className: 'text-slate-400 dark:text-slate-500' },
 }
 
 function renderCell(columnId: string, analysis: AlarmAnalysis): ReactNode {
@@ -504,7 +501,8 @@ function AnalysesPageContent() {
       isOnCall: data.isOnCall || false,
       errorDetails: data.errorDetails || null,
       conclusionNotes: data.conclusionNotes || null,
-      externalTeamName: data.externalTeamName || null,
+      ignoreReasonCode: data.ignoreReasonCode || null,
+      ignoreDetails: data.ignoreDetails || null,
       runbookId: data.runbookId || null,
       microserviceIds: data.microserviceIds || [],
       downstreamIds: data.downstreamIds || [],

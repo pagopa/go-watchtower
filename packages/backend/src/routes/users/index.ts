@@ -25,6 +25,8 @@ import {
   updateRolePermissions,
 } from "../../services/permission.service.js";
 import { hashPassword } from "../../utils/password.js";
+import { logEvent, buildDiff } from "../../services/system-event.service.js";
+import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
 import {
   UserResponseSchema,
   UserDetailResponseSchema,
@@ -342,6 +344,17 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
           include: { role: true },
         });
 
+        logEvent({
+          action: SystemEventActions.USER_CREATED,
+          resource: SystemEventResources.USERS,
+          resourceId: user.id,
+          resourceLabel: user.email,
+          userId: request.user.userId,
+          userLabel: request.user.email,
+          ipAddress: request.ip,
+          userAgent: request.headers["user-agent"] ?? null,
+        });
+
         reply.status(201).send({
           id: user.id,
           email: user.email,
@@ -386,6 +399,16 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
           return reply.status(403).send({ error: "Permission denied" });
         }
 
+        // Read existing user before update for diffing
+        const existing = await prisma.user.findUnique({
+          where: { id: request.params.id },
+          include: { role: true },
+        });
+
+        if (!existing) {
+          return reply.status(404).send({ error: "User not found" });
+        }
+
         const user = await prisma.user.update({
           where: { id: request.params.id },
           data: {
@@ -396,6 +419,48 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
           },
           include: { role: true },
         });
+
+        const eventBase = {
+          resource: SystemEventResources.USERS,
+          resourceId: user.id,
+          resourceLabel: user.email,
+          userId: request.user.userId,
+          userLabel: request.user.email,
+          ipAddress: request.ip,
+          userAgent: request.headers["user-agent"] ?? null,
+        };
+
+        logEvent({
+          action: SystemEventActions.USER_UPDATED,
+          ...eventBase,
+          metadata: {
+            changes: buildDiff(
+              { name: existing.name, email: existing.email, isActive: existing.isActive, roleId: existing.roleId },
+              { name: user.name, email: user.email, isActive: user.isActive, roleId: user.roleId },
+            ),
+          },
+        });
+
+        // Granular events based on what changed
+        if (request.body.isActive !== undefined && request.body.isActive !== existing.isActive) {
+          logEvent({
+            action: request.body.isActive
+              ? SystemEventActions.USER_ACTIVATED
+              : SystemEventActions.USER_DEACTIVATED,
+            ...eventBase,
+          });
+        }
+
+        if (request.body.roleId !== undefined && request.body.roleId !== existing.roleId) {
+          logEvent({
+            action: SystemEventActions.USER_ROLE_CHANGED,
+            ...eventBase,
+            metadata: {
+              previousRole: existing.role.name,
+              newRole: user.role.name,
+            },
+          });
+        }
 
         reply.send({
           id: user.id,
@@ -447,8 +512,25 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
           return reply.status(400).send({ error: "Cannot delete your own account" });
         }
 
+        // Fetch user info before deletion for audit purposes
+        const userToDelete = await prisma.user.findUnique({
+          where: { id: request.params.id },
+          select: { id: true, email: true },
+        });
+
         await prisma.user.delete({
           where: { id: request.params.id },
+        });
+
+        logEvent({
+          action: SystemEventActions.USER_DELETED,
+          resource: SystemEventResources.USERS,
+          resourceId: request.params.id,
+          resourceLabel: userToDelete?.email ?? null,
+          userId: request.user.userId,
+          userLabel: request.user.email,
+          ipAddress: request.ip,
+          userAgent: request.headers["user-agent"] ?? null,
         });
 
         reply.send({ message: "User deleted successfully" });
@@ -565,6 +647,16 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
           return reply.status(404).send({ error: "User not found" });
         }
 
+        // Check if an override already exists to determine create vs update
+        const existingOverride = await prisma.userPermissionOverride.findUnique({
+          where: {
+            userId_resource: {
+              userId: request.params.id,
+              resource: request.body.resource as Resource,
+            },
+          },
+        });
+
         await setUserPermissionOverride(
           request.params.id,
           request.body.resource as Resource,
@@ -576,6 +668,25 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
           request.user.userId,
           request.body.reason
         );
+
+        logEvent({
+          action: existingOverride
+            ? SystemEventActions.PERMISSION_OVERRIDE_UPDATED
+            : SystemEventActions.PERMISSION_OVERRIDE_CREATED,
+          resource: SystemEventResources.USER_PERMISSION_OVERRIDES,
+          resourceId: request.params.id,
+          resourceLabel: user.email,
+          userId: request.user.userId,
+          userLabel: request.user.email,
+          metadata: {
+            permissionResource: request.body.resource,
+            canRead: request.body.canRead,
+            canWrite: request.body.canWrite,
+            canDelete: request.body.canDelete,
+          },
+          ipAddress: request.ip,
+          userAgent: request.headers["user-agent"] ?? null,
+        });
 
         reply.send({ message: "Permission override set successfully" });
       } catch (error) {
@@ -626,6 +737,18 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         if (!removed) {
           return reply.status(404).send({ error: "Permission override not found" });
         }
+
+        logEvent({
+          action: SystemEventActions.PERMISSION_OVERRIDE_DELETED,
+          resource: SystemEventResources.USER_PERMISSION_OVERRIDES,
+          resourceId: request.params.id,
+          resourceLabel: user.email,
+          userId: request.user.userId,
+          userLabel: request.user.email,
+          metadata: { permissionResource: request.params.resource },
+          ipAddress: request.ip,
+          userAgent: request.headers["user-agent"] ?? null,
+        });
 
         reply.send({ message: "Permission override removed successfully" });
       } catch (error) {

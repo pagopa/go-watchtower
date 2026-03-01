@@ -24,6 +24,7 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
+    "db:seed:private": "tsx prisma/run-sql.ts prisma/seed.private.sql",
     "import:analyses": "tsx scripts/import-analyses.ts",
     "type-check": "tsc --noEmit"
   },

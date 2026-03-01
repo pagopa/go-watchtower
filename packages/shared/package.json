@@ -1,0 +1,20 @@
+{
+  "name": "@go-watchtower/shared",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared constants and types between backend and frontend",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

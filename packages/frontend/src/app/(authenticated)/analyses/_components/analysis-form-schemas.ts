@@ -67,7 +67,8 @@ export const analysisFormSchema = z.object({
   isOnCall: z.boolean().optional(),
   errorDetails: z.string().optional(),
   conclusionNotes: z.string().optional(),
-  externalTeamName: z.string().optional(),
+  ignoreReasonCode: z.string().optional(),
+  ignoreDetails: z.record(z.unknown()).optional(),
   runbookId: z.string().optional(),
   microserviceIds: z.array(z.string()).optional(),
   downstreamIds: z.array(z.string()).optional(),
@@ -116,8 +117,8 @@ export type ShortcutInCorsoData = z.infer<typeof shortcutInCorsoSchema>
 
 export const shortcutDisservizioSchema = z.object({
   alarmId: z.string().min(1, 'L\'allarme è obbligatorio'),
-  analysisType: z.enum(['IGNORED_RELEASE', 'IGNORED_MAINTENANCE'], {
-    error: 'Il tipo è obbligatorio',
+  ignoreReasonCode: z.enum(['RELEASE', 'MAINTENANCE'], {
+    error: 'Il motivo è obbligatorio',
   }),
   occurrences: z.coerce.number().min(1, 'Minimo 1').optional().or(z.literal('')),
   environmentId: z.string().min(1, 'L\'ambiente è obbligatorio'),
@@ -151,7 +152,7 @@ export type ShortcutIgnoreListData = z.infer<typeof shortcutIgnoreListSchema>
 
 export const shortcutNonGestitoSchema = z.object({
   alarmId: z.string().min(1, 'L\'allarme è obbligatorio'),
-  externalTeamName: z.string().min(1, 'Il nome del team/gestore è obbligatorio'),
+  handler: z.string().min(1, 'Il nome del team/gestore è obbligatorio'),
   occurrences: z.coerce.number().min(1, 'Minimo 1').optional().or(z.literal('')),
   environmentId: z.string().min(1, 'L\'ambiente è obbligatorio'),
   firstAlarmAt: z.string().min(1, 'La data del primo allarme è obbligatoria'),

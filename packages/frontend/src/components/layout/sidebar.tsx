@@ -3,7 +3,21 @@
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
-import { LayoutDashboard, Package, Users, ChevronLeft, ChevronRight, ChevronDown, ClipboardList, FileBarChart, Shield } from 'lucide-react'
+import {
+  LayoutDashboard,
+  Package,
+  Users,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  ClipboardList,
+  FileBarChart,
+  Shield,
+  Settings2,
+  ScrollText,
+  SlidersHorizontal,
+  BanIcon,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -26,47 +40,88 @@ interface NavItem {
   expandable?: boolean
 }
 
-const navItems: NavItem[] = [
+interface NavGroup {
+  label: string
+  items: NavItem[]
+}
+
+const navGroups: NavGroup[] = [
   {
-    title: 'Dashboard',
-    href: '/dashboard',
-    icon: LayoutDashboard,
+    label: 'Monitoraggio',
+    items: [
+      {
+        title: 'Dashboard',
+        href: '/dashboard',
+        icon: LayoutDashboard,
+      },
+      {
+        title: 'Analisi',
+        href: '/analyses',
+        icon: ClipboardList,
+        resource: 'ALARM_ANALYSIS',
+        action: 'read',
+        expandable: true,
+      },
+      {
+        title: 'Report',
+        href: '/reports',
+        icon: FileBarChart,
+        resource: 'ALARM_ANALYSIS',
+        action: 'read',
+      },
+    ],
   },
   {
-    title: 'Report',
-    href: '/reports',
-    icon: FileBarChart,
-    resource: 'ALARM_ANALYSIS',
-    action: 'read',
+    label: 'Configurazione',
+    items: [
+      {
+        title: 'Prodotti',
+        href: '/products',
+        icon: Package,
+        resource: 'PRODUCT',
+        action: 'read',
+      },
+      {
+        title: 'Utenti',
+        href: '/users',
+        icon: Users,
+        resource: 'USER',
+        action: 'read',
+      },
+      {
+        title: 'Ruoli',
+        href: '/roles',
+        icon: Shield,
+        resource: 'USER',
+        action: 'write',
+      },
+    ],
   },
   {
-    title: 'Analisi',
-    href: '/analyses',
-    icon: ClipboardList,
-    resource: 'ALARM_ANALYSIS',
-    action: 'read',
-    expandable: true,
-  },
-  {
-    title: 'Prodotti',
-    href: '/products',
-    icon: Package,
-    resource: 'PRODUCT',
-    action: 'read',
-  },
-  {
-    title: 'Utenti',
-    href: '/users',
-    icon: Users,
-    resource: 'USER',
-    action: 'read',
-  },
-  {
-    title: 'Ruoli',
-    href: '/roles',
-    icon: Shield,
-    resource: 'USER',
-    action: 'write',
+    label: 'Sistema',
+    items: [
+      {
+        title: 'Parametri',
+        href: '/settings/parameters',
+        icon: SlidersHorizontal,
+        resource: 'SYSTEM_SETTING',
+        action: 'read',
+      },
+      {
+        title: 'Motivi esclusione',
+        href: '/settings/ignore-reasons',
+        icon: BanIcon,
+        resource: 'SYSTEM_SETTING',
+        action: 'write',
+      },
+      {
+        title: 'Log eventi',
+        href: '/settings/system-events',
+        icon: ScrollText,
+        resource: 'SYSTEM_SETTING',
+        action: 'read',
+      },
+    ],
   },
 ]
 
@@ -88,31 +143,124 @@ export function Sidebar() {
     enabled: canReadAnalyses,
   })
 
-  const filteredNavItems = navItems.filter((item) => {
-    if (!item.resource || !item.action) return true
-    if (isLoading) return true
-    return can(item.resource as Parameters<typeof can>[0], item.action)
-  })
+  const filterItems = (items: NavItem[]) =>
+    items.filter((item) => {
+      if (!item.resource || !item.action) return true
+      if (isLoading) return true
+      return can(item.resource as Parameters<typeof can>[0], item.action)
+    })
+
+  const renderItem = (item: NavItem) => {
+    const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
+    const Icon = item.icon
+
+    // Expandable item (Analisi with product sub-items)
+    if (item.expandable && !collapsed) {
+      return (
+        <div key={item.href}>
+          <div className="flex items-center">
+            <Link
+              href={item.href}
+              className={cn(
+                'flex flex-1 items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                isActive
+                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+              )}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              <span>{item.title}</span>
+            </Link>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0"
+              onClick={() => setAnalysisExpanded(!analysisExpanded)}
+            >
+              <ChevronDown
+                className={cn(
+                  'h-4 w-4 transition-transform',
+                  !analysisExpanded && '-rotate-90'
+                )}
+              />
+            </Button>
+          </div>
+          {analysisExpanded && products && products.length > 0 && (
+            <div className="ml-6 mt-1 space-y-0.5 border-l pl-3">
+              {products.filter(p => p.isActive).map((product) => {
+                const productHref = `/analyses?productId=${product.id}`
+                const isProductActive =
+                  pathname === '/analyses' &&
+                  searchParams.get('productId') === product.id
+                return (
+                  <Link
+                    key={product.id}
+                    href={productHref}
+                    className={cn(
+                      'block rounded-md px-2 py-1.5 text-xs font-medium transition-colors',
+                      isProductActive
+                        ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                        : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                    )}
+                  >
+                    {product.name}
+                  </Link>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )
+    }
+
+    const linkContent = (
+      <Link
+        href={item.href}
+        className={cn(
+          'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+          isActive
+            ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+            : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+          collapsed && 'justify-center px-2'
+        )}
+      >
+        <Icon className="h-4 w-4 shrink-0" />
+        {!collapsed && <span>{item.title}</span>}
+      </Link>
+    )
+
+    if (collapsed) {
+      return (
+        <Tooltip key={item.href}>
+          <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
+          <TooltipContent side="right">{item.title}</TooltipContent>
+        </Tooltip>
+      )
+    }
+
+    return <div key={item.href}>{linkContent}</div>
+  }
 
   return (
     <TooltipProvider delayDuration={0}>
       <aside
         className={cn(
           'flex h-full flex-col border-r bg-sidebar transition-all duration-300',
-          collapsed ? 'w-16' : 'w-64'
+          collapsed ? 'w-16' : 'w-56'
         )}
       >
-        <div className="flex h-16 items-center justify-between border-b px-4">
+        {/* Header */}
+        <div className="flex h-14 items-center justify-between border-b px-3">
           {!collapsed && (
-            <span className="text-lg font-semibold text-sidebar-foreground">
-              Menu
+            <span className="text-sm font-semibold text-sidebar-foreground tracking-wide uppercase">
+              Watchtower
             </span>
           )}
           <Button
             variant="ghost"
             size="icon"
             onClick={toggleCollapsed}
-            className={cn('h-8 w-8', collapsed && 'mx-auto')}
+            className={cn('h-7 w-7', collapsed && 'mx-auto')}
             aria-label={collapsed ? 'Espandi sidebar' : 'Comprimi sidebar'}
           >
             {collapsed ? (
@@ -123,95 +271,28 @@ export function Sidebar() {
           </Button>
         </div>
 
-        <nav className="flex-1 space-y-1 p-2">
-          {filteredNavItems.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
-            const Icon = item.icon
+        {/* Nav groups */}
+        <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-4">
+          {navGroups.map((group) => {
+            const visibleItems = filterItems(group.items)
+            if (visibleItems.length === 0) return null
 
-            // Expandable item (Analisi)
-            if (item.expandable && !collapsed) {
-              return (
-                <div key={item.href}>
-                  <div className="flex items-center">
-                    <Link
-                      href={item.href}
-                      className={cn(
-                        'flex flex-1 items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                        isActive
-                          ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                          : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-                      )}
-                    >
-                      <Icon className="h-5 w-5 shrink-0" />
-                      <span>{item.title}</span>
-                    </Link>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 shrink-0"
-                      onClick={() => setAnalysisExpanded(!analysisExpanded)}
-                    >
-                      <ChevronDown
-                        className={cn(
-                          'h-4 w-4 transition-transform',
-                          !analysisExpanded && '-rotate-90'
-                        )}
-                      />
-                    </Button>
-                  </div>
-                  {analysisExpanded && products && products.length > 0 && (
-                    <div className="ml-6 mt-1 space-y-0.5 border-l pl-3">
-                      {products.filter(p => p.isActive).map((product) => {
-                        const productHref = `/analyses?productId=${product.id}`
-                        const isProductActive = pathname === '/analyses' &&
-                          searchParams.get('productId') === product.id
-                        return (
-                          <Link
-                            key={product.id}
-                            href={productHref}
-                            className={cn(
-                              'block rounded-md px-2 py-1.5 text-xs font-medium transition-colors',
-                              isProductActive
-                                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                                : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-                            )}
-                          >
-                            {product.name}
-                          </Link>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              )
-            }
-
-            const linkContent = (
-              <Link
-                href={item.href}
-                className={cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                    : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                  collapsed && 'justify-center px-2'
+            return (
+              <div key={group.label}>
+                {/* Group label — hidden when collapsed */}
+                {!collapsed && (
+                  <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/40 select-none">
+                    {group.label}
+                  </p>
                 )}
-              >
-                <Icon className="h-5 w-5 shrink-0" />
-                {!collapsed && <span>{item.title}</span>}
-              </Link>
+                {collapsed && (
+                  <div className="mb-1 border-t border-sidebar-foreground/10" />
+                )}
+                <div className="space-y-0.5">
+                  {visibleItems.map(renderItem)}
+                </div>
+              </div>
             )
-
-            if (collapsed) {
-              return (
-                <Tooltip key={item.href}>
-                  <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
-                  <TooltipContent side="right">{item.title}</TooltipContent>
-                </Tooltip>
-              )
-            }
-
-            return <div key={item.href}>{linkContent}</div>
           })}
         </nav>
       </aside>

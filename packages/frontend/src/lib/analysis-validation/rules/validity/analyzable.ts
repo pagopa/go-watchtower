@@ -20,13 +20,12 @@ export const analyzableRules: ValidationRule[] = [
     validate: (a) => a.microservices.length > 0,
   },
   {
-    id: 'EXTERNAL_TEAM_WITHOUT_NAME',
+    id: 'IGNORABLE_REQUIRES_REASON',
     severity: 'error',
     weight: 2,
     message:
-      'Per un\'analisi non gestita internamente è necessario specificare il team esterno',
-    appliesTo: (a) => a.analysisType === 'IGNORED_NOT_MANAGED',
-    validate: (a) =>
-      a.externalTeamName != null && a.externalTeamName.trim() !== '',
+      "Un'analisi da ignorare deve avere un motivo specificato",
+    appliesTo: (a) => a.analysisType === 'IGNORABLE',
+    validate: (a) => a.ignoreReasonCode != null && a.ignoreReasonCode.trim() !== '',
   },
 ]

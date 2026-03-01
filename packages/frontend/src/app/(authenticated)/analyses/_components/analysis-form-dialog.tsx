@@ -63,9 +63,10 @@ import {
   LastAlarmField,
   AnalysisDateField,
   OperatorField,
-  ExternalTeamNameField,
+  IgnoreReasonField,
   ProductSelectorCard,
 } from './analysis-form-fields'
+import { DynamicIgnoreDetailsForm } from '@/components/ui/json-schema-form'
 
 import { ANALYSIS_TYPE_LABELS, ANALYSIS_STATUS_LABELS } from '../_lib/constants'
 
@@ -202,6 +203,12 @@ export function AnalysisFormDialog({
     enabled: open && !!productId,
   })
 
+  const { data: ignoreReasons } = useQuery({
+    queryKey: ['ignore-reasons'],
+    queryFn: () => api.getIgnoreReasons(),
+    staleTime: Infinity,
+  })
+
   const availableUsers = useMemo(() => {
     if (!can('USER', 'read')) {
       // Operator: can only select themselves.
@@ -245,7 +252,8 @@ export function AnalysisFormDialog({
       isOnCall: false,
       errorDetails: '',
       conclusionNotes: '',
-      externalTeamName: '',
+      ignoreReasonCode: undefined,
+      ignoreDetails: undefined,
       runbookId: undefined,
       microserviceIds: [],
       downstreamIds: [],
@@ -282,7 +290,8 @@ export function AnalysisFormDialog({
         isOnCall: editItem.isOnCall,
         errorDetails: editItem.errorDetails || '',
         conclusionNotes: editItem.conclusionNotes || '',
-        externalTeamName: editItem.externalTeamName || '',
+        ignoreReasonCode: editItem.ignoreReasonCode || undefined,
+        ignoreDetails: (editItem.ignoreDetails as Record<string, unknown>) || undefined,
         runbookId: editItem.runbookId || undefined,
         microserviceIds: editItem.microservices.map((ms) => ms.id),
         downstreamIds: editItem.downstreams.map((ds) => ds.id),
@@ -309,7 +318,8 @@ export function AnalysisFormDialog({
         isOnCall: false,
         errorDetails: '',
         conclusionNotes: '',
-        externalTeamName: '',
+        ignoreReasonCode: undefined,
+        ignoreDetails: undefined,
         runbookId: undefined,
         microserviceIds: [],
         downstreamIds: [],
@@ -324,6 +334,10 @@ export function AnalysisFormDialog({
   const watchedLastAlarm = watch('lastAlarmAt')
   const watchedAnalysisDate = watch('analysisDate')
   const watchedAnalysisType = watch('analysisType')
+  const watchedIgnoreReasonCode = watch('ignoreReasonCode')
+
+  // Find the selected ignore reason to get its detailsSchema
+  const selectedIgnoreReason = ignoreReasons?.find((r) => r.code === watchedIgnoreReasonCode)
 
   const dateValidation = useDateValidation(watchedFirstAlarm, watchedLastAlarm, watchedAnalysisDate)
 
@@ -343,7 +357,8 @@ export function AnalysisFormDialog({
       // alarm timestamps are entered as UTC → treat as UTC ISO
       firstAlarmAt: utcLocalToISO(data.firstAlarmAt),
       lastAlarmAt: utcLocalToISO(data.lastAlarmAt),
-      externalTeamName: data.analysisType === 'IGNORED_NOT_MANAGED' ? data.externalTeamName : undefined,
+      ignoreReasonCode: data.analysisType === 'IGNORABLE' ? (data.ignoreReasonCode || null) : null,
+      ignoreDetails: data.analysisType === 'IGNORABLE' ? (data.ignoreDetails || null) : null,
       runbookId: data.runbookId || undefined,
       links: data.links?.map((l) => ({
         url: l.url,
@@ -495,13 +510,25 @@ export function AnalysisFormDialog({
                 />
               </div>
 
-              {/* Conditional: Gestito da (only for IGNORED_NOT_MANAGED) */}
-              {watchedAnalysisType === 'IGNORED_NOT_MANAGED' && (
-                <ExternalTeamNameField
-                  registration={register('externalTeamName')}
-                  errors={errors}
-                  disabled={isPending}
-                />
+              {/* Conditional: Motivo ignora + dettagli dinamici (only for IGNORABLE) */}
+              {watchedAnalysisType === 'IGNORABLE' && (
+                <>
+                  <IgnoreReasonField
+                    control={control}
+                    disabled={isPending}
+                    options={ignoreReasons?.map((r) => ({ value: r.code, label: r.label })) ?? []}
+                  />
+                  {selectedIgnoreReason?.detailsSchema && (
+                    <div className="sm:col-span-2">
+                      <DynamicIgnoreDetailsForm
+                        control={control}
+                        schema={selectedIgnoreReason.detailsSchema}
+                        disabled={isPending}
+                        errors={errors}
+                      />
+                    </div>
+                  )}
+                </>
               )}
 
               {/* Dettagli errore (full width) */}

@@ -5,10 +5,7 @@ const ROME_TZ = 'Europe/Rome'
 
 export const ANALYSIS_TYPE_LABELS: Record<AnalysisType, string> = {
   ANALYZABLE: 'Analizzabile',
-  IGNORED_RELEASE: 'Ignorato - Release',
-  IGNORED_MAINTENANCE: 'Ignorato - Manutenzione',
-  IGNORED_LISTED: 'Ignorato - In lista',
-  IGNORED_NOT_MANAGED: 'Ignorato - Non gestito',
+  IGNORABLE:  'Da ignorare',
 }
 
 export const ANALYSIS_STATUS_LABELS: Record<AnalysisStatus, string> = {

@@ -38,6 +38,9 @@ import {
 import { generateAccessToken } from "../../plugins/jwt.js";
 import { authRateLimitConfig } from "../../plugins/rate-limit.js";
 import { env } from "../../config/env.js";
+import { logEvent } from "../../services/system-event.service.js";
+import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
+import type { JwtPayload } from "../../plugins/jwt.js";
 
 // Access token expires in 15 minutes (in seconds)
 const ACCESS_TOKEN_EXPIRES_IN_SECONDS = 15 * 60;
@@ -176,6 +179,15 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
 
         setTokenCookies(reply, accessToken, refreshToken);
 
+        logEvent({
+          action: SystemEventActions.USER_LOGIN,
+          resource: SystemEventResources.AUTH,
+          userId: user.id,
+          userLabel: user.email,
+          ipAddress: request.ip,
+          userAgent: request.headers["user-agent"] ?? null,
+        });
+
         reply.send({
           user: formatUser(user),
           accessToken,
@@ -185,6 +197,16 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Login failed";
+
+        logEvent({
+          action: SystemEventActions.USER_LOGIN_FAILED,
+          resource: SystemEventResources.AUTH,
+          userLabel: request.body.email,
+          metadata: { reason: message },
+          ipAddress: request.ip,
+          userAgent: request.headers["user-agent"] ?? null,
+        });
+
         reply.status(401).send({ error: message });
       }
     }
@@ -277,6 +299,36 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       if (refreshToken) {
         await revokeRefreshToken(refreshToken);
       }
+
+      // Try to identify the user: first from cookie, then from Bearer header
+      let logoutUserId: string | null = null;
+      let logoutUserLabel: string | null = null;
+      try {
+        const accessTokenCookie = request.cookies["accessToken"] as string | undefined;
+        const bearerHeader = request.headers["authorization"] as string | undefined;
+        const bearerToken = bearerHeader?.startsWith("Bearer ")
+          ? bearerHeader.slice(7)
+          : undefined;
+        const rawToken = accessTokenCookie ?? bearerToken;
+        if (rawToken) {
+          const decoded = app.jwt.decode<JwtPayload>(rawToken);
+          if (decoded) {
+            logoutUserId = decoded.userId;
+            logoutUserLabel = decoded.email;
+          }
+        }
+      } catch {
+        // token may be expired or malformed - that's fine
+      }
+
+      logEvent({
+        action: SystemEventActions.USER_LOGOUT,
+        resource: SystemEventResources.AUTH,
+        userId: logoutUserId,
+        userLabel: logoutUserLabel,
+        ipAddress: request.ip,
+        userAgent: request.headers["user-agent"] ?? null,
+      });
 
       clearTokenCookies(reply);
       reply.send({ message: "Logged out successfully" });
@@ -390,6 +442,16 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         return;
       }
 
+      logEvent({
+        action: SystemEventActions.USER_TOKEN_REVOKED,
+        resource: SystemEventResources.AUTH,
+        resourceId: request.params.sessionId,
+        userId: request.user.userId,
+        userLabel: request.user.email,
+        ipAddress: request.ip,
+        userAgent: request.headers["user-agent"] ?? null,
+      });
+
       reply.send({ message: "Session revoked" });
     }
   );
@@ -441,6 +503,15 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         setTokenCookies(reply, accessToken, refreshToken);
+
+        logEvent({
+          action: SystemEventActions.USER_LOGIN_GOOGLE,
+          resource: SystemEventResources.AUTH,
+          userId: user.id,
+          userLabel: user.email,
+          ipAddress: request.ip,
+          userAgent: request.headers["user-agent"] ?? null,
+        });
 
         // Redirect to frontend with tokens
         reply.redirect(
@@ -537,6 +608,15 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         setTokenCookies(reply, accessToken, refreshToken);
+
+        logEvent({
+          action: SystemEventActions.USER_LOGIN_GOOGLE,
+          resource: SystemEventResources.AUTH,
+          userId: user.id,
+          userLabel: user.email,
+          ipAddress: request.ip,
+          userAgent: request.headers["user-agent"] ?? null,
+        });
 
         reply.send({
           user: formatUser(user),

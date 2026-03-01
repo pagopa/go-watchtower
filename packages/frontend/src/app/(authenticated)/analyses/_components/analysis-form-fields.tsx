@@ -412,28 +412,67 @@ export function AnalysisTypeSelect({ control, disabled, options }: AnalysisTypeS
   )
 }
 
-// --- ExternalTeamNameField ---
+// --- HandlerField (shortcut "non-gestito") ---
 
-interface ExternalTeamNameFieldProps {
+interface HandlerFieldProps {
   registration: UseFormRegisterReturn
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   errors: FieldErrors<any>
   disabled: boolean
 }
 
-export function ExternalTeamNameField({ registration, errors, disabled }: ExternalTeamNameFieldProps) {
+export function HandlerField({ registration, errors, disabled }: HandlerFieldProps) {
   return (
     <div className="space-y-2 sm:col-span-2">
-      <Label htmlFor="form-external-team">Gestito da (team/persona) *</Label>
+      <Label htmlFor="form-handler">Gestito da (team/persona) *</Label>
       <Input
-        id="form-external-team"
+        id="form-handler"
         placeholder="Nome del team o persona che ha gestito l'allarme"
         {...registration}
         disabled={disabled}
       />
-      {errors.externalTeamName && (
-        <p className="text-sm text-destructive">{errors.externalTeamName.message as string}</p>
+      {errors.handler && (
+        <p className="text-sm text-destructive">{errors.handler.message as string}</p>
       )}
+    </div>
+  )
+}
+
+// --- IgnoreReasonField ---
+
+interface IgnoreReasonFieldProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  control: Control<any>
+  disabled: boolean
+  options: { value: string; label: string }[]
+}
+
+export function IgnoreReasonField({ control, disabled, options }: IgnoreReasonFieldProps) {
+  return (
+    <div className="space-y-2">
+      <Label>Motivo *</Label>
+      <Controller
+        name="ignoreReasonCode"
+        control={control}
+        render={({ field }) => (
+          <Select
+            value={field.value || ''}
+            onValueChange={field.onChange}
+            disabled={disabled}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Seleziona motivo" />
+            </SelectTrigger>
+            <SelectContent>
+              {options.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      />
     </div>
   )
 }

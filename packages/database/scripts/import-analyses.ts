@@ -941,6 +941,7 @@ interface AnalysisRecord {
   occurrences: number;
   isOnCall: boolean;
   analysisType: AnalysisType;
+  ignoreReasonCode: string | null;
   status: AnalysisStatus;
   alarmName: string;
   environmentName: string;
@@ -1051,7 +1052,7 @@ function csvRowToRecords(row: CsvRow, rowIndex: number): AnalysisRecord[] {
 
   if (hasIndexedAlarms) {
     // Each line is "[N] alarm-name" where N = occurrences
-    // Type = IGNORED_RELEASE for all generated analyses
+    // Type = IGNORABLE (release) for all generated analyses
     return alarmLines
       .map((line) => {
         const match = line.match(indexedPattern);
@@ -1063,7 +1064,8 @@ function csvRowToRecords(row: CsvRow, rowIndex: number): AnalysisRecord[] {
           lastAlarmAt,
           occurrences: alarmOccurrences,
           isOnCall,
-          analysisType: AnalysisType.IGNORED_RELEASE,
+          analysisType: AnalysisType.IGNORABLE,
+          ignoreReasonCode: "RELEASE",
           status: AnalysisStatus.COMPLETED,
           alarmName,
           environmentName: envName,
@@ -1092,6 +1094,7 @@ function csvRowToRecords(row: CsvRow, rowIndex: number): AnalysisRecord[] {
         occurrences,
         isOnCall,
         analysisType: AnalysisType.ANALYZABLE,
+        ignoreReasonCode: null,
         status: AnalysisStatus.COMPLETED,
         alarmName: alarmNames[0]!,
         environmentName: envName,
@@ -1109,7 +1112,7 @@ function csvRowToRecords(row: CsvRow, rowIndex: number): AnalysisRecord[] {
   }
 
   // Multiple alarms without [N] prefix → split: each gets equal share of occurrences,
-  // remainder assigned to the first alarm. Type = IGNORED_MAINTENANCE per requirement #4
+  // remainder assigned to the first alarm. Type = IGNORABLE (maintenance) per requirement #4
   const perAlarm = Math.max(1, Math.floor(occurrences / alarmNames.length));
   const remainder = occurrences - perAlarm * alarmNames.length;
   return alarmNames.map((alarmName, idx) => ({
@@ -1118,7 +1121,8 @@ function csvRowToRecords(row: CsvRow, rowIndex: number): AnalysisRecord[] {
     lastAlarmAt,
     occurrences: idx === 0 ? perAlarm + remainder : perAlarm,
     isOnCall,
-    analysisType: AnalysisType.IGNORED_MAINTENANCE,
+    analysisType: AnalysisType.IGNORABLE,
+    ignoreReasonCode: "MAINTENANCE",
     status: AnalysisStatus.COMPLETED,
     alarmName,
     environmentName: envName,
@@ -1286,6 +1290,7 @@ async function importAnalyses() {
             occurrences: record.occurrences,
             isOnCall: record.isOnCall,
             analysisType: record.analysisType,
+            ignoreReasonCode: record.ignoreReasonCode,
             status: record.status,
             alarmId,
             errorDetails: record.errorDetails,

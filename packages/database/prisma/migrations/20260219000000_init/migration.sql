@@ -3,9 +3,9 @@
 -- ═══════════════════════════════════════════════════════════
 
 CREATE TYPE "AuthProvider" AS ENUM ('LOCAL', 'GOOGLE');
-CREATE TYPE "AnalysisType" AS ENUM ('ANALYZABLE', 'IGNORED_RELEASE', 'IGNORED_MAINTENANCE', 'IGNORED_LISTED', 'IGNORED_NOT_MANAGED');
+CREATE TYPE "AnalysisType" AS ENUM ('ANALYZABLE', 'IGNORABLE');
 CREATE TYPE "AnalysisStatus" AS ENUM ('CREATED', 'IN_PROGRESS', 'COMPLETED');
-CREATE TYPE "Resource" AS ENUM ('PRODUCT', 'ENVIRONMENT', 'MICROSERVICE', 'IGNORED_ALARM', 'RUNBOOK', 'FINAL_ACTION', 'ALARM', 'ALARM_ANALYSIS', 'DOWNSTREAM', 'USER');
+CREATE TYPE "Resource" AS ENUM ('PRODUCT', 'ENVIRONMENT', 'MICROSERVICE', 'IGNORED_ALARM', 'RUNBOOK', 'FINAL_ACTION', 'ALARM', 'ALARM_ANALYSIS', 'DOWNSTREAM', 'USER', 'SYSTEM_SETTING');
 CREATE TYPE "PermissionScope" AS ENUM ('NONE', 'OWN', 'ALL');
 
 -- ═══════════════════════════════════════════════════════════
@@ -187,34 +187,84 @@ CREATE TABLE "downstreams" (
 );
 
 -- ═══════════════════════════════════════════════════════════
+-- IGNORE REASONS
+-- ═══════════════════════════════════════════════════════════
+
+CREATE TABLE "ignore_reasons" (
+    "code"           TEXT    NOT NULL,
+    "label"          TEXT    NOT NULL,
+    "description"    TEXT,
+    "sort_order"     INTEGER NOT NULL DEFAULT 0,
+    "details_schema" JSONB,
+
+    CONSTRAINT "ignore_reasons_pkey" PRIMARY KEY ("code")
+);
+
+-- ═══════════════════════════════════════════════════════════
 -- ALARM ANALYSES
 -- ═══════════════════════════════════════════════════════════
 
 CREATE TABLE "alarm_analyses" (
-    "id" UUID NOT NULL,
-    "analysis_date" TIMESTAMP(3) NOT NULL,
-    "first_alarm_at" TIMESTAMP(3) NOT NULL,
-    "last_alarm_at" TIMESTAMP(3) NOT NULL,
-    "occurrences" INTEGER NOT NULL DEFAULT 1,
-    "is_on_call" BOOLEAN NOT NULL DEFAULT false,
-    "analysis_type" "AnalysisType" NOT NULL DEFAULT 'ANALYZABLE',
-    "status" "AnalysisStatus" NOT NULL DEFAULT 'CREATED',
-    "alarm_id" UUID NOT NULL,
-    "error_details" TEXT,
-    "conclusion_notes" TEXT,
-    "external_team_name" TEXT,
-    "operator_id" UUID NOT NULL,
-    "product_id" UUID NOT NULL,
-    "environment_id" UUID NOT NULL,
-    "runbook_id" UUID,
-    "links" JSONB NOT NULL DEFAULT '[]',
-    "tracking_ids" JSONB NOT NULL DEFAULT '[]',
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
-    "created_by_id" UUID NOT NULL,
-    "updated_by_id" UUID,
+    "id"                  UUID           NOT NULL,
+    "analysis_date"       TIMESTAMP(3)   NOT NULL,
+    "first_alarm_at"      TIMESTAMP(3)   NOT NULL,
+    "last_alarm_at"       TIMESTAMP(3)   NOT NULL,
+    "occurrences"         INTEGER        NOT NULL DEFAULT 1,
+    "is_on_call"          BOOLEAN        NOT NULL DEFAULT false,
+    "analysis_type"       "AnalysisType" NOT NULL DEFAULT 'ANALYZABLE',
+    "status"              "AnalysisStatus" NOT NULL DEFAULT 'CREATED',
+    "alarm_id"            UUID           NOT NULL,
+    "error_details"       TEXT,
+    "conclusion_notes"    TEXT,
+    "ignore_reason_code"  TEXT,
+    "ignore_details"      JSONB,
+    "operator_id"         UUID           NOT NULL,
+    "product_id"          UUID           NOT NULL,
+    "environment_id"      UUID           NOT NULL,
+    "runbook_id"          UUID,
+    "links"               JSONB          NOT NULL DEFAULT '[]',
+    "tracking_ids"        JSONB          NOT NULL DEFAULT '[]',
+    "created_at"          TIMESTAMP(3)   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at"          TIMESTAMP(3)   NOT NULL,
+    "created_by_id"       UUID           NOT NULL,
+    "updated_by_id"       UUID,
 
     CONSTRAINT "alarm_analyses_pkey" PRIMARY KEY ("id")
+);
+
+-- ═══════════════════════════════════════════════════════════
+-- SYSTEM SETTINGS & EVENT LOG
+-- ═══════════════════════════════════════════════════════════
+
+CREATE TABLE "system_settings" (
+    "id" UUID NOT NULL,
+    "key" TEXT NOT NULL,
+    "value" JSONB NOT NULL,
+    "type" TEXT NOT NULL,
+    "category" TEXT NOT NULL,
+    "label" TEXT NOT NULL,
+    "description" TEXT,
+    "updated_by_id" UUID,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "system_settings_pkey" PRIMARY KEY ("id")
+);
+
+CREATE TABLE "system_events" (
+    "id" UUID NOT NULL,
+    "user_id" UUID,
+    "user_label" TEXT,
+    "action" TEXT NOT NULL,
+    "resource" TEXT,
+    "resource_id" TEXT,
+    "resource_label" TEXT,
+    "metadata" JSONB NOT NULL DEFAULT '{}',
+    "ip_address" TEXT,
+    "user_agent" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "system_events_pkey" PRIMARY KEY ("id")
 );
 
 -- ═══════════════════════════════════════════════════════════
@@ -265,7 +315,7 @@ CREATE UNIQUE INDEX "downstreams_product_id_name_key" ON "downstreams"("product_
 --
 -- Design notes:
 -- - No standalone index on alarm_analyses(product_id): covered by composite (product_id, analysis_date)
--- - No index on alarm_analyses(analysis_type): low cardinality (5 values), never leading filter
+-- - No index on alarm_analyses(analysis_type): low cardinality (2 values), never leading filter
 -- - No index on alarm_analyses(status): low cardinality (3 values), never leading filter
 -- - No standalone index on role_permissions(role_id): covered by unique (role_id, resource)
 -- - No standalone index on user_permission_overrides(user_id): covered by unique (user_id, resource)
@@ -298,11 +348,22 @@ CREATE INDEX "alarm_analyses_runbook_id_idx" ON "alarm_analyses"("runbook_id");
 CREATE INDEX "alarm_analyses_created_by_id_idx" ON "alarm_analyses"("created_by_id");
 CREATE INDEX "alarm_analyses_updated_by_id_idx" ON "alarm_analyses"("updated_by_id");
 CREATE INDEX "alarm_analyses_created_at_idx" ON "alarm_analyses"("created_at");
+CREATE INDEX "alarm_analyses_ignore_reason_code_idx" ON "alarm_analyses"("ignore_reason_code");
 
 -- join tables: reverse FK indexes (PK only covers leading column)
 CREATE INDEX "analysis_microservices_microservice_id_idx" ON "analysis_microservices"("microservice_id");
 CREATE INDEX "analysis_downstreams_downstream_id_idx" ON "analysis_downstreams"("downstream_id");
 CREATE INDEX "analysis_final_actions_final_action_id_idx" ON "analysis_final_actions"("final_action_id");
+
+-- system_settings
+CREATE UNIQUE INDEX "system_settings_key_key" ON "system_settings"("key");
+CREATE INDEX "system_settings_category_idx" ON "system_settings"("category");
+
+-- system_events
+CREATE INDEX "system_events_user_id_idx" ON "system_events"("user_id");
+CREATE INDEX "system_events_action_idx" ON "system_events"("action");
+CREATE INDEX "system_events_resource_resource_id_idx" ON "system_events"("resource", "resource_id");
+CREATE INDEX "system_events_created_at_idx" ON "system_events"("created_at");
 
 -- ═══════════════════════════════════════════════════════════
 -- FOREIGN KEYS
@@ -337,6 +398,7 @@ ALTER TABLE "alarm_analyses" ADD CONSTRAINT "alarm_analyses_environment_id_fkey"
 ALTER TABLE "alarm_analyses" ADD CONSTRAINT "alarm_analyses_runbook_id_fkey" FOREIGN KEY ("runbook_id") REFERENCES "runbooks"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "alarm_analyses" ADD CONSTRAINT "alarm_analyses_created_by_id_fkey" FOREIGN KEY ("created_by_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "alarm_analyses" ADD CONSTRAINT "alarm_analyses_updated_by_id_fkey" FOREIGN KEY ("updated_by_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "alarm_analyses" ADD CONSTRAINT "alarm_analyses_ignore_reason_code_fkey" FOREIGN KEY ("ignore_reason_code") REFERENCES "ignore_reasons"("code") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- Join tables
 ALTER TABLE "analysis_microservices" ADD CONSTRAINT "analysis_microservices_analysis_id_fkey" FOREIGN KEY ("analysis_id") REFERENCES "alarm_analyses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -346,3 +408,6 @@ ALTER TABLE "analysis_downstreams" ADD CONSTRAINT "analysis_downstreams_downstre
 ALTER TABLE "analysis_final_actions" ADD CONSTRAINT "analysis_final_actions_analysis_id_fkey" FOREIGN KEY ("analysis_id") REFERENCES "alarm_analyses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "analysis_final_actions" ADD CONSTRAINT "analysis_final_actions_final_action_id_fkey" FOREIGN KEY ("final_action_id") REFERENCES "final_actions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
+-- System Settings & Event Log
+ALTER TABLE "system_settings" ADD CONSTRAINT "system_settings_updated_by_id_fkey" FOREIGN KEY ("updated_by_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "system_events" ADD CONSTRAINT "system_events_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;

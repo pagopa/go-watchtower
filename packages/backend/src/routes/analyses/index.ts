@@ -1,9 +1,11 @@
 import type { FastifyInstance } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
-import { prisma, Resource, type PrismaClient } from "@go-watchtower/database";
+import { prisma, Prisma, Resource, type PrismaClient } from "@go-watchtower/database";
 
 type TransactionClient = Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends">;
 import { hasPermission, hasPermissionForResource } from "../../services/permission.service.js";
+import { logEvent, buildDiff } from "../../services/system-event.service.js";
+import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
 import {
   ProductIdParamsSchema,
   AlarmAnalysisParamsSchema,
@@ -18,6 +20,7 @@ import {
   PaginatedAlarmAnalysisResponseSchema,
   ErrorResponseSchema,
   MessageResponseSchema,
+  IgnoreReasonsResponseSchema,
   type ProductIdParams,
   type AlarmAnalysisParams,
   type AlarmAnalysisQuery,
@@ -64,6 +67,7 @@ const analysisInclude = {
   downstreams: {
     include: { downstream: { select: { id: true, name: true } } },
   },
+  ignoreReason: true,
 } as const;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -80,7 +84,9 @@ function formatAnalysisResponse(analysis: any) {
     alarmId: analysis.alarmId,
     errorDetails: analysis.errorDetails,
     conclusionNotes: analysis.conclusionNotes,
-    externalTeamName: analysis.externalTeamName,
+    ignoreReasonCode: analysis.ignoreReasonCode,
+    ignoreDetails: analysis.ignoreDetails as Record<string, unknown> | null,
+    ignoreReason: analysis.ignoreReason ?? null,
     operatorId: analysis.operatorId,
     productId: analysis.productId,
     environmentId: analysis.environmentId,
@@ -112,6 +118,36 @@ function formatAnalysisResponse(analysis: any) {
 
 export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
   const app = fastify.withTypeProvider<TypeBoxTypeProvider>();
+
+  // ============================================================================
+  // GET IGNORE REASONS
+  // ============================================================================
+
+  app.get(
+    "/analyses/ignore-reasons",
+    {
+      onRequest: [app.authenticate],
+      schema: {
+        tags: ["analyses"],
+        summary: "Get all ignore reasons ordered by sort_order",
+        security: [{ bearerAuth: [] }],
+        response: {
+          200: IgnoreReasonsResponseSchema,
+        },
+      },
+    },
+    async (_request, reply) => {
+      const ignoreReasons = await prisma.ignoreReason.findMany({
+        orderBy: { sortOrder: "asc" },
+      });
+      reply.send(
+        ignoreReasons.map((r) => ({
+          ...r,
+          detailsSchema: r.detailsSchema as Record<string, unknown> | null,
+        }))
+      );
+    }
+  );
 
   // ============================================================================
   // LIST ANALYSES (with advanced pagination and filtering)
@@ -582,6 +618,13 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
           }
         }
 
+        const { ignoreReasonCode, ignoreDetails } = request.body;
+        const resolvedAnalysisType = request.body.analysisType ?? "ANALYZABLE";
+
+        if (resolvedAnalysisType === "IGNORABLE" && !ignoreReasonCode) {
+          return reply.status(400).send({ error: "ignoreReasonCode is required when analysisType is IGNORABLE" });
+        }
+
         const analysis = await prisma.$transaction(async (tx: TransactionClient) => {
           const created = await tx.alarmAnalysis.create({
             data: {
@@ -590,12 +633,15 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
               lastAlarmAt: new Date(request.body.lastAlarmAt),
               occurrences: request.body.occurrences ?? 1,
               isOnCall: request.body.isOnCall ?? false,
-              analysisType: request.body.analysisType ?? "ANALYZABLE",
+              analysisType: resolvedAnalysisType,
               status: request.body.status ?? "CREATED",
               alarmId: request.body.alarmId,
               errorDetails: request.body.errorDetails || null,
               conclusionNotes: request.body.conclusionNotes || null,
-              externalTeamName: request.body.externalTeamName || null,
+              ignoreReasonCode: resolvedAnalysisType === "IGNORABLE" ? ignoreReasonCode ?? null : null,
+              ignoreDetails: resolvedAnalysisType === "IGNORABLE"
+                ? (ignoreDetails != null ? ignoreDetails as unknown as Prisma.InputJsonValue : Prisma.DbNull)
+                : Prisma.DbNull,
               operatorId: request.body.operatorId,
               productId,
               environmentId: request.body.environmentId,
@@ -638,6 +684,17 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
           });
 
           return created;
+        });
+
+        logEvent({
+          action: SystemEventActions.ANALYSIS_CREATED,
+          resource: SystemEventResources.ALARM_ANALYSES,
+          resourceId: analysis.id,
+          resourceLabel: analysis.alarm?.name ?? null,
+          userId: request.user.userId,
+          userLabel: request.user.email,
+          ipAddress: request.ip,
+          userAgent: request.headers["user-agent"] ?? null,
         });
 
         reply.status(201).send(formatAnalysisResponse(analysis));
@@ -794,6 +851,15 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
           }
         }
 
+        // Validate ignoreReasonCode when analysisType is IGNORABLE
+        const resolvedAnalysisType = request.body.analysisType ?? existing.analysisType;
+        const resolvedIgnoreReasonCode = request.body.ignoreReasonCode !== undefined
+          ? request.body.ignoreReasonCode
+          : (existing as Record<string, unknown>).ignoreReasonCode as string | null | undefined;
+        if (resolvedAnalysisType === "IGNORABLE" && !resolvedIgnoreReasonCode) {
+          return reply.status(400).send({ error: "ignoreReasonCode is required when analysisType is IGNORABLE" });
+        }
+
         const analysis = await prisma.$transaction(async (tx: TransactionClient) => {
           // Handle microservices replacement
           if (request.body.microserviceIds !== undefined) {
@@ -879,14 +945,24 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
           if (request.body.conclusionNotes !== undefined) {
             updateData.conclusionNotes = request.body.conclusionNotes || null;
           }
+          if (resolvedAnalysisType === "ANALYZABLE") {
+            updateData.ignoreReasonCode = null;
+            updateData.ignoreDetails = Prisma.DbNull;
+          } else {
+            if (request.body.ignoreReasonCode !== undefined) {
+              updateData.ignoreReasonCode = request.body.ignoreReasonCode || null;
+            }
+            if (request.body.ignoreDetails !== undefined) {
+              updateData.ignoreDetails = request.body.ignoreDetails != null
+                ? request.body.ignoreDetails as unknown as Prisma.InputJsonValue
+                : Prisma.DbNull;
+            }
+          }
           if (request.body.operatorId !== undefined) {
             updateData.operatorId = request.body.operatorId;
           }
           if (request.body.environmentId !== undefined) {
             updateData.environmentId = request.body.environmentId;
-          }
-          if (request.body.externalTeamName !== undefined) {
-            updateData.externalTeamName = request.body.externalTeamName || null;
           }
           if (request.body.runbookId !== undefined) {
             updateData.runbookId = request.body.runbookId || null;
@@ -906,6 +982,64 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
 
           return updated;
         });
+
+        const eventBase = {
+          resource: SystemEventResources.ALARM_ANALYSES,
+          resourceId: analysis.id,
+          resourceLabel: analysis.alarm?.name ?? null,
+          userId: request.user.userId,
+          userLabel: request.user.email,
+          ipAddress: request.ip,
+          userAgent: request.headers["user-agent"] ?? null,
+        };
+
+        logEvent({
+          action: SystemEventActions.ANALYSIS_UPDATED,
+          ...eventBase,
+          metadata: {
+            changes: buildDiff(
+              {
+                analysisType:    existing.analysisType,
+                status:          existing.status,
+                analysisDate:    existing.analysisDate,
+                occurrences:     existing.occurrences,
+                isOnCall:        existing.isOnCall,
+                operatorId:      existing.operatorId,
+                environmentId:   existing.environmentId,
+                alarmId:         existing.alarmId,
+                runbookId:       existing.runbookId,
+                ignoreReasonCode: (existing as Record<string, unknown>).ignoreReasonCode,
+                errorDetails:    existing.errorDetails,
+                conclusionNotes: existing.conclusionNotes,
+              } as Record<string, unknown>,
+              {
+                analysisType:    analysis.analysisType,
+                status:          analysis.status,
+                analysisDate:    analysis.analysisDate,
+                occurrences:     analysis.occurrences,
+                isOnCall:        analysis.isOnCall,
+                operatorId:      analysis.operatorId,
+                environmentId:   analysis.environmentId,
+                alarmId:         analysis.alarmId,
+                runbookId:       analysis.runbookId,
+                ignoreReasonCode: (analysis as Record<string, unknown>).ignoreReasonCode,
+                errorDetails:    analysis.errorDetails,
+                conclusionNotes: analysis.conclusionNotes,
+              } as Record<string, unknown>,
+            ),
+          },
+        });
+
+        if (request.body.status !== undefined && request.body.status !== existing.status) {
+          logEvent({
+            action: SystemEventActions.ANALYSIS_STATUS_CHANGED,
+            ...eventBase,
+            metadata: {
+              previousStatus: existing.status,
+              newStatus: request.body.status,
+            },
+          });
+        }
 
         reply.send(formatAnalysisResponse(analysis));
       } catch (error) {
@@ -1293,6 +1427,16 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
 
         await prisma.alarmAnalysis.delete({
           where: { id: request.params.id },
+        });
+
+        logEvent({
+          action: SystemEventActions.ANALYSIS_DELETED,
+          resource: SystemEventResources.ALARM_ANALYSES,
+          resourceId: request.params.id,
+          userId: request.user.userId,
+          userLabel: request.user.email,
+          ipAddress: request.ip,
+          userAgent: request.headers["user-agent"] ?? null,
         });
 
         reply.send({ message: "Analysis deleted successfully" });
