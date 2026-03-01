@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
 import { useQuery } from '@tanstack/react-query'
-import { startOfMonth } from 'date-fns'
+import { startOfMonth, subMonths } from 'date-fns'
 import type { DateRange } from 'react-day-picker'
 import dynamic from 'next/dynamic'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -50,7 +50,7 @@ export default function DashboardPage() {
 
   const [selectedProductId, setSelectedProductId] = useState<string>('')
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: startOfMonth(new Date()),
+    from: startOfMonth(subMonths(new Date(), 2)),
     to: new Date(),
   })
 

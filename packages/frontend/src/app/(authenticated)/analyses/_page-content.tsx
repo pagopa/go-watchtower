@@ -287,7 +287,15 @@ function AnalysesPageContent() {
     const nonLastSum = visibleColumns
       .slice(0, lastIdx)
       .reduce((sum, col) => sum + (getWidth(col.id) ?? col.defaultWidth ?? 150), 0)
-    const lastColMin = visibleColumns[lastIdx]?.minWidth ?? 80
+    // Use the same width calculation as ResizableTableHead for the last column
+    // so the CSS min-width on the <table> matches the actual rendered minimum.
+    // Using col.minWidth here (< defaultWidth) causes the table to render wider
+    // than the CSS min-width, making the scroll range too short and hiding the
+    // right edge of the last data column behind the sticky actions column.
+    const lastDataCol = visibleColumns[lastIdx]
+    const lastColMin = lastDataCol
+      ? (getWidth(lastDataCol.id) ?? lastDataCol.defaultWidth ?? lastDataCol.minWidth ?? 80)
+      : 80
     const actionsWidth = canWrite || canDelete ? 80 : 0
     return nonLastSum + lastColMin + actionsWidth
   }, [visibleColumns, getWidth, canWrite, canDelete])
@@ -628,7 +636,7 @@ function AnalysesPageContent() {
                     <ResizableTableHead
                       width={80}
                       minWidth={80}
-                      className="sticky right-0 z-10 border-l border-border/40 bg-muted/30 text-right"
+                      className="sticky right-0 z-10 border-l border-border/40 bg-muted text-right"
                     >
                       <span className="sr-only">Azioni</span>
                     </ResizableTableHead>
@@ -666,7 +674,7 @@ function AnalysesPageContent() {
                       )
                     })}
                     {(canWrite || canDelete) && (
-                      <TableCell className="sticky right-0 z-10 border-l border-border/40 bg-card py-2 text-right group-hover:bg-muted/30">
+                      <TableCell className="sticky right-0 z-10 border-l border-border/40 bg-card py-2 text-right group-hover:bg-muted">
                         <div className="flex justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
                           {canEditAnalysis(analysis) && (
                             <Button

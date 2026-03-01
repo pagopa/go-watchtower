@@ -53,8 +53,19 @@ interface ExtendedJWT extends JWT {
 //   5. Without cache: Request B sends the old (rotated) refresh token → backend
 //      detects reuse → revokes all tokens → user logged out
 //   6. With cache: Request B finds the cached result → gets the new tokens → OK
-const pendingRefreshes = new Map<string, Promise<ExtendedJWT | null>>()
-const refreshCache = new Map<string, { result: ExtendedJWT | null; expiresAt: number }>()
+//
+// Stored on globalThis so they survive Next.js hot-module replacement in dev.
+// In production the module is loaded once so this makes no difference.
+declare global {
+  // eslint-disable-next-line no-var
+  var __authPendingRefreshes: Map<string, Promise<ExtendedJWT | null>> | undefined
+  // eslint-disable-next-line no-var
+  var __authRefreshCache: Map<string, { result: ExtendedJWT | null; expiresAt: number }> | undefined
+}
+const pendingRefreshes: Map<string, Promise<ExtendedJWT | null>> =
+  (globalThis.__authPendingRefreshes ??= new Map())
+const refreshCache: Map<string, { result: ExtendedJWT | null; expiresAt: number }> =
+  (globalThis.__authRefreshCache ??= new Map())
 const REFRESH_CACHE_TTL_MS = 60_000 // keep result for 60s after resolution
 
 async function refreshAccessToken(token: ExtendedJWT): Promise<ExtendedJWT | null> {

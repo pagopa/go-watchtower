@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Combobox } from '@/components/ui/combobox'
 import type {
   Environment,
   Alarm,
@@ -259,22 +260,17 @@ export function AnalysisFilters({
         {alarms && (
           <div className="space-y-2">
             <Label>Allarme</Label>
-            <Select
+            <Combobox
+              options={[
+                { value: ALL_VALUE, label: 'Tutti' },
+                ...alarms.map((alarm) => ({ value: alarm.id, label: alarm.name })),
+              ]}
               value={filters.alarmId || ALL_VALUE}
-              onValueChange={(val) => updateFilter('alarmId', val === ALL_VALUE ? '' : val)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Tutti" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL_VALUE}>Tutti</SelectItem>
-                {alarms.map((alarm) => (
-                  <SelectItem key={alarm.id} value={alarm.id}>
-                    {alarm.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onValueChange={(val) => updateFilter('alarmId', val === ALL_VALUE || val === '' ? '' : val)}
+              placeholder="Tutti"
+              searchPlaceholder="Cerca allarme..."
+              emptyMessage="Nessun allarme trovato."
+            />
           </div>
         )}
 

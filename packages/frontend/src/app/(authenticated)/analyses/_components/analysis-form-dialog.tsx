@@ -27,6 +27,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { MultiSelectCombobox } from '@/components/ui/multi-select-combobox'
+import { Combobox } from '@/components/ui/combobox'
 import { usePermissions } from '@/hooks/use-permissions'
 import { inferLinkType } from '@/lib/infer-link-type'
 import {
@@ -701,25 +702,18 @@ export function AnalysisFormDialog({
                   name="runbookId"
                   control={control}
                   render={({ field }) => (
-                    <Select
+                    <Combobox
+                      options={[
+                        { value: NO_VALUE, label: 'Nessuno' },
+                        ...(runbooks?.map((rb) => ({ value: rb.id, label: rb.name })) ?? []),
+                      ]}
                       value={field.value || NO_VALUE}
-                      onValueChange={(val) =>
-                        field.onChange(val === NO_VALUE ? undefined : val)
-                      }
+                      onValueChange={(val) => field.onChange(val === NO_VALUE || val === '' ? undefined : val)}
+                      placeholder="Nessuno"
+                      searchPlaceholder="Cerca runbook..."
+                      emptyMessage="Nessun runbook trovato."
                       disabled={isPending}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Nessuno" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={NO_VALUE}>Nessuno</SelectItem>
-                        {runbooks?.map((rb) => (
-                          <SelectItem key={rb.id} value={rb.id}>
-                            {rb.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    />
                   )}
                 />
               </div>
