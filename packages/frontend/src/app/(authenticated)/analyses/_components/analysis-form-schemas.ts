@@ -68,7 +68,7 @@ export const analysisFormSchema = z.object({
   errorDetails: z.string().optional(),
   conclusionNotes: z.string().optional(),
   ignoreReasonCode: z.string().optional(),
-  ignoreDetails: z.record(z.unknown()).optional(),
+  ignoreDetails: z.record(z.string(), z.unknown()).optional(),
   runbookId: z.string().optional(),
   microserviceIds: z.array(z.string()).optional(),
   downstreamIds: z.array(z.string()).optional(),

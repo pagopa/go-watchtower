@@ -4,19 +4,7 @@ import { useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
 import { api, type UserPermissions, type PermissionScope } from '@/lib/api-client'
-
-type Resource =
-  | 'PRODUCT'
-  | 'ENVIRONMENT'
-  | 'MICROSERVICE'
-  | 'IGNORED_ALARM'
-  | 'RUNBOOK'
-  | 'FINAL_ACTION'
-  | 'ALARM'
-  | 'ALARM_ANALYSIS'
-  | 'DOWNSTREAM'
-  | 'USER'
-  | 'SYSTEM_SETTING'
+import type { Resource } from '@go-watchtower/shared'
 
 type Action = 'read' | 'write' | 'delete'
 

@@ -127,9 +127,10 @@ function SettingValueDisplay({ setting }: { setting: SystemSetting }) {
 
 function TypeBadge({ type }: { type: SystemSetting['type'] }) {
   const colors = {
-    STRING: 'bg-blue-50 text-blue-700 border-blue-200',
-    NUMBER: 'bg-amber-50 text-amber-700 border-amber-200',
+    STRING:  'bg-blue-50 text-blue-700 border-blue-200',
+    NUMBER:  'bg-amber-50 text-amber-700 border-amber-200',
     BOOLEAN: 'bg-purple-50 text-purple-700 border-purple-200',
+    JSON:    'bg-green-50 text-green-700 border-green-200',
   } as const
   return (
     <span

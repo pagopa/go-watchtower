@@ -1,8 +1,12 @@
 import { Type, type Static } from "@sinclair/typebox";
+import { ValidationConstraints } from "@go-watchtower/shared";
+import { ErrorResponseSchema, MessageResponseSchema } from "../../schemas/common.js";
+
+export { ErrorResponseSchema, MessageResponseSchema };
 
 export const RegisterBodySchema = Type.Object({
   email: Type.String({ format: "email" }),
-  password: Type.String({ minLength: 8 }),
+  password: Type.String({ minLength: ValidationConstraints.PASSWORD_MIN_LENGTH_REGISTER }),
   name: Type.String({ minLength: 2 }),
 });
 
@@ -45,10 +49,6 @@ export const TokenResponseSchema = Type.Object({
   expiresIn: Type.Number(),
 });
 
-export const ErrorResponseSchema = Type.Object({
-  error: Type.String(),
-});
-
 export const MeResponseSchema = UserResponseSchema;
 
 export const SessionSchema = Type.Object({
@@ -69,10 +69,6 @@ export const RevokeSessionParamsSchema = Type.Object({
 });
 
 export type RevokeSessionParams = Static<typeof RevokeSessionParamsSchema>;
-
-export const MessageResponseSchema = Type.Object({
-  message: Type.String(),
-});
 
 export const GoogleCallbackBodySchema = Type.Object({
   idToken: Type.Optional(Type.String()),

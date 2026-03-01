@@ -13,7 +13,6 @@ import {
   ClipboardList,
   FileBarChart,
   Shield,
-  Settings2,
   ScrollText,
   SlidersHorizontal,
   BanIcon,

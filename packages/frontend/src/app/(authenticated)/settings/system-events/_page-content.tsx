@@ -38,7 +38,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { api } from '@/lib/api-client'
 import type { SystemEvent, SystemEventsFilters } from '@/lib/api-client'
-import { SystemEventActions, SystemEventResources } from '@go-watchtower/shared'
+import { SystemEventActions, SystemEventResources, SYSTEM_EVENT_RESOURCE_LABELS, SYSTEM_EVENT_ACTION_LABELS } from '@go-watchtower/shared'
+import type { SystemEventAction, SystemEventResource } from '@go-watchtower/shared'
 
 // ─── Badge color logic ──────────────────────────────────────────────────────
 
@@ -85,53 +86,6 @@ function getActionBadgeConfig(action: string): ActionBadgeConfig {
   }
   // Default
   return { label: action, variant: 'secondary', className: '' }
-}
-
-// ─── Resource label ──────────────────────────────────────────────────────────
-
-const RESOURCE_LABELS: Record<string, string> = {
-  [SystemEventResources.AUTH]: 'Auth',
-  [SystemEventResources.USERS]: 'Utenti',
-  [SystemEventResources.ALARM_ANALYSES]: 'Analisi',
-  [SystemEventResources.SYSTEM_SETTINGS]: 'Impostazioni',
-  [SystemEventResources.PRODUCTS]: 'Prodotti',
-  [SystemEventResources.ALARMS]: 'Allarmi',
-  [SystemEventResources.IGNORED_ALARMS]: 'Allarmi Ignorati',
-  [SystemEventResources.USER_PERMISSION_OVERRIDES]: 'Override Permessi',
-}
-
-// ─── Action labels ──────────────────────────────────────────────────────────
-
-const ACTION_LABELS: Record<string, string> = {
-  [SystemEventActions.USER_LOGIN]: 'Login',
-  [SystemEventActions.USER_LOGIN_GOOGLE]: 'Login Google',
-  [SystemEventActions.USER_LOGIN_FAILED]: 'Login Fallito',
-  [SystemEventActions.USER_LOGOUT]: 'Logout',
-  [SystemEventActions.USER_TOKEN_REVOKED]: 'Token Revocato',
-  [SystemEventActions.USER_CREATED]: 'Utente Creato',
-  [SystemEventActions.USER_UPDATED]: 'Utente Aggiornato',
-  [SystemEventActions.USER_ACTIVATED]: 'Utente Attivato',
-  [SystemEventActions.USER_DEACTIVATED]: 'Utente Disattivato',
-  [SystemEventActions.USER_DELETED]: 'Utente Eliminato',
-  [SystemEventActions.USER_PASSWORD_CHANGED]: 'Password Cambiata',
-  [SystemEventActions.USER_ROLE_CHANGED]: 'Ruolo Cambiato',
-  [SystemEventActions.PERMISSION_OVERRIDE_CREATED]: 'Override Creato',
-  [SystemEventActions.PERMISSION_OVERRIDE_UPDATED]: 'Override Aggiornato',
-  [SystemEventActions.PERMISSION_OVERRIDE_DELETED]: 'Override Eliminato',
-  [SystemEventActions.ANALYSIS_CREATED]: 'Analisi Creata',
-  [SystemEventActions.ANALYSIS_UPDATED]: 'Analisi Aggiornata',
-  [SystemEventActions.ANALYSIS_DELETED]: 'Analisi Eliminata',
-  [SystemEventActions.ANALYSIS_STATUS_CHANGED]: 'Stato Analisi Cambiato',
-  [SystemEventActions.SETTING_UPDATED]: 'Impostazione Aggiornata',
-  [SystemEventActions.PRODUCT_CREATED]: 'Prodotto Creato',
-  [SystemEventActions.PRODUCT_UPDATED]: 'Prodotto Aggiornato',
-  [SystemEventActions.PRODUCT_DELETED]: 'Prodotto Eliminato',
-  [SystemEventActions.ALARM_CREATED]: 'Allarme Creato',
-  [SystemEventActions.ALARM_UPDATED]: 'Allarme Aggiornato',
-  [SystemEventActions.ALARM_DELETED]: 'Allarme Eliminato',
-  [SystemEventActions.IGNORED_ALARM_CREATED]: 'Allarme Ignorato Creato',
-  [SystemEventActions.IGNORED_ALARM_UPDATED]: 'Allarme Ignorato Aggiornato',
-  [SystemEventActions.IGNORED_ALARM_DELETED]: 'Allarme Ignorato Eliminato',
 }
 
 // ─── Multiselect for actions ─────────────────────────────────────────────────
@@ -200,7 +154,7 @@ function ActionMultiSelect({
                   )}
                 </div>
                 <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${config.className}`}>
-                  {ACTION_LABELS[action] ?? action}
+                  {SYSTEM_EVENT_ACTION_LABELS[action as SystemEventAction] ?? action}
                 </Badge>
               </button>
             )
@@ -368,7 +322,7 @@ export function SystemEventsPage() {
                   <SelectItem value="__all__">Tutte</SelectItem>
                   {allResources.map((r) => (
                     <SelectItem key={r} value={r}>
-                      {RESOURCE_LABELS[r] ?? r}
+                      {SYSTEM_EVENT_RESOURCE_LABELS[r] ?? r}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -459,7 +413,7 @@ export function SystemEventsPage() {
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline" className={`text-[10px] px-1.5 py-0 font-medium ${badgeConfig.className}`}>
-                              {ACTION_LABELS[event.action] ?? event.action}
+                              {SYSTEM_EVENT_ACTION_LABELS[event.action as SystemEventAction] ?? event.action}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-xs">
@@ -470,7 +424,7 @@ export function SystemEventsPage() {
                           <TableCell className="text-xs">
                             <div className="flex flex-col">
                               <span className="text-muted-foreground">
-                                {event.resource ? (RESOURCE_LABELS[event.resource] ?? event.resource) : '-'}
+                                {event.resource ? (SYSTEM_EVENT_RESOURCE_LABELS[event.resource as SystemEventResource] ?? event.resource) : '-'}
                               </span>
                               {event.resourceLabel && (
                                 <span className="text-[11px] text-muted-foreground/70 truncate max-w-[200px]">

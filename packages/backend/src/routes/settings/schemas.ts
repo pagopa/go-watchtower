@@ -1,4 +1,7 @@
 import { Type, type Static } from "@sinclair/typebox";
+import { ErrorResponseSchema } from "../../schemas/common.js";
+
+export { ErrorResponseSchema };
 
 export const SystemSettingSchema = Type.Object({
   id:          Type.String(),
@@ -27,4 +30,3 @@ export const UpdateSettingBodySchema = Type.Object({
 
 export type UpdateSettingBody = Static<typeof UpdateSettingBodySchema>;
 
-export const ErrorResponseSchema = Type.Object({ error: Type.String() });

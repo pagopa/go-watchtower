@@ -5,7 +5,7 @@ import { prisma, Prisma, Resource, type PrismaClient } from "@go-watchtower/data
 type TransactionClient = Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends">;
 import { hasPermission, hasPermissionForResource } from "../../services/permission.service.js";
 import { logEvent, buildDiff } from "../../services/system-event.service.js";
-import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
+import { SystemEventActions, SystemEventResources, inferLinkType } from "@go-watchtower/shared";
 import {
   ProductIdParamsSchema,
   AlarmAnalysisParamsSchema,
@@ -29,17 +29,6 @@ import {
   type CreateAlarmAnalysisBody,
   type UpdateAlarmAnalysisBody,
 } from "./schemas.js";
-
-// Link type inference helper
-function inferLinkType(url: string): string {
-  if (url.includes("slack.com/archives")) return "Slack Thread";
-  if (url.includes("github.com") && url.includes("/issues/")) return "GitHub Issue";
-  if (url.includes("github.com") && url.includes("/pull/")) return "GitHub PR";
-  if (url.includes(".atlassian.net") && url.includes("/browse/")) return "Jira Ticket";
-  if (url.includes("confluence")) return "Confluence Page";
-  if (url.includes("opsgenie.com")) return "Opsgenie Alert";
-  return "Link";
-}
 
 function processLinks(links?: Array<{ url: string; name?: string; type?: string }>): Array<{ url: string; name?: string; type: string }> {
   if (!links) return [];

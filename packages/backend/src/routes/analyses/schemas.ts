@@ -1,12 +1,23 @@
 import { Type, type Static } from "@sinclair/typebox";
+import {
+  AnalysisTypes,
+  AnalysisStatuses,
+  AnalysisSortFields,
+  SortDirections,
+} from "@go-watchtower/shared";
+import { ErrorResponseSchema, MessageResponseSchema } from "../../schemas/common.js";
+
+export { ErrorResponseSchema, MessageResponseSchema };
 
 // ============================================================================
 // Enum Schemas
+// I valori provengono da shared ma le literal devono essere esplicite per
+// preservare l'inferenza statica di TypeBox (Static<typeof schema>).
 // ============================================================================
 
 export const AnalysisTypeSchema = Type.Union([
-  Type.Literal("ANALYZABLE"),
-  Type.Literal("IGNORABLE"),
+  Type.Literal(AnalysisTypes.ANALYZABLE),
+  Type.Literal(AnalysisTypes.IGNORABLE),
 ]);
 
 export const IgnoreReasonSchema = Type.Object({
@@ -20,9 +31,9 @@ export const IgnoreReasonSchema = Type.Object({
 export type AnalysisTypeValue = Static<typeof AnalysisTypeSchema>;
 
 export const AnalysisStatusSchema = Type.Union([
-  Type.Literal("CREATED"),
-  Type.Literal("IN_PROGRESS"),
-  Type.Literal("COMPLETED"),
+  Type.Literal(AnalysisStatuses.CREATED),
+  Type.Literal(AnalysisStatuses.IN_PROGRESS),
+  Type.Literal(AnalysisStatuses.COMPLETED),
 ]);
 
 export type AnalysisStatusValue = Static<typeof AnalysisStatusSchema>;
@@ -51,19 +62,18 @@ export type AlarmAnalysisParams = Static<typeof AlarmAnalysisParamsSchema>;
 export const AllAnalysesQuerySchema = Type.Object({
   page: Type.Optional(Type.Integer({ minimum: 1, default: 1 })),
   pageSize: Type.Optional(Type.Integer({ minimum: 1, maximum: 200, default: 20 })),
-  sortBy: Type.Optional(
-    Type.Union([
-      Type.Literal("analysisDate"),
-      Type.Literal("firstAlarmAt"),
-      Type.Literal("lastAlarmAt"),
-      Type.Literal("occurrences"),
-      Type.Literal("createdAt"),
-      Type.Literal("updatedAt"),
-    ])
-  ),
-  sortOrder: Type.Optional(
-    Type.Union([Type.Literal("asc"), Type.Literal("desc")])
-  ),
+  sortBy: Type.Optional(Type.Union([
+    Type.Literal(AnalysisSortFields.ANALYSIS_DATE),
+    Type.Literal(AnalysisSortFields.FIRST_ALARM_AT),
+    Type.Literal(AnalysisSortFields.LAST_ALARM_AT),
+    Type.Literal(AnalysisSortFields.OCCURRENCES),
+    Type.Literal(AnalysisSortFields.CREATED_AT),
+    Type.Literal(AnalysisSortFields.UPDATED_AT),
+  ])),
+  sortOrder: Type.Optional(Type.Union([
+    Type.Literal(SortDirections.ASC),
+    Type.Literal(SortDirections.DESC),
+  ])),
   search: Type.Optional(Type.String()),
   analysisType: Type.Optional(AnalysisTypeSchema),
   status: Type.Optional(AnalysisStatusSchema),
@@ -82,19 +92,18 @@ export type AllAnalysesQuery = Static<typeof AllAnalysesQuerySchema>;
 export const AlarmAnalysisQuerySchema = Type.Object({
   page: Type.Optional(Type.Integer({ minimum: 1, default: 1 })),
   pageSize: Type.Optional(Type.Integer({ minimum: 1, maximum: 200, default: 20 })),
-  sortBy: Type.Optional(
-    Type.Union([
-      Type.Literal("analysisDate"),
-      Type.Literal("firstAlarmAt"),
-      Type.Literal("lastAlarmAt"),
-      Type.Literal("occurrences"),
-      Type.Literal("createdAt"),
-      Type.Literal("updatedAt"),
-    ])
-  ),
-  sortOrder: Type.Optional(
-    Type.Union([Type.Literal("asc"), Type.Literal("desc")])
-  ),
+  sortBy: Type.Optional(Type.Union([
+    Type.Literal(AnalysisSortFields.ANALYSIS_DATE),
+    Type.Literal(AnalysisSortFields.FIRST_ALARM_AT),
+    Type.Literal(AnalysisSortFields.LAST_ALARM_AT),
+    Type.Literal(AnalysisSortFields.OCCURRENCES),
+    Type.Literal(AnalysisSortFields.CREATED_AT),
+    Type.Literal(AnalysisSortFields.UPDATED_AT),
+  ])),
+  sortOrder: Type.Optional(Type.Union([
+    Type.Literal(SortDirections.ASC),
+    Type.Literal(SortDirections.DESC),
+  ])),
   search: Type.Optional(Type.String()),
   analysisType: Type.Optional(AnalysisTypeSchema),
   status: Type.Optional(AnalysisStatusSchema),
@@ -269,18 +278,6 @@ export const AnalysisAuthorSchema = Type.Object({
 export const AnalysisAuthorsResponseSchema = Type.Array(AnalysisAuthorSchema);
 
 export type AnalysisAuthor = Static<typeof AnalysisAuthorSchema>;
-
-// ============================================================================
-// Common Schemas
-// ============================================================================
-
-export const ErrorResponseSchema = Type.Object({
-  error: Type.String(),
-});
-
-export const MessageResponseSchema = Type.Object({
-  message: Type.String(),
-});
 
 // ============================================================================
 // Analysis Stats Schemas

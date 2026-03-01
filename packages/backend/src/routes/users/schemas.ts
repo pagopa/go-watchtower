@@ -1,10 +1,8 @@
 import { Type, type Static } from "@sinclair/typebox";
+import { ValidationConstraints, Themes } from "@go-watchtower/shared";
+import { ErrorResponseSchema, MessageResponseSchema, PermissionScopeSchema } from "../../schemas/common.js";
 
-export const PermissionScopeSchema = Type.Union([
-  Type.Literal("NONE"),
-  Type.Literal("OWN"),
-  Type.Literal("ALL"),
-]);
+export { ErrorResponseSchema, MessageResponseSchema, PermissionScopeSchema };
 
 // ============================================================================
 // User Schemas
@@ -73,15 +71,15 @@ export const UsersResponseSchema = Type.Array(UserResponseSchema);
 
 export const CreateUserBodySchema = Type.Object({
   email: Type.String({ format: "email" }),
-  password: Type.String({ minLength: 6 }),
-  name: Type.String({ minLength: 1, maxLength: 255 }),
+  password: Type.String({ minLength: ValidationConstraints.PASSWORD_MIN_LENGTH_CREATE }),
+  name: Type.String({ minLength: ValidationConstraints.USER_NAME_MIN_LENGTH, maxLength: ValidationConstraints.USER_NAME_MAX_LENGTH }),
   roleId: Type.Optional(Type.String()),
 });
 
 export type CreateUserBody = Static<typeof CreateUserBodySchema>;
 
 export const UpdateUserBodySchema = Type.Object({
-  name: Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
+  name: Type.Optional(Type.String({ minLength: ValidationConstraints.USER_NAME_MIN_LENGTH, maxLength: ValidationConstraints.USER_NAME_MAX_LENGTH })),
   email: Type.Optional(Type.String({ format: "email" })),
   isActive: Type.Optional(Type.Boolean()),
   roleId: Type.Optional(Type.String()),
@@ -124,9 +122,9 @@ export const ColumnSettingsSchema = Type.Object({
 
 export const UserPreferencesSchema = Type.Object({
   theme: Type.Optional(Type.Union([
-    Type.Literal("light"),
-    Type.Literal("dark"),
-    Type.Literal("system"),
+    Type.Literal(Themes.LIGHT),
+    Type.Literal(Themes.DARK),
+    Type.Literal(Themes.SYSTEM),
   ])),
   lastRoute: Type.Optional(Type.String()),
   columnSettings: Type.Optional(Type.Record(Type.String(), ColumnSettingsSchema)),
@@ -165,16 +163,16 @@ export const RoleIdParamsSchema = Type.Object({
 export type RoleIdParams = Static<typeof RoleIdParamsSchema>;
 
 export const CreateRoleBodySchema = Type.Object({
-  name: Type.String({ minLength: 1, maxLength: 50 }),
-  description: Type.Optional(Type.String({ maxLength: 255 })),
+  name: Type.String({ minLength: 1, maxLength: ValidationConstraints.ROLE_NAME_MAX_LENGTH }),
+  description: Type.Optional(Type.String({ maxLength: ValidationConstraints.ROLE_DESCRIPTION_MAX_LENGTH })),
 });
 
 export type CreateRoleBody = Static<typeof CreateRoleBodySchema>;
 
 export const UpdateRoleBodySchema = Type.Object({
-  name: Type.Optional(Type.String({ minLength: 1, maxLength: 50 })),
+  name: Type.Optional(Type.String({ minLength: 1, maxLength: ValidationConstraints.ROLE_NAME_MAX_LENGTH })),
   description: Type.Optional(
-    Type.Union([Type.String({ maxLength: 255 }), Type.Null()])
+    Type.Union([Type.String({ maxLength: ValidationConstraints.ROLE_DESCRIPTION_MAX_LENGTH }), Type.Null()])
   ),
 });
 
@@ -195,14 +193,3 @@ export type UpdateRolePermissionsBody = Static<
   typeof UpdateRolePermissionsBodySchema
 >;
 
-// ============================================================================
-// Common Error Schemas (reused)
-// ============================================================================
-
-export const ErrorResponseSchema = Type.Object({
-  error: Type.String(),
-});
-
-export const MessageResponseSchema = Type.Object({
-  message: Type.String(),
-});

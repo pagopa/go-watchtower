@@ -1,4 +1,7 @@
 import { Type, type Static } from "@sinclair/typebox";
+import { ErrorResponseSchema, MessageResponseSchema } from "../../schemas/common.js";
+
+export { ErrorResponseSchema, MessageResponseSchema };
 
 // ============================================================================
 // Product Schemas
@@ -352,14 +355,3 @@ export const IgnoredAlarmResponseSchema = Type.Object({
 
 export const IgnoredAlarmsResponseSchema = Type.Array(IgnoredAlarmResponseSchema);
 
-// ============================================================================
-// Common Error Schemas
-// ============================================================================
-
-export const ErrorResponseSchema = Type.Object({
-  error: Type.String(),
-});
-
-export const MessageResponseSchema = Type.Object({
-  message: Type.String(),
-});

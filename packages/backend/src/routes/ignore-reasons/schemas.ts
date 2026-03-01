@@ -1,4 +1,8 @@
 import { Type, type Static } from "@sinclair/typebox";
+import { IGNORE_REASON_CODE_PATTERN } from "@go-watchtower/shared";
+import { ErrorResponseSchema, MessageResponseSchema } from "../../schemas/common.js";
+
+export { ErrorResponseSchema, MessageResponseSchema };
 
 // ─── Shared ────────────────────────────────────────────────────────────────
 
@@ -25,7 +29,7 @@ export type IgnoreReasonParams = Static<typeof IgnoreReasonParamsSchema>;
 // ─── Create ────────────────────────────────────────────────────────────────
 
 export const CreateIgnoreReasonBodySchema = Type.Object({
-  code:          Type.String({ minLength: 1, pattern: "^[A-Z_]+$" }),
+  code:          Type.String({ minLength: 1, pattern: IGNORE_REASON_CODE_PATTERN }),
   label:         Type.String({ minLength: 1 }),
   description:   Type.Optional(Type.Union([Type.String(), Type.Null()])),
   sortOrder:     Type.Optional(Type.Integer({ minimum: 0, default: 0 })),
@@ -45,7 +49,3 @@ export const UpdateIgnoreReasonBodySchema = Type.Object({
 
 export type UpdateIgnoreReasonBody = Static<typeof UpdateIgnoreReasonBodySchema>;
 
-// ─── Common ────────────────────────────────────────────────────────────────
-
-export const ErrorResponseSchema = Type.Object({ error: Type.String() });
-export const MessageResponseSchema = Type.Object({ message: Type.String() });

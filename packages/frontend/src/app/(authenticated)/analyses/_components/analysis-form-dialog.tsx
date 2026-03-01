@@ -357,8 +357,8 @@ export function AnalysisFormDialog({
       // alarm timestamps are entered as UTC → treat as UTC ISO
       firstAlarmAt: utcLocalToISO(data.firstAlarmAt),
       lastAlarmAt: utcLocalToISO(data.lastAlarmAt),
-      ignoreReasonCode: data.analysisType === 'IGNORABLE' ? (data.ignoreReasonCode || null) : null,
-      ignoreDetails: data.analysisType === 'IGNORABLE' ? (data.ignoreDetails || null) : null,
+      ignoreReasonCode: data.analysisType === 'IGNORABLE' ? (data.ignoreReasonCode || undefined) : undefined,
+      ignoreDetails: data.analysisType === 'IGNORABLE' ? (data.ignoreDetails || undefined) : undefined,
       runbookId: data.runbookId || undefined,
       links: data.links?.map((l) => ({
         url: l.url,

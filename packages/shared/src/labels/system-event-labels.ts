@@ -1,0 +1,45 @@
+import type { SystemEventAction } from '../constants/system-event-actions.js';
+import type { SystemEventResource } from '../constants/system-event-resources.js';
+
+export const SYSTEM_EVENT_RESOURCE_LABELS: Record<SystemEventResource, string> = {
+  auth:                      'Auth',
+  users:                     'Utenti',
+  alarm_analyses:            'Analisi',
+  system_settings:           'Impostazioni',
+  products:                  'Prodotti',
+  alarms:                    'Allarmi',
+  ignored_alarms:            'Allarmi Ignorati',
+  user_permission_overrides: 'Override Permessi',
+};
+
+export const SYSTEM_EVENT_ACTION_LABELS: Partial<Record<SystemEventAction, string>> = {
+  USER_LOGIN:                  'Login',
+  USER_LOGIN_GOOGLE:           'Login Google',
+  USER_LOGIN_FAILED:           'Login Fallito',
+  USER_LOGOUT:                 'Logout',
+  USER_TOKEN_REVOKED:          'Token Revocato',
+  USER_CREATED:                'Utente Creato',
+  USER_UPDATED:                'Utente Aggiornato',
+  USER_ACTIVATED:              'Utente Attivato',
+  USER_DEACTIVATED:            'Utente Disattivato',
+  USER_DELETED:                'Utente Eliminato',
+  USER_PASSWORD_CHANGED:       'Password Cambiata',
+  USER_ROLE_CHANGED:           'Ruolo Cambiato',
+  PERMISSION_OVERRIDE_CREATED: 'Override Creato',
+  PERMISSION_OVERRIDE_UPDATED: 'Override Aggiornato',
+  PERMISSION_OVERRIDE_DELETED: 'Override Eliminato',
+  ANALYSIS_CREATED:            'Analisi Creata',
+  ANALYSIS_UPDATED:            'Analisi Aggiornata',
+  ANALYSIS_DELETED:            'Analisi Eliminata',
+  ANALYSIS_STATUS_CHANGED:     'Stato Analisi Cambiato',
+  SETTING_UPDATED:             'Impostazione Aggiornata',
+  PRODUCT_CREATED:             'Prodotto Creato',
+  PRODUCT_UPDATED:             'Prodotto Aggiornato',
+  PRODUCT_DELETED:             'Prodotto Eliminato',
+  ALARM_CREATED:               'Allarme Creato',
+  ALARM_UPDATED:               'Allarme Aggiornato',
+  ALARM_DELETED:               'Allarme Eliminato',
+  IGNORED_ALARM_CREATED:       'Allarme Ignorato Creato',
+  IGNORED_ALARM_UPDATED:       'Allarme Ignorato Aggiornato',
+  IGNORED_ALARM_DELETED:       'Allarme Ignorato Eliminato',
+};

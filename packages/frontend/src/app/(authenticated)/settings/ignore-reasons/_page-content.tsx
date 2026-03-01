@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { IGNORE_REASON_CODE_REGEX } from '@go-watchtower/shared'
 import {
   Plus, Pencil, Trash2, Loader2, Code2, AlertTriangle,
   ChevronDown, ChevronRight, Eye, EyeOff, Info, BanIcon,
@@ -55,7 +56,7 @@ import { DynamicIgnoreDetailsForm } from '@/components/ui/json-schema-form'
 // ─── Zod schema ───────────────────────────────────────────────────────────────
 
 const reasonFormSchema = z.object({
-  code:          z.string().min(1).regex(/^[A-Z_]+$/, 'Solo lettere maiuscole e underscore').optional(),
+  code:          z.string().min(1).regex(IGNORE_REASON_CODE_REGEX, 'Solo lettere maiuscole e underscore').optional(),
   label:         z.string().min(1, 'Label obbligatoria'),
   description:   z.string().optional(),
   sortOrder:     z.coerce.number().int().min(0).default(0),

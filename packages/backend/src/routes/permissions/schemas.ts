@@ -1,10 +1,7 @@
 import { Type, type Static } from "@sinclair/typebox";
+import { ErrorResponseSchema, PermissionScopeSchema } from "../../schemas/common.js";
 
-export const PermissionScopeSchema = Type.Union([
-  Type.Literal("NONE"),
-  Type.Literal("OWN"),
-  Type.Literal("ALL"),
-]);
+export { ErrorResponseSchema, PermissionScopeSchema };
 
 // Response schemas
 export const ResourcePermissionSchema = Type.Object({
@@ -15,10 +12,6 @@ export const ResourcePermissionSchema = Type.Object({
 
 export const PermissionsResponseSchema = Type.Object({
   permissions: Type.Record(Type.String(), ResourcePermissionSchema),
-});
-
-export const ErrorResponseSchema = Type.Object({
-  error: Type.String(),
 });
 
 // Types

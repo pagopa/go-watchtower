@@ -1,4 +1,55 @@
 import { getAccessToken, setAccessToken } from '@/lib/auth-token'
+import type {
+  AnalysisType,
+  AnalysisStatus,
+  PermissionScope,
+  PaginatedResponse,
+  PaginationMeta,
+  RelatedEntity,
+  RelatedUser,
+  ErrorResponse,
+  MessageResponse,
+  AnalysisLink,
+  TrackingEntry,
+  IgnoreReason,
+  IgnoreReasonDetailsSchema,
+  IgnoreReasonFieldDef,
+  TimeConstraintPeriod,
+  TimeConstraintHours,
+  TimeConstraint,
+  ResourcePermission,
+  RolePermission,
+  UserPermissions,
+  SystemSetting,
+  SystemEvent,
+  SystemEventsResponse,
+} from '@go-watchtower/shared'
+
+export type {
+  AnalysisType,
+  AnalysisStatus,
+  PermissionScope,
+  PaginatedResponse,
+  PaginationMeta,
+  RelatedEntity,
+  RelatedUser,
+  ErrorResponse,
+  MessageResponse,
+  AnalysisLink,
+  TrackingEntry,
+  IgnoreReason,
+  IgnoreReasonDetailsSchema,
+  IgnoreReasonFieldDef,
+  TimeConstraintPeriod,
+  TimeConstraintHours,
+  TimeConstraint,
+  ResourcePermission,
+  RolePermission,
+  UserPermissions,
+  SystemSetting,
+  SystemEvent,
+  SystemEventsResponse,
+}
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || ''
 
@@ -284,22 +335,6 @@ export interface UpdateDownstreamData {
 }
 
 // Ignored Alarm Types
-export interface TimeConstraintPeriod {
-  start: string
-  end: string
-}
-
-export interface TimeConstraintHours {
-  start: string
-  end: string
-}
-
-export interface TimeConstraint {
-  periods?: TimeConstraintPeriod[]
-  weekdays?: number[]
-  hours?: TimeConstraintHours[]
-}
-
 export interface IgnoredAlarm {
   id: string
   alarmId: string
@@ -334,31 +369,6 @@ export interface UpdateIgnoredAlarmData {
 }
 
 // Alarm Analysis Types
-export type AnalysisType = 'ANALYZABLE' | 'IGNORABLE'
-
-export interface IgnoreReason {
-  code: string
-  label: string
-  description: string | null
-  sortOrder: number
-  detailsSchema: IgnoreReasonDetailsSchema | null
-}
-
-export interface IgnoreReasonDetailsSchema {
-  type: 'object'
-  properties?: Record<string, IgnoreReasonFieldDef>
-  required?: string[]
-}
-
-export interface IgnoreReasonFieldDef {
-  type: 'string' | 'number' | 'boolean'
-  title: string
-  description?: string
-  minLength?: number
-  minimum?: number
-  'x-ui'?: 'textarea'
-}
-
 export interface CreateIgnoreReasonData {
   code: string
   label: string
@@ -373,19 +383,6 @@ export interface UpdateIgnoreReasonData {
   sortOrder?: number
   detailsSchema?: IgnoreReasonDetailsSchema | null
 }
-export type AnalysisStatus = 'CREATED' | 'IN_PROGRESS' | 'COMPLETED'
-
-export interface RelatedUser {
-  id: string
-  name: string
-  email: string
-}
-
-export interface RelatedEntity {
-  id: string
-  name: string
-}
-
 export interface AlarmAnalysis {
   id: string
   analysisDate: string
@@ -421,25 +418,6 @@ export interface AlarmAnalysis {
   ignoreReason: IgnoreReason | null
   links: Array<{ url: string; name?: string; type?: string }>
   trackingIds: Array<TrackingEntry>
-}
-
-export interface TrackingEntry {
-  traceId: string
-  errorCode?: string
-  errorDetail?: string
-  timestamp?: string
-}
-
-export interface PaginatedResponse<T> {
-  data: T[]
-  pagination: {
-    page: number
-    pageSize: number
-    totalItems: number
-    totalPages: number
-    hasNextPage: boolean
-    hasPreviousPage: boolean
-  }
 }
 
 export interface AlarmAnalysisFilters {
@@ -551,8 +529,6 @@ export interface UserDetail {
   updatedAt: string
 }
 
-export type PermissionScope = "NONE" | "OWN" | "ALL"
-
 export interface UserPermissionOverride {
   resource: string
   canRead: PermissionScope | null
@@ -564,13 +540,6 @@ export interface UserPermissionOverride {
 
 export interface UserDetailWithOverrides extends UserDetail {
   permissionOverrides: UserPermissionOverride[]
-}
-
-export interface RolePermission {
-  resource: string
-  canRead: PermissionScope
-  canWrite: PermissionScope
-  canDelete: PermissionScope
 }
 
 export interface UserWithPermissions {
@@ -608,16 +577,6 @@ export interface SetPermissionOverrideData {
   canWrite?: PermissionScope | null
   canDelete?: PermissionScope | null
   reason?: string
-}
-
-export interface ResourcePermission {
-  canRead: PermissionScope
-  canWrite: PermissionScope
-  canDelete: PermissionScope
-}
-
-export interface UserPermissions {
-  [resource: string]: ResourcePermission
 }
 
 export interface ColumnSettings {
@@ -744,44 +703,6 @@ export interface UpdateRolePermissionsData {
     canWrite: PermissionScope
     canDelete: PermissionScope
   }>
-}
-
-// System Setting Types
-export type SettingType = 'STRING' | 'NUMBER' | 'BOOLEAN'
-
-export interface SystemSetting {
-  id: string
-  key: string
-  value: unknown
-  type: SettingType
-  category: string
-  label: string
-  description: string | null
-  updatedById: string | null
-  createdAt: string
-  updatedAt: string
-}
-
-// System Event Types
-export interface SystemEvent {
-  id: string
-  action: string
-  resource: string | null
-  resourceId: string | null
-  resourceLabel: string | null
-  userId: string | null
-  userLabel: string | null
-  metadata: Record<string, unknown>
-  ipAddress: string | null
-  userAgent: string | null
-  createdAt: string
-}
-
-export interface SystemEventsResponse {
-  data: SystemEvent[]
-  total: number
-  page: number
-  totalPages: number
 }
 
 export interface SystemEventsFilters {

@@ -1,9 +1,6 @@
-import type { AnalysisType } from '@/lib/api-client'
+import { ANALYSIS_TYPE_LABELS } from '@go-watchtower/shared'
 
-export const ANALYSIS_TYPE_LABELS: Record<AnalysisType, string> = {
-  ANALYZABLE: 'Analizzabile',
-  IGNORABLE:  'Da ignorare',
-}
+export { ANALYSIS_TYPE_LABELS }
 
 export const CHART_COLORS = [
   'hsl(var(--chart-1, 220 70% 50%))',

@@ -1,5 +1,8 @@
 import { Type } from "@sinclair/typebox";
 import type { Static } from "@sinclair/typebox";
+import { ErrorResponseSchema } from "../../schemas/common.js";
+
+export { ErrorResponseSchema };
 
 // ─── Query ───────────────────────────────────────────────────────────────────
 
@@ -40,8 +43,3 @@ export const SystemEventsResponseSchema = Type.Object({
 
 export type SystemEventsResponse = Static<typeof SystemEventsResponseSchema>;
 
-// ─── Error ───────────────────────────────────────────────────────────────────
-
-export const ErrorResponseSchema = Type.Object({
-  error: Type.String(),
-});

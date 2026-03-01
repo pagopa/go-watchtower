@@ -1,4 +1,7 @@
 import { Type, type Static } from "@sinclair/typebox";
+import { ErrorResponseSchema } from "../../schemas/common.js";
+
+export { ErrorResponseSchema };
 
 // ============================================================================
 // Query Schema (shared filters, same as stats endpoint)
@@ -53,10 +56,3 @@ const AlarmRankingItemSchema = Type.Object({
 
 export const AlarmRankingResponseSchema = Type.Array(AlarmRankingItemSchema);
 
-// ============================================================================
-// Error Response
-// ============================================================================
-
-export const ErrorResponseSchema = Type.Object({
-  error: Type.String(),
-});

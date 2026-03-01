@@ -1,18 +1,10 @@
-import type { AnalysisType, AnalysisStatus } from '@/lib/api-client'
+import { ANALYSIS_TYPE_LABELS, ANALYSIS_STATUS_LABELS } from '@go-watchtower/shared'
+import type { AnalysisStatus } from '@go-watchtower/shared'
 import { formatInTimeZone } from 'date-fns-tz'
 
+export { ANALYSIS_TYPE_LABELS, ANALYSIS_STATUS_LABELS }
+
 const ROME_TZ = 'Europe/Rome'
-
-export const ANALYSIS_TYPE_LABELS: Record<AnalysisType, string> = {
-  ANALYZABLE: 'Analizzabile',
-  IGNORABLE:  'Da ignorare',
-}
-
-export const ANALYSIS_STATUS_LABELS: Record<AnalysisStatus, string> = {
-  CREATED: 'Creata',
-  IN_PROGRESS: 'In corso',
-  COMPLETED: 'Completata',
-}
 
 export const ANALYSIS_STATUS_VARIANTS: Record<AnalysisStatus, 'default' | 'secondary' | 'outline'> = {
   CREATED: 'outline',
