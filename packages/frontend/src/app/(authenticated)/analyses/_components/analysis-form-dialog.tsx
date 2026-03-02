@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef } from 'react'
-import { useForm, Controller, useFieldArray } from 'react-hook-form'
+import { useForm, Controller, useFieldArray, useWatch, type Resolver } from 'react-hook-form'
 import { useSession } from 'next-auth/react'
 import { useQuery } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -238,7 +238,7 @@ export function AnalysisFormDialog({
     getValues,
     formState: { errors },
   } = useForm<AnalysisFormData>({
-    resolver: zodResolver(analysisFormSchema),
+    resolver: zodResolver(analysisFormSchema) as Resolver<AnalysisFormData>,
     defaultValues: {
       analysisDate: '',
       firstAlarmAt: '',
@@ -274,6 +274,7 @@ export function AnalysisFormDialog({
   })
 
   useEffect(() => {
+    if (!open) return // skip the reset when the dialog is closing
     if (editItem) {
       reset({
         // analysisDate was entered in Rome local time → display in Rome TZ
@@ -336,7 +337,11 @@ export function AnalysisFormDialog({
   const watchedAnalysisDate = watch('analysisDate')
   const watchedAnalysisType = watch('analysisType')
   const watchedIgnoreReasonCode = watch('ignoreReasonCode')
-  const watchedLinkUrls = watch('links')?.map((l) => l?.url ?? '') ?? []
+  const watchedLinks = useWatch({ control, name: 'links' })
+  const watchedLinkUrls = useMemo(
+    () => watchedLinks?.map((l) => l?.url ?? '') ?? [],
+    [watchedLinks]
+  )
 
   // Find the selected ignore reason to get its detailsSchema
   const selectedIgnoreReason = ignoreReasons?.find((r) => r.code === watchedIgnoreReasonCode)
@@ -424,6 +429,11 @@ export function AnalysisFormDialog({
                 errors={errors}
                 disabled={isPending}
                 alarms={alarms}
+                onAlarmChange={(alarm) => {
+                  if (!editItem && alarm.runbookId) {
+                    setValue('runbookId', alarm.runbookId)
+                  }
+                }}
               />
 
               <OccurrencesField

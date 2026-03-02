@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useForm } from 'react-hook-form'
+import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Plus, Pencil, Trash2, Loader2, CheckCircle2, Minus } from 'lucide-react'
@@ -88,7 +88,7 @@ export function FinalActionsTab({ productId }: FinalActionsTabProps) {
     setValue,
     formState: { errors },
   } = useForm<FinalActionFormData>({
-    resolver: zodResolver(finalActionSchema),
+    resolver: zodResolver(finalActionSchema) as Resolver<FinalActionFormData>,
     defaultValues: { name: '', description: '', order: 0, isOther: false },
   })
 

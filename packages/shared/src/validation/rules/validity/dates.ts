@@ -18,7 +18,7 @@ export const datesRules: ValidationRule[] = [
     severity: 'error',
     weight: 2,
     message: 'La data analisi non può essere nel futuro',
-    validate: (a) => new Date(a.analysisDate) <= new Date(),
+    validate: (a) => new Date(a.analysisDate).getTime() <= Date.now(),
   },
   {
     id: 'ALARM_CHRONOLOGY',

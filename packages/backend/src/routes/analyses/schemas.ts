@@ -86,6 +86,12 @@ export const AllAnalysesQuerySchema = Type.Object({
   productId: Type.Optional(Type.String()),
   dateFrom: Type.Optional(Type.String()),
   dateTo: Type.Optional(Type.String()),
+  // Advanced filters
+  ignoreReasonCode: Type.Optional(Type.String()),
+  runbookId: Type.Optional(Type.String()),
+  microserviceId: Type.Optional(Type.String()),
+  downstreamId: Type.Optional(Type.String()),
+  traceId: Type.Optional(Type.String()),
 });
 
 export type AllAnalysesQuery = Static<typeof AllAnalysesQuerySchema>;
@@ -115,6 +121,12 @@ export const AlarmAnalysisQuerySchema = Type.Object({
   finalActionId: Type.Optional(Type.String()),
   dateFrom: Type.Optional(Type.String()),
   dateTo: Type.Optional(Type.String()),
+  // Advanced filters
+  ignoreReasonCode: Type.Optional(Type.String()),
+  runbookId: Type.Optional(Type.String()),
+  microserviceId: Type.Optional(Type.String()),
+  downstreamId: Type.Optional(Type.String()),
+  traceId: Type.Optional(Type.String()),
 });
 
 export type AlarmAnalysisQuery = Static<typeof AlarmAnalysisQuerySchema>;

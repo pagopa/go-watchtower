@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect } from 'react'
-import { useForm, type FieldValues } from 'react-hook-form'
+import { useEffect, useRef } from 'react'
+import { useForm, type Resolver } from 'react-hook-form'
 import { useSession } from 'next-auth/react'
 import { useQuery } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -48,7 +48,7 @@ export interface ShortcutAnalysisDialogProps {
   onProductChange?: (productId: string) => void
 }
 
-const DEFAULT_VALUES: FieldValues = {
+const DEFAULT_VALUES: ShortcutInCorsoData = {
   alarmId: '',
   isOnCall: false,
   occurrences: '' as unknown as number,
@@ -88,26 +88,29 @@ export function ShortcutAnalysisDialog({
     enabled: open && !!productId,
   })
 
+  const selectedRunbookIdRef = useRef<string | null>(null)
+
   const {
     register,
     handleSubmit,
     reset,
     control,
     formState: { errors },
-  } = useForm({
-    resolver: zodResolver(shortcutInCorsoSchema),
+  } = useForm<ShortcutInCorsoData>({
+    resolver: zodResolver(shortcutInCorsoSchema) as Resolver<ShortcutInCorsoData>,
     defaultValues: DEFAULT_VALUES,
   })
 
   useEffect(() => {
     if (open) {
       reset(DEFAULT_VALUES)
+      selectedRunbookIdRef.current = null
     }
   }, [open, reset])
 
-  const handleFormSubmit = (data: FieldValues) => {
+  const handleFormSubmit = (data: ShortcutInCorsoData) => {
     const now = toDatetimeLocal(new Date().toISOString())
-    const typedData = data as ShortcutInCorsoData
+    const typedData = data
     onSubmit({
       alarmId: typedData.alarmId,
       isOnCall: typedData.isOnCall,
@@ -119,6 +122,7 @@ export function ShortcutAnalysisDialog({
       operatorId: session?.user?.id ?? '',
       status: 'IN_PROGRESS',
       analysisType: 'ANALYZABLE',
+      runbookId: selectedRunbookIdRef.current || undefined,
     })
   }
 
@@ -157,6 +161,9 @@ export function ShortcutAnalysisDialog({
                 disabled={isPending}
                 alarms={alarms}
                 showOnCall={true}
+                onAlarmChange={(alarm) => {
+                  selectedRunbookIdRef.current = alarm.runbookId
+                }}
               />
 
               <OccurrencesField

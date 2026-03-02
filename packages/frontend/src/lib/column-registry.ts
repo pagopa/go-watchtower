@@ -23,21 +23,27 @@ export interface ColumnDef {
 
 export const COLUMN_REGISTRY: Record<string, ColumnDef[]> = {
   analyses: [
-    { id: 'analysisDate',    label: 'Data analisi',     locked: true, defaultWidth: 120, minWidth: 100, sortKey: 'analysisDate' },
-    { id: 'product',         label: 'Prodotto',                        defaultWidth: 120, minWidth: 80 },
-    { id: 'alarm',           label: 'Allarme',                         defaultWidth: 200, minWidth: 100 },
-    { id: 'environment',     label: 'Ambiente',                        defaultWidth: 120, minWidth: 80 },
-    { id: 'analysisType',    label: 'Tipo',                            defaultWidth: 52,  minWidth: 44 },
-    { id: 'status',          label: 'Stato',                           defaultWidth: 52,  minWidth: 44 },
-    { id: 'operator',        label: 'Operatore',                       defaultWidth: 130, minWidth: 80 },
-    { id: 'finalAction',     label: 'Azione Finale',                   defaultWidth: 160, minWidth: 100 },
-    { id: 'isOnCall',        label: 'On-Call',                         defaultWidth: 80,  minWidth: 60 },
-    { id: 'occurrences',     label: 'Occorrenze',                      defaultWidth: 100, minWidth: 80,  sortKey: 'occurrences' },
+    // ── Default visible columns (in display order) ──────────────────────────
+    { id: 'analysisDate',    label: 'Data analisi',    locked: true,  defaultWidth: 120, minWidth: 100, sortKey: 'analysisDate' },
+    { id: 'occurrences',     label: 'Occorrenze',                     defaultWidth: 90,  minWidth: 60,  sortKey: 'occurrences' },
+    { id: 'alarm',           label: 'Allarme',                        defaultWidth: 200, minWidth: 100 },
+    { id: 'product',         label: 'Prodotto',                       defaultWidth: 100, minWidth: 80 },
+    { id: 'environment',     label: 'Ambiente',                       defaultWidth: 100, minWidth: 80 },
+    { id: 'status',          label: 'Stato',                          defaultWidth: 52,  minWidth: 44 },
+    { id: 'analysisType',    label: 'Tipo',                           defaultWidth: 52,  minWidth: 44 },
+    { id: 'ignoreReason',    label: 'Motivazione',                    defaultWidth: 160, minWidth: 100 },
+    { id: 'operator',        label: 'Operatore',                      defaultWidth: 130, minWidth: 80 },
+    { id: 'validation',      label: 'Valutazione',                    defaultWidth: 140, minWidth: 100 },
+    // ── Hidden by default — manageable from the column configurator ─────────
+    { id: 'finalAction',     label: 'Azione Finale',  defaultVisible: false, defaultWidth: 160, minWidth: 100 },
+    { id: 'runbook',         label: 'Runbook',        defaultVisible: false, defaultWidth: 160, minWidth: 100 },
+    { id: 'microservices',   label: 'Microservizi',   defaultVisible: false, defaultWidth: 160, minWidth: 100 },
+    { id: 'downstreams',     label: 'Downstream',     defaultVisible: false, defaultWidth: 160, minWidth: 100 },
+    { id: 'isOnCall',        label: 'On-Call',        defaultVisible: false, defaultWidth: 80,  minWidth: 60 },
     { id: 'firstAlarmAt',    label: 'Primo allarme',  defaultVisible: false, defaultWidth: 120, minWidth: 100, sortKey: 'firstAlarmAt' },
     { id: 'lastAlarmAt',     label: 'Ultimo allarme', defaultVisible: false, defaultWidth: 120, minWidth: 100, sortKey: 'lastAlarmAt' },
     { id: 'errorDetails',    label: 'Dettagli errore',   defaultVisible: false, defaultWidth: 200, minWidth: 100 },
     { id: 'conclusionNotes', label: 'Note conclusione',  defaultVisible: false, defaultWidth: 200, minWidth: 100 },
-    { id: 'validation',      label: 'Valutazione',                     defaultWidth: 140, minWidth: 100 },
   ],
 }
 

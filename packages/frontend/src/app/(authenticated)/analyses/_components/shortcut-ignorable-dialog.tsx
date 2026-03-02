@@ -129,11 +129,13 @@ export function ShortcutIgnorableDialog({
     defaultValues: DEFAULT_VALUES,
   })
 
+  const selectedRunbookIdRef = useRef<string | null>(null)
   const lastAlarmAutoFilledRef = useRef(false)
 
   useEffect(() => {
     if (open) {
       reset(DEFAULT_VALUES)
+      selectedRunbookIdRef.current = null
       lastAlarmAutoFilledRef.current = false
     }
   }, [open, reset])
@@ -145,8 +147,9 @@ export function ShortcutIgnorableDialog({
 
   const selectedReason = ignoreReasons?.find((r) => r.code === watchedIgnoreReasonCode)
 
-  // Reset dynamic details when reason changes
+  // Reset dynamic details when reason changes (skip initial mount / empty value)
   useEffect(() => {
+    if (!watchedIgnoreReasonCode) return
     setValue('ignoreDetails', {})
   }, [watchedIgnoreReasonCode, setValue])
 
@@ -175,6 +178,7 @@ export function ShortcutIgnorableDialog({
       analysisDate: fromDatetimeLocal(now),
       operatorId: session?.user?.id ?? '',
       status: 'COMPLETED',
+      runbookId: selectedRunbookIdRef.current || undefined,
     })
   }
 
@@ -214,6 +218,9 @@ export function ShortcutIgnorableDialog({
                 disabled={isPending}
                 alarms={alarms}
                 showOnCall={false}
+                onAlarmChange={(alarm) => {
+                  selectedRunbookIdRef.current = alarm.runbookId
+                }}
               />
 
               <OccurrencesField

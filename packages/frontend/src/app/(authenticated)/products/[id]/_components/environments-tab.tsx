@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useForm } from 'react-hook-form'
+import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Plus, Pencil, Trash2, Loader2, Server, Minus } from 'lucide-react'
@@ -85,7 +85,7 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
     setValue,
     formState: { errors },
   } = useForm<EnvironmentFormData>({
-    resolver: zodResolver(environmentSchema),
+    resolver: zodResolver(environmentSchema) as Resolver<EnvironmentFormData>,
     defaultValues: { name: '', description: '', order: 0 },
   })
 

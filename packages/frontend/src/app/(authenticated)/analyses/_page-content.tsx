@@ -6,7 +6,7 @@ import { useSession } from 'next-auth/react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, Plus, Inbox,
-  Clock, CheckCircle2, Search, EyeOff,
+  Clock, CheckCircle2, Search, Ban,
   type LucideIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -24,6 +24,10 @@ import {
   type AnalysisStatus,
   type CreateAlarmAnalysisData,
   type UpdateAlarmAnalysisData,
+  type IgnoreReason,
+  type Microservice,
+  type Downstream,
+  type Runbook,
 } from '@/lib/api-client'
 import { usePermissions } from '@/hooks/use-permissions'
 import { usePreferences } from '@/hooks/use-preferences'
@@ -60,7 +64,7 @@ import {
 import { ResizableTableHead } from '@/components/ui/resizable-table-head'
 import { ColumnConfigurator } from '@/components/ui/column-configurator'
 import dynamic from 'next/dynamic'
-import { validateAnalysis, assessQuality } from '@/lib/analysis-validation'
+import { validateAnalysis, assessQuality, type ValidationResult, type QualityResult } from '@/lib/analysis-validation'
 import { ValidationScoreBadge } from '@/components/analysis/validation-score-badge'
 import { ValidationDetailPanel } from '@/components/analysis/validation-detail-panel'
 import { AnalysisFilters, type AnalysisFiltersState } from './_components/analysis-filters'
@@ -102,6 +106,11 @@ const DEFAULT_FILTERS: AnalysisFiltersState = {
   isOnCall: undefined,
   dateFrom: '',
   dateTo: '',
+  ignoreReasonCode: '',
+  runbookId: '',
+  microserviceId: '',
+  downstreamId: '',
+  traceId: '',
 }
 
 // --- Column Definitions (from shared registry) ---
@@ -115,7 +124,7 @@ const STATUS_ICONS: Record<AnalysisStatus, { Icon: LucideIcon; className: string
 
 const TYPE_ICONS: Record<AnalysisType, { Icon: LucideIcon; className: string }> = {
   ANALYZABLE: { Icon: Search, className: 'text-blue-500 dark:text-blue-400' },
-  IGNORABLE:  { Icon: EyeOff, className: 'text-slate-400 dark:text-slate-500' },
+  IGNORABLE:  { Icon: Ban,    className: 'text-amber-500/80 dark:text-amber-400/70' },
 }
 
 function renderCell(columnId: string, analysis: AlarmAnalysis): ReactNode {
@@ -141,6 +150,10 @@ function renderCell(columnId: string, analysis: AlarmAnalysis): ReactNode {
         </span>
       )
     }
+    case 'ignoreReason':
+      return analysis.ignoreReason
+        ? <span className="block truncate text-sm">{analysis.ignoreReason.label}</span>
+        : <span className="text-muted-foreground/40 text-sm">—</span>
     case 'status': {
       const { Icon, className } = STATUS_ICONS[analysis.status]
       return (
@@ -174,6 +187,36 @@ function renderCell(columnId: string, analysis: AlarmAnalysis): ReactNode {
       return <span className="block truncate text-sm text-muted-foreground">{analysis.errorDetails || '—'}</span>
     case 'conclusionNotes':
       return <span className="block truncate text-sm text-muted-foreground">{analysis.conclusionNotes || '—'}</span>
+    case 'runbook':
+      return analysis.runbook
+        ? <span className="block truncate text-sm">{analysis.runbook.name}</span>
+        : <span className="text-muted-foreground/40 text-sm">—</span>
+    case 'microservices': {
+      const names = analysis.microservices.map(m => m.name)
+      if (!names.length) return <span className="text-muted-foreground/40 text-sm">—</span>
+      return (
+        <span className="flex flex-wrap gap-1">
+          {names.map(name => (
+            <span key={name} className="inline-flex items-center rounded border px-1.5 py-0.5 text-xs font-medium text-foreground/75">
+              {name}
+            </span>
+          ))}
+        </span>
+      )
+    }
+    case 'downstreams': {
+      const names = analysis.downstreams.map(d => d.name)
+      if (!names.length) return <span className="text-muted-foreground/40 text-sm">—</span>
+      return (
+        <span className="flex flex-wrap gap-1">
+          {names.map(name => (
+            <span key={name} className="inline-flex items-center rounded border px-1.5 py-0.5 text-xs font-medium text-foreground/75">
+              {name}
+            </span>
+          ))}
+        </span>
+      )
+    }
     // 'validation' is rendered inline in the table row (not via renderCell)
     default:
       return null
@@ -332,13 +375,39 @@ function AnalysesPageContent() {
     enabled: !!effectiveProductId,
   })
 
+  // Advanced filter data
+  const { data: ignoreReasons } = useQuery<IgnoreReason[]>({
+    queryKey: ['ignore-reasons'],
+    queryFn: api.getIgnoreReasons,
+    enabled: can('ALARM_ANALYSIS', 'read'),
+  })
+
+  const { data: microservices } = useQuery<Microservice[]>({
+    queryKey: ['products', effectiveProductId, 'microservices'],
+    queryFn: () => api.getMicroservices(effectiveProductId),
+    enabled: !!effectiveProductId,
+  })
+
+  const { data: downstreams } = useQuery<Downstream[]>({
+    queryKey: ['products', effectiveProductId, 'downstreams'],
+    queryFn: () => api.getDownstreams(effectiveProductId),
+    enabled: !!effectiveProductId,
+  })
+
+  const { data: runbooks } = useQuery<Runbook[]>({
+    queryKey: ['products', effectiveProductId, 'runbooks'],
+    queryFn: () => api.getRunbooks(effectiveProductId),
+    enabled: !!effectiveProductId,
+  })
+
   // Form-specific data (runbooks, microservices, downstreams, plus product-
   // specific environments/alarms/finalActions when editing a cross-product
   // analysis) is fetched inside AnalysisFormDialog to avoid loading it on
   // every page visit.
 
-  // Build query params for analyses
-  const analysisQueryParams = {
+  // Build query params for analyses (memoised to keep a stable reference for
+  // useQuery's queryKey — avoids unnecessary refetches when unrelated state changes).
+  const analysisQueryParams = useMemo(() => ({
     page,
     pageSize,
     sortBy,
@@ -354,7 +423,19 @@ function AnalysesPageContent() {
     ...(filters.isOnCall !== undefined && { isOnCall: filters.isOnCall }),
     ...(filters.dateFrom && { dateFrom: filters.dateFrom }),
     ...(filters.dateTo && { dateTo: filters.dateTo }),
-  }
+    ...(filters.ignoreReasonCode && { ignoreReasonCode: filters.ignoreReasonCode }),
+    ...(filters.runbookId && { runbookId: filters.runbookId }),
+    ...(filters.microserviceId && { microserviceId: filters.microserviceId }),
+    ...(filters.downstreamId && { downstreamId: filters.downstreamId }),
+    ...(filters.traceId && { traceId: filters.traceId }),
+  }), [
+    page, pageSize, sortBy, sortOrder, effectiveProductId,
+    filters.search, filters.analysisType, filters.status,
+    filters.environmentId, filters.operatorId, filters.alarmId,
+    filters.finalActionId, filters.isOnCall, filters.dateFrom, filters.dateTo,
+    filters.ignoreReasonCode, filters.runbookId, filters.microserviceId,
+    filters.downstreamId, filters.traceId,
+  ])
 
   const {
     data: analysesResponse,
@@ -368,6 +449,18 @@ function AnalysesPageContent() {
   const analyses = analysesResponse?.data
   const pagination = analysesResponse?.pagination
 
+  // Pre-compute validation & quality once per data fetch (avoids calling
+  // validateAnalysis/assessQuality on every render for every visible row).
+  const validationCache = useMemo(() => {
+    if (!analyses) return new Map<string, { validation: ValidationResult; quality: QualityResult }>()
+    return new Map(
+      analyses.map((a) => [a.id, {
+        validation: validateAnalysis(a),
+        quality: assessQuality(a),
+      }])
+    )
+  }, [analyses])
+
   // Product name for the header
   const currentProduct = products?.find(p => p.id === effectiveProductId)
 
@@ -380,6 +473,8 @@ function AnalysesPageContent() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['analyses'] })
+      queryClient.invalidateQueries({ queryKey: ['analysis-authors'] })
+      setPage(1)
       toast.success('Analisi creata con successo')
       setActiveShortcut(null)
       setEditItem(null)
@@ -395,6 +490,7 @@ function AnalysesPageContent() {
       api.updateAnalysis(productId, id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['analyses'] })
+      queryClient.invalidateQueries({ queryKey: ['analysis-authors'] })
       toast.success('Analisi aggiornata con successo')
       setActiveShortcut(null)
       setEditItem(null)
@@ -563,6 +659,10 @@ function AnalysesPageContent() {
         alarms={!isAllView ? alarms : undefined}
         finalActions={!isAllView ? finalActions : undefined}
         users={analysisAuthors}
+        ignoreReasons={ignoreReasons}
+        microservices={!isAllView ? microservices : undefined}
+        downstreams={!isAllView ? downstreams : undefined}
+        runbooks={!isAllView ? runbooks : undefined}
         collapsed={filtersCollapsed}
         onToggleCollapsed={handleToggleFiltersCollapsed}
       />
@@ -681,21 +781,22 @@ function AnalysesPageContent() {
                   >
                     {visibleColumns.map((col, colIdx) => {
                       const isLastDataCol = colIdx === visibleColumns.length - 1
+                      const cached = col.id === 'validation' ? validationCache.get(analysis.id) : undefined
                       return (
                         <TableCell
                           key={col.id}
                           className="overflow-hidden py-2.5"
                           style={(!isLastDataCol && getWidth(col.id)) ? { width: `${getWidth(col.id)}px` } : undefined}
                         >
-                          {col.id === 'validation' ? (
+                          {col.id === 'validation' && cached ? (
                             <ValidationScoreBadge
-                              validation={validateAnalysis(analysis)}
-                              quality={assessQuality(analysis)}
+                              validation={cached.validation}
+                              quality={cached.quality}
                               onClick={() => setValidationPanelAnalysis(analysis)}
                             />
-                          ) : (
+                          ) : col.id !== 'validation' ? (
                             renderCell(col.id, analysis)
-                          )}
+                          ) : null}
                         </TableCell>
                       )
                     })}

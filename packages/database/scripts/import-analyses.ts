@@ -1024,9 +1024,29 @@ function csvRowToRecords(row: CsvRow, rowIndex: number): AnalysisRecord[] {
   const lastAlarmAt = row.lastAlarmAt
     ? parseDate(row.lastAlarmAt, true)
     : firstAlarmAt;
-  // When analysisDate is missing, fall back to firstAlarmAt + 3 hours (convention for old analyses)
-  const analysisDate = analysisDateParsed
-    ?? (firstAlarmAt ? new Date(firstAlarmAt.getTime() + 3 * 60 * 60 * 1000) : null);
+
+  // Derive final analysisDate:
+  // 1. Missing → firstAlarmAt + 3h (convention for old analyses).
+  // 2. Present, before 2026-10-08 Rome, with rounded time (:00:00 min/sec),
+  //    AND earlier than firstAlarmAt → likely imprecise entry, correct to +3h.
+  // 3. Otherwise keep as-is.
+  const ANALYSIS_DATE_PRECISION_CUTOFF = new Date("2026-10-08T00:00:00Z");
+  let analysisDate: Date | null;
+  if (!analysisDateParsed) {
+    analysisDate = firstAlarmAt
+      ? new Date(firstAlarmAt.getTime() + 3 * 60 * 60 * 1000)
+      : null;
+  } else if (
+    firstAlarmAt &&
+    analysisDateParsed < ANALYSIS_DATE_PRECISION_CUTOFF &&
+    analysisDateParsed.getUTCMinutes() === 0 &&
+    analysisDateParsed.getUTCSeconds() === 0 &&
+    analysisDateParsed < firstAlarmAt
+  ) {
+    analysisDate = new Date(firstAlarmAt.getTime() + 3 * 60 * 60 * 1000);
+  } else {
+    analysisDate = analysisDateParsed;
+  }
 
   if (!analysisDate || !firstAlarmAt || !lastAlarmAt) {
     console.warn(`  ⚠ Row ${rowIndex}: Skipping — no usable date found`);

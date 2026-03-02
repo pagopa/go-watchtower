@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useForm } from 'react-hook-form'
+import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { IGNORE_REASON_CODE_REGEX } from '@go-watchtower/shared'
@@ -230,7 +230,7 @@ function ReasonDialog({
     reset,
     formState: { errors },
   } = useForm<ReasonFormData>({
-    resolver: zodResolver(reasonFormSchema),
+    resolver: zodResolver(reasonFormSchema) as Resolver<ReasonFormData>,
     defaultValues: { code: '', label: '', description: '', sortOrder: 0, detailsSchema: '' },
   })
 

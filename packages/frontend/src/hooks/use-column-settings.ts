@@ -58,10 +58,31 @@ export function useColumnSettings(
     [settings?.visible, defaultVisible]
   )
 
-  const currentOrder = useMemo(
-    () => settings?.order ?? defaultOrder,
-    [settings?.order, defaultOrder]
-  )
+  // Reconcile saved order with the current registry: any column that exists in
+  // the registry but is missing from the saved order (e.g. newly added columns)
+  // gets inserted at its natural registry position, right after the closest
+  // preceding registry column that is already present in the saved order.
+  const currentOrder = useMemo(() => {
+    const savedOrder = settings?.order
+    if (!savedOrder) return defaultOrder
+
+    const savedSet = new Set(savedOrder)
+    const missing = defaultOrder.filter((id) => !savedSet.has(id))
+    if (missing.length === 0) return savedOrder
+
+    const reconciled = [...savedOrder]
+    for (const missingId of missing) {
+      const registryIdx = defaultOrder.indexOf(missingId)
+      let insertAt = reconciled.length
+      for (let i = registryIdx - 1; i >= 0; i--) {
+        const prevId = defaultOrder[i]!
+        const idx = reconciled.indexOf(prevId)
+        if (idx !== -1) { insertAt = idx + 1; break }
+      }
+      reconciled.splice(insertAt, 0, missingId)
+    }
+    return reconciled
+  }, [settings?.order, defaultOrder])
 
   const currentRenames = useMemo(
     () => settings?.renames ?? {},

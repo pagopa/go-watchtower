@@ -199,6 +199,11 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
           finalActionId,
           dateFrom,
           dateTo,
+          ignoreReasonCode,
+          runbookId,
+          microserviceId,
+          downstreamId,
+          traceId,
         } = request.query;
 
         // Build where clause
@@ -243,6 +248,28 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
           if (dateTo) {
             where.analysisDate.lte = new Date(dateTo);
           }
+        }
+
+        if (ignoreReasonCode) {
+          where.ignoreReasonCode = ignoreReasonCode;
+        }
+
+        if (runbookId) {
+          where.runbookId = runbookId;
+        }
+
+        if (microserviceId) {
+          where.microservices = { some: { microserviceId } };
+        }
+
+        if (downstreamId) {
+          where.downstreams = { some: { downstreamId } };
+        }
+
+        if (traceId) {
+          // PostgreSQL JSONB @> containment: check if trackingIds array contains
+          // an object with the given traceId. Prisma maps array_contains to @>.
+          where.trackingIds = { array_contains: [{ traceId }] };
         }
 
         if (search) {
@@ -333,6 +360,11 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
           productId,
           dateFrom,
           dateTo,
+          ignoreReasonCode,
+          runbookId,
+          microserviceId,
+          downstreamId,
+          traceId,
         } = request.query;
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -378,6 +410,28 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
           if (dateTo) {
             where.analysisDate.lte = new Date(dateTo);
           }
+        }
+
+        if (ignoreReasonCode) {
+          where.ignoreReasonCode = ignoreReasonCode;
+        }
+
+        if (runbookId) {
+          where.runbookId = runbookId;
+        }
+
+        if (microserviceId) {
+          where.microservices = { some: { microserviceId } };
+        }
+
+        if (downstreamId) {
+          where.downstreams = { some: { downstreamId } };
+        }
+
+        if (traceId) {
+          // PostgreSQL JSONB @> containment: check if trackingIds array contains
+          // an object with the given traceId. Prisma maps array_contains to @>.
+          where.trackingIds = { array_contains: [{ traceId }] };
         }
 
         if (search) {
@@ -1110,7 +1164,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
 
         const authors = await prisma.user.findMany({
           where: {
-            createdAnalyses: { some: {} },
+            analyses: { some: {} },
           },
           select: { id: true, name: true, email: true },
           orderBy: { name: "asc" },

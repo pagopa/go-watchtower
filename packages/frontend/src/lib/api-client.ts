@@ -442,6 +442,12 @@ export interface AlarmAnalysisFilters {
   productId?: string
   dateFrom?: string
   dateTo?: string
+  // Advanced filters
+  ignoreReasonCode?: string
+  runbookId?: string
+  microserviceId?: string
+  downstreamId?: string
+  traceId?: string
 }
 
 export interface CreateAlarmAnalysisData {

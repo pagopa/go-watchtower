@@ -46,9 +46,10 @@ interface AlarmFieldProps {
   disabled: boolean
   alarms: Alarm[] | undefined
   showOnCall?: boolean
+  onAlarmChange?: (alarm: Alarm) => void
 }
 
-export function AlarmField({ control, errors, disabled, alarms, showOnCall = true }: AlarmFieldProps) {
+export function AlarmField({ control, errors, disabled, alarms, showOnCall = true, onAlarmChange }: AlarmFieldProps) {
   return (
     <div className="space-y-2 sm:col-span-2">
       <Label>Allarme *</Label>
@@ -61,7 +62,13 @@ export function AlarmField({ control, errors, disabled, alarms, showOnCall = tru
               <Combobox
                 options={alarms?.map((a) => ({ value: a.id, label: a.name })) ?? []}
                 value={field.value || ''}
-                onValueChange={field.onChange}
+                onValueChange={(value) => {
+                  field.onChange(value)
+                  const selectedAlarm = alarms?.find((a) => a.id === value)
+                  if (selectedAlarm) {
+                    onAlarmChange?.(selectedAlarm)
+                  }
+                }}
                 placeholder="Seleziona allarme"
                 searchPlaceholder="Cerca allarme..."
                 emptyMessage="Nessun allarme trovato."
