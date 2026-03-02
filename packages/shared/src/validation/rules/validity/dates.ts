@@ -1,8 +1,8 @@
-import type { ValidationRule } from '@/lib/analysis-validation/types'
+import type { ValidationRule } from '../../types.js';
 
-const SEVEN_DAYS_MS = 604_800_000
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
-const SIX_MONTHS_MS = 180 * 24 * 60 * 60 * 1000
+const SEVEN_DAYS_MS  = 604_800_000;
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+const SIX_MONTHS_MS  = 180 * 24 * 60 * 60 * 1000;
 
 export const datesRules: ValidationRule[] = [
   // ── Errors (weight: 2) ──────────────────────────────────────────────
@@ -24,8 +24,7 @@ export const datesRules: ValidationRule[] = [
     id: 'ALARM_CHRONOLOGY',
     severity: 'error',
     weight: 2,
-    message:
-      'La data del primo allarme deve essere precedente o uguale alla data dell\'ultimo allarme',
+    message: "La data del primo allarme deve essere precedente o uguale alla data dell'ultimo allarme",
     validate: (a) => new Date(a.firstAlarmAt) <= new Date(a.lastAlarmAt),
   },
   {
@@ -34,8 +33,8 @@ export const datesRules: ValidationRule[] = [
     weight: 2,
     message: 'Le date degli allarmi non possono essere nel futuro',
     validate: (a) => {
-      const now = new Date()
-      return new Date(a.firstAlarmAt) <= now && new Date(a.lastAlarmAt) <= now
+      const now = new Date();
+      return new Date(a.firstAlarmAt) <= now && new Date(a.lastAlarmAt) <= now;
     },
   },
   {
@@ -88,9 +87,8 @@ export const datesRules: ValidationRule[] = [
     id: 'SAME_FIRST_LAST_ALARM',
     severity: 'warning',
     weight: 1,
-    message:
-      'Con più occorrenze, primo e ultimo allarme non dovrebbero coincidere',
+    message: 'Con più occorrenze, primo e ultimo allarme non dovrebbero coincidere',
     appliesTo: (a) => a.occurrences > 1,
     validate: (a) => a.firstAlarmAt !== a.lastAlarmAt,
   },
-]
+];

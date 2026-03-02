@@ -1,4 +1,4 @@
-import type { ValidationRule } from '@/lib/analysis-validation/types'
+import type { ValidationRule } from '../../types.js';
 
 export const coherenceRules: ValidationRule[] = [
   {
@@ -8,4 +8,4 @@ export const coherenceRules: ValidationRule[] = [
     message: 'Alto numero di occorrenze senza downstream specificati',
     validate: (a) => !(a.occurrences > 10 && a.downstreams.length === 0),
   },
-]
+];

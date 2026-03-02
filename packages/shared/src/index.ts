@@ -67,3 +67,18 @@ export { SYSTEM_EVENT_RESOURCE_LABELS, SYSTEM_EVENT_ACTION_LABELS } from './labe
 
 export { inferLinkType } from './utils/infer-link-type.js';
 export { buildDiff } from './utils/build-diff.js';
+
+// ─── Validazione analisi ───────────────────────────────────────────────────────
+
+export { validateAnalysis, assessQuality, ALL_VALIDITY_RULES, ALL_QUALITY_RULES } from './validation/index.js';
+export type {
+  AnalysisSubject,
+  NamedEntity,
+  ValidationResult,
+  QualityResult,
+  ValidationIssue,
+  QualityImprovement,
+  ValidationRule,
+  QualityRule,
+  Severity,
+} from './validation/index.js';

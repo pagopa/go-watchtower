@@ -2,7 +2,7 @@
 FROM node:25-alpine
 
 # Install pnpm (corepack removed in Node 25)
-RUN npm install -g pnpm
+RUN npm install -g pnpm@latest
 
 WORKDIR /app
 
@@ -25,7 +25,7 @@ RUN pnpm --filter @go-watchtower/database exec prisma generate
 RUN pnpm --filter @go-watchtower/database build
 
 # Install prisma CLI globally (needed by entrypoint for migrate deploy)
-RUN npm install -g prisma@7.4.1
+RUN npm install -g prisma@latest
 
 # Copy entrypoint
 COPY packages/backend/entrypoint.sh /app/entrypoint.sh

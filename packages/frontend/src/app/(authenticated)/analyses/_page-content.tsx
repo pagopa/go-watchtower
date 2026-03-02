@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useState, useCallback, useMemo, type ReactNode } from 'react'
+import { Suspense, useState, useRef, useEffect, useCallback, useMemo, type ReactNode } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -78,18 +78,8 @@ const ShortcutInCorsoDialog = dynamic(
   { ssr: false }
 )
 
-const ShortcutDisservizioDialog = dynamic(
-  () => import('./_components/shortcut-disservizio-dialog').then((m) => ({ default: m.ShortcutDisservizioDialog })),
-  { ssr: false }
-)
-
-const ShortcutIgnoreListDialog = dynamic(
-  () => import('./_components/shortcut-ignore-list-dialog').then((m) => ({ default: m.ShortcutIgnoreListDialog })),
-  { ssr: false }
-)
-
-const ShortcutNonGestitoDialog = dynamic(
-  () => import('./_components/shortcut-non-gestito-dialog').then((m) => ({ default: m.ShortcutNonGestitoDialog })),
+const ShortcutIgnorableDialog = dynamic(
+  () => import('./_components/shortcut-ignorable-dialog').then((m) => ({ default: m.ShortcutIgnorableDialog })),
   { ssr: false }
 )
 
@@ -230,6 +220,13 @@ function AnalysesPageContent() {
   // UI state
   const [selectedAnalysis, setSelectedAnalysis] = useState<AlarmAnalysis | null>(null)
   const [showDetailPanel, setShowDetailPanel] = useState(false)
+  const [lingeringId, setLingeringId] = useState<string | null>(null)
+  const lingeringTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => () => {
+    if (lingeringTimerRef.current) clearTimeout(lingeringTimerRef.current)
+  }, [])
+
   const [activeShortcut, setActiveShortcut] = useState<ShortcutType | null>(null)
   const [editItem, setEditItem] = useState<AlarmAnalysis | null>(null)
   const [deleteItem, setDeleteItem] = useState<AlarmAnalysis | null>(null)
@@ -448,6 +445,16 @@ function AnalysesPageContent() {
   }
 
   const handleRowClick = (analysis: AlarmAnalysis) => {
+    // Toggle: re-clicking the active row closes the panel
+    if (selectedAnalysis?.id === analysis.id && showDetailPanel) {
+      handleCloseDetailPanel()
+      return
+    }
+    if (lingeringTimerRef.current) {
+      clearTimeout(lingeringTimerRef.current)
+      lingeringTimerRef.current = null
+    }
+    setLingeringId(null)
     setSelectedAnalysis(analysis)
     setShowDetailPanel(true)
   }
@@ -518,8 +525,19 @@ function AnalysesPageContent() {
   }
 
   const handleCloseDetailPanel = () => {
+    if (lingeringTimerRef.current) clearTimeout(lingeringTimerRef.current)
+    const closingId = selectedAnalysis?.id ?? null
     setShowDetailPanel(false)
-    setSelectedAnalysis(null)
+    if (closingId) {
+      setLingeringId(closingId)
+      lingeringTimerRef.current = setTimeout(() => {
+        setLingeringId(null)
+        setSelectedAnalysis(null)
+        lingeringTimerRef.current = null
+      }, 900)
+    } else {
+      setSelectedAnalysis(null)
+    }
   }
 
   // --- Main Render ---
@@ -642,10 +660,20 @@ function AnalysesPageContent() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {analyses.map((analysis) => (
+                {analyses.map((analysis) => {
+                  const isSelected = analysis.id === selectedAnalysis?.id && showDetailPanel
+                  const isLingering = analysis.id === lingeringId && !showDetailPanel
+                  return (
                   <TableRow
                     key={analysis.id}
-                    className="group cursor-pointer border-b border-border/50 transition-colors hover:bg-muted/30"
+                    className={
+                      'group cursor-pointer border-b border-border/50 ' +
+                      (isSelected
+                        ? 'analysis-row-selected hover:bg-primary/[0.09]'
+                        : isLingering
+                          ? 'analysis-row-lingering hover:bg-muted/30'
+                          : 'transition-colors hover:bg-muted/30')
+                    }
                     onClick={(e) => {
                       if ((e.target as HTMLElement).closest('button')) return
                       handleRowClick(analysis)
@@ -672,7 +700,12 @@ function AnalysesPageContent() {
                       )
                     })}
                     {(canWrite || canDelete) && (
-                      <TableCell className="sticky right-0 z-10 border-l border-border/40 bg-card py-2 text-right group-hover:bg-muted">
+                      <TableCell className={
+                        'sticky right-0 z-10 border-l border-border/40 py-2 text-right ' +
+                        (isSelected
+                          ? 'bg-primary/[0.07] group-hover:bg-primary/[0.09]'
+                          : 'bg-card group-hover:bg-muted')
+                      }>
                         <div className="flex justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
                           {canEditAnalysis(analysis) && (
                             <Button
@@ -698,7 +731,8 @@ function AnalysesPageContent() {
                       </TableCell>
                     )}
                   </TableRow>
-                ))}
+                  )
+                })}
               </TableBody>
             </Table>
           ) : (
@@ -818,30 +852,8 @@ function AnalysesPageContent() {
         onProductChange={setFormProductId}
       />
 
-      <ShortcutDisservizioDialog
-        open={activeShortcut === 'disservizio'}
-        onOpenChange={handleDialogClose}
-        onSubmit={handleFormSubmit}
-        isPending={isMutating}
-        products={products}
-        showProductSelector={isAllView}
-        selectedProductId={formProductId}
-        onProductChange={setFormProductId}
-      />
-
-      <ShortcutIgnoreListDialog
-        open={activeShortcut === 'ignore-list'}
-        onOpenChange={handleDialogClose}
-        onSubmit={handleFormSubmit}
-        isPending={isMutating}
-        products={products}
-        showProductSelector={isAllView}
-        selectedProductId={formProductId}
-        onProductChange={setFormProductId}
-      />
-
-      <ShortcutNonGestitoDialog
-        open={activeShortcut === 'non-gestito'}
+      <ShortcutIgnorableDialog
+        open={activeShortcut === 'ignorable'}
         onOpenChange={handleDialogClose}
         onSubmit={handleFormSubmit}
         isPending={isMutating}

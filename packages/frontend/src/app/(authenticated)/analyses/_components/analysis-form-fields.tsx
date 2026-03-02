@@ -187,9 +187,10 @@ interface FirstAlarmFieldProps {
   errors: FieldErrors<any>
   disabled: boolean
   onAutoFill?: (value: string, fieldOnChange: (v: string) => void) => void
+  showNow?: boolean
 }
 
-export function FirstAlarmField({ control, errors, disabled, onAutoFill }: FirstAlarmFieldProps) {
+export function FirstAlarmField({ control, errors, disabled, onAutoFill, showNow }: FirstAlarmFieldProps) {
   return (
     <div className="space-y-2">
       <div className="flex items-baseline gap-1.5">
@@ -214,6 +215,8 @@ export function FirstAlarmField({ control, errors, disabled, onAutoFill }: First
                   onAutoFill ? onAutoFill(v, field.onChange) : field.onChange(v)
                 }
                 disabled={disabled}
+                showNow={showNow}
+                nowTimezone={showNow ? 'UTC' : undefined}
               />
               {romeDisplay && <TzCompanion label="Roma" value={romeDisplay} />}
             </div>

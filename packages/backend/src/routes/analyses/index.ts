@@ -4,7 +4,8 @@ import { prisma, Prisma, Resource, type PrismaClient } from "@go-watchtower/data
 
 type TransactionClient = Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends">;
 import { hasPermission, hasPermissionForResource } from "../../services/permission.service.js";
-import { logEvent, buildDiff } from "../../services/system-event.service.js";
+import { buildDiff } from "../../services/system-event.service.js";
+import { scoreAnalysis } from "../../services/analysis-scoring.service.js";
 import { SystemEventActions, SystemEventResources, inferLinkType } from "@go-watchtower/shared";
 import {
   ProductIdParamsSchema,
@@ -102,6 +103,9 @@ function formatAnalysisResponse(analysis: any) {
     ),
     links: Array.isArray(analysis.links) ? analysis.links : [],
     trackingIds: Array.isArray(analysis.trackingIds) ? analysis.trackingIds : [],
+    validationScore: analysis.validationScore ?? null,
+    qualityScore:    analysis.qualityScore ?? null,
+    scoredAt:        analysis.scoredAt ? analysis.scoredAt.toISOString() : null,
   };
 }
 
@@ -675,18 +679,18 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
           return created;
         });
 
-        logEvent({
+        request.auditEvents.push({
           action: SystemEventActions.ANALYSIS_CREATED,
           resource: SystemEventResources.ALARM_ANALYSES,
           resourceId: analysis.id,
           resourceLabel: analysis.alarm?.name ?? null,
-          userId: request.user.userId,
-          userLabel: request.user.email,
-          ipAddress: request.ip,
-          userAgent: request.headers["user-agent"] ?? null,
         });
 
         reply.status(201).send(formatAnalysisResponse(analysis));
+
+        scoreAnalysis(analysis.id, prisma).catch((err) => {
+          fastify.log.error({ err, analysisId: analysis.id }, "Failed to score analysis after create");
+        });
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Failed to create analysis";
@@ -723,8 +727,14 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
         const { productId, id } = request.params;
 
         // Verify analysis exists and belongs to product
+        // Include relational data for diffing in audit events
         const existing = await prisma.alarmAnalysis.findFirst({
           where: { id, productId },
+          include: {
+            microservices: { select: { microserviceId: true } },
+            downstreams:   { select: { downstreamId: true } },
+            finalActions:  { select: { finalActionId: true } },
+          },
         });
 
         if (!existing) {
@@ -976,13 +986,25 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
           resource: SystemEventResources.ALARM_ANALYSES,
           resourceId: analysis.id,
           resourceLabel: analysis.alarm?.name ?? null,
-          userId: request.user.userId,
-          userLabel: request.user.email,
-          ipAddress: request.ip,
-          userAgent: request.headers["user-agent"] ?? null,
-        };
+        } as const;
 
-        logEvent({
+        // Build before/after snapshots for relational fields
+        const beforeMicroserviceIds = existing.microservices.map(m => m.microserviceId).sort();
+        const afterMicroserviceIds  = analysis.microservices.map((m: { microservice: { id: string } }) => m.microservice.id).sort();
+
+        const beforeDownstreamIds = existing.downstreams.map(d => d.downstreamId).sort();
+        const afterDownstreamIds  = analysis.downstreams.map((d: { downstream: { id: string } }) => d.downstream.id).sort();
+
+        const beforeFinalActionIds = existing.finalActions.map(fa => fa.finalActionId).sort();
+        const afterFinalActionIds  = analysis.finalActions.map((fa: { finalAction: { id: string } }) => fa.finalAction.id).sort();
+
+        const beforeLinks       = Array.isArray(existing.links) ? existing.links : [];
+        const afterLinks        = Array.isArray(analysis.links) ? analysis.links : [];
+
+        const beforeTrackingIds = Array.isArray(existing.trackingIds) ? existing.trackingIds : [];
+        const afterTrackingIds  = Array.isArray(analysis.trackingIds) ? analysis.trackingIds : [];
+
+        request.auditEvents.push({
           action: SystemEventActions.ANALYSIS_UPDATED,
           ...eventBase,
           metadata: {
@@ -1000,6 +1022,11 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
                 ignoreReasonCode: (existing as Record<string, unknown>).ignoreReasonCode,
                 errorDetails:    existing.errorDetails,
                 conclusionNotes: existing.conclusionNotes,
+                microserviceIds: beforeMicroserviceIds,
+                downstreamIds:   beforeDownstreamIds,
+                finalActionIds:  beforeFinalActionIds,
+                links:           beforeLinks,
+                trackingIds:     beforeTrackingIds,
               } as Record<string, unknown>,
               {
                 analysisType:    analysis.analysisType,
@@ -1014,13 +1041,18 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
                 ignoreReasonCode: (analysis as Record<string, unknown>).ignoreReasonCode,
                 errorDetails:    analysis.errorDetails,
                 conclusionNotes: analysis.conclusionNotes,
+                microserviceIds: afterMicroserviceIds,
+                downstreamIds:   afterDownstreamIds,
+                finalActionIds:  afterFinalActionIds,
+                links:           afterLinks,
+                trackingIds:     afterTrackingIds,
               } as Record<string, unknown>,
             ),
           },
         });
 
         if (request.body.status !== undefined && request.body.status !== existing.status) {
-          logEvent({
+          request.auditEvents.push({
             action: SystemEventActions.ANALYSIS_STATUS_CHANGED,
             ...eventBase,
             metadata: {
@@ -1031,6 +1063,10 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
         }
 
         reply.send(formatAnalysisResponse(analysis));
+
+        scoreAnalysis(analysis.id, prisma).catch((err) => {
+          fastify.log.error({ err, analysisId: analysis.id }, "Failed to score analysis after update");
+        });
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Failed to update analysis";
@@ -1418,14 +1454,10 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
           where: { id: request.params.id },
         });
 
-        logEvent({
+        request.auditEvents.push({
           action: SystemEventActions.ANALYSIS_DELETED,
           resource: SystemEventResources.ALARM_ANALYSES,
           resourceId: request.params.id,
-          userId: request.user.userId,
-          userLabel: request.user.email,
-          ipAddress: request.ip,
-          userAgent: request.headers["user-agent"] ?? null,
         });
 
         reply.send({ message: "Analysis deleted successfully" });

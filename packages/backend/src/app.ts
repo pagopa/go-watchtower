@@ -5,6 +5,7 @@ import { registerJwt } from "./plugins/jwt.js";
 import { registerGoogleOAuth } from "./plugins/google-oauth.js";
 import { registerSwagger } from "./plugins/swagger.js";
 import { registerRateLimit } from "./plugins/rate-limit.js";
+import auditPlugin from "./plugins/audit.js";
 import { authRoutes } from "./routes/auth/index.js";
 import { productRoutes } from "./routes/products/index.js";
 import { analysisRoutes } from "./routes/analyses/index.js";
@@ -44,6 +45,7 @@ export async function buildApp() {
   await registerJwt(app);
   await registerGoogleOAuth(app);
   await registerSwagger(app);
+  await app.register(auditPlugin);
 
   // Register routes
   await app.register(healthRoutes);

@@ -134,3 +134,33 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ── Analysis table row selection ──────────────────────────────────────────── */
+
+@keyframes analysis-row-deselect {
+  from { background-color: hsl(var(--primary) / 0.07); }
+  to   { background-color: transparent; }
+}
+
+/* Active: row whose detail panel is currently open */
+.analysis-row-selected {
+  background-color: hsl(var(--primary) / 0.07);
+}
+
+/* Left-edge accent via inset shadow — no layout shift */
+.analysis-row-selected > td:first-child,
+.analysis-row-selected > th:first-child {
+  box-shadow: inset 2px 0 0 hsl(var(--primary) / 0.55);
+}
+
+/* Lingering: panel was just closed — fades back to transparent */
+.analysis-row-lingering {
+  animation: analysis-row-deselect 800ms ease-out forwards;
+}
+
+.analysis-row-lingering > td:first-child,
+.analysis-row-lingering > th:first-child {
+  animation: analysis-row-deselect 800ms ease-out forwards;
+  box-shadow: inset 2px 0 0 hsl(var(--primary) / 0);
+  transition: box-shadow 800ms ease-out;
+}

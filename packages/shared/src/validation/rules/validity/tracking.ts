@@ -1,4 +1,4 @@
-import type { ValidationRule } from '@/lib/analysis-validation/types'
+import type { ValidationRule } from '../../types.js';
 
 export const trackingRules: ValidationRule[] = [
   {
@@ -8,10 +8,10 @@ export const trackingRules: ValidationRule[] = [
     message: (a) => {
       const missing = a.trackingIds.filter(
         (t) => !t.errorCode || t.errorCode.trim() === ''
-      ).length
+      ).length;
       return missing === 1
         ? 'Un ID di tracciamento è privo di codice errore'
-        : `${missing} ID di tracciamento sono privi di codice errore`
+        : `${missing} ID di tracciamento sono privi di codice errore`;
     },
     appliesTo: (a) => a.trackingIds.length > 0,
     validate: (a) =>
@@ -24,10 +24,10 @@ export const trackingRules: ValidationRule[] = [
     message: (a) => {
       const missing = a.trackingIds.filter(
         (t) => !t.errorDetail || t.errorDetail.trim() === ''
-      ).length
+      ).length;
       return missing === 1
         ? 'Un ID di tracciamento è privo di dettaglio errore'
-        : `${missing} ID di tracciamento sono privi di dettaglio errore`
+        : `${missing} ID di tracciamento sono privi di dettaglio errore`;
     },
     appliesTo: (a) => a.trackingIds.length > 0,
     validate: (a) =>
@@ -44,8 +44,8 @@ export const trackingRules: ValidationRule[] = [
     validate: (a) => {
       const codes = a.trackingIds
         .map((t) => t.errorCode)
-        .filter((c): c is string => c != null && c.trim() !== '')
-      return new Set(codes).size === codes.length
+        .filter((c): c is string => c != null && c.trim() !== '');
+      return new Set(codes).size === codes.length;
     },
   },
   {
@@ -54,14 +54,12 @@ export const trackingRules: ValidationRule[] = [
     weight: 1,
     message: 'Un ID di tracciamento ha un timestamp nel futuro',
     appliesTo: (a) =>
-      a.trackingIds.some(
-        (t) => t.timestamp != null && t.timestamp.trim() !== ''
-      ),
+      a.trackingIds.some((t) => t.timestamp != null && t.timestamp.trim() !== ''),
     validate: (a) => {
-      const now = new Date()
+      const now = new Date();
       return a.trackingIds
         .filter((t) => t.timestamp != null && t.timestamp.trim() !== '')
-        .every((t) => new Date(t.timestamp!) <= now)
+        .every((t) => new Date(t.timestamp!) <= now);
     },
   },
-]
+];

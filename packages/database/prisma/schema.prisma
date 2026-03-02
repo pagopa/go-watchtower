@@ -314,6 +314,9 @@ model AlarmAnalysis {
   runbookId        String?        @map("runbook_id") @db.Uuid
   links            Json           @default("[]")
   trackingIds      Json           @default("[]") @map("tracking_ids")
+  validationScore  Int?           @map("validation_score") @db.SmallInt
+  qualityScore     Int?           @map("quality_score") @db.SmallInt
+  scoredAt         DateTime?      @map("scored_at")
   createdAt        DateTime       @default(now()) @map("created_at")
   updatedAt        DateTime       @updatedAt @map("updated_at")
   createdById      String         @map("created_by_id") @db.Uuid

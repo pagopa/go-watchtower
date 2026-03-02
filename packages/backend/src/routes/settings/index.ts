@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import { prisma, Prisma, Resource } from "@go-watchtower/database";
 import { hasPermission } from "../../services/permission.service.js";
-import { logEvent } from "../../services/system-event.service.js";
+import { buildDiff } from "../../services/system-event.service.js";
 import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
 import {
   SystemSettingsResponseSchema,
@@ -175,16 +175,12 @@ export async function settingRoutes(app: FastifyInstance): Promise<void> {
         },
       });
 
-      logEvent({
+      request.auditEvents.push({
         action:        SystemEventActions.SETTING_UPDATED,
         resource:      SystemEventResources.SYSTEM_SETTINGS,
         resourceId:    updated.key,
         resourceLabel: updated.label,
-        userId:        request.user.userId,
-        userLabel:     request.user.email,
-        metadata:      { key: updated.key, previousValue: existing.value, newValue: request.body.value },
-        ipAddress:     request.ip,
-        userAgent:     request.headers["user-agent"] ?? null,
+        metadata:      { key: updated.key, changes: buildDiff({ value: existing.value }, { value: updated.value }) },
       });
 
       return reply.send(formatSetting(updated));

@@ -229,7 +229,7 @@ function TrackingEntryCard({
   }
 
   return (
-    <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3">
+    <div className="space-y-2 overflow-hidden rounded-lg border border-border bg-muted/20 p-3">
       <div className="flex items-center gap-2">
         <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1 text-xs font-mono">
           {entry.traceId}
@@ -256,7 +256,7 @@ function TrackingEntryCard({
         </p>
       )}
       {entry.errorDetail && (
-        <p className="whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
+        <p className="break-all whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
           {entry.errorDetail}
         </p>
       )}

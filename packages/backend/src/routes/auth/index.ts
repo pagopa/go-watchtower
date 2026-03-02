@@ -179,6 +179,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
 
         setTokenCookies(reply, accessToken, refreshToken);
 
+        // audit: unauthenticated endpoint -- direct call, request.user not available
         logEvent({
           action: SystemEventActions.USER_LOGIN,
           resource: SystemEventResources.AUTH,
@@ -198,6 +199,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         const message =
           error instanceof Error ? error.message : "Login failed";
 
+        // audit: error event -- direct call, not via onResponse hook
         logEvent({
           action: SystemEventActions.USER_LOGIN_FAILED,
           resource: SystemEventResources.AUTH,
@@ -321,6 +323,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         // token may be expired or malformed - that's fine
       }
 
+      // audit: unauthenticated endpoint -- direct call, request.user not available (token may be expired)
       logEvent({
         action: SystemEventActions.USER_LOGOUT,
         resource: SystemEventResources.AUTH,
@@ -442,14 +445,10 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         return;
       }
 
-      logEvent({
+      request.auditEvents.push({
         action: SystemEventActions.USER_TOKEN_REVOKED,
         resource: SystemEventResources.AUTH,
         resourceId: request.params.sessionId,
-        userId: request.user.userId,
-        userLabel: request.user.email,
-        ipAddress: request.ip,
-        userAgent: request.headers["user-agent"] ?? null,
       });
 
       reply.send({ message: "Session revoked" });
@@ -504,6 +503,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
 
         setTokenCookies(reply, accessToken, refreshToken);
 
+        // audit: unauthenticated endpoint -- direct call, request.user not available
         logEvent({
           action: SystemEventActions.USER_LOGIN_GOOGLE,
           resource: SystemEventResources.AUTH,
@@ -609,6 +609,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
 
         setTokenCookies(reply, accessToken, refreshToken);
 
+        // audit: unauthenticated endpoint -- direct call, request.user not available
         logEvent({
           action: SystemEventActions.USER_LOGIN_GOOGLE,
           resource: SystemEventResources.AUTH,

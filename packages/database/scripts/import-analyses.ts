@@ -1,10 +1,22 @@
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient, AnalysisType, AnalysisStatus } from "../generated/prisma/client.js";
+import { PrismaClient } from "../generated/prisma/client.js";
 import pg from "pg";
 import { createReadStream, readFileSync } from "fs";
 import { parse } from "csv-parse";
 import { resolve } from "path";
+import {
+  validateAnalysis,
+  assessQuality,
+  inferLinkType,
+  AnalysisTypes,
+  AnalysisStatuses,
+  type AnalysisSubject,
+  type AnalysisType,
+  type AnalysisStatus,
+  type AnalysisLink,
+  type TrackingEntry,
+} from "@go-watchtower/shared";
 
 // ============================================================================
 // Setup
@@ -105,33 +117,8 @@ function getRomeOffsetMs(
 }
 
 // ============================================================================
-// Link type inference (same as API)
-// ============================================================================
-
-function inferLinkType(url: string): string {
-  const lower = url.toLowerCase();
-  if (lower.includes("slack.com/archives")) return "Slack Thread";
-  if (lower.includes("github.com") && lower.includes("/issues/"))
-    return "GitHub Issue";
-  if (lower.includes("github.com") && lower.includes("/pull/"))
-    return "GitHub PR";
-  if (lower.includes(".atlassian.net") && lower.includes("/browse/"))
-    return "Jira Ticket";
-  if (lower.includes("confluence") || lower.includes("/wiki/"))
-    return "Confluence Page";
-  if (lower.includes("opsgenie.com")) return "Opsgenie Alert";
-  return "Link";
-}
-
-// ============================================================================
 // Tracking ID parsing
 // ============================================================================
-
-interface TrackingEntry {
-  traceId: string;
-  errorCode?: string;
-  errorDetail?: string;
-}
 
 /**
  * Parse tracking IDs, error codes, and error details from CSV columns.
@@ -730,18 +717,55 @@ function deriveRunbookName(url: string): string {
 // Runbook text → URL lookup table
 // ============================================================================
 
-/** Runbook texts to ignore (placeholder values in CSV) */
+/** Runbook texts to ignore (placeholder values in CSV) — stored lowercase, matched via trimmed.toLowerCase() */
 const RUNBOOK_IGNORE_TEXTS = new Set([
   "da allegare runbook",
   "da inerire",
   "da inserire",
   "inserire",
-  "Allarme da ignorare secondo indicazione del team prodotto",
-  "N/A",
-  "NA"
+  "allarme da ignorare secondo indicazione del team prodotto",
+  "n/a",
+  "na",
 ]);
 
 const RUNBOOK_TEXT_TO_URL: Record<string, string> = {
+  "(Bozza) k8s-interop-be-m2m-gateway-errors-prod": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2501279824/k8s-interop-be-m2m-gateway-errors-prod",
+  "(Bozza) k8s-interop-public-catalog-astro-frontend-errors-prod-public-catalog": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2385608739/k8s-interop-public-catalog-astro-frontend-errors-prod-public-catalog",
+  "0f9f7e48-b39b-45f5-b1bd-0af3609ae87e k8s-interop-be-selfcare-onboarding-consumer-errors-prod": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2145419266/k8s-interop-be-selfcare-onboarding-consumer-errors-prod",
+  "Analisi Allarmi INTEROP": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2058387469/INTEROP+Analisi+Allarmi",
+  "Bozza k8s-interop-be-check-selfcare-diff-errors-prod": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2676196292/k8s-interop-be-check-selfcare-diff-errors-prod",
+  "interop-api-1.0-prod-apigw-5xx": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2140078126/interop-api-1.0-prod-apigw-5xx",
+  "interop-api-1.0-prod-apigw-5xx - Gestione Operativa (ts600) - Confluence": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2140078126/interop-api-1.0-prod-apigw-5xx",
+  "interop-auth-server-prod-apigw-4xx": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2125398072/interop-auth-server-prod-apigw-4xx",
+  "interop-auth-server-prod-apigw-4xx - Gestione Operativa (ts600) - Confluence": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2125398072/interop-auth-server-prod-apigw-4xx",
+  "interop-auth-server-prod-apigw-5xx": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2111078419/interop-auth-server-prod-apigw-5xx",
+  "interop-auth-server-prod-apigw-5xx - Gestione Operativa (ts600) - Confluence": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2111078419/interop-auth-server-prod-apigw-5xx",
+  "interop-selfcare-1.0-prod-apigw-5xx": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2111930369/interop-selfcare-1.0-prod-apigw-5xx",
+  "interop-selfcare-1.0-prod-apigw-5xx - Gestione Operativa (ts600) - Confluence": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2111930369/interop-selfcare-1.0-prod-apigw-5xx",
+  "interop-be-anac-certified-attributes-importer-errors-prod": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2151056405/k8s-interop-be-anac-certified-attributes-importer-errors-prod",
+  "k8s-interop-be-attribute-registry-process-errors-prod": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2659516453/k8s-interop-be-attribute-registry-process-errors-prod",
+  "k8s-interop-be-backend-for-frontend-errors-prod - Gestione Operativa (ts600) - Confluence": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2585559041/k8s-interop-be-backend-for-frontend-errors-prod",
+  "k8s-interop-be-ipa-certified-attributes-importer-errors-prod": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2391015443/k8s-interop-be-ipa-certified-attributes-importer-errors-prod",
+  "k8s-interop-be-ipa-certified-attributes-importer-errors-prod - Gestione Operativa (ts600) - Confluence": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2391015443/k8s-interop-be-ipa-certified-attributes-importer-errors-prod",
+  "k8s-interop-be-ivass-certified-attributes-importer-errors-prod - Gestione Operativa (ts600) - Confluence": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2534146073/k8s-interop-be-ivass-certified-attributes-importer-errors-prod",
+  "k8s-interop-be-m2m-event-cleaner-errors-prod - Gestione Operativa (ts600) - Confluence": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2391343107/k8s-interop-be-m2m-event-cleaner-errors-prod",
+  "k8s-interop-be-m2m-gateway-errors-prod": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2501279824/k8s-interop-be-m2m-gateway-errors-prod",
+  "k8s-interop-be-m2m-gateway-errors-prod - Gestione Operativa (ts600) - Confluence": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2501279824/k8s-interop-be-m2m-gateway-errors-prod",
+  "k8s-interop-be-notification-user-lifecycle-consumer-errors-prod": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2659549286/k8s-interop-be-notification-user-lifecycle-consumer-errors-prod",
+  "k8s-interop-be-one-trust-notices-errors-prod - Gestione Operativa (ts600) - Confluence": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2389835914/k8s-interop-be-one-trust-notices-errors-prod",
+  "k8s-interop-be-selfcare-client-users-updater-errors-prod": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2129330177/k8s-interop-be-selfcare-client-users-updater-errors-prod",
+  "k8s-interop-be-selfcare-client-users-updater-errors-prod - Gestione Operativa (ts600) - Confluence": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2129330177/k8s-interop-be-selfcare-client-users-updater-errors-prod",
+  "k8s-interop-be-selfcare-onboarding-consumer-errors-prod": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2145419266/k8s-interop-be-selfcare-onboarding-consumer-errors-prod",
+  "k8s-interop-be-selfcare-onboarding-consumer-errors-prod - Gestione Operativa (ts600) - Confluence": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2145419266/k8s-interop-be-selfcare-onboarding-consumer-errors-prod",
+  "k8s-interop-be-signed-objects-persister-errors-prod": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2468478981/k8s-interop-be-signed-objects-persister-errors-prod",
+  "k8s-interop-be-signed-objects-persister-errors-prod - Gestione Operativa (ts600) - Confluence": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2468478981/k8s-interop-be-signed-objects-persister-errors-prod",
+  "k8s-interop-be-tenant-process-errors-prod - Gestione Operativa (ts600) - Confluence": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2496757887/k8s-interop-be-tenant-process-errors-prod",
+  "k8s-interop-be-tenant-readmodel-writer-sql-errors-prod - Gestione Operativa (ts600) - Confluence": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2500296801/k8s-interop-be-tenant-readmodel-writer-sql-errors-prod",
+  "k8s-interop-be-token-generation-readmodel-checker-errors-prod": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2116747265/k8s-interop-be-token-generation-readmodel-checker-errors-prod",
+  "k8s-interop-be-token-generation-readmodel-checker-errors-prod - Gestione Operativa (ts600) - Confluence": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2116747265/k8s-interop-be-token-generation-readmodel-checker-errors-prod",
+  "k8s-interop-public-catalog-astro-frontend-errors-prod-public-catalog": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2385608739/k8s-interop-public-catalog-astro-frontend-errors-prod-public-catalog",
+  "k8s-interop-public-catalog-astro-frontend-errors-prod-public-catalog - Gestione Operativa (ts600) - Confluence": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2385608739/k8s-interop-public-catalog-astro-frontend-errors-prod-public-catalog",
+
   "pn-kafka-bridge-ErrorFatalLogs-Alarm": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2123595784/pn-kafka-bridge-ErrorFatalLogs-Alarm",
   "pn-address-book-io-IO-ApiGwAlarm": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2072051894/pn-address-book-io-IO-ApiGwAlarm",
   "pn-delivery-B2B-ApiGwAlarm - Gestione Operativa (ts600) - Confluence": "https://pagopa.atlassian.net/wiki/spaces/GO/pages/2112749569/pn-delivery-B2B-ApiGwAlarm",
@@ -782,7 +806,7 @@ const RUNBOOK_TEXT_TO_URL: Record<string, string> = {
  * - Returns null link if text can't be resolved.
  */
 function resolveRunbook(raw: string): { name: string; link: string } | null {
-  if (!raw || raw === "N/A") return null;
+  if (!raw || raw === "N/A" || raw === "NA" || raw === "Da inserire!" || raw === "Inserire Runbook") return null;
   const trimmed = raw.trim();
 
   // Ignore placeholder texts
@@ -886,23 +910,17 @@ function normalizeMicroserviceName(raw: string): string {
 // Parse links from various columns
 // ============================================================================
 
-interface LinkEntry {
-  url: string;
-  name?: string;
-  type: string;
-}
-
-function parseAlarmLink(raw: string): LinkEntry | null {
+function parseAlarmLink(raw: string): AnalysisLink | null {
   if (!raw || raw === "N/A") return null;
   const url = raw.trim();
   if (!url.startsWith("http")) return null;
   return { url, name: "Link ultimo allarme", type: inferLinkType(url) };
 }
 
-function parseIssueLinks(raw: string): LinkEntry[] {
+function parseIssueLinks(raw: string): AnalysisLink[] {
   if (!raw || raw === "N/A" || raw === "NA") return [];
 
-  const links: LinkEntry[] = [];
+  const links: AnalysisLink[] = [];
   // Can contain URLs or ticket codes like "PN-16697"
   // Split by whitespace/comma/newline
   const parts = raw.split(/[\s,;\n]+/).filter((s) => s.trim());
@@ -930,6 +948,36 @@ function extractTicketName(url: string): string {
   return match ? match[1]! : url;
 }
 
+/**
+ * Extract all http/https URLs from free-form text (e.g. conclusionNotes).
+ * Returns deduplicated AnalysisLink[] with inferred type.
+ * Avoids capturing trailing punctuation (.,;:!?) or closing brackets/parens.
+ */
+function extractLinksFromText(
+  text: string,
+  existingLinks: AnalysisLink[]
+): AnalysisLink[] {
+  // Regex: match http(s) URLs, stopping before trailing punctuation or brackets.
+  // The negative character class at the end avoids capturing .,;:!?)> that often
+  // follow pasted URLs in free-form text.
+  const urlRegex = /https?:\/\/[^\s<>\"]+[^\s<>\".,;:!?\])>]/gi;
+  const matches = text.match(urlRegex);
+  if (!matches) return [];
+
+  const existingUrls = new Set(existingLinks.map((l) => l.url));
+  const seen = new Set<string>();
+  const links: AnalysisLink[] = [];
+
+  for (const rawUrl of matches) {
+    const url = rawUrl.trim();
+    if (seen.has(url) || existingUrls.has(url)) continue;
+    seen.add(url);
+    links.push({ url, type: inferLinkType(url) });
+  }
+
+  return links;
+}
+
 // ============================================================================
 // Main import logic
 // ============================================================================
@@ -946,7 +994,7 @@ interface AnalysisRecord {
   alarmName: string;
   environmentName: string;
   operatorSurname: string;
-  links: LinkEntry[];
+  links: AnalysisLink[];
   trackingIds: TrackingEntry[];
   microserviceNames: string[];
   downstreamNames: string[];
@@ -976,7 +1024,9 @@ function csvRowToRecords(row: CsvRow, rowIndex: number): AnalysisRecord[] {
   const lastAlarmAt = row.lastAlarmAt
     ? parseDate(row.lastAlarmAt, true)
     : firstAlarmAt;
-  const analysisDate = analysisDateParsed || firstAlarmAt;
+  // When analysisDate is missing, fall back to firstAlarmAt + 3 hours (convention for old analyses)
+  const analysisDate = analysisDateParsed
+    ?? (firstAlarmAt ? new Date(firstAlarmAt.getTime() + 3 * 60 * 60 * 1000) : null);
 
   if (!analysisDate || !firstAlarmAt || !lastAlarmAt) {
     console.warn(`  ⚠ Row ${rowIndex}: Skipping — no usable date found`);
@@ -988,10 +1038,17 @@ function csvRowToRecords(row: CsvRow, rowIndex: number): AnalysisRecord[] {
   const envName = mapEnvironment(row.environment || "PROD");
 
   // Parse links
-  const links: LinkEntry[] = [];
+  const links: AnalysisLink[] = [];
   const alarmLink = parseAlarmLink(row.linkUltimoAllarme);
   if (alarmLink) links.push(alarmLink);
   links.push(...parseIssueLinks(row.issueAssociate));
+
+  // Extract additional links from conclusion notes text
+  const conclusionText =
+    row.conclusioni && row.conclusioni !== "N/A" ? row.conclusioni : null;
+  if (conclusionText) {
+    links.push(...extractLinksFromText(conclusionText, links));
+  }
 
   // Parse tracking IDs and error details
   const { trackingIds, errorDetails: trackingErrorDetails } = parseTrackingIds(
@@ -1064,9 +1121,9 @@ function csvRowToRecords(row: CsvRow, rowIndex: number): AnalysisRecord[] {
           lastAlarmAt,
           occurrences: alarmOccurrences,
           isOnCall,
-          analysisType: AnalysisType.IGNORABLE,
+          analysisType: AnalysisTypes.IGNORABLE,
           ignoreReasonCode: "RELEASE",
-          status: AnalysisStatus.COMPLETED,
+          status: AnalysisStatuses.COMPLETED,
           alarmName,
           environmentName: envName,
           operatorSurname: row.responder.toLowerCase(),
@@ -1093,9 +1150,9 @@ function csvRowToRecords(row: CsvRow, rowIndex: number): AnalysisRecord[] {
         lastAlarmAt,
         occurrences,
         isOnCall,
-        analysisType: AnalysisType.ANALYZABLE,
+        analysisType: AnalysisTypes.ANALYZABLE,
         ignoreReasonCode: null,
-        status: AnalysisStatus.COMPLETED,
+        status: AnalysisStatuses.COMPLETED,
         alarmName: alarmNames[0]!,
         environmentName: envName,
         operatorSurname: row.responder.toLowerCase(),
@@ -1121,9 +1178,9 @@ function csvRowToRecords(row: CsvRow, rowIndex: number): AnalysisRecord[] {
     lastAlarmAt,
     occurrences: idx === 0 ? perAlarm + remainder : perAlarm,
     isOnCall,
-    analysisType: AnalysisType.IGNORABLE,
+    analysisType: AnalysisTypes.IGNORABLE,
     ignoreReasonCode: "MAINTENANCE",
-    status: AnalysisStatus.COMPLETED,
+    status: AnalysisStatuses.COMPLETED,
     alarmName,
     environmentName: envName,
     operatorSurname: row.responder.toLowerCase(),
@@ -1281,6 +1338,27 @@ async function importAnalyses() {
           );
         }
 
+        // Compute validation and quality scores from in-memory data
+        const subject: AnalysisSubject = {
+          analysisDate:     record.analysisDate.toISOString(),
+          firstAlarmAt:     record.firstAlarmAt.toISOString(),
+          lastAlarmAt:      record.lastAlarmAt.toISOString(),
+          occurrences:      record.occurrences,
+          isOnCall:         record.isOnCall,
+          analysisType:     record.analysisType as 'ANALYZABLE' | 'IGNORABLE',
+          ignoreReasonCode: record.ignoreReasonCode,
+          errorDetails:     record.errorDetails,
+          conclusionNotes:  record.conclusionNotes,
+          runbook:          runbookId ? { id: runbookId } : null,
+          finalActions:     finalActionIds.map((id, i) => ({ id, name: record.finalActionNames[i] ?? '' })),
+          microservices:    microserviceIds.map((id) => ({ id })),
+          downstreams:      downstreamIds.map((id) => ({ id })),
+          links:            record.links,
+          trackingIds:      record.trackingIds,
+        };
+        const { score: validationScore } = validateAnalysis(subject);
+        const { score: qualityScore }    = assessQuality(subject);
+
         // Create analysis
         await prisma.alarmAnalysis.create({
           data: {
@@ -1302,6 +1380,9 @@ async function importAnalyses() {
             links: record.links,
             trackingIds: record.trackingIds,
             createdById: operator.id,
+            validationScore,
+            qualityScore,
+            scoredAt: new Date(),
             finalActions: {
               create: finalActionIds.map((id) => ({
                 finalActionId: id,

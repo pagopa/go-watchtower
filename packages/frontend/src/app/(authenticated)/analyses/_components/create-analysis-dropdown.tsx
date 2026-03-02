@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronDown, Play, Ban, ListX, UserX, FileText } from 'lucide-react'
+import { ChevronDown, Play, EyeOff, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
-export type ShortcutType = 'in-corso' | 'disservizio' | 'ignore-list' | 'non-gestito' | 'full'
+export type ShortcutType = 'in-corso' | 'ignorable' | 'full'
 
 interface CreateAnalysisDropdownProps {
   onSelect: (type: ShortcutType) => void
@@ -30,22 +30,14 @@ export function CreateAnalysisDropdown({ onSelect }: CreateAnalysisDropdownProps
           <Play className="mr-2 h-4 w-4" />
           In corso
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onSelect('disservizio')}>
-          <Ban className="mr-2 h-4 w-4" />
-          Disservizio
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onSelect('ignore-list')}>
-          <ListX className="mr-2 h-4 w-4" />
-          Ignore list
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onSelect('non-gestito')}>
-          <UserX className="mr-2 h-4 w-4" />
-          Non gestito
+        <DropdownMenuItem onClick={() => onSelect('ignorable')}>
+          <EyeOff className="mr-2 h-4 w-4" />
+          Da ignorare
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => onSelect('full')}>
           <FileText className="mr-2 h-4 w-4" />
-          Analisi completa...
+          Analisi completa…
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

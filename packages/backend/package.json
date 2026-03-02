@@ -9,11 +9,10 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "rescore": "tsx src/scripts/rescore-analyses.ts"
   },
   "dependencies": {
-    "@go-watchtower/shared": "workspace:*",
-    "@go-watchtower/database": "workspace:*",
     "@fastify/cookie": "^11.0.2",
     "@fastify/cors": "^11.2.0",
     "@fastify/jwt": "^10.0.0",
@@ -22,14 +21,17 @@
     "@fastify/swagger": "^9.7.0",
     "@fastify/swagger-ui": "^5.2.5",
     "@fastify/type-provider-typebox": "^6.1.0",
+    "@go-watchtower/database": "workspace:*",
+    "@go-watchtower/shared": "workspace:*",
     "@sinclair/typebox": "^0.34.48",
     "bcrypt": "^6.0.0",
     "dotenv": "^17.3.1",
-    "fastify": "^5.7.4"
+    "fastify": "^5.7.4",
+    "fastify-plugin": "^5.1.0"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
-    "@types/node": "^25.3.0",
+    "@types/node": "^25.3.3",
     "pino-pretty": "^13.1.3"
   }
 }

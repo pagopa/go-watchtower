@@ -33,7 +33,7 @@ RUN pnpm --filter @go-watchtower/backend build
 FROM node:25-alpine AS runner
 
 # Install pnpm (corepack removed in Node 25)
-RUN npm install -g pnpm
+RUN npm install -g pnpm@latest
 
 WORKDIR /app
 
@@ -48,7 +48,7 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm install --prod
 
 # Install prisma CLI globally (needed for generate and migrate deploy)
-RUN npm install -g prisma@7.4.1
+RUN npm install -g prisma@latest
 
 # Copy Prisma schema, migrations and config
 COPY packages/database/prisma ./packages/database/prisma

@@ -1,4 +1,4 @@
-import type { QualityRule } from '@/lib/analysis-validation/types'
+import type { QualityRule } from '../../types.js';
 
 export const documentationRules: QualityRule[] = [
   {
@@ -6,8 +6,7 @@ export const documentationRules: QualityRule[] = [
     weight: 2,
     label: 'Note conclusive',
     hint: "Aggiungi note conclusive per documentare l'esito dell'analisi",
-    assess: (a) =>
-      a.conclusionNotes != null && a.conclusionNotes.trim() !== '',
+    assess: (a) => a.conclusionNotes != null && a.conclusionNotes.trim() !== '',
   },
   {
     id: 'QUALITY_RUNBOOK_LINKED',
@@ -23,17 +22,15 @@ export const documentationRules: QualityRule[] = [
     label: 'Note reperibilità',
     hint: 'Documenta con note conclusive gli interventi in reperibilità',
     appliesTo: (a) => a.isOnCall === true,
-    assess: (a) =>
-      a.conclusionNotes != null && a.conclusionNotes.trim() !== '',
+    assess: (a) => a.conclusionNotes != null && a.conclusionNotes.trim() !== '',
   },
   {
     id: 'QUALITY_ERROR_DETAILS',
     weight: 1.5,
     label: 'Dettagli errore',
-    hint: 'Aggiungi i dettagli dell\'errore per facilitare future analisi simili',
+    hint: "Aggiungi i dettagli dell'errore per facilitare future analisi simili",
     appliesTo: (a) => a.analysisType === 'ANALYZABLE',
-    assess: (a) =>
-      a.errorDetails != null && a.errorDetails.trim() !== '',
+    assess: (a) => a.errorDetails != null && a.errorDetails.trim() !== '',
   },
   {
     id: 'QUALITY_DOWNSTREAMS',
@@ -43,4 +40,4 @@ export const documentationRules: QualityRule[] = [
     appliesTo: (a) => a.analysisType === 'ANALYZABLE',
     assess: (a) => a.downstreams.length > 0,
   },
-]
+];

@@ -421,6 +421,9 @@ export interface AlarmAnalysis {
   ignoreReason: IgnoreReason | null
   links: Array<{ url: string; name?: string; type?: string }>
   trackingIds: Array<TrackingEntry>
+  validationScore: number | null
+  qualityScore: number | null
+  scoredAt: string | null
 }
 
 export interface AlarmAnalysisFilters {

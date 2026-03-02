@@ -167,6 +167,24 @@ export const shortcutNonGestitoSchema = z.object({
 
 export type ShortcutNonGestitoData = z.infer<typeof shortcutNonGestitoSchema>
 
+export const shortcutIgnorableSchema = z.object({
+  alarmId: z.string().min(1, 'L\'allarme è obbligatorio'),
+  occurrences: z.coerce.number().min(1, 'Minimo 1').optional().or(z.literal('')),
+  environmentId: z.string().min(1, 'L\'ambiente è obbligatorio'),
+  firstAlarmAt: z.string().min(1, 'La data del primo allarme è obbligatoria'),
+  lastAlarmAt: z.string().min(1, 'La data dell\'ultimo allarme è obbligatoria'),
+  ignoreReasonCode: z.string().min(1, 'Il motivo è obbligatorio'),
+  ignoreDetails: z.record(z.string(), z.unknown()).optional(),
+}).refine(
+  (data) => {
+    if (!data.firstAlarmAt || !data.lastAlarmAt) return true
+    return new Date(data.lastAlarmAt + ':00.000Z') >= new Date(data.firstAlarmAt + ':00.000Z')
+  },
+  { message: 'La data ultimo allarme non può precedere il primo allarme', path: ['lastAlarmAt'] }
+)
+
+export type ShortcutIgnorableData = z.infer<typeof shortcutIgnorableSchema>
+
 // ─── Date validation hook ──────────────────────────────────────────────────────
 
 export function useDateValidation(

@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import { prisma, Prisma } from "@go-watchtower/database";
 import { hasPermission } from "../../services/permission.service.js";
-import { logEvent, buildDiff } from "../../services/system-event.service.js";
+import { buildDiff } from "../../services/system-event.service.js";
 import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
 import {
   IgnoreReasonResponseSchema,
@@ -124,16 +124,11 @@ export async function ignoreReasonRoutes(app: FastifyInstance) {
         },
       });
 
-      logEvent({
-        action: SystemEventActions.SETTING_UPDATED,
-        resource: SystemEventResources.SYSTEM_SETTINGS,
+      request.auditEvents.push({
+        action: SystemEventActions.IGNORE_REASON_CREATED,
+        resource: SystemEventResources.IGNORE_REASONS,
         resourceId: reason.code,
         resourceLabel: reason.label,
-        userId: request.user.userId,
-        userLabel: request.user.email,
-        metadata: { operation: "create", code: reason.code },
-        ipAddress: request.ip,
-        userAgent: request.headers["user-agent"] ?? null,
       });
 
       return reply.status(201).send({
@@ -189,20 +184,14 @@ export async function ignoreReasonRoutes(app: FastifyInstance) {
         },
       });
 
-      logEvent({
-        action: SystemEventActions.SETTING_UPDATED,
-        resource: SystemEventResources.SYSTEM_SETTINGS,
+      request.auditEvents.push({
+        action: SystemEventActions.IGNORE_REASON_UPDATED,
+        resource: SystemEventResources.IGNORE_REASONS,
         resourceId: updated.code,
         resourceLabel: updated.label,
-        userId: request.user.userId,
-        userLabel: request.user.email,
         metadata: {
-          operation: "update",
-          code: updated.code,
-          changes: buildDiff(existing, updated, ["label", "description", "sortOrder"]),
+          changes: buildDiff(existing, updated, ["label", "description", "sortOrder", "detailsSchema"]),
         },
-        ipAddress: request.ip,
-        userAgent: request.headers["user-agent"] ?? null,
       });
 
       return reply.send({
@@ -253,16 +242,11 @@ export async function ignoreReasonRoutes(app: FastifyInstance) {
 
       await prisma.ignoreReason.delete({ where: { code: request.params.code } });
 
-      logEvent({
-        action: SystemEventActions.SETTING_UPDATED,
-        resource: SystemEventResources.SYSTEM_SETTINGS,
+      request.auditEvents.push({
+        action: SystemEventActions.IGNORE_REASON_DELETED,
+        resource: SystemEventResources.IGNORE_REASONS,
         resourceId: existing.code,
         resourceLabel: existing.label,
-        userId: request.user.userId,
-        userLabel: request.user.email,
-        metadata: { operation: "delete", code: existing.code },
-        ipAddress: request.ip,
-        userAgent: request.headers["user-agent"] ?? null,
       });
 
       return reply.send({ message: "Ignore reason deleted" });

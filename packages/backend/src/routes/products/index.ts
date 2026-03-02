@@ -13,7 +13,7 @@ import {
   type IgnoredAlarm,
 } from "@go-watchtower/database";
 import { hasPermission } from "../../services/permission.service.js";
-import { logEvent } from "../../services/system-event.service.js";
+import { buildDiff } from "../../services/system-event.service.js";
 import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
 import {
   CreateProductBodySchema,
@@ -218,15 +218,11 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           },
         });
 
-        logEvent({
+        request.auditEvents.push({
           action: SystemEventActions.PRODUCT_CREATED,
           resource: SystemEventResources.PRODUCTS,
           resourceId: product.id,
           resourceLabel: product.name,
-          userId: request.user.userId,
-          userLabel: request.user.email,
-          ipAddress: request.ip,
-          userAgent: request.headers["user-agent"] ?? null,
         });
 
         reply.status(201).send({
@@ -271,6 +267,11 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           return reply.status(403).send({ error: "Permission denied" });
         }
 
+        const existing = await prisma.product.findUnique({
+          where: { id: request.params.id },
+          select: { name: true, description: true, isActive: true },
+        });
+
         const product = await prisma.product.update({
           where: { id: request.params.id },
           data: {
@@ -280,15 +281,17 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           },
         });
 
-        logEvent({
+        request.auditEvents.push({
           action: SystemEventActions.PRODUCT_UPDATED,
           resource: SystemEventResources.PRODUCTS,
           resourceId: product.id,
           resourceLabel: product.name,
-          userId: request.user.userId,
-          userLabel: request.user.email,
-          ipAddress: request.ip,
-          userAgent: request.headers["user-agent"] ?? null,
+          metadata: {
+            changes: buildDiff(
+              { name: existing?.name, description: existing?.description, isActive: existing?.isActive },
+              { name: product.name, description: product.description, isActive: product.isActive },
+            ),
+          },
         });
 
         reply.send({
@@ -344,15 +347,11 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           where: { id: request.params.id },
         });
 
-        logEvent({
+        request.auditEvents.push({
           action: SystemEventActions.PRODUCT_DELETED,
           resource: SystemEventResources.PRODUCTS,
           resourceId: request.params.id,
           resourceLabel: productToDelete?.name ?? null,
-          userId: request.user.userId,
-          userLabel: request.user.email,
-          ipAddress: request.ip,
-          userAgent: request.headers["user-agent"] ?? null,
         });
 
         reply.send({ message: "Product deleted successfully" });
@@ -472,6 +471,13 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           },
         });
 
+        request.auditEvents.push({
+          action: SystemEventActions.ENVIRONMENT_CREATED,
+          resource: SystemEventResources.ENVIRONMENTS,
+          resourceId: environment.id,
+          resourceLabel: environment.name,
+        });
+
         reply.status(201).send({
           id: environment.id,
           name: environment.name,
@@ -515,6 +521,11 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           return reply.status(403).send({ error: "Permission denied" });
         }
 
+        const existingEnv = await prisma.environment.findUnique({
+          where: { id: request.params.id },
+          select: { name: true, description: true, order: true },
+        });
+
         const environment = await prisma.environment.update({
           where: {
             id: request.params.id,
@@ -524,6 +535,19 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
             name: request.body.name,
             description: request.body.description,
             order: request.body.order,
+          },
+        });
+
+        request.auditEvents.push({
+          action: SystemEventActions.ENVIRONMENT_UPDATED,
+          resource: SystemEventResources.ENVIRONMENTS,
+          resourceId: environment.id,
+          resourceLabel: environment.name,
+          metadata: {
+            changes: buildDiff(
+              { name: existingEnv?.name, description: existingEnv?.description, order: existingEnv?.order },
+              { name: environment.name, description: environment.description, order: environment.order },
+            ),
           },
         });
 
@@ -571,11 +595,23 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           return reply.status(403).send({ error: "Permission denied" });
         }
 
+        const envToDelete = await prisma.environment.findUnique({
+          where: { id: request.params.id },
+          select: { name: true },
+        });
+
         await prisma.environment.delete({
           where: {
             id: request.params.id,
             productId: request.params.productId,
           },
+        });
+
+        request.auditEvents.push({
+          action: SystemEventActions.ENVIRONMENT_DELETED,
+          resource: SystemEventResources.ENVIRONMENTS,
+          resourceId: request.params.id,
+          resourceLabel: envToDelete?.name ?? null,
         });
 
         reply.send({ message: "Environment deleted successfully" });
@@ -693,6 +729,13 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           },
         });
 
+        request.auditEvents.push({
+          action: SystemEventActions.MICROSERVICE_CREATED,
+          resource: SystemEventResources.MICROSERVICES,
+          resourceId: microservice.id,
+          resourceLabel: microservice.name,
+        });
+
         reply.status(201).send({
           id: microservice.id,
           name: microservice.name,
@@ -735,6 +778,11 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           return reply.status(403).send({ error: "Permission denied" });
         }
 
+        const existingMs = await prisma.microservice.findUnique({
+          where: { id: request.params.id },
+          select: { name: true, description: true },
+        });
+
         const microservice = await prisma.microservice.update({
           where: {
             id: request.params.id,
@@ -743,6 +791,19 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           data: {
             ...(request.body.name !== undefined && { name: request.body.name }),
             ...(request.body.description !== undefined && { description: request.body.description }),
+          },
+        });
+
+        request.auditEvents.push({
+          action: SystemEventActions.MICROSERVICE_UPDATED,
+          resource: SystemEventResources.MICROSERVICES,
+          resourceId: microservice.id,
+          resourceLabel: microservice.name,
+          metadata: {
+            changes: buildDiff(
+              { name: existingMs?.name, description: existingMs?.description },
+              { name: microservice.name, description: microservice.description },
+            ),
           },
         });
 
@@ -789,11 +850,23 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           return reply.status(403).send({ error: "Permission denied" });
         }
 
+        const msToDelete = await prisma.microservice.findUnique({
+          where: { id: request.params.id },
+          select: { name: true },
+        });
+
         await prisma.microservice.delete({
           where: {
             id: request.params.id,
             productId: request.params.productId,
           },
+        });
+
+        request.auditEvents.push({
+          action: SystemEventActions.MICROSERVICE_DELETED,
+          resource: SystemEventResources.MICROSERVICES,
+          resourceId: request.params.id,
+          resourceLabel: msToDelete?.name ?? null,
         });
 
         reply.send({ message: "Microservice deleted successfully" });
@@ -915,6 +988,13 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           },
         });
 
+        request.auditEvents.push({
+          action: SystemEventActions.RUNBOOK_CREATED,
+          resource: SystemEventResources.RUNBOOKS,
+          resourceId: runbook.id,
+          resourceLabel: runbook.name,
+        });
+
         reply.status(201).send({
           id: runbook.id,
           name: runbook.name,
@@ -959,6 +1039,11 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           return reply.status(403).send({ error: "Permission denied" });
         }
 
+        const existingRunbook = await prisma.runbook.findUnique({
+          where: { id: request.params.id },
+          select: { name: true, description: true, link: true, status: true },
+        });
+
         const runbook = await prisma.runbook.update({
           where: {
             id: request.params.id,
@@ -969,6 +1054,19 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
             description: request.body.description,
             link: request.body.link,
             status: request.body.status,
+          },
+        });
+
+        request.auditEvents.push({
+          action: SystemEventActions.RUNBOOK_UPDATED,
+          resource: SystemEventResources.RUNBOOKS,
+          resourceId: runbook.id,
+          resourceLabel: runbook.name,
+          metadata: {
+            changes: buildDiff(
+              { name: existingRunbook?.name, description: existingRunbook?.description, link: existingRunbook?.link, status: existingRunbook?.status },
+              { name: runbook.name, description: runbook.description, link: runbook.link, status: runbook.status },
+            ),
           },
         });
 
@@ -1017,11 +1115,23 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           return reply.status(403).send({ error: "Permission denied" });
         }
 
+        const runbookToDelete = await prisma.runbook.findUnique({
+          where: { id: request.params.id },
+          select: { name: true },
+        });
+
         await prisma.runbook.delete({
           where: {
             id: request.params.id,
             productId: request.params.productId,
           },
+        });
+
+        request.auditEvents.push({
+          action: SystemEventActions.RUNBOOK_DELETED,
+          resource: SystemEventResources.RUNBOOKS,
+          resourceId: request.params.id,
+          resourceLabel: runbookToDelete?.name ?? null,
         });
 
         reply.send({ message: "Runbook deleted successfully" });
@@ -1143,6 +1253,13 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           },
         });
 
+        request.auditEvents.push({
+          action: SystemEventActions.FINAL_ACTION_CREATED,
+          resource: SystemEventResources.FINAL_ACTIONS,
+          resourceId: finalAction.id,
+          resourceLabel: finalAction.name,
+        });
+
         reply.status(201).send({
           id: finalAction.id,
           name: finalAction.name,
@@ -1187,6 +1304,11 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           return reply.status(403).send({ error: "Permission denied" });
         }
 
+        const existingFa = await prisma.finalAction.findUnique({
+          where: { id: request.params.id },
+          select: { name: true, description: true, order: true, isOther: true },
+        });
+
         const finalAction = await prisma.finalAction.update({
           where: {
             id: request.params.id,
@@ -1197,6 +1319,19 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
             description: request.body.description,
             order: request.body.order,
             isOther: request.body.isOther,
+          },
+        });
+
+        request.auditEvents.push({
+          action: SystemEventActions.FINAL_ACTION_UPDATED,
+          resource: SystemEventResources.FINAL_ACTIONS,
+          resourceId: finalAction.id,
+          resourceLabel: finalAction.name,
+          metadata: {
+            changes: buildDiff(
+              { name: existingFa?.name, description: existingFa?.description, order: existingFa?.order, isOther: existingFa?.isOther },
+              { name: finalAction.name, description: finalAction.description, order: finalAction.order, isOther: finalAction.isOther },
+            ),
           },
         });
 
@@ -1245,11 +1380,23 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           return reply.status(403).send({ error: "Permission denied" });
         }
 
+        const faToDelete = await prisma.finalAction.findUnique({
+          where: { id: request.params.id },
+          select: { name: true },
+        });
+
         await prisma.finalAction.delete({
           where: {
             id: request.params.id,
             productId: request.params.productId,
           },
+        });
+
+        request.auditEvents.push({
+          action: SystemEventActions.FINAL_ACTION_DELETED,
+          resource: SystemEventResources.FINAL_ACTIONS,
+          resourceId: request.params.id,
+          resourceLabel: faToDelete?.name ?? null,
         });
 
         reply.send({ message: "Final action deleted successfully" });
@@ -1372,15 +1519,11 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           include: { runbook: { select: { id: true, name: true } } },
         });
 
-        logEvent({
+        request.auditEvents.push({
           action: SystemEventActions.ALARM_CREATED,
           resource: SystemEventResources.ALARMS,
           resourceId: alarm.id,
           resourceLabel: alarm.name,
-          userId: request.user.userId,
-          userLabel: request.user.email,
-          ipAddress: request.ip,
-          userAgent: request.headers["user-agent"] ?? null,
         });
 
         reply.status(201).send({
@@ -1427,6 +1570,14 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           return reply.status(403).send({ error: "Permission denied" });
         }
 
+        const existingAlarm = await prisma.alarm.findUnique({
+          where: {
+            id: request.params.id,
+            productId: request.params.productId,
+          },
+          select: { name: true, description: true, runbookId: true },
+        });
+
         const alarm = await prisma.alarm.update({
           where: {
             id: request.params.id,
@@ -1442,15 +1593,17 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           include: { runbook: { select: { id: true, name: true } } },
         });
 
-        logEvent({
+        request.auditEvents.push({
           action: SystemEventActions.ALARM_UPDATED,
           resource: SystemEventResources.ALARMS,
           resourceId: alarm.id,
           resourceLabel: alarm.name,
-          userId: request.user.userId,
-          userLabel: request.user.email,
-          ipAddress: request.ip,
-          userAgent: request.headers["user-agent"] ?? null,
+          metadata: {
+            changes: buildDiff(
+              { name: existingAlarm?.name, description: existingAlarm?.description, runbookId: existingAlarm?.runbookId },
+              { name: alarm.name, description: alarm.description, runbookId: alarm.runbookId },
+            ),
+          },
         });
 
         reply.send({
@@ -1511,15 +1664,11 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           },
         });
 
-        logEvent({
+        request.auditEvents.push({
           action: SystemEventActions.ALARM_DELETED,
           resource: SystemEventResources.ALARMS,
           resourceId: request.params.id,
           resourceLabel: alarmToDelete?.name ?? null,
-          userId: request.user.userId,
-          userLabel: request.user.email,
-          ipAddress: request.ip,
-          userAgent: request.headers["user-agent"] ?? null,
         });
 
         reply.send({ message: "Alarm deleted successfully" });
@@ -1637,6 +1786,13 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           },
         });
 
+        request.auditEvents.push({
+          action: SystemEventActions.DOWNSTREAM_CREATED,
+          resource: SystemEventResources.DOWNSTREAMS,
+          resourceId: downstream.id,
+          resourceLabel: downstream.name,
+        });
+
         reply.status(201).send({
           id: downstream.id,
           name: downstream.name,
@@ -1679,6 +1835,11 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           return reply.status(403).send({ error: "Permission denied" });
         }
 
+        const existingDs = await prisma.downstream.findUnique({
+          where: { id: request.params.id },
+          select: { name: true, description: true },
+        });
+
         const downstream = await prisma.downstream.update({
           where: {
             id: request.params.id,
@@ -1687,6 +1848,19 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           data: {
             name: request.body.name,
             description: request.body.description,
+          },
+        });
+
+        request.auditEvents.push({
+          action: SystemEventActions.DOWNSTREAM_UPDATED,
+          resource: SystemEventResources.DOWNSTREAMS,
+          resourceId: downstream.id,
+          resourceLabel: downstream.name,
+          metadata: {
+            changes: buildDiff(
+              { name: existingDs?.name, description: existingDs?.description },
+              { name: downstream.name, description: downstream.description },
+            ),
           },
         });
 
@@ -1733,11 +1907,23 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           return reply.status(403).send({ error: "Permission denied" });
         }
 
+        const dsToDelete = await prisma.downstream.findUnique({
+          where: { id: request.params.id },
+          select: { name: true },
+        });
+
         await prisma.downstream.delete({
           where: {
             id: request.params.id,
             productId: request.params.productId,
           },
+        });
+
+        request.auditEvents.push({
+          action: SystemEventActions.DOWNSTREAM_DELETED,
+          resource: SystemEventResources.DOWNSTREAMS,
+          resourceId: request.params.id,
+          resourceLabel: dsToDelete?.name ?? null,
         });
 
         reply.send({ message: "Downstream deleted successfully" });
@@ -1919,15 +2105,11 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           },
         });
 
-        logEvent({
+        request.auditEvents.push({
           action: SystemEventActions.IGNORED_ALARM_CREATED,
           resource: SystemEventResources.IGNORED_ALARMS,
           resourceId: ignoredAlarm.id,
           resourceLabel: ignoredAlarm.alarm?.name ?? null,
-          userId: request.user.userId,
-          userLabel: request.user.email,
-          ipAddress: request.ip,
-          userAgent: request.headers["user-agent"] ?? null,
         });
 
         reply.status(201).send(formatIgnoredAlarm(ignoredAlarm));
@@ -1968,6 +2150,14 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           return reply.status(403).send({ error: "Permission denied" });
         }
 
+        const existingIgnoredAlarm = await prisma.ignoredAlarm.findUnique({
+          where: {
+            id: request.params.id,
+            productId: request.params.productId,
+          },
+          select: { alarmId: true, environmentId: true, reason: true, isActive: true, validity: true, exclusions: true },
+        });
+
         const ignoredAlarm = await prisma.ignoredAlarm.update({
           where: {
             id: request.params.id,
@@ -1987,15 +2177,31 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           },
         });
 
-        logEvent({
+        request.auditEvents.push({
           action: SystemEventActions.IGNORED_ALARM_UPDATED,
           resource: SystemEventResources.IGNORED_ALARMS,
           resourceId: ignoredAlarm.id,
           resourceLabel: ignoredAlarm.alarm?.name ?? null,
-          userId: request.user.userId,
-          userLabel: request.user.email,
-          ipAddress: request.ip,
-          userAgent: request.headers["user-agent"] ?? null,
+          metadata: {
+            changes: buildDiff(
+              {
+                alarmId: existingIgnoredAlarm?.alarmId,
+                environmentId: existingIgnoredAlarm?.environmentId,
+                reason: existingIgnoredAlarm?.reason,
+                isActive: existingIgnoredAlarm?.isActive,
+                validity: existingIgnoredAlarm?.validity,
+                exclusions: existingIgnoredAlarm?.exclusions,
+              },
+              {
+                alarmId: ignoredAlarm.alarmId,
+                environmentId: ignoredAlarm.environmentId,
+                reason: ignoredAlarm.reason,
+                isActive: ignoredAlarm.isActive,
+                validity: ignoredAlarm.validity,
+                exclusions: ignoredAlarm.exclusions,
+              },
+            ),
+          },
         });
 
         reply.send(formatIgnoredAlarm(ignoredAlarm));
@@ -2050,15 +2256,11 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           },
         });
 
-        logEvent({
+        request.auditEvents.push({
           action: SystemEventActions.IGNORED_ALARM_DELETED,
           resource: SystemEventResources.IGNORED_ALARMS,
           resourceId: request.params.id,
           resourceLabel: ignoredAlarmToDelete?.alarm?.name ?? null,
-          userId: request.user.userId,
-          userLabel: request.user.email,
-          ipAddress: request.ip,
-          userAgent: request.headers["user-agent"] ?? null,
         });
 
         reply.send({ message: "Ignored alarm deleted successfully" });

@@ -1,4 +1,4 @@
-import type { ValidationRule } from '@/lib/analysis-validation/types'
+import type { ValidationRule } from '../../types.js';
 
 export const linksRules: ValidationRule[] = [
   {
@@ -8,10 +8,10 @@ export const linksRules: ValidationRule[] = [
     message: (a) => {
       const invalid = a.links.filter(
         (l) => !l.url.startsWith('http://') && !l.url.startsWith('https://')
-      ).length
+      ).length;
       return invalid === 1
         ? 'Un link ha un formato URL non valido'
-        : `${invalid} link hanno un formato URL non valido`
+        : `${invalid} link hanno un formato URL non valido`;
     },
     appliesTo: (a) => a.links.length > 0,
     validate: (a) =>
@@ -19,4 +19,4 @@ export const linksRules: ValidationRule[] = [
         (l) => l.url.startsWith('http://') || l.url.startsWith('https://')
       ),
   },
-]
+];

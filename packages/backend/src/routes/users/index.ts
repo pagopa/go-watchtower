@@ -25,7 +25,7 @@ import {
   updateRolePermissions,
 } from "../../services/permission.service.js";
 import { hashPassword } from "../../utils/password.js";
-import { logEvent, buildDiff } from "../../services/system-event.service.js";
+import { buildDiff } from "../../services/system-event.service.js";
 import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
 import {
   UserResponseSchema,
@@ -344,15 +344,11 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
           include: { role: true },
         });
 
-        logEvent({
+        request.auditEvents.push({
           action: SystemEventActions.USER_CREATED,
           resource: SystemEventResources.USERS,
           resourceId: user.id,
           resourceLabel: user.email,
-          userId: request.user.userId,
-          userLabel: request.user.email,
-          ipAddress: request.ip,
-          userAgent: request.headers["user-agent"] ?? null,
         });
 
         reply.status(201).send({
@@ -424,13 +420,9 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
           resource: SystemEventResources.USERS,
           resourceId: user.id,
           resourceLabel: user.email,
-          userId: request.user.userId,
-          userLabel: request.user.email,
-          ipAddress: request.ip,
-          userAgent: request.headers["user-agent"] ?? null,
-        };
+        } as const;
 
-        logEvent({
+        request.auditEvents.push({
           action: SystemEventActions.USER_UPDATED,
           ...eventBase,
           metadata: {
@@ -443,7 +435,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
 
         // Granular events based on what changed
         if (request.body.isActive !== undefined && request.body.isActive !== existing.isActive) {
-          logEvent({
+          request.auditEvents.push({
             action: request.body.isActive
               ? SystemEventActions.USER_ACTIVATED
               : SystemEventActions.USER_DEACTIVATED,
@@ -452,7 +444,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         }
 
         if (request.body.roleId !== undefined && request.body.roleId !== existing.roleId) {
-          logEvent({
+          request.auditEvents.push({
             action: SystemEventActions.USER_ROLE_CHANGED,
             ...eventBase,
             metadata: {
@@ -522,15 +514,11 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
           where: { id: request.params.id },
         });
 
-        logEvent({
+        request.auditEvents.push({
           action: SystemEventActions.USER_DELETED,
           resource: SystemEventResources.USERS,
           resourceId: request.params.id,
           resourceLabel: userToDelete?.email ?? null,
-          userId: request.user.userId,
-          userLabel: request.user.email,
-          ipAddress: request.ip,
-          userAgent: request.headers["user-agent"] ?? null,
         });
 
         reply.send({ message: "User deleted successfully" });
@@ -669,23 +657,27 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
           request.body.reason
         );
 
-        logEvent({
+        request.auditEvents.push({
           action: existingOverride
             ? SystemEventActions.PERMISSION_OVERRIDE_UPDATED
             : SystemEventActions.PERMISSION_OVERRIDE_CREATED,
           resource: SystemEventResources.USER_PERMISSION_OVERRIDES,
           resourceId: request.params.id,
           resourceLabel: user.email,
-          userId: request.user.userId,
-          userLabel: request.user.email,
-          metadata: {
-            permissionResource: request.body.resource,
-            canRead: request.body.canRead,
-            canWrite: request.body.canWrite,
-            canDelete: request.body.canDelete,
-          },
-          ipAddress: request.ip,
-          userAgent: request.headers["user-agent"] ?? null,
+          metadata: existingOverride
+            ? {
+                permissionResource: request.body.resource,
+                changes: buildDiff(
+                  { canRead: existingOverride.canRead, canWrite: existingOverride.canWrite, canDelete: existingOverride.canDelete },
+                  { canRead: request.body.canRead, canWrite: request.body.canWrite, canDelete: request.body.canDelete },
+                ),
+              }
+            : {
+                permissionResource: request.body.resource,
+                canRead: request.body.canRead,
+                canWrite: request.body.canWrite,
+                canDelete: request.body.canDelete,
+              },
         });
 
         reply.send({ message: "Permission override set successfully" });
@@ -738,16 +730,12 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
           return reply.status(404).send({ error: "Permission override not found" });
         }
 
-        logEvent({
+        request.auditEvents.push({
           action: SystemEventActions.PERMISSION_OVERRIDE_DELETED,
           resource: SystemEventResources.USER_PERMISSION_OVERRIDES,
           resourceId: request.params.id,
           resourceLabel: user.email,
-          userId: request.user.userId,
-          userLabel: request.user.email,
           metadata: { permissionResource: request.params.resource },
-          ipAddress: request.ip,
-          userAgent: request.headers["user-agent"] ?? null,
         });
 
         reply.send({ message: "Permission override removed successfully" });
@@ -895,6 +883,13 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
 
         const role = await createRole(request.body.name, request.body.description);
 
+        request.auditEvents.push({
+          action: SystemEventActions.ROLE_CREATED,
+          resource: SystemEventResources.ROLES,
+          resourceId: role.id,
+          resourceLabel: role.name,
+        });
+
         reply.status(201).send({
           id: role.id,
           name: role.name,
@@ -966,6 +961,19 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
           description: request.body.description,
         });
 
+        request.auditEvents.push({
+          action: SystemEventActions.ROLE_UPDATED,
+          resource: SystemEventResources.ROLES,
+          resourceId: role.id,
+          resourceLabel: role.name,
+          metadata: {
+            changes: buildDiff(
+              { name: existing.name, description: existing.description },
+              { name: role.name, description: role.description },
+            ),
+          },
+        });
+
         reply.send({
           id: role.id,
           name: role.name,
@@ -1029,6 +1037,13 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
 
         await deleteRole(request.params.id);
 
+        request.auditEvents.push({
+          action: SystemEventActions.ROLE_DELETED,
+          resource: SystemEventResources.ROLES,
+          resourceId: request.params.id,
+          resourceLabel: existing.name,
+        });
+
         reply.status(204).send();
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to delete role";
@@ -1081,6 +1096,16 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         if (!role) {
           return reply.status(500).send({ error: "Failed to update role permissions" });
         }
+
+        request.auditEvents.push({
+          action: SystemEventActions.ROLE_PERMISSIONS_UPDATED,
+          resource: SystemEventResources.ROLES,
+          resourceId: role.id,
+          resourceLabel: role.name,
+          metadata: {
+            permissions: request.body.permissions,
+          },
+        });
 
         reply.send({
           id: role.id,

@@ -29,16 +29,56 @@ export const SystemEventActions = {
   // Impostazioni di sistema
   SETTING_UPDATED:             'SETTING_UPDATED',
 
-  // Configurazione
+  // Configurazione — Prodotti
   PRODUCT_CREATED:             'PRODUCT_CREATED',
   PRODUCT_UPDATED:             'PRODUCT_UPDATED',
   PRODUCT_DELETED:             'PRODUCT_DELETED',
+
+  // Configurazione — Ambienti
+  ENVIRONMENT_CREATED:         'ENVIRONMENT_CREATED',
+  ENVIRONMENT_UPDATED:         'ENVIRONMENT_UPDATED',
+  ENVIRONMENT_DELETED:         'ENVIRONMENT_DELETED',
+
+  // Configurazione — Microservizi
+  MICROSERVICE_CREATED:        'MICROSERVICE_CREATED',
+  MICROSERVICE_UPDATED:        'MICROSERVICE_UPDATED',
+  MICROSERVICE_DELETED:        'MICROSERVICE_DELETED',
+
+  // Configurazione — Runbook
+  RUNBOOK_CREATED:             'RUNBOOK_CREATED',
+  RUNBOOK_UPDATED:             'RUNBOOK_UPDATED',
+  RUNBOOK_DELETED:             'RUNBOOK_DELETED',
+
+  // Configurazione — Azioni Finali
+  FINAL_ACTION_CREATED:        'FINAL_ACTION_CREATED',
+  FINAL_ACTION_UPDATED:        'FINAL_ACTION_UPDATED',
+  FINAL_ACTION_DELETED:        'FINAL_ACTION_DELETED',
+
+  // Configurazione — Allarmi
   ALARM_CREATED:               'ALARM_CREATED',
   ALARM_UPDATED:               'ALARM_UPDATED',
   ALARM_DELETED:               'ALARM_DELETED',
+
+  // Configurazione — Downstream
+  DOWNSTREAM_CREATED:          'DOWNSTREAM_CREATED',
+  DOWNSTREAM_UPDATED:          'DOWNSTREAM_UPDATED',
+  DOWNSTREAM_DELETED:          'DOWNSTREAM_DELETED',
+
+  // Configurazione — Allarmi Ignorati
   IGNORED_ALARM_CREATED:       'IGNORED_ALARM_CREATED',
   IGNORED_ALARM_UPDATED:       'IGNORED_ALARM_UPDATED',
   IGNORED_ALARM_DELETED:       'IGNORED_ALARM_DELETED',
+
+  // Configurazione — Motivi di Ignoramento
+  IGNORE_REASON_CREATED:       'IGNORE_REASON_CREATED',
+  IGNORE_REASON_UPDATED:       'IGNORE_REASON_UPDATED',
+  IGNORE_REASON_DELETED:       'IGNORE_REASON_DELETED',
+
+  // Ruoli
+  ROLE_CREATED:                'ROLE_CREATED',
+  ROLE_UPDATED:                'ROLE_UPDATED',
+  ROLE_DELETED:                'ROLE_DELETED',
+  ROLE_PERMISSIONS_UPDATED:    'ROLE_PERMISSIONS_UPDATED',
 } as const;
 
 export type SystemEventAction = typeof SystemEventActions[keyof typeof SystemEventActions];
