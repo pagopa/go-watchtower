@@ -364,3 +364,17 @@ export const IgnoredAlarmResponseSchema = Type.Object({
 
 export const IgnoredAlarmsResponseSchema = Type.Array(IgnoredAlarmResponseSchema);
 
+// ============================================================================
+// Filter Options Schema (aggregate endpoint)
+// ============================================================================
+
+export const FilterOptionsResponseSchema = Type.Object({
+  environments: EnvironmentsResponseSchema,
+  alarms: AlarmsResponseSchema,
+  finalActions: FinalActionsResponseSchema,
+  microservices: MicroservicesResponseSchema,
+  downstreams: DownstreamsResponseSchema,
+  runbooks: RunbooksResponseSchema,
+});
+
+export type FilterOptionsResponse = Static<typeof FilterOptionsResponseSchema>;

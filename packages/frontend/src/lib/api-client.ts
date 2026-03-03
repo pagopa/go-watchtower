@@ -522,6 +522,16 @@ export interface UpdateFinalActionData {
   isOther?: boolean
 }
 
+// Aggregate filter options for the analyses page
+export interface ProductFilterOptions {
+  environments: Environment[]
+  alarms: Alarm[]
+  finalActions: FinalAction[]
+  microservices: Microservice[]
+  downstreams: Downstream[]
+  runbooks: Runbook[]
+}
+
 // Analysis author (user who created at least one analysis)
 export interface AnalysisAuthor {
   id: string
@@ -607,6 +617,7 @@ export interface UserPreferences {
   locale?: string
   sidebarCollapsed?: boolean
   analysisFiltersCollapsed?: boolean
+  detailPanelWidth?: number
 }
 
 // Analysis Stats Types
@@ -816,6 +827,10 @@ export const api = {
     request<FinalAction>(`/api/products/${productId}/final-actions/${id}`, { method: 'PUT', body: data }),
   deleteFinalAction: (productId: string, id: string) =>
     request<{ message: string }>(`/api/products/${productId}/final-actions/${id}`, { method: 'DELETE' }),
+
+  // Filter options (aggregate)
+  getFilterOptions: (productId: string) =>
+    request<ProductFilterOptions>(`/api/products/${productId}/filter-options`),
 
   // Analyses
   getAllAnalyses: (filters?: AlarmAnalysisFilters) =>

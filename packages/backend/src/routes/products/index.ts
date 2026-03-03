@@ -57,6 +57,7 @@ import {
   IgnoredAlarmParamsSchema,
   IgnoredAlarmResponseSchema,
   IgnoredAlarmsResponseSchema,
+  FilterOptionsResponseSchema,
   ErrorResponseSchema,
   MessageResponseSchema,
   type CreateProductBody,
@@ -361,6 +362,138 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         if (message.includes("Record to delete does not exist")) {
           return reply.status(404).send({ error: "Product not found" });
         }
+        reply.status(500).send({ error: message });
+      }
+    }
+  );
+
+  // ============================================================================
+  // FILTER OPTIONS (aggregate endpoint for analyses page)
+  // ============================================================================
+
+  // Get all filter options for a product in a single request
+  app.get<{ Params: ProductIdParams }>(
+    "/products/:productId/filter-options",
+    {
+      onRequest: [app.authenticate],
+      schema: {
+        tags: ["analyses"],
+        summary: "Get all filter options for a product",
+        security: [{ bearerAuth: [] }],
+        params: ProductIdParamsSchema,
+        response: {
+          200: FilterOptionsResponseSchema,
+          403: ErrorResponseSchema,
+          404: ErrorResponseSchema,
+          500: ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const canRead = await hasPermission(request.user.userId, Resource.ALARM_ANALYSIS, "read");
+        if (!canRead) {
+          return reply.status(403).send({ error: "Permission denied" });
+        }
+
+        const { productId } = request.params;
+
+        const product = await prisma.product.findUnique({
+          where: { id: productId },
+        });
+
+        if (!product) {
+          return reply.status(404).send({ error: "Product not found" });
+        }
+
+        const [environments, alarms, finalActions, microservices, downstreams, runbooks] =
+          await Promise.all([
+            prisma.environment.findMany({
+              where: { productId },
+              orderBy: [{ order: "asc" }, { name: "asc" }],
+            }),
+            prisma.alarm.findMany({
+              where: { productId },
+              include: { runbook: { select: { id: true, name: true } } },
+              orderBy: { name: "asc" },
+            }),
+            prisma.finalAction.findMany({
+              where: { productId },
+              orderBy: [{ order: "asc" }, { name: "asc" }],
+            }),
+            prisma.microservice.findMany({
+              where: { productId },
+              orderBy: { name: "asc" },
+            }),
+            prisma.downstream.findMany({
+              where: { productId },
+              orderBy: { name: "asc" },
+            }),
+            prisma.runbook.findMany({
+              where: { productId },
+              orderBy: { name: "asc" },
+            }),
+          ]);
+
+        reply.send({
+          environments: environments.map((e: Environment) => ({
+            id: e.id,
+            name: e.name,
+            description: e.description,
+            order: e.order,
+            productId: e.productId,
+            createdAt: e.createdAt.toISOString(),
+            updatedAt: e.updatedAt.toISOString(),
+          })),
+          alarms: alarms.map((a: Alarm & { runbook: { id: string; name: string } | null }) => ({
+            id: a.id,
+            name: a.name,
+            description: a.description,
+            runbookId: a.runbookId,
+            runbook: a.runbook,
+            productId: a.productId,
+            createdAt: a.createdAt.toISOString(),
+            updatedAt: a.updatedAt.toISOString(),
+          })),
+          finalActions: finalActions.map((fa: FinalAction) => ({
+            id: fa.id,
+            name: fa.name,
+            description: fa.description,
+            order: fa.order,
+            isOther: fa.isOther,
+            productId: fa.productId,
+            createdAt: fa.createdAt.toISOString(),
+            updatedAt: fa.updatedAt.toISOString(),
+          })),
+          microservices: microservices.map((m: Microservice) => ({
+            id: m.id,
+            name: m.name,
+            description: m.description,
+            productId: m.productId,
+            createdAt: m.createdAt.toISOString(),
+            updatedAt: m.updatedAt.toISOString(),
+          })),
+          downstreams: downstreams.map((d: Downstream) => ({
+            id: d.id,
+            name: d.name,
+            description: d.description,
+            productId: d.productId,
+            createdAt: d.createdAt.toISOString(),
+            updatedAt: d.updatedAt.toISOString(),
+          })),
+          runbooks: runbooks.map((r: Runbook) => ({
+            id: r.id,
+            name: r.name,
+            description: r.description,
+            link: r.link,
+            status: r.status,
+            productId: r.productId,
+            createdAt: r.createdAt.toISOString(),
+            updatedAt: r.updatedAt.toISOString(),
+          })),
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to fetch filter options";
         reply.status(500).send({ error: message });
       }
     }

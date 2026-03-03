@@ -20,7 +20,12 @@ export function usePreferences() {
   const { mutate } = useMutation({
     mutationFn: (data: Partial<UserPreferences>) => api.updateMyPreferences(data),
     onMutate: async (data) => {
-      await queryClient.cancelQueries({ queryKey: ['preferences:user'] })
+      // Fire-and-forget: don't await so setQueryData runs synchronously.
+      // This lets React 18 batch the optimistic update with any co-located
+      // setState calls (e.g. setDragWidth) in the same event handler.
+      // The race risk is negligible — staleTime is Infinity so the query
+      // almost never refetches; onError reverts if it does.
+      queryClient.cancelQueries({ queryKey: ['preferences:user'] })
       const previous = queryClient.getQueryData<UserPreferences>(['preferences:user'])
       queryClient.setQueryData<UserPreferences>(['preferences:user'], (old) => ({
         ...old,

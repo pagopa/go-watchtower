@@ -27,6 +27,7 @@ import type {
   Downstream,
   Runbook,
 } from '@/lib/api-client'
+import { cn } from '@/lib/utils'
 import { ANALYSIS_TYPE_LABELS, ANALYSIS_STATUS_LABELS } from '../_lib/constants'
 
 const ALL_VALUE = '__all__'
@@ -184,11 +185,11 @@ export function AnalysisFilters({
             </span>
           )}
         </div>
-        {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+        <ChevronDown className={cn('h-4 w-4 transition-transform duration-200', !collapsed && 'rotate-180')} />
       </button>
 
       {!collapsed && (
-        <div className="space-y-4 border-t px-4 pb-4 pt-4">
+        <div className="animate-in fade-in slide-in-from-top-1 duration-150 space-y-4 border-t px-4 pb-4 pt-4">
 
           {/* ── Basic filters ──────────────────────────────────────────────── */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -392,14 +393,11 @@ export function AnalysisFilters({
                   {advancedFilterCount}
                 </span>
               )}
-              {advancedOpen
-                ? <ChevronUp className="h-3.5 w-3.5 ml-auto" />
-                : <ChevronDown className="h-3.5 w-3.5 ml-auto" />
-              }
+              <ChevronDown className={cn('h-3.5 w-3.5 ml-auto transition-transform duration-200', advancedOpen && 'rotate-180')} />
             </button>
 
             {advancedOpen && (
-              <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="animate-in fade-in slide-in-from-top-1 duration-150 mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
                 {/* Ignore Reason */}
                 {ignoreReasons && ignoreReasons.length > 0 && (

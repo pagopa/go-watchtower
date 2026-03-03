@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import { api } from '@/lib/api-client'
 import { useTheme } from 'next-themes'
@@ -23,8 +23,7 @@ export function Header() {
   const { data: session, status } = useSession()
   const { setTheme, resolvedTheme } = useTheme()
   const { preferences, updatePreferences } = usePreferences()
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => { setMounted(true) }, [])
+  const mounted = useSyncExternalStore(() => () => {}, () => true, () => false)
 
   // Sync theme from saved preferences on first load (cross-device)
   useEffect(() => {

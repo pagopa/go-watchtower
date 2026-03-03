@@ -18,8 +18,18 @@ import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { usePermissions } from '@/hooks/use-permissions'
 import { api, type Product, type OperatorWorkloadItem, type AlarmRankingItem } from '@/lib/api-client'
-import { OperatorWorkloadTab } from './_components/operator-workload-tab'
-import { AlarmRankingTab } from './_components/alarm-ranking-tab'
+import dynamic from 'next/dynamic'
+import { Skeleton } from '@/components/ui/skeleton'
+
+const OperatorWorkloadTab = dynamic(
+  () => import('./_components/operator-workload-tab').then(m => m.OperatorWorkloadTab),
+  { ssr: false, loading: () => <Skeleton className="h-64 w-full" /> }
+)
+
+const AlarmRankingTab = dynamic(
+  () => import('./_components/alarm-ranking-tab').then(m => m.AlarmRankingTab),
+  { ssr: false, loading: () => <Skeleton className="h-64 w-full" /> }
+)
 
 const ALL_VALUE = '__all__'
 

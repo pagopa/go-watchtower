@@ -1,22 +1,17 @@
 'use client'
 
-import { Suspense, useState, useRef, useEffect, useCallback, useMemo, type ReactNode } from 'react'
+import { Suspense, useState, useRef, useEffect, useCallback, useMemo, startTransition } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, Plus, Inbox,
-  Clock, CheckCircle2, Search, Ban,
-  type LucideIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   api,
   type Product,
   type AlarmAnalysis,
-  type Environment,
-  type Alarm,
-  type FinalAction,
   type AnalysisAuthor,
   type UserDetail,
   type PaginatedResponse,
@@ -25,9 +20,7 @@ import {
   type CreateAlarmAnalysisData,
   type UpdateAlarmAnalysisData,
   type IgnoreReason,
-  type Microservice,
-  type Downstream,
-  type Runbook,
+  type ProductFilterOptions,
 } from '@/lib/api-client'
 import { usePermissions } from '@/hooks/use-permissions'
 import { usePreferences } from '@/hooks/use-preferences'
@@ -87,13 +80,8 @@ const ShortcutIgnorableDialog = dynamic(
   { ssr: false }
 )
 
-import {
-  ANALYSIS_TYPE_LABELS,
-  ANALYSIS_STATUS_LABELS,
-  formatDate,
-  formatDateTimeRome,
-  formatDateTimeUTC,
-} from './_lib/constants'
+import { formatDate } from './_lib/constants'
+import { renderCell } from './_helpers/cell-renderers'
 
 const DEFAULT_FILTERS: AnalysisFiltersState = {
   search: '',
@@ -115,113 +103,6 @@ const DEFAULT_FILTERS: AnalysisFiltersState = {
 
 // --- Column Definitions (from shared registry) ---
 const ANALYSIS_COLUMNS = COLUMN_REGISTRY.analyses
-
-const STATUS_ICONS: Record<AnalysisStatus, { Icon: LucideIcon; className: string }> = {
-  CREATED:     { Icon: Clock,        className: 'text-slate-400 dark:text-slate-500' },
-  IN_PROGRESS: { Icon: Loader2,      className: 'text-amber-500 dark:text-amber-400' },
-  COMPLETED:   { Icon: CheckCircle2, className: 'text-emerald-500 dark:text-emerald-400' },
-}
-
-const TYPE_ICONS: Record<AnalysisType, { Icon: LucideIcon; className: string }> = {
-  ANALYZABLE: { Icon: Search, className: 'text-blue-500 dark:text-blue-400' },
-  IGNORABLE:  { Icon: Ban,    className: 'text-amber-500/80 dark:text-amber-400/70' },
-}
-
-function renderCell(columnId: string, analysis: AlarmAnalysis): ReactNode {
-  switch (columnId) {
-    case 'analysisDate':
-      // Stored as UTC, but entered as Rome local time — display in Rome TZ
-      return <span className="font-mono text-xs tabular-nums">{formatDateTimeRome(analysis.analysisDate)}</span>
-    case 'product':
-      return (
-        <span className="inline-flex items-center rounded border px-1.5 py-0.5 text-xs font-medium text-foreground/75">
-          {analysis.product.name}
-        </span>
-      )
-    case 'alarm':
-      return <span className="block truncate font-medium text-sm">{analysis.alarm.name}</span>
-    case 'environment':
-      return <span className="block truncate text-sm text-muted-foreground">{analysis.environment.name}</span>
-    case 'analysisType': {
-      const { Icon, className } = TYPE_ICONS[analysis.analysisType]
-      return (
-        <span title={ANALYSIS_TYPE_LABELS[analysis.analysisType]} className="flex items-center">
-          <Icon className={`h-4 w-4 ${className}`} />
-        </span>
-      )
-    }
-    case 'ignoreReason':
-      return analysis.ignoreReason
-        ? <span className="block truncate text-sm">{analysis.ignoreReason.label}</span>
-        : <span className="text-muted-foreground/40 text-sm">—</span>
-    case 'status': {
-      const { Icon, className } = STATUS_ICONS[analysis.status]
-      return (
-        <span title={ANALYSIS_STATUS_LABELS[analysis.status]} className="flex items-center">
-          <Icon className={`h-4 w-4 ${className}`} />
-        </span>
-      )
-    }
-    case 'operator':
-      return <span className="block truncate text-sm">{analysis.operator.name}</span>
-    case 'finalAction': {
-      const names = analysis.finalActions.map(fa => fa.name)
-      if (!names.length) return <span className="text-muted-foreground/40 text-sm">—</span>
-      return <span className="block truncate text-sm">{names.join(', ')}</span>
-    }
-    case 'isOnCall':
-      return (
-        <span className="flex items-center gap-1.5">
-          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${analysis.isOnCall ? 'bg-emerald-500' : 'bg-muted-foreground/25'}`} />
-          <span className="text-sm">{analysis.isOnCall ? 'Sì' : 'No'}</span>
-        </span>
-      )
-    case 'occurrences':
-      return <span className="tabular-nums font-medium text-sm">{analysis.occurrences}</span>
-    case 'firstAlarmAt':
-      // Alarm timestamps are UTC from monitoring systems — display as UTC in the table
-      return <span className="font-mono text-xs tabular-nums text-muted-foreground">{formatDateTimeUTC(analysis.firstAlarmAt)}</span>
-    case 'lastAlarmAt':
-      return <span className="font-mono text-xs tabular-nums text-muted-foreground">{formatDateTimeUTC(analysis.lastAlarmAt)}</span>
-    case 'errorDetails':
-      return <span className="block truncate text-sm text-muted-foreground">{analysis.errorDetails || '—'}</span>
-    case 'conclusionNotes':
-      return <span className="block truncate text-sm text-muted-foreground">{analysis.conclusionNotes || '—'}</span>
-    case 'runbook':
-      return analysis.runbook
-        ? <span className="block truncate text-sm">{analysis.runbook.name}</span>
-        : <span className="text-muted-foreground/40 text-sm">—</span>
-    case 'microservices': {
-      const names = analysis.microservices.map(m => m.name)
-      if (!names.length) return <span className="text-muted-foreground/40 text-sm">—</span>
-      return (
-        <span className="flex flex-wrap gap-1">
-          {names.map(name => (
-            <span key={name} className="inline-flex items-center rounded border px-1.5 py-0.5 text-xs font-medium text-foreground/75">
-              {name}
-            </span>
-          ))}
-        </span>
-      )
-    }
-    case 'downstreams': {
-      const names = analysis.downstreams.map(d => d.name)
-      if (!names.length) return <span className="text-muted-foreground/40 text-sm">—</span>
-      return (
-        <span className="flex flex-wrap gap-1">
-          {names.map(name => (
-            <span key={name} className="inline-flex items-center rounded border px-1.5 py-0.5 text-xs font-medium text-foreground/75">
-              {name}
-            </span>
-          ))}
-        </span>
-      )
-    }
-    // 'validation' is rendered inline in the table row (not via renderCell)
-    default:
-      return null
-  }
-}
 
 // --- Main Page Component ---
 
@@ -289,16 +170,24 @@ function AnalysesPageContent() {
   useEffect(() => {
     if (linkedAnalysis && autoOpenedAnalysisRef.current !== linkedAnalysis.id) {
       autoOpenedAnalysisRef.current = linkedAnalysis.id
-      setSelectedAnalysis(linkedAnalysis)
-      setShowDetailPanel(true)
+      startTransition(() => {
+        setSelectedAnalysis(linkedAnalysis)
+        setShowDetailPanel(true)
+      })
     }
   }, [linkedAnalysis])
 
-  // Filters collapsed (default: true = collapsed)
-  const filtersCollapsed = preferences.analysisFiltersCollapsed ?? true
+  // Filters collapsed — user override state for immediate toggle (no effect needed).
+  // null = "user hasn't toggled yet", so the server preference is used directly.
+  const [userCollapsedOverride, setUserCollapsedOverride] = useState<boolean | null>(null)
+  const filtersCollapsed = userCollapsedOverride !== null
+    ? userCollapsedOverride
+    : (preferences.analysisFiltersCollapsed ?? true)
 
   const handleToggleFiltersCollapsed = useCallback(() => {
-    updatePreferences({ analysisFiltersCollapsed: !filtersCollapsed })
+    const next = !filtersCollapsed
+    setUserCollapsedOverride(next)
+    updatePreferences({ analysisFiltersCollapsed: next })
   }, [filtersCollapsed, updatePreferences])
 
   // Permissions
@@ -376,47 +265,23 @@ function AnalysesPageContent() {
   })
 
   // Reference data for filter dropdowns (only when viewing a specific product)
-  const { data: environments } = useQuery<Environment[]>({
-    queryKey: ['products', effectiveProductId, 'environments'],
-    queryFn: () => api.getEnvironments(effectiveProductId),
+  const { data: filterOptions } = useQuery<ProductFilterOptions>({
+    queryKey: ['products', effectiveProductId, 'filter-options'],
+    queryFn: () => api.getFilterOptions(effectiveProductId),
     enabled: !!effectiveProductId,
   })
-
-  const { data: alarms } = useQuery<Alarm[]>({
-    queryKey: ['products', effectiveProductId, 'alarms'],
-    queryFn: () => api.getAlarms(effectiveProductId),
-    enabled: !!effectiveProductId,
-  })
-
-  const { data: finalActions } = useQuery<FinalAction[]>({
-    queryKey: ['products', effectiveProductId, 'final-actions'],
-    queryFn: () => api.getFinalActions(effectiveProductId),
-    enabled: !!effectiveProductId,
-  })
+  const environments  = filterOptions?.environments
+  const alarms        = filterOptions?.alarms
+  const finalActions  = filterOptions?.finalActions
+  const microservices = filterOptions?.microservices
+  const downstreams   = filterOptions?.downstreams
+  const runbooks      = filterOptions?.runbooks
 
   // Advanced filter data
   const { data: ignoreReasons } = useQuery<IgnoreReason[]>({
     queryKey: ['ignore-reasons'],
     queryFn: api.getIgnoreReasons,
     enabled: can('ALARM_ANALYSIS', 'read'),
-  })
-
-  const { data: microservices } = useQuery<Microservice[]>({
-    queryKey: ['products', effectiveProductId, 'microservices'],
-    queryFn: () => api.getMicroservices(effectiveProductId),
-    enabled: !!effectiveProductId,
-  })
-
-  const { data: downstreams } = useQuery<Downstream[]>({
-    queryKey: ['products', effectiveProductId, 'downstreams'],
-    queryFn: () => api.getDownstreams(effectiveProductId),
-    enabled: !!effectiveProductId,
-  })
-
-  const { data: runbooks } = useQuery<Runbook[]>({
-    queryKey: ['products', effectiveProductId, 'runbooks'],
-    queryFn: () => api.getRunbooks(effectiveProductId),
-    enabled: !!effectiveProductId,
   })
 
   // Form-specific data (runbooks, microservices, downstreams, plus product-

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import {
   X, Pencil, Trash2, ExternalLink, Copy, Check,
   Bell, FileText, ListChecks, Info, ShieldCheck,
@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useAnalysisScores } from '@/hooks/use-analysis-scores'
 import type { AlarmAnalysis } from '@/lib/api-client'
+import { usePreferences } from '@/hooks/use-preferences'
 import {
   ANALYSIS_TYPE_LABELS,
   ANALYSIS_STATUS_LABELS,
@@ -264,6 +265,12 @@ function TrackingEntryCard({
   )
 }
 
+// ─── Resize constants ─────────────────────────────────────────────────────────
+
+const MIN_PANEL_WIDTH = 320
+const MAX_PANEL_WIDTH = 1200
+const DEFAULT_PANEL_WIDTH = 640
+
 // ─── Main panel ───────────────────────────────────────────────────────────────
 
 export function AnalysisDetailPanel({
@@ -277,23 +284,66 @@ export function AnalysisDetailPanel({
 }: AnalysisDetailPanelProps) {
   const { validation, quality } = useAnalysisScores(analysis)
   const [validationExpanded, setValidationExpanded] = useState(false)
+  const { preferences, updatePreferences } = usePreferences()
+  const [dragWidth, setDragWidth] = useState<number | null>(null)
 
-  if (!analysis) return null
+  const panelWidth = dragWidth ?? preferences.detailPanelWidth ?? DEFAULT_PANEL_WIDTH
 
+  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startWidth = dragWidth ?? (preferences.detailPanelWidth ?? DEFAULT_PANEL_WIDTH)
+
+    const onMove = (ev: MouseEvent) => {
+      const newWidth = Math.min(
+        Math.max(startWidth - (ev.clientX - startX), MIN_PANEL_WIDTH),
+        MAX_PANEL_WIDTH
+      )
+      setDragWidth(newWidth)
+    }
+
+    const onUp = (ev: MouseEvent) => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+
+      const finalWidth = Math.min(
+        Math.max(startWidth - (ev.clientX - startX), MIN_PANEL_WIDTH),
+        MAX_PANEL_WIDTH
+      )
+      if (Math.abs(ev.clientX - startX) > 2) {
+        setDragWidth(null)
+        updatePreferences({ detailPanelWidth: finalWidth })
+      } else {
+        setDragWidth(null)
+      }
+    }
+
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+    document.body.style.cursor = 'ew-resize'
+    document.body.style.userSelect = 'none'
+  }, [dragWidth, preferences.detailPanelWidth, updatePreferences])
+
+  // Bug fix: never unmount the panel shell — if we return null when analysis is
+  // null, the panel div gets destroyed and re-created with open=true already
+  // applied, so the CSS transition never plays (no translate-x-full → translate-x-0).
+  // Instead we always render the shell and show a skeleton while loading.
   const hasDettagliAnalisi = !!(
-    analysis.ignoreReason ||
-    analysis.errorDetails ||
-    (analysis.trackingIds?.length ?? 0) > 0 ||
-    analysis.microservices.length > 0 ||
-    analysis.downstreams.length > 0 ||
-    (analysis.links?.length ?? 0) > 0
+    analysis?.ignoreReason ||
+    analysis?.errorDetails ||
+    (analysis?.trackingIds?.length ?? 0) > 0 ||
+    (analysis?.microservices.length ?? 0) > 0 ||
+    (analysis?.downstreams.length ?? 0) > 0 ||
+    (analysis?.links?.length ?? 0) > 0
   )
 
   const hasConclusioni = !!(
-    analysis.runbook?.name ||
-    analysis.runbook?.link ||
-    analysis.finalActions.length > 0 ||
-    analysis.conclusionNotes
+    analysis?.runbook?.name ||
+    analysis?.runbook?.link ||
+    (analysis?.finalActions.length ?? 0) > 0 ||
+    analysis?.conclusionNotes
   )
 
   return (
@@ -314,10 +364,56 @@ export function AnalysisDetailPanel({
       {/* Panel */}
       <div
         className={cn(
-          'fixed right-0 top-0 z-50 flex h-full w-full max-w-3xl flex-col border-l border-border bg-background shadow-2xl transition-transform duration-300',
+          'fixed right-0 top-0 z-50 flex h-full flex-col bg-background shadow-2xl transition-transform duration-300',
           open ? 'translate-x-0' : 'translate-x-full'
         )}
+        style={{ width: `min(${panelWidth}px, 90vw)` }}
       >
+        {/* Resize handle */}
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Ridimensiona pannello"
+          onMouseDown={handleResizeMouseDown}
+          className="group absolute left-0 top-0 z-10 flex h-full w-3 cursor-ew-resize items-center"
+        >
+          {/* Border line — 1px resting, 2px on hover */}
+          <div className="h-full w-px shrink-0 bg-border transition-[width,background-color] duration-150 group-hover:w-0.5 group-hover:bg-primary/60 group-active:bg-primary" />
+          {/* Grip dots */}
+          <div className="pointer-events-none absolute left-0 right-0 top-1/2 flex -translate-y-1/2 flex-col items-center gap-[3px] opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+            <div className="h-[3px] w-[3px] rounded-full bg-primary" />
+            <div className="h-[3px] w-[3px] rounded-full bg-primary" />
+            <div className="h-[3px] w-[3px] rounded-full bg-primary" />
+            <div className="h-[3px] w-[3px] rounded-full bg-primary" />
+            <div className="h-[3px] w-[3px] rounded-full bg-primary" />
+            <div className="h-[3px] w-[3px] rounded-full bg-primary" />
+          </div>
+        </div>
+
+        {!analysis && (
+          <div className="flex flex-1 flex-col gap-5 p-5">
+            {/* Skeleton header */}
+            <div className="space-y-3 border-b border-border pb-5">
+              <div className="flex gap-2">
+                <div className="h-5 w-16 animate-pulse rounded-md bg-muted" />
+                <div className="h-5 w-20 animate-pulse rounded-md bg-muted" />
+              </div>
+              <div className="h-5 w-3/4 animate-pulse rounded bg-muted" />
+              <div className="h-3.5 w-1/2 animate-pulse rounded bg-muted" />
+            </div>
+            {/* Skeleton rows */}
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="space-y-1.5">
+                <div className="h-3 w-20 animate-pulse rounded bg-muted" />
+                <div className="h-4 w-2/3 animate-pulse rounded bg-muted" style={{ animationDelay: `${i * 60}ms` }} />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {analysis && (
+        <>
+
         {/* Header */}
         <div className="shrink-0 border-b border-border bg-muted/20 px-5 pb-4 pt-4">
           <div className="flex items-start gap-3">
@@ -774,6 +870,10 @@ export function AnalysisDetailPanel({
 
           </div>
         </div>
+
+        </>
+        )}
+
       </div>
     </>
   )

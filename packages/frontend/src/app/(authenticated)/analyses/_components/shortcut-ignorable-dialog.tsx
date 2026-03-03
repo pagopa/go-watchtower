@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useForm, Controller, type FieldValues } from 'react-hook-form'
 import { useSession } from 'next-auth/react'
 import { useQuery } from '@tanstack/react-query'
@@ -129,16 +129,17 @@ export function ShortcutIgnorableDialog({
     defaultValues: DEFAULT_VALUES,
   })
 
-  const selectedRunbookIdRef = useRef<string | null>(null)
+  const [selectedRunbookId, setSelectedRunbookId] = useState<string | null>(null)
   const lastAlarmAutoFilledRef = useRef(false)
 
-  useEffect(() => {
-    if (open) {
+  const handleOpenChange = useCallback((newOpen: boolean) => {
+    if (!newOpen) {
       reset(DEFAULT_VALUES)
-      selectedRunbookIdRef.current = null
+      setSelectedRunbookId(null)
       lastAlarmAutoFilledRef.current = false
     }
-  }, [open, reset])
+    onOpenChange(newOpen)
+  }, [reset, onOpenChange])
 
   const watchedIgnoreReasonCode = watch('ignoreReasonCode') as string
   const watchedFirstAlarm = watch('firstAlarmAt') as string
@@ -161,7 +162,7 @@ export function ShortcutIgnorableDialog({
     }
   }
 
-  const handleFormSubmit = (data: FieldValues) => {
+  const handleFormSubmit = useCallback((data: FieldValues) => {
     const now = toDatetimeLocal(new Date().toISOString())
     const typedData = data as ShortcutIgnorableData
     onSubmit({
@@ -178,12 +179,12 @@ export function ShortcutIgnorableDialog({
       analysisDate: fromDatetimeLocal(now),
       operatorId: session?.user?.id ?? '',
       status: 'COMPLETED',
-      runbookId: selectedRunbookIdRef.current || undefined,
+      runbookId: selectedRunbookId || undefined,
     })
-  }
+  }, [onSubmit, session?.user?.id, selectedRunbookId])
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nuova Analisi — Da ignorare</DialogTitle>
@@ -218,9 +219,7 @@ export function ShortcutIgnorableDialog({
                 disabled={isPending}
                 alarms={alarms}
                 showOnCall={false}
-                onAlarmChange={(alarm) => {
-                  selectedRunbookIdRef.current = alarm.runbookId
-                }}
+                onAlarmChange={(alarm) => setSelectedRunbookId(alarm.runbookId)}
               />
 
               <OccurrencesField
@@ -312,7 +311,7 @@ export function ShortcutIgnorableDialog({
             <Button
               type="button"
               variant="outline"
-              onClick={() => onOpenChange(false)}
+              onClick={() => handleOpenChange(false)}
               disabled={isPending}
             >
               Annulla

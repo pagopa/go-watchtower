@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useCallback, useState } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { useSession } from 'next-auth/react'
 import { useQuery } from '@tanstack/react-query'
@@ -88,7 +88,7 @@ export function ShortcutAnalysisDialog({
     enabled: open && !!productId,
   })
 
-  const selectedRunbookIdRef = useRef<string | null>(null)
+  const [selectedRunbookId, setSelectedRunbookId] = useState<string | null>(null)
 
   const {
     register,
@@ -101,33 +101,33 @@ export function ShortcutAnalysisDialog({
     defaultValues: DEFAULT_VALUES,
   })
 
-  useEffect(() => {
-    if (open) {
+  const handleOpenChange = useCallback((newOpen: boolean) => {
+    if (!newOpen) {
       reset(DEFAULT_VALUES)
-      selectedRunbookIdRef.current = null
+      setSelectedRunbookId(null)
     }
-  }, [open, reset])
+    onOpenChange(newOpen)
+  }, [reset, onOpenChange])
 
-  const handleFormSubmit = (data: ShortcutInCorsoData) => {
+  const handleFormSubmit = useCallback((data: ShortcutInCorsoData) => {
     const now = toDatetimeLocal(new Date().toISOString())
-    const typedData = data
     onSubmit({
-      alarmId: typedData.alarmId,
-      isOnCall: typedData.isOnCall,
-      occurrences: typedData.occurrences,
-      environmentId: typedData.environmentId,
-      firstAlarmAt: fromDatetimeLocal(typedData.firstAlarmAt),
-      lastAlarmAt: fromDatetimeLocal(typedData.firstAlarmAt),
+      alarmId: data.alarmId,
+      isOnCall: data.isOnCall,
+      occurrences: data.occurrences,
+      environmentId: data.environmentId,
+      firstAlarmAt: fromDatetimeLocal(data.firstAlarmAt),
+      lastAlarmAt: fromDatetimeLocal(data.firstAlarmAt),
       analysisDate: fromDatetimeLocal(now),
       operatorId: session?.user?.id ?? '',
       status: 'IN_PROGRESS',
       analysisType: 'ANALYZABLE',
-      runbookId: selectedRunbookIdRef.current || undefined,
+      runbookId: selectedRunbookId || undefined,
     })
-  }
+  }, [onSubmit, session?.user?.id, selectedRunbookId])
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nuova Analisi — In corso</DialogTitle>
@@ -161,9 +161,7 @@ export function ShortcutAnalysisDialog({
                 disabled={isPending}
                 alarms={alarms}
                 showOnCall={true}
-                onAlarmChange={(alarm) => {
-                  selectedRunbookIdRef.current = alarm.runbookId
-                }}
+                onAlarmChange={(alarm) => setSelectedRunbookId(alarm.runbookId)}
               />
 
               <OccurrencesField
