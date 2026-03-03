@@ -7,6 +7,7 @@ export const Resources = {
   FINAL_ACTION:    'FINAL_ACTION',
   ALARM:           'ALARM',
   ALARM_ANALYSIS:  'ALARM_ANALYSIS',
+  ALARM_EVENT:     'ALARM_EVENT',
   DOWNSTREAM:      'DOWNSTREAM',
   USER:            'USER',
   SYSTEM_SETTING:  'SYSTEM_SETTING',

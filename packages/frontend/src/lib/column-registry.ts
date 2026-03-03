@@ -22,6 +22,16 @@ export interface ColumnDef {
 }
 
 export const COLUMN_REGISTRY: Record<string, ColumnDef[]> = {
+  alarmEvents: [
+    { id: 'firedAt',      label: 'Data scatto',   locked: true,          defaultWidth: 160, minWidth: 130, sortKey: 'firedAt' },
+    { id: 'name',         label: 'Nome allarme',                         defaultWidth: 240, minWidth: 140 },
+    { id: 'product',      label: 'Prodotto',                             defaultWidth: 110, minWidth: 80 },
+    { id: 'environment',  label: 'Ambiente',                             defaultWidth: 110, minWidth: 80 },
+    { id: 'awsRegion',    label: 'Region AWS',                           defaultWidth: 130, minWidth: 90 },
+    { id: 'awsAccountId', label: 'Account AWS',   defaultVisible: false, defaultWidth: 140, minWidth: 100 },
+    { id: 'description',  label: 'Descrizione',   defaultVisible: false, defaultWidth: 220, minWidth: 120 },
+    { id: 'reason',       label: 'Ragione',        defaultVisible: false, defaultWidth: 200, minWidth: 120 },
+  ],
   systemEvents: [
     { id: 'quando',  label: 'Quando',     locked: true,          defaultWidth: 160, minWidth: 130, sortKey: 'createdAt' },
     { id: 'azione',  label: 'Azione',                            defaultWidth: 220, minWidth: 140 },
@@ -57,4 +67,5 @@ export const COLUMN_REGISTRY: Record<string, ColumnDef[]> = {
 export const LIST_LABELS: Record<string, string> = {
   analyses: 'Analisi allarmi',
   systemEvents: 'Log eventi',
+  alarmEvents: 'Allarmi scattati',
 }

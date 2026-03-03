@@ -13,6 +13,7 @@ import { permissionRoutes } from "./routes/permissions/index.js";
 import { userRoutes } from "./routes/users/index.js";
 import { reportRoutes } from "./routes/reports/index.js";
 import { ignoreReasonRoutes } from "./routes/ignore-reasons/index.js";
+import { alarmEventRoutes } from "./routes/alarm-events/index.js";
 import { systemEventRoutes } from "./routes/system-events/index.js";
 import { settingRoutes } from "./routes/settings/index.js";
 import { healthRoutes } from "./routes/health.js";
@@ -56,6 +57,7 @@ export async function buildApp() {
   await app.register(userRoutes, { prefix: "/api" });
   await app.register(reportRoutes, { prefix: "/api" });
   await app.register(ignoreReasonRoutes, { prefix: "/api" });
+  await app.register(alarmEventRoutes, { prefix: "/api" });
   await app.register(systemEventRoutes, { prefix: "/api" });
   await app.register(settingRoutes, { prefix: "/api" });
 

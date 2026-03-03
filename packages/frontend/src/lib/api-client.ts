@@ -617,6 +617,7 @@ export interface UserPreferences {
   locale?: string
   sidebarCollapsed?: boolean
   analysisFiltersCollapsed?: boolean
+  alarmEventFiltersCollapsed?: boolean
   detailPanelWidth?: number
 }
 
@@ -738,6 +739,46 @@ export interface SystemEventsFilters {
   limit?: number
   sortBy?: string
   sortOrder?: 'asc' | 'desc'
+}
+
+export interface AlarmEvent {
+  id: string
+  name: string
+  firedAt: string
+  description: string | null
+  reason: string | null
+  awsRegion: string
+  awsAccountId: string
+  product: { id: string; name: string }
+  environment: { id: string; name: string }
+  createdAt: string
+}
+
+export interface AlarmEventsFilters {
+  productId?: string
+  environmentId?: string
+  awsAccountId?: string
+  awsRegion?: string
+  dateFrom?: string
+  dateTo?: string
+  page?: number
+  pageSize?: number
+}
+
+export interface CreateAlarmEventData {
+  name: string
+  firedAt: string
+  productId: string
+  environmentId: string
+  awsRegion: string
+  awsAccountId: string
+  description?: string | null
+  reason?: string | null
+}
+
+export interface UpdateAlarmEventData {
+  description?: string | null
+  reason?: string | null
 }
 
 // API methods
@@ -919,6 +960,19 @@ export const api = {
     request<SystemEventsResponse>('/api/system-events', {
       params: filters as Record<string, string | number | boolean | string[] | undefined>,
     }),
+
+  // Alarm Events
+  getAlarmEvents: (filters?: AlarmEventsFilters) =>
+    request<PaginatedResponse<AlarmEvent>>('/api/alarm-events', {
+      params: filters as Record<string, string | number | boolean | undefined>,
+    }),
+  getAlarmEvent: (id: string) => request<AlarmEvent>(`/api/alarm-events/${id}`),
+  createAlarmEvent: (data: CreateAlarmEventData) =>
+    request<AlarmEvent>('/api/alarm-events', { method: 'POST', body: data }),
+  updateAlarmEvent: (id: string, data: UpdateAlarmEventData) =>
+    request<AlarmEvent>(`/api/alarm-events/${id}`, { method: 'PATCH', body: data }),
+  deleteAlarmEvent: (id: string) =>
+    request<{ message: string }>(`/api/alarm-events/${id}`, { method: 'DELETE' }),
 
   // System Settings
   getSettings: () => request<SystemSetting[]>('/api/settings'),

@@ -17,6 +17,7 @@ import {
   ScrollText,
   SlidersHorizontal,
   BanIcon,
+  BellRing,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -61,6 +62,13 @@ const navGroups: NavGroup[] = [
         resource: 'ALARM_ANALYSIS',
         action: 'read',
         expandable: true,
+      },
+      {
+        title: 'Allarmi scattati',
+        href: '/alarm-events',
+        icon: BellRing,
+        resource: 'ALARM_EVENT',
+        action: 'read',
       },
       {
         title: 'Report',

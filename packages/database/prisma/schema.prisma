@@ -32,6 +32,7 @@ enum Resource {
   FINAL_ACTION
   ALARM
   ALARM_ANALYSIS
+  ALARM_EVENT
   DOWNSTREAM
   USER
   SYSTEM_SETTING
@@ -163,12 +164,13 @@ model Product {
 
   environments  Environment[]
   microservices Microservice[]
-  finalActions   FinalAction[]
+  finalActions  FinalAction[]
   ignoredAlarms IgnoredAlarm[]
   runbooks      Runbook[]
   alarms        Alarm[]
   downstreams   Downstream[]
   analyses      AlarmAnalysis[]
+  alarmEvents   AlarmEvent[]
 
   @@map("products")
 }
@@ -185,6 +187,7 @@ model Environment {
   product       Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
   analyses      AlarmAnalysis[]
   ignoredAlarms IgnoredAlarm[]
+  alarmEvents   AlarmEvent[]
 
   @@unique([productId, name])
   @@map("environments")
@@ -400,6 +403,32 @@ model AnalysisFinalAction {
   @@id([analysisId, finalActionId])
   @@index([finalActionId])
   @@map("analysis_final_actions")
+}
+
+// ═══════════════════════════════════════════════════════════
+// ALARM EVENTS
+// ═══════════════════════════════════════════════════════════
+
+model AlarmEvent {
+  id            String   @id @default(uuid(7)) @db.Uuid
+  name          String
+  firedAt       DateTime @map("fired_at")
+  description   String?
+  reason        String?
+  awsRegion     String   @map("aws_region")
+  awsAccountId  String   @map("aws_account_id")
+  productId     String   @map("product_id") @db.Uuid
+  environmentId String   @map("environment_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  product     Product     @relation(fields: [productId], references: [id], onDelete: Restrict)
+  environment Environment @relation(fields: [environmentId], references: [id], onDelete: Restrict)
+
+  @@index([firedAt])
+  @@index([productId, firedAt])
+  @@index([environmentId])
+  @@index([awsAccountId])
+  @@map("alarm_events")
 }
 
 // ═══════════════════════════════════════════════════════════

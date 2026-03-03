@@ -4,6 +4,7 @@ export const SystemEventResources = {
   AUTH:                      'auth',
   USERS:                     'users',
   ALARM_ANALYSES:            'alarm_analyses',
+  ALARM_EVENTS:              'alarm_events',
   SYSTEM_SETTINGS:           'system_settings',
   PRODUCTS:                  'products',
   ALARMS:                    'alarms',

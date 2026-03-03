@@ -59,6 +59,11 @@ export const SystemEventActions = {
   ALARM_UPDATED:               'ALARM_UPDATED',
   ALARM_DELETED:               'ALARM_DELETED',
 
+  // Allarmi scattati
+  ALARM_EVENT_CREATED:         'ALARM_EVENT_CREATED',
+  ALARM_EVENT_UPDATED:         'ALARM_EVENT_UPDATED',
+  ALARM_EVENT_DELETED:         'ALARM_EVENT_DELETED',
+
   // Configurazione — Downstream
   DOWNSTREAM_CREATED:          'DOWNSTREAM_CREATED',
   DOWNSTREAM_UPDATED:          'DOWNSTREAM_UPDATED',

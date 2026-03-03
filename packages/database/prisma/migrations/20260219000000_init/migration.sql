@@ -5,7 +5,7 @@
 CREATE TYPE "AuthProvider" AS ENUM ('LOCAL', 'GOOGLE');
 CREATE TYPE "AnalysisType" AS ENUM ('ANALYZABLE', 'IGNORABLE');
 CREATE TYPE "AnalysisStatus" AS ENUM ('CREATED', 'IN_PROGRESS', 'COMPLETED');
-CREATE TYPE "Resource" AS ENUM ('PRODUCT', 'ENVIRONMENT', 'MICROSERVICE', 'IGNORED_ALARM', 'RUNBOOK', 'FINAL_ACTION', 'ALARM', 'ALARM_ANALYSIS', 'DOWNSTREAM', 'USER', 'SYSTEM_SETTING');
+CREATE TYPE "Resource" AS ENUM ('PRODUCT', 'ENVIRONMENT', 'MICROSERVICE', 'IGNORED_ALARM', 'RUNBOOK', 'FINAL_ACTION', 'ALARM', 'ALARM_ANALYSIS', 'ALARM_EVENT', 'DOWNSTREAM', 'USER', 'SYSTEM_SETTING');
 CREATE TYPE "PermissionScope" AS ENUM ('NONE', 'OWN', 'ALL');
 CREATE TYPE "RunbookStatus" AS ENUM ('DRAFT', 'COMPLETE');
 
@@ -238,6 +238,25 @@ CREATE TABLE "alarm_analyses" (
 );
 
 -- ═══════════════════════════════════════════════════════════
+-- ALARM EVENTS
+-- ═══════════════════════════════════════════════════════════
+
+CREATE TABLE "alarm_events" (
+    "id"             UUID         NOT NULL,
+    "name"           TEXT         NOT NULL,
+    "fired_at"       TIMESTAMP(3) NOT NULL,
+    "description"    TEXT,
+    "reason"         TEXT,
+    "aws_region"     TEXT         NOT NULL,
+    "aws_account_id" TEXT         NOT NULL,
+    "product_id"     UUID         NOT NULL,
+    "environment_id" UUID         NOT NULL,
+    "created_at"     TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "alarm_events_pkey" PRIMARY KEY ("id")
+);
+
+-- ═══════════════════════════════════════════════════════════
 -- SYSTEM SETTINGS & EVENT LOG
 -- ═══════════════════════════════════════════════════════════
 
@@ -364,6 +383,12 @@ CREATE INDEX "analysis_final_actions_final_action_id_idx" ON "analysis_final_act
 CREATE UNIQUE INDEX "system_settings_key_key" ON "system_settings"("key");
 CREATE INDEX "system_settings_category_idx" ON "system_settings"("category");
 
+-- alarm_events
+CREATE INDEX "alarm_events_fired_at_idx" ON "alarm_events"("fired_at");
+CREATE INDEX "alarm_events_product_id_fired_at_idx" ON "alarm_events"("product_id", "fired_at");
+CREATE INDEX "alarm_events_environment_id_idx" ON "alarm_events"("environment_id");
+CREATE INDEX "alarm_events_aws_account_id_idx" ON "alarm_events"("aws_account_id");
+
 -- system_events
 CREATE INDEX "system_events_user_id_idx" ON "system_events"("user_id");
 CREATE INDEX "system_events_action_idx" ON "system_events"("action");
@@ -412,6 +437,10 @@ ALTER TABLE "analysis_downstreams" ADD CONSTRAINT "analysis_downstreams_analysis
 ALTER TABLE "analysis_downstreams" ADD CONSTRAINT "analysis_downstreams_downstream_id_fkey" FOREIGN KEY ("downstream_id") REFERENCES "downstreams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "analysis_final_actions" ADD CONSTRAINT "analysis_final_actions_analysis_id_fkey" FOREIGN KEY ("analysis_id") REFERENCES "alarm_analyses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "analysis_final_actions" ADD CONSTRAINT "analysis_final_actions_final_action_id_fkey" FOREIGN KEY ("final_action_id") REFERENCES "final_actions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- Alarm Events
+ALTER TABLE "alarm_events" ADD CONSTRAINT "alarm_events_product_id_fkey" FOREIGN KEY ("product_id") REFERENCES "products"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "alarm_events" ADD CONSTRAINT "alarm_events_environment_id_fkey" FOREIGN KEY ("environment_id") REFERENCES "environments"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- System Settings & Event Log
 ALTER TABLE "system_settings" ADD CONSTRAINT "system_settings_updated_by_id_fkey" FOREIGN KEY ("updated_by_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
