@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, memo } from 'react'
 import {
   PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer,
 } from 'recharts'
@@ -12,7 +12,7 @@ interface ByAnalysisTypeChartProps {
   data: AnalysisStats['byAnalysisType']
 }
 
-export function ByAnalysisTypeChart({ data }: ByAnalysisTypeChartProps) {
+export const ByAnalysisTypeChart = memo(function ByAnalysisTypeChart({ data }: ByAnalysisTypeChartProps) {
   const chartData = useMemo(() =>
     data.map((item) => ({
       name: ANALYSIS_TYPE_LABELS[item.analysisType],
@@ -65,4 +65,4 @@ export function ByAnalysisTypeChart({ data }: ByAnalysisTypeChartProps) {
       </CardContent>
     </Card>
   )
-}
+})

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, memo } from 'react'
 import {
   Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
   Legend, ResponsiveContainer, ComposedChart, Line,
@@ -13,7 +13,7 @@ interface DailyByEnvironmentChartProps {
   data: AnalysisStats['dailyByEnvironment']
 }
 
-export function DailyByEnvironmentChart({ data }: DailyByEnvironmentChartProps) {
+export const DailyByEnvironmentChart = memo(function DailyByEnvironmentChart({ data }: DailyByEnvironmentChartProps) {
   const { chartData, envNames } = useMemo(() => {
     const envNamesSet = new Set<string>()
     const grouped = new Map<string, Record<string, number>>()
@@ -80,4 +80,4 @@ export function DailyByEnvironmentChart({ data }: DailyByEnvironmentChartProps) 
       </CardContent>
     </Card>
   )
-}
+})

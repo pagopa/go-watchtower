@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -16,7 +17,7 @@ interface TopAlarmsTableProps {
   data: AnalysisStats['topAlarms']
 }
 
-export function TopAlarmsTable({ data }: TopAlarmsTableProps) {
+export const TopAlarmsTable = memo(function TopAlarmsTable({ data }: TopAlarmsTableProps) {
   if (data.length === 0) return (
     <Card>
       <CardHeader>
@@ -68,4 +69,4 @@ export function TopAlarmsTable({ data }: TopAlarmsTableProps) {
       </CardContent>
     </Card>
   )
-}
+})

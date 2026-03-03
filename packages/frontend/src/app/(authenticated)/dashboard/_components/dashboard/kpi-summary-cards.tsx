@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import { FileBarChart, Hash, CheckCircle, User } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -76,7 +77,7 @@ function KpiSkeleton() {
   )
 }
 
-export function KpiSummaryCards({ data, isLoading }: KpiSummaryCardsProps) {
+export const KpiSummaryCards = memo(function KpiSummaryCards({ data, isLoading }: KpiSummaryCardsProps) {
   if (isLoading) {
     return (
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -121,4 +122,4 @@ export function KpiSummaryCards({ data, isLoading }: KpiSummaryCardsProps) {
       />
     </div>
   )
-}
+})

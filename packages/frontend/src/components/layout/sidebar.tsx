@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
+import { Suspense } from 'react'
 import {
   LayoutDashboard,
   Package,
@@ -27,7 +28,7 @@ import {
 } from '@/components/ui/tooltip'
 import { usePermissions } from '@/hooks/use-permissions'
 import { usePreferences } from '@/hooks/use-preferences'
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { api, type Product } from '@/lib/api-client'
 
 interface NavItem {
@@ -124,10 +125,38 @@ const navGroups: NavGroup[] = [
   },
 ]
 
+function ProductSubNav({ products, pathname }: { products: Product[]; pathname: string }) {
+  const searchParams = useSearchParams()
+  return (
+    <div className="ml-6 mt-1 space-y-0.5 border-l pl-3">
+      {products.filter(p => p.isActive).map((product) => {
+        const productHref = `/analyses?productId=${product.id}`
+        const isProductActive =
+          pathname === '/analyses' &&
+          searchParams.get('productId') === product.id
+        return (
+          <Link
+            key={product.id}
+            href={productHref}
+            className={cn(
+              'block rounded-md px-2 py-1.5 text-xs font-medium transition-colors',
+              isProductActive
+                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+            )}
+          >
+            {product.name}
+          </Link>
+        )
+      })}
+    </div>
+  )
+}
+
 export function Sidebar() {
   const pathname = usePathname()
-  const searchParams = useSearchParams()
   const { can, isLoading } = usePermissions()
+
   const { preferences, updatePreferences } = usePreferences()
   const collapsed = preferences.sidebarCollapsed ?? false
   const [analysisExpanded, setAnalysisExpanded] = useState(true)
@@ -149,7 +178,7 @@ export function Sidebar() {
       return can(item.resource as Parameters<typeof can>[0], item.action)
     })
 
-  const renderItem = (item: NavItem) => {
+  const renderItem = useCallback((item: NavItem) => {
     const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
     const Icon = item.icon
 
@@ -185,28 +214,9 @@ export function Sidebar() {
             </Button>
           </div>
           {analysisExpanded && products && products.length > 0 && (
-            <div className="ml-6 mt-1 space-y-0.5 border-l pl-3">
-              {products.filter(p => p.isActive).map((product) => {
-                const productHref = `/analyses?productId=${product.id}`
-                const isProductActive =
-                  pathname === '/analyses' &&
-                  searchParams.get('productId') === product.id
-                return (
-                  <Link
-                    key={product.id}
-                    href={productHref}
-                    className={cn(
-                      'block rounded-md px-2 py-1.5 text-xs font-medium transition-colors',
-                      isProductActive
-                        ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                        : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-                    )}
-                  >
-                    {product.name}
-                  </Link>
-                )
-              })}
-            </div>
+            <Suspense fallback={null}>
+              <ProductSubNav products={products} pathname={pathname} />
+            </Suspense>
           )}
         </div>
       )
@@ -238,7 +248,7 @@ export function Sidebar() {
     }
 
     return <div key={item.href}>{linkContent}</div>
-  }
+  }, [pathname, collapsed, analysisExpanded, products])
 
   return (
     <TooltipProvider delayDuration={0}>

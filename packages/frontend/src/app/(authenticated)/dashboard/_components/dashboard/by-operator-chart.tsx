@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
   ResponsiveContainer,
@@ -12,7 +13,7 @@ interface ByOperatorChartProps {
   data: AnalysisStats['byOperator']
 }
 
-export function ByOperatorChart({ data }: ByOperatorChartProps) {
+export const ByOperatorChart = memo(function ByOperatorChart({ data }: ByOperatorChartProps) {
   if (data.length === 0) return (
     <Card>
       <CardHeader>
@@ -47,4 +48,4 @@ export function ByOperatorChart({ data }: ByOperatorChartProps) {
       </CardContent>
     </Card>
   )
-}
+})

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, memo } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
   Legend, ResponsiveContainer,
@@ -13,7 +13,7 @@ interface ByProductEnvironmentChartProps {
   data: AnalysisStats['byProductEnvironment']
 }
 
-export function ByProductEnvironmentChart({ data }: ByProductEnvironmentChartProps) {
+export const ByProductEnvironmentChart = memo(function ByProductEnvironmentChart({ data }: ByProductEnvironmentChartProps) {
   const { chartData, envNames } = useMemo(() => {
     const envNamesSet = new Set<string>()
     const grouped = new Map<string, Record<string, number>>()
@@ -66,4 +66,4 @@ export function ByProductEnvironmentChart({ data }: ByProductEnvironmentChartPro
       </CardContent>
     </Card>
   )
-}
+})

@@ -154,6 +154,53 @@ function tryParseDate(text: string): Date | null {
   return null
 }
 
+// ─── TimeSpinner ──────────────────────────────────────────────────────────────
+
+const spinnerBtn =
+  'flex h-6 w-8 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground active:bg-accent/80'
+
+interface TimeSpinnerProps {
+  hours: number
+  minutes: number
+  onAdjust: (hDelta: number, mDelta: number) => void
+}
+
+function TimeSpinner({ hours, minutes, onAdjust }: TimeSpinnerProps) {
+  return (
+    <div className="border-t px-3 py-2.5">
+      <div className="flex items-center justify-center gap-3">
+        <span className="mr-1 text-xs text-muted-foreground">Ora</span>
+
+        <div className="flex flex-col items-center gap-0.5">
+          <button type="button" onClick={() => onAdjust(1, 0)} className={spinnerBtn}>
+            <ChevronUp className="h-3.5 w-3.5" />
+          </button>
+          <span className="w-8 select-none text-center font-mono text-sm font-semibold tabular-nums">
+            {String(hours).padStart(2, '0')}
+          </span>
+          <button type="button" onClick={() => onAdjust(-1, 0)} className={spinnerBtn}>
+            <ChevronDown className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        <span className="pb-0.5 text-base font-bold text-muted-foreground">:</span>
+
+        <div className="flex flex-col items-center gap-0.5">
+          <button type="button" onClick={() => onAdjust(0, 5)} className={spinnerBtn}>
+            <ChevronUp className="h-3.5 w-3.5" />
+          </button>
+          <span className="w-8 select-none text-center font-mono text-sm font-semibold tabular-nums">
+            {String(minutes).padStart(2, '0')}
+          </span>
+          <button type="button" onClick={() => onAdjust(0, -5)} className={spinnerBtn}>
+            <ChevronDown className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 export interface DateTimePickerProps {
@@ -202,14 +249,14 @@ export function DateTimePicker({
     }
   }, [value, dateOnly])
 
-  // Apply pending cursor position after every render
+  // Apply pending cursor position after renders caused by digit/slot changes
   React.useLayoutEffect(() => {
     if (pendingCursor.current !== null && inputRef.current) {
       const pos = pendingCursor.current
       inputRef.current.setSelectionRange(pos, pos + 1)
       pendingCursor.current = null
     }
-  })
+  }, [digits, activeSlot])
 
   // ── Emit helpers ──────────────────────────────────────────────────────────
 
@@ -368,9 +415,6 @@ export function DateTimePicker({
     'focus:outline-none disabled:cursor-not-allowed disabled:opacity-50',
   )
 
-  const spinnerBtn =
-    'flex h-6 w-8 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground active:bg-accent/80'
-
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -467,37 +511,7 @@ export function DateTimePicker({
 
         {/* Time spinner — only in full datetime mode */}
         {!dateOnly && (
-          <div className="border-t px-3 py-2.5">
-            <div className="flex items-center justify-center gap-3">
-              <span className="mr-1 text-xs text-muted-foreground">Ora</span>
-
-              <div className="flex flex-col items-center gap-0.5">
-                <button type="button" onClick={() => adjustTime(1, 0)} className={spinnerBtn}>
-                  <ChevronUp className="h-3.5 w-3.5" />
-                </button>
-                <span className="w-8 select-none text-center font-mono text-sm font-semibold tabular-nums">
-                  {String(hours).padStart(2, '0')}
-                </span>
-                <button type="button" onClick={() => adjustTime(-1, 0)} className={spinnerBtn}>
-                  <ChevronDown className="h-3.5 w-3.5" />
-                </button>
-              </div>
-
-              <span className="pb-0.5 text-base font-bold text-muted-foreground">:</span>
-
-              <div className="flex flex-col items-center gap-0.5">
-                <button type="button" onClick={() => adjustTime(0, 5)} className={spinnerBtn}>
-                  <ChevronUp className="h-3.5 w-3.5" />
-                </button>
-                <span className="w-8 select-none text-center font-mono text-sm font-semibold tabular-nums">
-                  {String(minutes).padStart(2, '0')}
-                </span>
-                <button type="button" onClick={() => adjustTime(0, -5)} className={spinnerBtn}>
-                  <ChevronDown className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-          </div>
+          <TimeSpinner hours={hours} minutes={minutes} onAdjust={adjustTime} />
         )}
       </PopoverContent>
     </Popover>

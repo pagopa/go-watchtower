@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, memo } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
   Legend, ResponsiveContainer,
@@ -13,7 +13,7 @@ interface OnCallTrendChartProps {
   data: AnalysisStats['onCallTrend']
 }
 
-export function OnCallTrendChart({ data }: OnCallTrendChartProps) {
+export const OnCallTrendChart = memo(function OnCallTrendChart({ data }: OnCallTrendChartProps) {
   const chartData = useMemo(() =>
     data.map((item) => ({
       ...item,
@@ -53,4 +53,4 @@ export function OnCallTrendChart({ data }: OnCallTrendChartProps) {
       </CardContent>
     </Card>
   )
-}
+})

@@ -3,7 +3,7 @@ import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
   output: 'standalone',
-  reactStrictMode: true,
+  reactStrictMode: process.env.NODE_ENV === 'production',
   transpilePackages: ['@go-watchtower/shared'],
   turbopack: {
     root: path.resolve(__dirname, '../../'),
