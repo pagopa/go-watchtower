@@ -60,8 +60,11 @@ const analysisInclude = {
   ignoreReason: true,
 } as const;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function formatAnalysisResponse(analysis: any) {
+type AnalysisWithRelations = Prisma.AlarmAnalysisGetPayload<{
+  include: typeof analysisInclude;
+}>;
+
+function formatAnalysisResponse(analysis: AnalysisWithRelations) {
   return {
     id: analysis.id,
     analysisDate: analysis.analysisDate.toISOString(),
@@ -107,6 +110,46 @@ function formatAnalysisResponse(analysis: any) {
     qualityScore:    analysis.qualityScore ?? null,
     scoredAt:        analysis.scoredAt ? analysis.scoredAt.toISOString() : null,
   };
+}
+
+function buildAnalysisWhereClause(
+  query: AlarmAnalysisQuery | AllAnalysesQuery,
+  productId?: string
+): Prisma.AlarmAnalysisWhereInput {
+  const where: Prisma.AlarmAnalysisWhereInput = {};
+
+  if (productId) where.productId = productId;
+  else if ("productId" in query && query.productId) where.productId = query.productId;
+
+  if (query.analysisType) where.analysisType = query.analysisType;
+  if (query.status) where.status = query.status;
+  if (query.isOnCall !== undefined) where.isOnCall = query.isOnCall;
+  if (query.operatorId) where.operatorId = query.operatorId;
+  if (query.environmentId) where.environmentId = query.environmentId;
+  if (query.alarmId) where.alarmId = query.alarmId;
+  if (query.finalActionId) where.finalActions = { some: { finalActionId: query.finalActionId } };
+  if (query.dateFrom || query.dateTo) {
+    where.analysisDate = {};
+    if (query.dateFrom) where.analysisDate.gte = new Date(query.dateFrom);
+    if (query.dateTo) where.analysisDate.lte = new Date(query.dateTo);
+  }
+  if (query.ignoreReasonCode) where.ignoreReasonCode = query.ignoreReasonCode;
+  if (query.runbookId) where.runbookId = query.runbookId;
+  if (query.microserviceId) where.microservices = { some: { microserviceId: query.microserviceId } };
+  if (query.downstreamId) where.downstreams = { some: { downstreamId: query.downstreamId } };
+  if (query.traceId) {
+    // PostgreSQL JSONB @> containment: check if trackingIds array contains
+    // an object with the given traceId. Prisma maps array_contains to @>.
+    where.trackingIds = { array_contains: [{ traceId: query.traceId }] };
+  }
+  if (query.search) {
+    where.OR = [
+      { errorDetails: { contains: query.search, mode: "insensitive" } },
+      { conclusionNotes: { contains: query.search, mode: "insensitive" } },
+    ];
+  }
+
+  return where;
 }
 
 export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
@@ -178,6 +221,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
         // Verify product exists
         const product = await prisma.product.findUnique({
           where: { id: request.params.productId },
+          select: { id: true },
         });
 
         if (!product) {
@@ -189,95 +233,9 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
           pageSize = 20,
           sortBy = "analysisDate",
           sortOrder = "desc",
-          search,
-          analysisType,
-          status,
-          isOnCall,
-          operatorId,
-          environmentId,
-          alarmId,
-          finalActionId,
-          dateFrom,
-          dateTo,
-          ignoreReasonCode,
-          runbookId,
-          microserviceId,
-          downstreamId,
-          traceId,
         } = request.query;
 
-        // Build where clause
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const where: Record<string, any> = {
-          productId: request.params.productId,
-        };
-
-        if (analysisType) {
-          where.analysisType = analysisType;
-        }
-
-        if (status) {
-          where.status = status;
-        }
-
-        if (isOnCall !== undefined) {
-          where.isOnCall = isOnCall;
-        }
-
-        if (operatorId) {
-          where.operatorId = operatorId;
-        }
-
-        if (environmentId) {
-          where.environmentId = environmentId;
-        }
-
-        if (alarmId) {
-          where.alarmId = alarmId;
-        }
-
-        if (finalActionId) {
-          where.finalActions = { some: { finalActionId } };
-        }
-
-        if (dateFrom || dateTo) {
-          where.analysisDate = {};
-          if (dateFrom) {
-            where.analysisDate.gte = new Date(dateFrom);
-          }
-          if (dateTo) {
-            where.analysisDate.lte = new Date(dateTo);
-          }
-        }
-
-        if (ignoreReasonCode) {
-          where.ignoreReasonCode = ignoreReasonCode;
-        }
-
-        if (runbookId) {
-          where.runbookId = runbookId;
-        }
-
-        if (microserviceId) {
-          where.microservices = { some: { microserviceId } };
-        }
-
-        if (downstreamId) {
-          where.downstreams = { some: { downstreamId } };
-        }
-
-        if (traceId) {
-          // PostgreSQL JSONB @> containment: check if trackingIds array contains
-          // an object with the given traceId. Prisma maps array_contains to @>.
-          where.trackingIds = { array_contains: [{ traceId }] };
-        }
-
-        if (search) {
-          where.OR = [
-            { errorDetails: { contains: search, mode: "insensitive" } },
-            { conclusionNotes: { contains: search, mode: "insensitive" } },
-          ];
-        }
+        const where = buildAnalysisWhereClause(request.query, request.params.productId);
 
         const skip = (page - 1) * pageSize;
 
@@ -349,97 +307,9 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
           pageSize = 20,
           sortBy = "analysisDate",
           sortOrder = "desc",
-          search,
-          analysisType,
-          status,
-          isOnCall,
-          operatorId,
-          environmentId,
-          alarmId,
-          finalActionId,
-          productId,
-          dateFrom,
-          dateTo,
-          ignoreReasonCode,
-          runbookId,
-          microserviceId,
-          downstreamId,
-          traceId,
         } = request.query;
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const where: Record<string, any> = {};
-
-        if (productId) {
-          where.productId = productId;
-        }
-
-        if (analysisType) {
-          where.analysisType = analysisType;
-        }
-
-        if (status) {
-          where.status = status;
-        }
-
-        if (isOnCall !== undefined) {
-          where.isOnCall = isOnCall;
-        }
-
-        if (operatorId) {
-          where.operatorId = operatorId;
-        }
-
-        if (environmentId) {
-          where.environmentId = environmentId;
-        }
-
-        if (alarmId) {
-          where.alarmId = alarmId;
-        }
-
-        if (finalActionId) {
-          where.finalActions = { some: { finalActionId } };
-        }
-
-        if (dateFrom || dateTo) {
-          where.analysisDate = {};
-          if (dateFrom) {
-            where.analysisDate.gte = new Date(dateFrom);
-          }
-          if (dateTo) {
-            where.analysisDate.lte = new Date(dateTo);
-          }
-        }
-
-        if (ignoreReasonCode) {
-          where.ignoreReasonCode = ignoreReasonCode;
-        }
-
-        if (runbookId) {
-          where.runbookId = runbookId;
-        }
-
-        if (microserviceId) {
-          where.microservices = { some: { microserviceId } };
-        }
-
-        if (downstreamId) {
-          where.downstreams = { some: { downstreamId } };
-        }
-
-        if (traceId) {
-          // PostgreSQL JSONB @> containment: check if trackingIds array contains
-          // an object with the given traceId. Prisma maps array_contains to @>.
-          where.trackingIds = { array_contains: [{ traceId }] };
-        }
-
-        if (search) {
-          where.OR = [
-            { errorDetails: { contains: search, mode: "insensitive" } },
-            { conclusionNotes: { contains: search, mode: "insensitive" } },
-          ];
-        }
+        const where = buildAnalysisWhereClause(request.query);
 
         const skip = (page - 1) * pageSize;
 
@@ -564,28 +434,21 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
 
         const { productId } = request.params;
 
-        // Verify product exists
-        const product = await prisma.product.findUnique({
-          where: { id: productId },
-        });
+        // Verify product, operator, alarm, and environment in parallel
+        const [product, operator, alarm, environment] = await Promise.all([
+          prisma.product.findUnique({ where: { id: productId }, select: { id: true } }),
+          prisma.user.findUnique({ where: { id: request.body.operatorId } }),
+          prisma.alarm.findFirst({ where: { id: request.body.alarmId, productId } }),
+          prisma.environment.findFirst({ where: { id: request.body.environmentId, productId } }),
+        ]);
 
         if (!product) {
           return reply.status(404).send({ error: "Product not found" });
         }
 
-        // Verify operator exists
-        const operator = await prisma.user.findUnique({
-          where: { id: request.body.operatorId },
-        });
-
         if (!operator) {
           return reply.status(400).send({ error: "Operator not found" });
         }
-
-        // Verify alarm belongs to product
-        const alarm = await prisma.alarm.findFirst({
-          where: { id: request.body.alarmId, productId },
-        });
 
         if (!alarm) {
           return reply
@@ -593,76 +456,54 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
             .send({ error: "Alarm not found or does not belong to this product" });
         }
 
-        // Verify environment belongs to product
-        const environment = await prisma.environment.findFirst({
-          where: { id: request.body.environmentId, productId },
-        });
-
         if (!environment) {
           return reply
             .status(400)
             .send({ error: "Environment not found or does not belong to this product" });
         }
 
-        // Verify final actions belong to product (if provided)
-        if (request.body.finalActionIds && request.body.finalActionIds.length > 0) {
-          const finalActionCount = await prisma.finalAction.count({
-            where: {
-              id: { in: request.body.finalActionIds },
-              productId,
-            },
-          });
+        // Verify optional related entities in parallel
+        const finalActionIds = request.body.finalActionIds ?? [];
+        const microserviceIds = request.body.microserviceIds ?? [];
+        const downstreamIds = request.body.downstreamIds ?? [];
 
-          if (finalActionCount !== request.body.finalActionIds.length) {
-            return reply
-              .status(400)
-              .send({ error: "One or more final actions not found or do not belong to this product" });
-          }
+        const [finalActionCount, runbook, microserviceCount, downstreamCount] = await Promise.all([
+          finalActionIds.length > 0
+            ? prisma.finalAction.count({ where: { id: { in: finalActionIds }, productId } })
+            : Promise.resolve(0),
+          request.body.runbookId
+            ? prisma.runbook.findFirst({ where: { id: request.body.runbookId, productId } })
+            : Promise.resolve(null),
+          microserviceIds.length > 0
+            ? prisma.microservice.count({ where: { id: { in: microserviceIds }, productId } })
+            : Promise.resolve(0),
+          downstreamIds.length > 0
+            ? prisma.downstream.count({ where: { id: { in: downstreamIds }, productId } })
+            : Promise.resolve(0),
+        ]);
+
+        if (finalActionIds.length > 0 && finalActionCount !== finalActionIds.length) {
+          return reply
+            .status(400)
+            .send({ error: "One or more final actions not found or do not belong to this product" });
         }
 
-        // Verify runbook belongs to product (if provided)
-        if (request.body.runbookId) {
-          const runbook = await prisma.runbook.findFirst({
-            where: { id: request.body.runbookId, productId },
-          });
-
-          if (!runbook) {
-            return reply
-              .status(400)
-              .send({ error: "Runbook not found or does not belong to this product" });
-          }
+        if (request.body.runbookId && !runbook) {
+          return reply
+            .status(400)
+            .send({ error: "Runbook not found or does not belong to this product" });
         }
 
-        // Verify microservices belong to product (if provided)
-        if (request.body.microserviceIds && request.body.microserviceIds.length > 0) {
-          const microserviceCount = await prisma.microservice.count({
-            where: {
-              id: { in: request.body.microserviceIds },
-              productId,
-            },
-          });
-
-          if (microserviceCount !== request.body.microserviceIds.length) {
-            return reply
-              .status(400)
-              .send({ error: "One or more microservices not found or do not belong to this product" });
-          }
+        if (microserviceIds.length > 0 && microserviceCount !== microserviceIds.length) {
+          return reply
+            .status(400)
+            .send({ error: "One or more microservices not found or do not belong to this product" });
         }
 
-        // Verify downstreams belong to product (if provided)
-        if (request.body.downstreamIds && request.body.downstreamIds.length > 0) {
-          const downstreamCount = await prisma.downstream.count({
-            where: {
-              id: { in: request.body.downstreamIds },
-              productId,
-            },
-          });
-
-          if (downstreamCount !== request.body.downstreamIds.length) {
-            return reply
-              .status(400)
-              .send({ error: "One or more downstreams not found or do not belong to this product" });
-          }
+        if (downstreamIds.length > 0 && downstreamCount !== downstreamIds.length) {
+          return reply
+            .status(400)
+            .send({ error: "One or more downstreams not found or do not belong to this product" });
         }
 
         const { ignoreReasonCode, ignoreDetails } = request.body;
@@ -807,102 +648,77 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
           return reply.status(403).send({ error: "Permission denied" });
         }
 
-        // Verify operator exists (if provided)
-        if (request.body.operatorId) {
-          const operator = await prisma.user.findUnique({
-            where: { id: request.body.operatorId },
-          });
+        // Verify operator, alarm, and environment in parallel (all independent)
+        const [operator, alarm, environment] = await Promise.all([
+          request.body.operatorId
+            ? prisma.user.findUnique({ where: { id: request.body.operatorId } })
+            : Promise.resolve(true),
+          request.body.alarmId
+            ? prisma.alarm.findFirst({ where: { id: request.body.alarmId, productId } })
+            : Promise.resolve(true),
+          request.body.environmentId
+            ? prisma.environment.findFirst({ where: { id: request.body.environmentId, productId } })
+            : Promise.resolve(true),
+        ]);
 
-          if (!operator) {
-            return reply.status(400).send({ error: "Operator not found" });
-          }
+        if (request.body.operatorId && !operator) {
+          return reply.status(400).send({ error: "Operator not found" });
         }
 
-        // Verify alarm belongs to product (if provided)
-        if (request.body.alarmId) {
-          const alarm = await prisma.alarm.findFirst({
-            where: { id: request.body.alarmId, productId },
-          });
-
-          if (!alarm) {
-            return reply
-              .status(400)
-              .send({ error: "Alarm not found or does not belong to this product" });
-          }
+        if (request.body.alarmId && !alarm) {
+          return reply
+            .status(400)
+            .send({ error: "Alarm not found or does not belong to this product" });
         }
 
-        // Verify environment belongs to product (if provided)
-        if (request.body.environmentId) {
-          const environment = await prisma.environment.findFirst({
-            where: { id: request.body.environmentId, productId },
-          });
-
-          if (!environment) {
-            return reply
-              .status(400)
-              .send({ error: "Environment not found or does not belong to this product" });
-          }
+        if (request.body.environmentId && !environment) {
+          return reply
+            .status(400)
+            .send({ error: "Environment not found or does not belong to this product" });
         }
 
-        // Verify final actions belong to product (if provided)
-        if (request.body.finalActionIds && request.body.finalActionIds.length > 0) {
-          const finalActionCount = await prisma.finalAction.count({
-            where: {
-              id: { in: request.body.finalActionIds },
-              productId,
-            },
-          });
+        // Verify optional related entities in parallel
+        const updateFinalActionIds = request.body.finalActionIds ?? [];
+        const updateMicroserviceIds = request.body.microserviceIds ?? [];
+        const updateDownstreamIds = request.body.downstreamIds ?? [];
 
-          if (finalActionCount !== request.body.finalActionIds.length) {
-            return reply
-              .status(400)
-              .send({ error: "One or more final actions not found or do not belong to this product" });
-          }
+        const [updateFinalActionCount, updateRunbook, updateMicroserviceCount, updateDownstreamCount] = await Promise.all([
+          updateFinalActionIds.length > 0
+            ? prisma.finalAction.count({ where: { id: { in: updateFinalActionIds }, productId } })
+            : Promise.resolve(0),
+          request.body.runbookId
+            ? prisma.runbook.findFirst({ where: { id: request.body.runbookId, productId } })
+            : Promise.resolve(null),
+          updateMicroserviceIds.length > 0
+            ? prisma.microservice.count({ where: { id: { in: updateMicroserviceIds }, productId } })
+            : Promise.resolve(0),
+          updateDownstreamIds.length > 0
+            ? prisma.downstream.count({ where: { id: { in: updateDownstreamIds }, productId } })
+            : Promise.resolve(0),
+        ]);
+
+        if (updateFinalActionIds.length > 0 && updateFinalActionCount !== updateFinalActionIds.length) {
+          return reply
+            .status(400)
+            .send({ error: "One or more final actions not found or do not belong to this product" });
         }
 
-        // Verify runbook belongs to product (if provided and not null)
-        if (request.body.runbookId) {
-          const runbook = await prisma.runbook.findFirst({
-            where: { id: request.body.runbookId, productId },
-          });
-
-          if (!runbook) {
-            return reply
-              .status(400)
-              .send({ error: "Runbook not found or does not belong to this product" });
-          }
+        if (request.body.runbookId && !updateRunbook) {
+          return reply
+            .status(400)
+            .send({ error: "Runbook not found or does not belong to this product" });
         }
 
-        // Verify microservices belong to product (if provided)
-        if (request.body.microserviceIds && request.body.microserviceIds.length > 0) {
-          const microserviceCount = await prisma.microservice.count({
-            where: {
-              id: { in: request.body.microserviceIds },
-              productId,
-            },
-          });
-
-          if (microserviceCount !== request.body.microserviceIds.length) {
-            return reply
-              .status(400)
-              .send({ error: "One or more microservices not found or do not belong to this product" });
-          }
+        if (updateMicroserviceIds.length > 0 && updateMicroserviceCount !== updateMicroserviceIds.length) {
+          return reply
+            .status(400)
+            .send({ error: "One or more microservices not found or do not belong to this product" });
         }
 
-        // Verify downstreams belong to product (if provided)
-        if (request.body.downstreamIds && request.body.downstreamIds.length > 0) {
-          const downstreamCount = await prisma.downstream.count({
-            where: {
-              id: { in: request.body.downstreamIds },
-              productId,
-            },
-          });
-
-          if (downstreamCount !== request.body.downstreamIds.length) {
-            return reply
-              .status(400)
-              .send({ error: "One or more downstreams not found or do not belong to this product" });
-          }
+        if (updateDownstreamIds.length > 0 && updateDownstreamCount !== updateDownstreamIds.length) {
+          return reply
+            .status(400)
+            .send({ error: "One or more downstreams not found or do not belong to this product" });
         }
 
         // Validate ignoreReasonCode when analysisType is IGNORABLE
@@ -1216,8 +1032,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
         const { productId, dateFrom, dateTo } = request.query;
 
         // Build base where clause
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const where: Record<string, any> = {};
+        const where: Prisma.AlarmAnalysisWhereInput = {};
         if (productId) where.productId = productId;
         if (dateFrom || dateTo) {
           where.analysisDate = {};
@@ -1241,8 +1056,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
           const duration = to.getTime() - from.getTime();
           const prevFrom = new Date(from.getTime() - duration);
           const prevTo = new Date(from.getTime());
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const prevWhere: Record<string, any> = {
+          const prevWhere: Prisma.AlarmAnalysisWhereInput = {
             ...where,
             analysisDate: { gte: prevFrom, lte: prevTo },
           };
@@ -1254,44 +1068,115 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
           totalOccurrencesPrevious = prevAgg._sum.occurrences || 0;
         }
 
-        // KPI: top final action
-        const topFinalActionRaw = await prisma.analysisFinalAction.groupBy({
-          by: ["finalActionId"],
-          where: { analysis: where },
-          _count: { finalActionId: true },
-          orderBy: { _count: { finalActionId: "desc" } },
-          take: 1,
-        });
+        // Compute daily date range (needed for dailyRaw query)
+        const now = new Date();
+        const dailyFrom = dateFrom
+          ? new Date(dateFrom)
+          : new Date(now.getFullYear(), now.getMonth(), 1);
+        const dailyTo = dateTo ? new Date(dateTo) : now;
 
-        let topFinalAction: { id: string; name: string; count: number } | null = null;
-        const topFaEntry = topFinalActionRaw[0];
-        if (topFaEntry) {
-          const fa = await prisma.finalAction.findUnique({
-            where: { id: topFaEntry.finalActionId },
-            select: { id: true, name: true },
-          });
-          if (fa) {
-            topFinalAction = { id: fa.id, name: fa.name, count: topFaEntry._count.finalActionId };
-          }
-        }
+        // All aggregation queries are independent — run in parallel
+        const [
+          topFinalActionRaw,
+          byProdEnvRaw,
+          byOpRaw,
+          byTypeRaw,
+          topAlarmsRaw,
+          dailyRaw,
+          onCallRaw,
+        ] = await Promise.all([
+          prisma.analysisFinalAction.groupBy({
+            by: ["finalActionId"],
+            where: { analysis: where },
+            _count: { finalActionId: true },
+            orderBy: { _count: { finalActionId: "desc" } },
+            take: 1,
+          }),
+          prisma.alarmAnalysis.groupBy({
+            by: ["productId", "environmentId"],
+            where,
+            _count: { id: true },
+          }),
+          prisma.alarmAnalysis.groupBy({
+            by: ["operatorId"],
+            where,
+            _count: { id: true },
+          }),
+          prisma.alarmAnalysis.groupBy({
+            by: ["analysisType"],
+            where,
+            _count: { id: true },
+          }),
+          prisma.alarmAnalysis.groupBy({
+            by: ["alarmId"],
+            where,
+            _count: { id: true },
+            orderBy: { _count: { id: "desc" } },
+            take: 10,
+          }),
+          prisma.$queryRawUnsafe<
+            Array<{ date: string; environment_id: string; count: bigint; total_occurrences: bigint }>
+          >(
+            `SELECT DATE(analysis_date) as date, environment_id, COUNT(*)::bigint as count, COALESCE(SUM(occurrences), 0)::bigint as total_occurrences
+             FROM alarm_analyses
+             WHERE analysis_date >= $1 AND analysis_date <= $2
+             ${productId ? "AND product_id = $3" : ""}
+             GROUP BY DATE(analysis_date), environment_id
+             ORDER BY date ASC`,
+            ...(productId ? [dailyFrom, dailyTo, productId] : [dailyFrom, dailyTo])
+          ),
+          prisma.$queryRawUnsafe<
+            Array<{ month: string; is_on_call: boolean; count: bigint }>
+          >(
+            `SELECT TO_CHAR(analysis_date, 'YYYY-MM') as month, is_on_call, COUNT(*)::bigint as count
+             FROM alarm_analyses
+             WHERE 1=1
+             ${productId ? "AND product_id = $1" : ""}
+             ${dateFrom ? `AND analysis_date >= $${productId ? 2 : 1}` : ""}
+             ${dateTo ? `AND analysis_date <= $${(productId ? 1 : 0) + (dateFrom ? 1 : 0) + 1}` : ""}
+             GROUP BY month, is_on_call
+             ORDER BY month ASC`,
+            ...[productId, dateFrom ? new Date(dateFrom) : undefined, dateTo ? new Date(dateTo) : undefined].filter(
+              (v) => v !== undefined
+            )
+          ),
+        ]);
 
-        // 1. Count by product × environment
-        const byProdEnvRaw = await prisma.alarmAnalysis.groupBy({
-          by: ["productId", "environmentId"],
-          where,
-          _count: { id: true },
-        });
-
-        // Resolve names
+        // Name resolution queries — depend on aggregation results, parallelized among themselves
         const productIds = [...new Set(byProdEnvRaw.map((r: { productId: string }) => r.productId))];
         const environmentIds = [...new Set(byProdEnvRaw.map((r: { environmentId: string }) => r.environmentId))];
+        const operatorIds = byOpRaw.map((r: { operatorId: string }) => r.operatorId);
+        const alarmIds = topAlarmsRaw.map((r: { alarmId: string }) => r.alarmId);
+        const dailyEnvIds = [...new Set(dailyRaw.map((r: { environment_id: string }) => r.environment_id))];
+        const topFaEntry = topFinalActionRaw[0];
 
-        const [products, environments] = await Promise.all([
+        const [products, environments, operators, alarms, dailyEnvs, topFinalActionEntity] = await Promise.all([
           prisma.product.findMany({ where: { id: { in: productIds } }, select: { id: true, name: true } }),
           prisma.environment.findMany({ where: { id: { in: environmentIds } }, select: { id: true, name: true } }),
+          prisma.user.findMany({ where: { id: { in: operatorIds } }, select: { id: true, name: true } }),
+          alarmIds.length > 0
+            ? prisma.alarm.findMany({ where: { id: { in: alarmIds } }, select: { id: true, name: true } })
+            : Promise.resolve([]),
+          dailyEnvIds.length > 0
+            ? prisma.environment.findMany({ where: { id: { in: dailyEnvIds } }, select: { id: true, name: true } })
+            : Promise.resolve([]),
+          topFaEntry
+            ? prisma.finalAction.findUnique({ where: { id: topFaEntry.finalActionId }, select: { id: true, name: true } })
+            : Promise.resolve(null),
         ]);
+
+        // Build lookup maps
         const productMap = new Map(products.map((p: { id: string; name: string }) => [p.id, p.name]));
         const envMap = new Map(environments.map((e: { id: string; name: string }) => [e.id, e.name]));
+        const opMap = new Map(operators.map((o: { id: string; name: string }) => [o.id, o.name]));
+        const alarmMap = new Map(alarms.map((a: { id: string; name: string }) => [a.id, a.name]));
+        const dailyEnvMap = new Map(dailyEnvs.map((e: { id: string; name: string }) => [e.id, e.name]));
+
+        // Assemble results
+        const topFinalAction: { id: string; name: string; count: number } | null =
+          topFaEntry && topFinalActionEntity
+            ? { id: topFinalActionEntity.id, name: topFinalActionEntity.name, count: topFaEntry._count.finalActionId }
+            : null;
 
         const byProductEnvironment = byProdEnvRaw.map((r: { productId: string; environmentId: string; _count: { id: number } }) => ({
           productId: r.productId,
@@ -1301,20 +1186,6 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
           count: r._count.id,
         }));
 
-        // 2. Count by operator
-        const byOpRaw = await prisma.alarmAnalysis.groupBy({
-          by: ["operatorId"],
-          where,
-          _count: { id: true },
-        });
-
-        const operatorIds = byOpRaw.map((r: { operatorId: string }) => r.operatorId);
-        const operators = await prisma.user.findMany({
-          where: { id: { in: operatorIds } },
-          select: { id: true, name: true },
-        });
-        const opMap = new Map(operators.map((o: { id: string; name: string }) => [o.id, o.name]));
-
         const byOperator = byOpRaw
           .map((r: { operatorId: string; _count: { id: number } }) => ({
             operatorId: r.operatorId,
@@ -1322,35 +1193,6 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
             count: r._count.id,
           }))
           .sort((a: { count: number }, b: { count: number }) => b.count - a.count);
-
-        // 3. Daily by environment (current month or date range)
-        const now = new Date();
-        const dailyFrom = dateFrom
-          ? new Date(dateFrom)
-          : new Date(now.getFullYear(), now.getMonth(), 1);
-        const dailyTo = dateTo ? new Date(dateTo) : now;
-
-        const dailyRaw = await prisma.$queryRawUnsafe<
-          Array<{ date: string; environment_id: string; count: bigint; total_occurrences: bigint }>
-        >(
-          `SELECT DATE(analysis_date) as date, environment_id, COUNT(*)::bigint as count, COALESCE(SUM(occurrences), 0)::bigint as total_occurrences
-           FROM alarm_analyses
-           WHERE analysis_date >= $1 AND analysis_date <= $2
-           ${productId ? "AND product_id = $3" : ""}
-           GROUP BY DATE(analysis_date), environment_id
-           ORDER BY date ASC`,
-          ...(productId ? [dailyFrom, dailyTo, productId] : [dailyFrom, dailyTo])
-        );
-
-        // Resolve environment names for daily
-        const dailyEnvIds = [...new Set(dailyRaw.map((r: { environment_id: string }) => r.environment_id))];
-        const dailyEnvs = dailyEnvIds.length > 0
-          ? await prisma.environment.findMany({
-              where: { id: { in: dailyEnvIds } },
-              select: { id: true, name: true },
-            })
-          : [];
-        const dailyEnvMap = new Map(dailyEnvs.map((e: { id: string; name: string }) => [e.id, e.name]));
 
         const dailyByEnvironment = dailyRaw.map((r: { date: string; environment_id: string; count: bigint; total_occurrences: bigint }) => ({
           date: typeof r.date === "string" ? r.date.split("T")[0] : new Date(r.date).toISOString().split("T")[0],
@@ -1360,33 +1202,10 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
           totalOccurrences: Number(r.total_occurrences),
         }));
 
-        // 4. Count by analysis type
-        const byTypeRaw = await prisma.alarmAnalysis.groupBy({
-          by: ["analysisType"],
-          where,
-          _count: { id: true },
-        });
-
         const byAnalysisType = byTypeRaw.map((r: { analysisType: string; _count: { id: number } }) => ({
           analysisType: r.analysisType,
           count: r._count.id,
         }));
-
-        // 5. Top 10 alarms
-        const topAlarmsRaw = await prisma.alarmAnalysis.groupBy({
-          by: ["alarmId"],
-          where,
-          _count: { id: true },
-          orderBy: { _count: { id: "desc" } },
-          take: 10,
-        });
-
-        const alarmIds = topAlarmsRaw.map((r: { alarmId: string }) => r.alarmId);
-        const alarms = await prisma.alarm.findMany({
-          where: { id: { in: alarmIds } },
-          select: { id: true, name: true },
-        });
-        const alarmMap = new Map(alarms.map((a: { id: string; name: string }) => [a.id, a.name]));
 
         const topAlarms = topAlarmsRaw.map((r: { alarmId: string; _count: { id: number } }) => ({
           alarmId: r.alarmId,
@@ -1394,36 +1213,19 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
           count: r._count.id,
         }));
 
-        // 6. On-call vs normal trend (monthly)
-        const onCallRaw = await prisma.$queryRawUnsafe<
-          Array<{ month: string; is_on_call: boolean; count: bigint }>
-        >(
-          `SELECT TO_CHAR(analysis_date, 'YYYY-MM') as month, is_on_call, COUNT(*)::bigint as count
-           FROM alarm_analyses
-           WHERE 1=1
-           ${productId ? "AND product_id = $1" : ""}
-           ${dateFrom ? `AND analysis_date >= $${productId ? 2 : 1}` : ""}
-           ${dateTo ? `AND analysis_date <= $${(productId ? 1 : 0) + (dateFrom ? 1 : 0) + 1}` : ""}
-           GROUP BY month, is_on_call
-           ORDER BY month ASC`,
-          ...[productId, dateFrom ? new Date(dateFrom) : undefined, dateTo ? new Date(dateTo) : undefined].filter(
-            (v) => v !== undefined
-          )
-        );
-
         // Pivot on-call data
-        const onCallMap = new Map<string, { onCall: number; normal: number }>();
+        const onCallTrendMap = new Map<string, { onCall: number; normal: number }>();
         for (const r of onCallRaw) {
-          const entry = onCallMap.get(r.month) || { onCall: 0, normal: 0 };
+          const entry = onCallTrendMap.get(r.month) || { onCall: 0, normal: 0 };
           if (r.is_on_call) {
             entry.onCall = Number(r.count);
           } else {
             entry.normal = Number(r.count);
           }
-          onCallMap.set(r.month, entry);
+          onCallTrendMap.set(r.month, entry);
         }
 
-        const onCallTrend = Array.from(onCallMap.entries())
+        const onCallTrend = Array.from(onCallTrendMap.entries())
           .map(([month, data]) => ({
             month,
             onCall: data.onCall,

@@ -1,5 +1,5 @@
 import { Type, type Static } from "@sinclair/typebox";
-import { ErrorResponseSchema } from "../../schemas/common.js";
+import { ErrorResponseSchema, DateRangeFilterSchema } from "../../schemas/common.js";
 
 export { ErrorResponseSchema };
 
@@ -7,11 +7,7 @@ export { ErrorResponseSchema };
 // Query Schema (shared filters, same as stats endpoint)
 // ============================================================================
 
-export const ReportQuerySchema = Type.Object({
-  productId: Type.Optional(Type.String()),
-  dateFrom: Type.Optional(Type.String()),
-  dateTo: Type.Optional(Type.String()),
-});
+export const ReportQuerySchema = DateRangeFilterSchema;
 
 export type ReportQuery = Static<typeof ReportQuerySchema>;
 

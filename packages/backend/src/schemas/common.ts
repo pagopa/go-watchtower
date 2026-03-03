@@ -1,5 +1,5 @@
 import { Type } from "@sinclair/typebox";
-import { PermissionScopes } from "@go-watchtower/shared";
+import { PermissionScopes, RunbookStatuses } from "@go-watchtower/shared";
 
 // ─── Schemi di risposta comuni ────────────────────────────────────────────────
 
@@ -19,4 +19,26 @@ export const PermissionScopeSchema = Type.Union([
   Type.Literal(PermissionScopes.NONE),
   Type.Literal(PermissionScopes.OWN),
   Type.Literal(PermissionScopes.ALL),
+]);
+
+// ─── Schemi condivisi tra route ───────────────────────────────────────────────
+
+export const ProductIdParamsSchema = Type.Object({
+  productId: Type.String(),
+});
+
+export const DateRangeFilterSchema = Type.Object({
+  productId: Type.Optional(Type.String()),
+  dateFrom: Type.Optional(Type.String()),
+  dateTo: Type.Optional(Type.String()),
+});
+
+export const RelatedEntitySchema = Type.Object({
+  id: Type.String(),
+  name: Type.String(),
+});
+
+export const RunbookStatusSchema = Type.Union([
+  Type.Literal(RunbookStatuses.DRAFT),
+  Type.Literal(RunbookStatuses.COMPLETE),
 ]);

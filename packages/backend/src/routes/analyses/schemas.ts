@@ -4,11 +4,25 @@ import {
   AnalysisStatuses,
   AnalysisSortFields,
   SortDirections,
-  RunbookStatuses,
 } from "@go-watchtower/shared";
-import { ErrorResponseSchema, MessageResponseSchema } from "../../schemas/common.js";
+import {
+  ErrorResponseSchema,
+  MessageResponseSchema,
+  ProductIdParamsSchema,
+  DateRangeFilterSchema,
+  RelatedEntitySchema,
+  RunbookStatusSchema,
+} from "../../schemas/common.js";
+import { IgnoreReasonResponseSchema } from "../ignore-reasons/schemas.js";
 
-export { ErrorResponseSchema, MessageResponseSchema };
+export {
+  ErrorResponseSchema,
+  MessageResponseSchema,
+  ProductIdParamsSchema,
+  DateRangeFilterSchema,
+  RelatedEntitySchema,
+  RunbookStatusSchema,
+};
 
 // ============================================================================
 // Enum Schemas
@@ -20,14 +34,6 @@ export const AnalysisTypeSchema = Type.Union([
   Type.Literal(AnalysisTypes.ANALYZABLE),
   Type.Literal(AnalysisTypes.IGNORABLE),
 ]);
-
-export const IgnoreReasonSchema = Type.Object({
-  code:          Type.String(),
-  label:         Type.String(),
-  description:   Type.Union([Type.String(), Type.Null()]),
-  sortOrder:     Type.Integer(),
-  detailsSchema: Type.Union([Type.Record(Type.String(), Type.Unknown()), Type.Null()]),
-});
 
 export type AnalysisTypeValue = Static<typeof AnalysisTypeSchema>;
 
@@ -42,10 +48,6 @@ export type AnalysisStatusValue = Static<typeof AnalysisStatusSchema>;
 // ============================================================================
 // Param Schemas
 // ============================================================================
-
-export const ProductIdParamsSchema = Type.Object({
-  productId: Type.String(),
-});
 
 export type ProductIdParams = Static<typeof ProductIdParamsSchema>;
 
@@ -216,16 +218,6 @@ const RelatedUserSchema = Type.Object({
   email: Type.String(),
 });
 
-const RelatedEntitySchema = Type.Object({
-  id: Type.String(),
-  name: Type.String(),
-});
-
-const RunbookStatusSchema = Type.Union([
-  Type.Literal(RunbookStatuses.DRAFT),
-  Type.Literal(RunbookStatuses.COMPLETE),
-]);
-
 const RunbookResponseSchema = Type.Object({
   id: Type.String(),
   name: Type.String(),
@@ -265,7 +257,7 @@ export const AlarmAnalysisResponseSchema = Type.Object({
   updatedBy: Type.Union([RelatedUserSchema, Type.Null()]),
   microservices: Type.Array(RelatedEntitySchema),
   downstreams: Type.Array(RelatedEntitySchema),
-  ignoreReason: Type.Union([IgnoreReasonSchema, Type.Null()]),
+  ignoreReason: Type.Union([IgnoreReasonResponseSchema, Type.Null()]),
   links: Type.Array(LinkSchema),
   trackingIds: Type.Array(TrackingEntrySchema),
   validationScore: Type.Union([Type.Integer(), Type.Null()]),
@@ -273,7 +265,7 @@ export const AlarmAnalysisResponseSchema = Type.Object({
   scoredAt:        Type.Union([Type.String(), Type.Null()]),
 });
 
-export const IgnoreReasonsResponseSchema = Type.Array(IgnoreReasonSchema);
+export const IgnoreReasonsResponseSchema = Type.Array(IgnoreReasonResponseSchema);
 
 export const PaginatedAlarmAnalysisResponseSchema = Type.Object({
   data: Type.Array(AlarmAnalysisResponseSchema),
@@ -305,11 +297,7 @@ export type AnalysisAuthor = Static<typeof AnalysisAuthorSchema>;
 // Analysis Stats Schemas
 // ============================================================================
 
-export const AnalysisStatsQuerySchema = Type.Object({
-  productId: Type.Optional(Type.String()),
-  dateFrom: Type.Optional(Type.String()),
-  dateTo: Type.Optional(Type.String()),
-});
+export const AnalysisStatsQuerySchema = DateRangeFilterSchema;
 
 export type AnalysisStatsQuery = Static<typeof AnalysisStatsQuerySchema>;
 

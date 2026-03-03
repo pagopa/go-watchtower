@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useCallback, useState, useRef, useEffect } from 'react'
+import { useMemo, useCallback, useState, useRef, useEffect, useLayoutEffect } from 'react'
 import { usePreferences } from '@/hooks/use-preferences'
 import type { ColumnSettings } from '@/lib/api-client'
 
@@ -104,8 +104,10 @@ export function useColumnSettings(
   // Debounced persistence for width changes
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingWidths = useRef<Record<string, number>>(effectiveWidths)
-  // Keep ref in sync synchronously so debounced callback always sees latest widths
-  pendingWidths.current = effectiveWidths
+  // Keep ref in sync after each render so debounced callback always sees latest widths
+  useLayoutEffect(() => {
+    pendingWidths.current = effectiveWidths
+  })
 
   // Cleanup timer on unmount
   useEffect(() => {

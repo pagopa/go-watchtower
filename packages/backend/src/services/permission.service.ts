@@ -220,27 +220,6 @@ export async function getUserPermissionOverrides(userId: string) {
 }
 
 /**
- * Change a user's role.
- */
-export async function changeUserRole(
-  userId: string,
-  roleName: string
-): Promise<void> {
-  const role = await prisma.role.findUnique({
-    where: { name: roleName },
-  });
-
-  if (!role) {
-    throw new Error(`Role "${roleName}" not found`);
-  }
-
-  await prisma.user.update({
-    where: { id: userId },
-    data: { roleId: role.id },
-  });
-}
-
-/**
  * Get all available roles.
  */
 export async function getAllRoles() {
@@ -252,18 +231,6 @@ export async function getAllRoles() {
       },
     },
     orderBy: { name: "asc" },
-  });
-}
-
-/**
- * Get role by name with permissions.
- */
-export async function getRoleByName(name: string) {
-  return prisma.role.findUnique({
-    where: { name },
-    include: {
-      permissions: true,
-    },
   });
 }
 

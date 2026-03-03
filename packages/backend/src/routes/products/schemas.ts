@@ -1,8 +1,18 @@
 import { Type, type Static } from "@sinclair/typebox";
-import { RunbookStatuses } from "@go-watchtower/shared";
-import { ErrorResponseSchema, MessageResponseSchema } from "../../schemas/common.js";
+import {
+  ErrorResponseSchema,
+  MessageResponseSchema,
+  ProductIdParamsSchema,
+  RelatedEntitySchema,
+  RunbookStatusSchema,
+} from "../../schemas/common.js";
 
-export { ErrorResponseSchema, MessageResponseSchema };
+export {
+  ErrorResponseSchema,
+  MessageResponseSchema,
+  ProductIdParamsSchema,
+  RunbookStatusSchema,
+};
 
 // ============================================================================
 // Product Schemas
@@ -68,10 +78,6 @@ export const EnvironmentParamsSchema = Type.Object({
 
 export type EnvironmentParams = Static<typeof EnvironmentParamsSchema>;
 
-export const ProductIdParamsSchema = Type.Object({
-  productId: Type.String(),
-});
-
 export type ProductIdParams = Static<typeof ProductIdParamsSchema>;
 
 export const EnvironmentResponseSchema = Type.Object({
@@ -125,11 +131,6 @@ export const MicroservicesResponseSchema = Type.Array(MicroserviceResponseSchema
 // ============================================================================
 // Runbook Schemas
 // ============================================================================
-
-export const RunbookStatusSchema = Type.Union([
-  Type.Literal(RunbookStatuses.DRAFT),
-  Type.Literal(RunbookStatuses.COMPLETE),
-]);
 
 export const CreateRunbookBodySchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 255 }),
@@ -341,11 +342,6 @@ export const IgnoredAlarmParamsSchema = Type.Object({
 });
 
 export type IgnoredAlarmParams = Static<typeof IgnoredAlarmParamsSchema>;
-
-const RelatedEntitySchema = Type.Object({
-  id: Type.String(),
-  name: Type.String(),
-});
 
 export const IgnoredAlarmResponseSchema = Type.Object({
   id: Type.String(),

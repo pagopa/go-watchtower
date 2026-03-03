@@ -1,4 +1,4 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import {
   RegisterBodySchema,
@@ -66,10 +66,10 @@ function getClientInfo(request: { headers: { [key: string]: unknown }; ip: strin
 }
 
 function setTokenCookies(
-  reply: { setCookie: Function },
+  reply: FastifyReply,
   accessToken: string,
   refreshToken: string
-) {
+): void {
   // Access token cookie (short-lived, httpOnly)
   reply.setCookie("accessToken", accessToken, {
     path: "/",
@@ -89,7 +89,7 @@ function setTokenCookies(
   });
 }
 
-function clearTokenCookies(reply: { clearCookie: Function }) {
+function clearTokenCookies(reply: FastifyReply): void {
   reply.clearCookie("accessToken", { path: "/" });
   reply.clearCookie("refreshToken", { path: "/auth" });
 }

@@ -1,13 +1,8 @@
 import crypto from "node:crypto";
 import { prisma } from "@go-watchtower/database";
+import { env } from "../config/env.js";
 
 const REFRESH_TOKEN_BYTES = 32;
-const REFRESH_TOKEN_EXPIRY_DAYS = 7;
-
-export interface TokenPair {
-  accessToken: string;
-  refreshToken: string;
-}
 
 export interface RefreshTokenData {
   userId: string;
@@ -29,7 +24,7 @@ export async function createRefreshToken(
   const token = generateRefreshToken();
   const tokenHash = hashToken(token);
   const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_EXPIRY_DAYS);
+  expiresAt.setDate(expiresAt.getDate() + env.REFRESH_TOKEN_EXPIRES_DAYS);
 
   await prisma.refreshToken.create({
     data: {
@@ -99,7 +94,7 @@ export async function rotateRefreshToken(
   const newToken = generateRefreshToken();
   const newTokenHash = hashToken(newToken);
   const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_EXPIRY_DAYS);
+  expiresAt.setDate(expiresAt.getDate() + env.REFRESH_TOKEN_EXPIRES_DAYS);
 
   // Atomic operation: revoke old token and create new one
   await prisma.$transaction([

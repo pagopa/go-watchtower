@@ -1,9 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
-import { prisma, Prisma } from "@go-watchtower/database";
-import { hasPermission } from "../../services/permission.service.js";
+import { prisma, Prisma, Resource } from "@go-watchtower/database";
 import { buildDiff } from "../../services/system-event.service.js";
 import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
+import { requirePermission } from "../../lib/require-permission.js";
 import {
   IgnoreReasonResponseSchema,
   IgnoreReasonsResponseSchema,
@@ -25,15 +25,15 @@ export async function ignoreReasonRoutes(app: FastifyInstance) {
   server.get(
     "/ignore-reasons",
     {
+      onRequest: [server.authenticate],
       schema: {
         tags: ["Ignore Reasons"],
         summary: "List all ignore reasons",
+        security: [{ bearerAuth: [] }],
         response: { 200: IgnoreReasonsResponseSchema },
       },
     },
-    async (request, reply) => {
-      await request.jwtVerify();
-
+    async (_request, reply) => {
       const reasons = await prisma.ignoreReason.findMany({
         orderBy: { sortOrder: "asc" },
       });
@@ -52,9 +52,11 @@ export async function ignoreReasonRoutes(app: FastifyInstance) {
   server.get<{ Params: IgnoreReasonParams }>(
     "/ignore-reasons/:code",
     {
+      onRequest: [server.authenticate],
       schema: {
         tags: ["Ignore Reasons"],
         summary: "Get a single ignore reason",
+        security: [{ bearerAuth: [] }],
         params: IgnoreReasonParamsSchema,
         response: {
           200: IgnoreReasonResponseSchema,
@@ -63,8 +65,6 @@ export async function ignoreReasonRoutes(app: FastifyInstance) {
       },
     },
     async (request, reply) => {
-      await request.jwtVerify();
-
       const reason = await prisma.ignoreReason.findUnique({
         where: { code: request.params.code },
       });
@@ -85,9 +85,11 @@ export async function ignoreReasonRoutes(app: FastifyInstance) {
   server.post<{ Body: CreateIgnoreReasonBody }>(
     "/ignore-reasons",
     {
+      onRequest: [server.authenticate, requirePermission(Resource.SYSTEM_SETTING, "write")],
       schema: {
         tags: ["Ignore Reasons"],
         summary: "Create an ignore reason",
+        security: [{ bearerAuth: [] }],
         body: CreateIgnoreReasonBodySchema,
         response: {
           201: IgnoreReasonResponseSchema,
@@ -98,13 +100,6 @@ export async function ignoreReasonRoutes(app: FastifyInstance) {
       },
     },
     async (request, reply) => {
-      await request.jwtVerify();
-
-      const allowed = await hasPermission(request.user.userId, "SYSTEM_SETTING", "write");
-      if (!allowed) {
-        return reply.status(403).send({ error: "Forbidden" });
-      }
-
       const existing = await prisma.ignoreReason.findUnique({
         where: { code: request.body.code },
       });
@@ -144,9 +139,11 @@ export async function ignoreReasonRoutes(app: FastifyInstance) {
   server.patch<{ Params: IgnoreReasonParams; Body: UpdateIgnoreReasonBody }>(
     "/ignore-reasons/:code",
     {
+      onRequest: [server.authenticate, requirePermission(Resource.SYSTEM_SETTING, "write")],
       schema: {
         tags: ["Ignore Reasons"],
         summary: "Update an ignore reason",
+        security: [{ bearerAuth: [] }],
         params: IgnoreReasonParamsSchema,
         body: UpdateIgnoreReasonBodySchema,
         response: {
@@ -157,13 +154,6 @@ export async function ignoreReasonRoutes(app: FastifyInstance) {
       },
     },
     async (request, reply) => {
-      await request.jwtVerify();
-
-      const allowed = await hasPermission(request.user.userId, "SYSTEM_SETTING", "write");
-      if (!allowed) {
-        return reply.status(403).send({ error: "Forbidden" });
-      }
-
       const existing = await prisma.ignoreReason.findUnique({
         where: { code: request.params.code },
       });
@@ -207,9 +197,11 @@ export async function ignoreReasonRoutes(app: FastifyInstance) {
   server.delete<{ Params: IgnoreReasonParams }>(
     "/ignore-reasons/:code",
     {
+      onRequest: [server.authenticate, requirePermission(Resource.SYSTEM_SETTING, "write")],
       schema: {
         tags: ["Ignore Reasons"],
         summary: "Delete an ignore reason",
+        security: [{ bearerAuth: [] }],
         params: IgnoreReasonParamsSchema,
         response: {
           200: MessageResponseSchema,
@@ -220,13 +212,6 @@ export async function ignoreReasonRoutes(app: FastifyInstance) {
       },
     },
     async (request, reply) => {
-      await request.jwtVerify();
-
-      const allowed = await hasPermission(request.user.userId, "SYSTEM_SETTING", "write");
-      if (!allowed) {
-        return reply.status(403).send({ error: "Forbidden" });
-      }
-
       const existing = await prisma.ignoreReason.findUnique({
         where: { code: request.params.code },
         include: { _count: { select: { analyses: true } } },

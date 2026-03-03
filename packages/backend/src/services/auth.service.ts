@@ -49,18 +49,6 @@ async function getDefaultRoleId(): Promise<string> {
   return defaultRole.id;
 }
 
-async function getRoleIdByName(name: string): Promise<string> {
-  const role = await prisma.role.findUnique({
-    where: { name },
-  });
-
-  if (!role) {
-    throw new Error(`Role "${name}" not found. Please run database seed.`);
-  }
-
-  return role.id;
-}
-
 export async function registerUser(input: RegisterInput): Promise<SafeUser> {
   const existingUser = await prisma.user.findUnique({
     where: { email: input.email },
@@ -182,4 +170,4 @@ export async function getUserById(id: string): Promise<SafeUser | null> {
   return toSafeUser(user);
 }
 
-export { getRoleIdByName, getDefaultRoleId };
+export { getDefaultRoleId };

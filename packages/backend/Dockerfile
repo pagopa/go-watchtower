@@ -4,7 +4,7 @@
 FROM node:25-alpine AS builder
 
 # Install pnpm (corepack removed in Node 25)
-RUN npm install -g pnpm
+RUN npm install -g pnpm@latest
 
 WORKDIR /app
 

@@ -1,6 +1,5 @@
 import type { FastifyInstance } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
-import { Type } from "@sinclair/typebox";
 import {
   prisma,
   Resource,
@@ -641,14 +640,14 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
           where: {
             userId_resource: {
               userId: request.params.id,
-              resource: request.body.resource as Resource,
+              resource: request.body.resource,
             },
           },
         });
 
         await setUserPermissionOverride(
           request.params.id,
-          request.body.resource as Resource,
+          request.body.resource,
           {
             canRead: request.body.canRead,
             canWrite: request.body.canWrite,
@@ -1007,7 +1006,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         security: [{ bearerAuth: [] }],
         params: RoleIdParamsSchema,
         response: {
-          204: Type.Null(),
+          200: MessageResponseSchema,
           403: ErrorResponseSchema,
           404: ErrorResponseSchema,
           409: ErrorResponseSchema,
@@ -1046,7 +1045,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
           resourceLabel: existing.name,
         });
 
-        reply.status(204).send();
+        return reply.send({ message: "Role deleted successfully" });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to delete role";
         reply.status(500).send({ error: message });

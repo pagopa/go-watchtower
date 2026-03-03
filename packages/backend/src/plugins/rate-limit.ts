@@ -24,12 +24,3 @@ export const authRateLimitConfig = {
   },
 };
 
-// Even stricter for password reset, etc.
-export const sensitiveRateLimitConfig = {
-  config: {
-    rateLimit: {
-      max: 3, // 3 attempts per 15 minutes
-      timeWindow: "15 minutes",
-    },
-  },
-};

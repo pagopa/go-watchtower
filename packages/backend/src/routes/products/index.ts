@@ -531,6 +531,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         // Verify product exists
         const product = await prisma.product.findUnique({
           where: { id: request.params.productId },
+          select: { id: true },
         });
 
         if (!product) {
@@ -590,6 +591,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         // Verify product exists
         const product = await prisma.product.findUnique({
           where: { id: request.params.productId },
+          select: { id: true },
         });
 
         if (!product) {
@@ -794,6 +796,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         // Verify product exists
         const product = await prisma.product.findUnique({
           where: { id: request.params.productId },
+          select: { id: true },
         });
 
         if (!product) {
@@ -852,6 +855,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         // Verify product exists
         const product = await prisma.product.findUnique({
           where: { id: request.params.productId },
+          select: { id: true },
         });
 
         if (!product) {
@@ -1052,6 +1056,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         // Verify product exists
         const product = await prisma.product.findUnique({
           where: { id: request.params.productId },
+          select: { id: true },
         });
 
         if (!product) {
@@ -1112,6 +1117,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         // Verify product exists
         const product = await prisma.product.findUnique({
           where: { id: request.params.productId },
+          select: { id: true },
         });
 
         if (!product) {
@@ -1320,6 +1326,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         // Verify product exists
         const product = await prisma.product.findUnique({
           where: { id: request.params.productId },
+          select: { id: true },
         });
 
         if (!product) {
@@ -1380,6 +1387,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         // Verify product exists
         const product = await prisma.product.findUnique({
           where: { id: request.params.productId },
+          select: { id: true },
         });
 
         if (!product) {
@@ -1588,6 +1596,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         // Verify product exists
         const product = await prisma.product.findUnique({
           where: { id: request.params.productId },
+          select: { id: true },
         });
 
         if (!product) {
@@ -1649,6 +1658,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         // Verify product exists
         const product = await prisma.product.findUnique({
           where: { id: request.params.productId },
+          select: { id: true },
         });
 
         if (!product) {
@@ -1863,6 +1873,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         // Verify product exists
         const product = await prisma.product.findUnique({
           where: { id: request.params.productId },
+          select: { id: true },
         });
 
         if (!product) {
@@ -1921,6 +1932,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         // Verify product exists
         const product = await prisma.product.findUnique({
           where: { id: request.params.productId },
+          select: { id: true },
         });
 
         if (!product) {
@@ -2135,6 +2147,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
 
         const product = await prisma.product.findUnique({
           where: { id: request.params.productId },
+          select: { id: true },
         });
 
         if (!product) {
@@ -2235,6 +2248,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
 
         const product = await prisma.product.findUnique({
           where: { id: request.params.productId },
+          select: { id: true },
         });
 
         if (!product) {

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
-import { prisma, Resource } from "@go-watchtower/database";
+import { prisma, Prisma, Resource } from "@go-watchtower/database";
 import { hasPermission } from "../../services/permission.service.js";
 import {
   ReportQuerySchema,
@@ -10,10 +10,8 @@ import {
   type ReportQuery,
 } from "./schemas.js";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildWhereClause(query: ReportQuery): Record<string, any> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const where: Record<string, any> = {};
+function buildWhereClause(query: ReportQuery): Prisma.AlarmAnalysisWhereInput {
+  const where: Prisma.AlarmAnalysisWhereInput = {};
   if (query.productId) where.productId = query.productId;
   if (query.dateFrom || query.dateTo) {
     where.analysisDate = {};
@@ -59,41 +57,7 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
 
         const where = buildWhereClause(request.query);
 
-        // 1. Group by operator: count + sum occurrences
-        const byOperator = await prisma.alarmAnalysis.groupBy({
-          by: ["operatorId"],
-          where,
-          _count: { id: true },
-          _sum: { occurrences: true },
-        });
-
-        if (byOperator.length === 0) {
-          return reply.send([]);
-        }
-
-        // 2. Group by operator + isOnCall to get oncall counts
-        const byOperatorOnCall = await prisma.alarmAnalysis.groupBy({
-          by: ["operatorId", "isOnCall"],
-          where,
-          _count: { id: true },
-        });
-
-        // 3. Group by operator + environment: count + sum occurrences
-        const byOperatorEnv = await prisma.alarmAnalysis.groupBy({
-          by: ["operatorId", "environmentId"],
-          where,
-          _count: { id: true },
-          _sum: { occurrences: true },
-        });
-
-        // 4. Group by operator + environment + isOnCall
-        const byOperatorEnvOnCall = await prisma.alarmAnalysis.groupBy({
-          by: ["operatorId", "environmentId", "isOnCall"],
-          where,
-          _count: { id: true },
-        });
-
-        // 5. MTTA per operator (raw SQL)
+        // Build SQL params for MTTA queries
         const { productId, dateFrom, dateTo } = request.query;
         const sqlParams: unknown[] = [];
         const conditions: string[] = ["first_alarm_at IS NOT NULL"];
@@ -114,43 +78,79 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
 
         const whereSQL = conditions.join(" AND ");
 
-        const mttaByOperator = await prisma.$queryRawUnsafe<
-          Array<{ operator_id: string; mtta_ms: number | null }>
-        >(
-          `SELECT operator_id, AVG(EXTRACT(EPOCH FROM (analysis_date - first_alarm_at)) * 1000) as mtta_ms
-           FROM alarm_analyses
-           WHERE ${whereSQL}
-           GROUP BY operator_id`,
-          ...sqlParams
-        );
+        // All 6 aggregation queries are independent — run in parallel
+        const [
+          byOperator,
+          byOperatorOnCall,
+          byOperatorEnv,
+          byOperatorEnvOnCall,
+          mttaByOperator,
+          mttaByOperatorEnv,
+        ] = await Promise.all([
+          prisma.alarmAnalysis.groupBy({
+            by: ["operatorId"],
+            where,
+            _count: { id: true },
+            _sum: { occurrences: true },
+          }),
+          prisma.alarmAnalysis.groupBy({
+            by: ["operatorId", "isOnCall"],
+            where,
+            _count: { id: true },
+          }),
+          prisma.alarmAnalysis.groupBy({
+            by: ["operatorId", "environmentId"],
+            where,
+            _count: { id: true },
+            _sum: { occurrences: true },
+          }),
+          prisma.alarmAnalysis.groupBy({
+            by: ["operatorId", "environmentId", "isOnCall"],
+            where,
+            _count: { id: true },
+          }),
+          prisma.$queryRawUnsafe<
+            Array<{ operator_id: string; mtta_ms: number | null }>
+          >(
+            `SELECT operator_id, AVG(EXTRACT(EPOCH FROM (analysis_date - first_alarm_at)) * 1000) as mtta_ms
+             FROM alarm_analyses
+             WHERE ${whereSQL}
+             GROUP BY operator_id`,
+            ...sqlParams
+          ),
+          prisma.$queryRawUnsafe<
+            Array<{ operator_id: string; environment_id: string; mtta_ms: number | null }>
+          >(
+            `SELECT operator_id, environment_id, AVG(EXTRACT(EPOCH FROM (analysis_date - first_alarm_at)) * 1000) as mtta_ms
+             FROM alarm_analyses
+             WHERE ${whereSQL}
+             GROUP BY operator_id, environment_id`,
+            ...sqlParams
+          ),
+        ]);
 
-        // 6. MTTA per operator per environment
-        const mttaByOperatorEnv = await prisma.$queryRawUnsafe<
-          Array<{ operator_id: string; environment_id: string; mtta_ms: number | null }>
-        >(
-          `SELECT operator_id, environment_id, AVG(EXTRACT(EPOCH FROM (analysis_date - first_alarm_at)) * 1000) as mtta_ms
-           FROM alarm_analyses
-           WHERE ${whereSQL}
-           GROUP BY operator_id, environment_id`,
-          ...sqlParams
-        );
+        if (byOperator.length === 0) {
+          return reply.send([]);
+        }
 
-        // 7. Resolve operator names/emails
+        // Name resolution — depends on aggregation results, parallelized between them
         const operatorIds = byOperator.map((r: { operatorId: string }) => r.operatorId);
-        const operators = await prisma.user.findMany({
-          where: { id: { in: operatorIds } },
-          select: { id: true, name: true, email: true },
-        });
-        const opMap = new Map<string, { id: string; name: string; email: string }>(operators.map((o: { id: string; name: string; email: string }) => [o.id, o]));
-
-        // 8. Resolve environment names
         const envIds = [...new Set(byOperatorEnv.map((r: { environmentId: string }) => r.environmentId))];
-        const environments = envIds.length > 0
-          ? await prisma.environment.findMany({
-              where: { id: { in: envIds } },
-              select: { id: true, name: true },
-            })
-          : [];
+
+        const [operators, environments] = await Promise.all([
+          prisma.user.findMany({
+            where: { id: { in: operatorIds } },
+            select: { id: true, name: true, email: true },
+          }),
+          envIds.length > 0
+            ? prisma.environment.findMany({
+                where: { id: { in: envIds } },
+                select: { id: true, name: true },
+              })
+            : Promise.resolve([]),
+        ]);
+
+        const opMap = new Map<string, { id: string; name: string; email: string }>(operators.map((o: { id: string; name: string; email: string }) => [o.id, o]));
         const envMap = new Map(environments.map((e: { id: string; name: string }) => [e.id, e.name]));
 
         // Build lookup maps
