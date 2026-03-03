@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useState, Suspense } from 'react'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -48,9 +48,10 @@ const TAB_TRIGGER_CLASS =
   'data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm ' +
   'hover:text-foreground hover:bg-background/60 transition-colors'
 
-export function ProductDetailPage() {
+function ProductDetailContent() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const queryClient = useQueryClient()
   const { can, isLoading: permissionsLoading } = usePermissions()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -259,7 +260,7 @@ export function ProductDetailPage() {
 
       {/* Tabs section */}
       {hasAnyTab && (
-        <Tabs defaultValue={firstTab} orientation="vertical">
+        <Tabs defaultValue={searchParams.get('tab') ?? firstTab} orientation="vertical">
           <div className="flex gap-4 items-start">
             {/* Vertical nav sidebar */}
             <TabsList className="flex h-auto w-48 flex-col items-stretch justify-start gap-0.5 rounded-xl border bg-muted/30 p-1.5 shrink-0">
@@ -445,5 +446,33 @@ export function ProductDetailPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  )
+}
+
+export function ProductDetailPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="space-y-5">
+          <Skeleton className="h-5 w-40" />
+          <div className="rounded-xl border p-6 space-y-4">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-7 w-64" />
+            <Skeleton className="h-3 w-48" />
+            <Skeleton className="h-4 w-full max-w-md" />
+            <div className="flex gap-6 border-t pt-4">
+              <Skeleton className="h-3 w-36" />
+              <Skeleton className="h-3 w-36" />
+            </div>
+          </div>
+          <div className="flex gap-4">
+            <Skeleton className="h-56 w-48 rounded-xl" />
+            <Skeleton className="flex-1 h-56 rounded-xl" />
+          </div>
+        </div>
+      }
+    >
+      <ProductDetailContent />
+    </Suspense>
   )
 }

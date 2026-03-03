@@ -46,7 +46,11 @@ async function auditPlugin(app: FastifyInstance): Promise<void> {
 
       // Extract actor context from the request
       const userId = request.user?.userId ?? null;
-      const userLabel = request.user?.email ?? null;
+      const userLabel = request.user
+        ? request.user.name
+          ? `${request.user.name} (${request.user.email})`
+          : request.user.email
+        : null;
       const ipAddress = request.ip;
       const userAgent = request.headers["user-agent"] ?? null;
 

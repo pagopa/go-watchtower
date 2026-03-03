@@ -223,6 +223,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           resource: SystemEventResources.PRODUCTS,
           resourceId: product.id,
           resourceLabel: product.name,
+          metadata: { created: product },
         });
 
         reply.status(201).send({
@@ -476,6 +477,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           resource: SystemEventResources.ENVIRONMENTS,
           resourceId: environment.id,
           resourceLabel: environment.name,
+          metadata: { created: environment },
         });
 
         reply.status(201).send({
@@ -544,6 +546,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           resourceId: environment.id,
           resourceLabel: environment.name,
           metadata: {
+            productId: request.params.productId,
             changes: buildDiff(
               { name: existingEnv?.name, description: existingEnv?.description, order: existingEnv?.order },
               { name: environment.name, description: environment.description, order: environment.order },
@@ -612,6 +615,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           resource: SystemEventResources.ENVIRONMENTS,
           resourceId: request.params.id,
           resourceLabel: envToDelete?.name ?? null,
+          metadata: { productId: request.params.productId },
         });
 
         reply.send({ message: "Environment deleted successfully" });
@@ -734,6 +738,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           resource: SystemEventResources.MICROSERVICES,
           resourceId: microservice.id,
           resourceLabel: microservice.name,
+          metadata: { created: microservice },
         });
 
         reply.status(201).send({
@@ -800,6 +805,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           resourceId: microservice.id,
           resourceLabel: microservice.name,
           metadata: {
+            productId: request.params.productId,
             changes: buildDiff(
               { name: existingMs?.name, description: existingMs?.description },
               { name: microservice.name, description: microservice.description },
@@ -867,6 +873,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           resource: SystemEventResources.MICROSERVICES,
           resourceId: request.params.id,
           resourceLabel: msToDelete?.name ?? null,
+          metadata: { productId: request.params.productId },
         });
 
         reply.send({ message: "Microservice deleted successfully" });
@@ -993,6 +1000,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           resource: SystemEventResources.RUNBOOKS,
           resourceId: runbook.id,
           resourceLabel: runbook.name,
+          metadata: { created: runbook },
         });
 
         reply.status(201).send({
@@ -1063,6 +1071,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           resourceId: runbook.id,
           resourceLabel: runbook.name,
           metadata: {
+            productId: request.params.productId,
             changes: buildDiff(
               { name: existingRunbook?.name, description: existingRunbook?.description, link: existingRunbook?.link, status: existingRunbook?.status },
               { name: runbook.name, description: runbook.description, link: runbook.link, status: runbook.status },
@@ -1132,6 +1141,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           resource: SystemEventResources.RUNBOOKS,
           resourceId: request.params.id,
           resourceLabel: runbookToDelete?.name ?? null,
+          metadata: { productId: request.params.productId },
         });
 
         reply.send({ message: "Runbook deleted successfully" });
@@ -1258,6 +1268,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           resource: SystemEventResources.FINAL_ACTIONS,
           resourceId: finalAction.id,
           resourceLabel: finalAction.name,
+          metadata: { created: finalAction },
         });
 
         reply.status(201).send({
@@ -1328,6 +1339,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           resourceId: finalAction.id,
           resourceLabel: finalAction.name,
           metadata: {
+            productId: request.params.productId,
             changes: buildDiff(
               { name: existingFa?.name, description: existingFa?.description, order: existingFa?.order, isOther: existingFa?.isOther },
               { name: finalAction.name, description: finalAction.description, order: finalAction.order, isOther: finalAction.isOther },
@@ -1397,6 +1409,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           resource: SystemEventResources.FINAL_ACTIONS,
           resourceId: request.params.id,
           resourceLabel: faToDelete?.name ?? null,
+          metadata: { productId: request.params.productId },
         });
 
         reply.send({ message: "Final action deleted successfully" });
@@ -1524,6 +1537,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           resource: SystemEventResources.ALARMS,
           resourceId: alarm.id,
           resourceLabel: alarm.name,
+          metadata: { created: alarm },
         });
 
         reply.status(201).send({
@@ -1599,6 +1613,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           resourceId: alarm.id,
           resourceLabel: alarm.name,
           metadata: {
+            productId: request.params.productId,
             changes: buildDiff(
               { name: existingAlarm?.name, description: existingAlarm?.description, runbookId: existingAlarm?.runbookId },
               { name: alarm.name, description: alarm.description, runbookId: alarm.runbookId },
@@ -1669,6 +1684,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           resource: SystemEventResources.ALARMS,
           resourceId: request.params.id,
           resourceLabel: alarmToDelete?.name ?? null,
+          metadata: { productId: request.params.productId },
         });
 
         reply.send({ message: "Alarm deleted successfully" });
@@ -1791,6 +1807,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           resource: SystemEventResources.DOWNSTREAMS,
           resourceId: downstream.id,
           resourceLabel: downstream.name,
+          metadata: { created: downstream },
         });
 
         reply.status(201).send({
@@ -1857,6 +1874,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           resourceId: downstream.id,
           resourceLabel: downstream.name,
           metadata: {
+            productId: request.params.productId,
             changes: buildDiff(
               { name: existingDs?.name, description: existingDs?.description },
               { name: downstream.name, description: downstream.description },
@@ -1924,6 +1942,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           resource: SystemEventResources.DOWNSTREAMS,
           resourceId: request.params.id,
           resourceLabel: dsToDelete?.name ?? null,
+          metadata: { productId: request.params.productId },
         });
 
         reply.send({ message: "Downstream deleted successfully" });
@@ -2110,6 +2129,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           resource: SystemEventResources.IGNORED_ALARMS,
           resourceId: ignoredAlarm.id,
           resourceLabel: ignoredAlarm.alarm?.name ?? null,
+          metadata: { created: ignoredAlarm },
         });
 
         reply.status(201).send(formatIgnoredAlarm(ignoredAlarm));
@@ -2183,6 +2203,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           resourceId: ignoredAlarm.id,
           resourceLabel: ignoredAlarm.alarm?.name ?? null,
           metadata: {
+            productId: request.params.productId,
             changes: buildDiff(
               {
                 alarmId: existingIgnoredAlarm?.alarmId,
@@ -2261,6 +2282,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           resource: SystemEventResources.IGNORED_ALARMS,
           resourceId: request.params.id,
           resourceLabel: ignoredAlarmToDelete?.alarm?.name ?? null,
+          metadata: { productId: request.params.productId },
         });
 
         reply.send({ message: "Ignored alarm deleted successfully" });

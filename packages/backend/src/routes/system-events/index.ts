@@ -47,6 +47,8 @@ export async function systemEventRoutes(fastify: FastifyInstance): Promise<void>
           dateTo,
           page = 1,
           limit = 50,
+          sortBy = "createdAt",
+          sortOrder = "desc",
         } = request.query;
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -76,10 +78,14 @@ export async function systemEventRoutes(fastify: FastifyInstance): Promise<void>
 
         const skip = (page - 1) * limit;
 
+        const allowedSortKeys = ["createdAt", "action", "resource", "userLabel"] as const;
+        const safeSortBy = (allowedSortKeys as readonly string[]).includes(sortBy) ? sortBy : "createdAt";
+        const safeSortOrder = sortOrder === "asc" ? "asc" : "desc";
+
         const [events, total] = await Promise.all([
           prisma.systemEvent.findMany({
             where,
-            orderBy: { createdAt: "desc" },
+            orderBy: { [safeSortBy]: safeSortOrder },
             skip,
             take: limit,
           }),

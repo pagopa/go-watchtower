@@ -240,8 +240,9 @@ function AnalysesPageContent() {
   const { preferences, updatePreferences } = usePreferences()
   const searchParams = useSearchParams()
 
-  // Product from URL search params (optional)
+  // Product / analysis from URL search params (optional)
   const productIdFromUrl = searchParams.get('productId') || ''
+  const analysisIdFromUrl = searchParams.get('analysisId') || ''
 
   // For the form dialog, we need a selectedProductId when creating from the "all" view
   const [formProductId, setFormProductId] = useState<string>('')
@@ -274,6 +275,24 @@ function AnalysesPageContent() {
   const [editItem, setEditItem] = useState<AlarmAnalysis | null>(null)
   const [deleteItem, setDeleteItem] = useState<AlarmAnalysis | null>(null)
   const [validationPanelAnalysis, setValidationPanelAnalysis] = useState<AlarmAnalysis | null>(null)
+
+  // Auto-open detail panel when navigating from an external link (e.g. from the event log)
+  // Fetches the specific analysis by ID and opens the detail panel once.
+  const autoOpenedAnalysisRef = useRef<string | null>(null)
+  const { data: linkedAnalysis } = useQuery<AlarmAnalysis>({
+    queryKey: ['analysis', effectiveProductId, analysisIdFromUrl],
+    queryFn: () => api.getAnalysis(effectiveProductId, analysisIdFromUrl),
+    enabled: !!analysisIdFromUrl && !!effectiveProductId,
+    retry: false,
+    staleTime: 30_000,
+  })
+  useEffect(() => {
+    if (linkedAnalysis && autoOpenedAnalysisRef.current !== linkedAnalysis.id) {
+      autoOpenedAnalysisRef.current = linkedAnalysis.id
+      setSelectedAnalysis(linkedAnalysis)
+      setShowDetailPanel(true)
+    }
+  }, [linkedAnalysis])
 
   // Filters collapsed (default: true = collapsed)
   const filtersCollapsed = preferences.analysisFiltersCollapsed ?? true

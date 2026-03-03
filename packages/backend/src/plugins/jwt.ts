@@ -5,6 +5,7 @@ import { env } from "../config/env.js";
 
 export interface JwtPayload {
   userId: string;
+  name: string;
   email: string;
   role: string;
   type: "access";

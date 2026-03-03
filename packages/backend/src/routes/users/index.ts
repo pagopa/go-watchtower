@@ -349,6 +349,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
           resource: SystemEventResources.USERS,
           resourceId: user.id,
           resourceLabel: user.email,
+          metadata: { created: user },
         });
 
         reply.status(201).send({
@@ -888,6 +889,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
           resource: SystemEventResources.ROLES,
           resourceId: role.id,
           resourceLabel: role.name,
+          metadata: { created: role },
         });
 
         reply.status(201).send({

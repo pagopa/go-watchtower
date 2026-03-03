@@ -738,6 +738,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
           resource: SystemEventResources.ALARM_ANALYSES,
           resourceId: analysis.id,
           resourceLabel: analysis.alarm?.name ?? null,
+          metadata: { created: analysis },
         });
 
         reply.status(201).send(formatAnalysisResponse(analysis));
@@ -1062,6 +1063,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
           action: SystemEventActions.ANALYSIS_UPDATED,
           ...eventBase,
           metadata: {
+            productId: analysis.productId,
             changes: buildDiff(
               {
                 analysisType:    existing.analysisType,
@@ -1110,6 +1112,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
             action: SystemEventActions.ANALYSIS_STATUS_CHANGED,
             ...eventBase,
             metadata: {
+              productId: analysis.productId,
               previousStatus: existing.status,
               newStatus: request.body.status,
             },
@@ -1512,6 +1515,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
           action: SystemEventActions.ANALYSIS_DELETED,
           resource: SystemEventResources.ALARM_ANALYSES,
           resourceId: request.params.id,
+          metadata: { productId: request.params.productId },
         });
 
         reply.send({ message: "Analysis deleted successfully" });

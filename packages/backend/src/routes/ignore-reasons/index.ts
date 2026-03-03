@@ -129,6 +129,7 @@ export async function ignoreReasonRoutes(app: FastifyInstance) {
         resource: SystemEventResources.IGNORE_REASONS,
         resourceId: reason.code,
         resourceLabel: reason.label,
+        metadata: { created: reason },
       });
 
       return reply.status(201).send({

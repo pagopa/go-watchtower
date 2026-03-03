@@ -14,6 +14,17 @@ export const SystemEventsQuerySchema = Type.Object({
   dateTo: Type.Optional(Type.String({ format: "date-time" })),
   page: Type.Optional(Type.Integer({ minimum: 1, default: 1 })),
   limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 200, default: 50 })),
+  sortBy: Type.Optional(
+    Type.Union([
+      Type.Literal("createdAt"),
+      Type.Literal("action"),
+      Type.Literal("resource"),
+      Type.Literal("userLabel"),
+    ])
+  ),
+  sortOrder: Type.Optional(
+    Type.Union([Type.Literal("asc"), Type.Literal("desc")])
+  ),
 });
 
 export type SystemEventsQuery = Static<typeof SystemEventsQuerySchema>;

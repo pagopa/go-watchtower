@@ -120,6 +120,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
 
         const accessToken = generateAccessToken(app, {
           userId: user.id,
+          name: user.name,
           email: user.email,
           role: user.roleName,
         });
@@ -168,6 +169,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
 
         const accessToken = generateAccessToken(app, {
           userId: user.id,
+          name: user.name,
           email: user.email,
           role: user.roleName,
         });
@@ -184,7 +186,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
           action: SystemEventActions.USER_LOGIN,
           resource: SystemEventResources.AUTH,
           userId: user.id,
-          userLabel: user.email,
+          userLabel: `${user.name} (${user.email})`,
           ipAddress: request.ip,
           userAgent: request.headers["user-agent"] ?? null,
         });
@@ -269,6 +271,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
 
       const accessToken = generateAccessToken(app, {
         userId: user.id,
+        name: user.name,
         email: user.email,
         role: user.roleName,
       });
@@ -316,7 +319,9 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
           const decoded = app.jwt.decode<JwtPayload>(rawToken);
           if (decoded) {
             logoutUserId = decoded.userId;
-            logoutUserLabel = decoded.email;
+            logoutUserLabel = decoded.name
+              ? `${decoded.name} (${decoded.email})`
+              : decoded.email;
           }
         }
       } catch {
@@ -492,6 +497,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
 
         const accessToken = generateAccessToken(app, {
           userId: user.id,
+          name: user.name,
           email: user.email,
           role: user.roleName,
         });
@@ -508,7 +514,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
           action: SystemEventActions.USER_LOGIN_GOOGLE,
           resource: SystemEventResources.AUTH,
           userId: user.id,
-          userLabel: user.email,
+          userLabel: `${user.name} (${user.email})`,
           ipAddress: request.ip,
           userAgent: request.headers["user-agent"] ?? null,
         });
@@ -598,6 +604,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
 
         const accessToken = generateAccessToken(app, {
           userId: user.id,
+          name: user.name,
           email: user.email,
           role: user.roleName,
         });
@@ -614,7 +621,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
           action: SystemEventActions.USER_LOGIN_GOOGLE,
           resource: SystemEventResources.AUTH,
           userId: user.id,
-          userLabel: user.email,
+          userLabel: `${user.name} (${user.email})`,
           ipAddress: request.ip,
           userAgent: request.headers["user-agent"] ?? null,
         });

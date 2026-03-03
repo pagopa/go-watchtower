@@ -22,6 +22,13 @@ export interface ColumnDef {
 }
 
 export const COLUMN_REGISTRY: Record<string, ColumnDef[]> = {
+  systemEvents: [
+    { id: 'quando',  label: 'Quando',     locked: true,          defaultWidth: 160, minWidth: 130, sortKey: 'createdAt' },
+    { id: 'azione',  label: 'Azione',                            defaultWidth: 220, minWidth: 140 },
+    { id: 'risorsa', label: 'Risorsa',                           defaultWidth: 260, minWidth: 140 },
+    { id: 'utente',  label: 'Utente',                            defaultWidth: 180, minWidth: 100, sortKey: 'userLabel' },
+    { id: 'ip',      label: 'IP Address', defaultVisible: false, defaultWidth: 130, minWidth: 80 },
+  ],
   analyses: [
     // ── Default visible columns (in display order) ──────────────────────────
     { id: 'analysisDate',    label: 'Data analisi',    locked: true,  defaultWidth: 120, minWidth: 100, sortKey: 'analysisDate' },
@@ -49,4 +56,5 @@ export const COLUMN_REGISTRY: Record<string, ColumnDef[]> = {
 
 export const LIST_LABELS: Record<string, string> = {
   analyses: 'Analisi allarmi',
+  systemEvents: 'Log eventi',
 }
