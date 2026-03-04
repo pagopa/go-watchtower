@@ -167,6 +167,20 @@ export async function settingRoutes(app: FastifyInstance): Promise<void> {
         return reply.status(400).send({ error: `Value must be a string for setting '${existing.key}'` });
       }
 
+      if (existing.key === "working_hours") {
+        const v = value as { start?: unknown; end?: unknown; days?: unknown };
+        const timeRe = /^([01]\d|2[0-3]):[0-5]\d$/;
+        if (
+          typeof v?.start !== "string" || !timeRe.test(v.start) ||
+          typeof v?.end   !== "string" || !timeRe.test(v.end)   ||
+          !Array.isArray(v?.days)      || v.days.some((d) => typeof d !== "number" || d < 1 || d > 7)
+        ) {
+          return reply.status(400).send({
+            error: "working_hours deve avere start/end in formato HH:MM e days come array di numeri 1-7",
+          });
+        }
+      }
+
       const updated = await prisma.systemSetting.update({
         where: { key: request.params.key },
         data: {

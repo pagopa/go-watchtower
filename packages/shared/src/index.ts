@@ -55,6 +55,7 @@ export type { IgnoreReasonFieldDef, IgnoreReasonDetailsSchema, IgnoreReason } fr
 export type { TimeConstraintPeriod, TimeConstraintHours, TimeConstraint } from './types/time-constraint.js';
 export type { ResourcePermission, RolePermission, UserPermissions } from './types/permissions.js';
 export type { SystemSetting } from './types/system-setting.js';
+export type { WorkingHours } from './types/working-hours.js';
 export type { SystemEvent, SystemEventsResponse } from './types/system-event.js';
 
 // ─── Label ─────────────────────────────────────────────────────────────────────

@@ -3,7 +3,7 @@
 import { Suspense, useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, Plus, Inbox,
+  Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, Plus, Inbox, RefreshCw,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -188,10 +188,15 @@ function AlarmEventsPageContent() {
   const {
     data: eventsResponse,
     isLoading: eventsLoading,
+    isFetching: eventsFetching,
     error: eventsError,
+    refetch: refetchEvents,
+    dataUpdatedAt: eventsUpdatedAt,
   } = useQuery<PaginatedResponse<AlarmEvent>>({
     queryKey: ['alarm-events', queryParams],
     queryFn: () => api.getAlarmEvents(queryParams),
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
   })
 
   const events     = eventsResponse?.data
@@ -341,10 +346,27 @@ function AlarmEventsPageContent() {
             <>
               <span className="font-medium tabular-nums text-foreground">{pagination.totalItems}</span>
               {' '}allarmi trovati
+              {eventsUpdatedAt > 0 && (
+                <span className="ml-2 text-xs text-muted-foreground/50">
+                  · aggiornato alle{' '}
+                  {new Date(eventsUpdatedAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              )}
             </>
           ) : eventsLoading ? '' : ''}
         </p>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5"
+            onClick={() => refetchEvents()}
+            disabled={eventsFetching}
+            title="Aggiorna"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${eventsFetching ? 'animate-spin' : ''}`} />
+            <span className="text-xs">Aggiorna</span>
+          </Button>
           <ColumnConfigurator
             allColumns={allColumns}
             isVisible={isVisible}

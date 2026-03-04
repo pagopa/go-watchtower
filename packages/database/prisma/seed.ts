@@ -252,6 +252,14 @@ async function seedSystemSettings() {
       label:       "Giorni blocco modifica analisi",
       description: "Numero di giorni dopo i quali un operatore non può più modificare la propria analisi",
     },
+    {
+      key:         "working_hours",
+      value:       { start: "09:00", end: "18:00", days: [1, 2, 3, 4, 5] },
+      type:        "JSON",
+      category:    "SYSTEM",
+      label:       "Orari lavorativi",
+      description: "Finestra oraria e giorni lavorativi usati per il calcolo delle KPI",
+    },
   ];
 
   for (const setting of settings) {

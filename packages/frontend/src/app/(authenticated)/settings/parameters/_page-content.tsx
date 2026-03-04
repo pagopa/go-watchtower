@@ -20,6 +20,99 @@ import {
 } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
 
+// ─── Working hours constants ──────────────────────────────────────────────────
+
+const DAYS = [
+  { n: 1, label: 'Lun' },
+  { n: 2, label: 'Mar' },
+  { n: 3, label: 'Mer' },
+  { n: 4, label: 'Gio' },
+  { n: 5, label: 'Ven' },
+  { n: 6, label: 'Sab' },
+  { n: 7, label: 'Dom' },
+]
+
+// ─── WorkingHours editor ──────────────────────────────────────────────────────
+
+function WorkingHoursEditor({
+  value,
+  onSave,
+  onCancel,
+  isPending,
+}: {
+  value: unknown
+  onSave: (v: unknown) => void
+  onCancel: () => void
+  isPending: boolean
+}) {
+  const initial = value as { start?: string; end?: string; days?: number[] } | null
+  const [start, setStart] = useState(initial?.start ?? '09:00')
+  const [end,   setEnd]   = useState(initial?.end   ?? '18:00')
+  const [days,  setDays]  = useState<number[]>(initial?.days ?? [1, 2, 3, 4, 5])
+
+  const toggleDay = (n: number) =>
+    setDays((prev) => prev.includes(n) ? prev.filter((d) => d !== n) : [...prev, n].sort((a, b) => a - b))
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <Input
+          type="time"
+          value={start}
+          onChange={(e) => setStart(e.target.value)}
+          className="h-7 w-28 text-sm"
+          disabled={isPending}
+        />
+        <span className="text-xs text-muted-foreground">–</span>
+        <Input
+          type="time"
+          value={end}
+          onChange={(e) => setEnd(e.target.value)}
+          className="h-7 w-28 text-sm"
+          disabled={isPending}
+        />
+      </div>
+      <div className="flex items-center gap-1">
+        {DAYS.map(({ n, label }) => (
+          <button
+            key={n}
+            type="button"
+            onClick={() => toggleDay(n)}
+            disabled={isPending}
+            className={`rounded px-1.5 py-0.5 text-xs font-medium transition-colors ${
+              days.includes(n)
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center gap-1">
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-6 w-6 text-green-600 hover:text-green-700 hover:bg-green-50"
+          onClick={() => onSave({ start, end, days })}
+          disabled={isPending}
+        >
+          {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-6 w-6 text-muted-foreground hover:text-foreground"
+          onClick={onCancel}
+          disabled={isPending}
+        >
+          <X className="h-3 w-3" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 // ─── Type-aware inline editor ─────────────────────────────────────────────────
 
 function SettingValueEditor({
@@ -38,6 +131,17 @@ function SettingValueEditor({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') onSave(draft)
     if (e.key === 'Escape') onCancel()
+  }
+
+  if (setting.key === 'working_hours') {
+    return (
+      <WorkingHoursEditor
+        value={draft}
+        onSave={onSave}
+        onCancel={onCancel}
+        isPending={isPending}
+      />
+    )
   }
 
   if (setting.type === 'BOOLEAN') {
@@ -116,6 +220,14 @@ function SettingValueDisplay({ setting }: { setting: SystemSetting }) {
       <Badge variant={setting.value ? 'default' : 'secondary'} className="text-xs">
         {setting.value ? 'Attivo' : 'Inattivo'}
       </Badge>
+    )
+  }
+  if (setting.key === 'working_hours') {
+    const wh = setting.value as { start?: string; end?: string; days?: number[] } | null
+    const timeRange = wh?.start && wh?.end ? `${wh.start} – ${wh.end}` : '—'
+    const dayLabels = (wh?.days ?? []).map((d) => DAYS.find(({ n }) => n === d)?.label).filter(Boolean).join(' ')
+    return (
+      <span className="font-mono text-sm">{timeRange}{dayLabels ? ` · ${dayLabels}` : ''}</span>
     )
   }
   return (
