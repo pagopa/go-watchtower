@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { useSession } from 'next-auth/react'
 import { useQuery } from '@tanstack/react-query'
@@ -21,7 +21,10 @@ import {
   type Alarm,
   type Environment,
   type Product,
+  type IgnoredAlarm,
 } from '@/lib/api-client'
+import { matchIgnoredAlarm } from '@go-watchtower/shared'
+import { IgnoredAlarmWarningBanner } from './ignored-alarm-warning'
 import {
   shortcutInCorsoSchema,
   fromDatetimeLocal,
@@ -88,6 +91,13 @@ export function ShortcutAnalysisDialog({
     enabled: open && !!productId,
   })
 
+  const { data: ignoredAlarms } = useQuery<IgnoredAlarm[]>({
+    queryKey: ['products', productId, 'ignored-alarms'],
+    queryFn: () => api.getIgnoredAlarms(productId),
+    enabled: open && !!productId,
+    staleTime: 60_000,
+  })
+
   const [selectedRunbookId, setSelectedRunbookId] = useState<string | null>(null)
 
   const {
@@ -95,11 +105,29 @@ export function ShortcutAnalysisDialog({
     handleSubmit,
     reset,
     control,
+    watch,
     formState: { errors },
   } = useForm<ShortcutInCorsoData>({
     resolver: zodResolver(shortcutInCorsoSchema) as Resolver<ShortcutInCorsoData>,
     defaultValues: DEFAULT_VALUES,
   })
+
+  const watchedAlarmId = watch('alarmId')
+  const watchedEnvironmentId = watch('environmentId')
+  const watchedFirstAlarm = watch('firstAlarmAt')
+
+  const ignoredAlarmMatch = useMemo((): IgnoredAlarm | null => {
+    if (!watchedAlarmId || !watchedEnvironmentId || !watchedFirstAlarm || !ignoredAlarms) return null
+    const firstAlarmDate = new Date(watchedFirstAlarm + ':00.000Z')
+    const matched = matchIgnoredAlarm({
+      alarmId: watchedAlarmId,
+      environmentId: watchedEnvironmentId,
+      firstAlarmAt: firstAlarmDate,
+      ignoredAlarms,
+    })
+    if (!matched) return null
+    return ignoredAlarms.find((ia) => ia.id === matched.id) ?? null
+  }, [watchedAlarmId, watchedEnvironmentId, watchedFirstAlarm, ignoredAlarms])
 
   const handleOpenChange = useCallback((newOpen: boolean) => {
     if (!newOpen) {
@@ -185,6 +213,10 @@ export function ShortcutAnalysisDialog({
               />
             </div>
           </div>
+
+          {ignoredAlarmMatch && (
+            <IgnoredAlarmWarningBanner ignoredAlarm={ignoredAlarmMatch} />
+          )}
 
           <DialogFooter>
             <Button

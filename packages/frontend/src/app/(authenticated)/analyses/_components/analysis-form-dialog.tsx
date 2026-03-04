@@ -28,7 +28,7 @@ import {
 import { MultiSelectCombobox } from '@/components/ui/multi-select-combobox'
 import { Combobox } from '@/components/ui/combobox'
 import { usePermissions } from '@/hooks/use-permissions'
-import { inferLinkType } from '@go-watchtower/shared'
+import { inferLinkType, matchIgnoredAlarm } from '@go-watchtower/shared'
 import {
   api,
   type AlarmAnalysis,
@@ -42,6 +42,7 @@ import {
   type Downstream,
   type Product,
   type UserDetail,
+  type IgnoredAlarm,
 } from '@/lib/api-client'
 
 import {
@@ -70,6 +71,7 @@ import {
 import { DynamicIgnoreDetailsForm } from '@/components/ui/json-schema-form'
 
 import { ANALYSIS_TYPE_LABELS, ANALYSIS_STATUS_LABELS } from '../_lib/constants'
+import { IgnoredAlarmWarningBanner } from './ignored-alarm-warning'
 
 export type { AnalysisFormData }
 
@@ -210,6 +212,13 @@ export function AnalysisFormDialog({
     staleTime: Infinity,
   })
 
+  const { data: ignoredAlarms } = useQuery<IgnoredAlarm[]>({
+    queryKey: ['products', productId, 'ignored-alarms'],
+    queryFn: () => api.getIgnoredAlarms(productId),
+    enabled: open && !!productId && !editItem,
+    staleTime: 60_000,
+  })
+
   const availableUsers = useMemo(() => {
     if (!can('USER', 'read')) {
       // Operator: can only select themselves.
@@ -337,6 +346,8 @@ export function AnalysisFormDialog({
   const watchedAnalysisDate = watch('analysisDate')
   const watchedAnalysisType = watch('analysisType')
   const watchedIgnoreReasonCode = watch('ignoreReasonCode')
+  const watchedAlarmId = watch('alarmId')
+  const watchedEnvironmentId = watch('environmentId')
   const watchedLinks = useWatch({ control, name: 'links' })
   const watchedLinkUrls = useMemo(
     () => watchedLinks?.map((l) => l?.url ?? '') ?? [],
@@ -345,6 +356,24 @@ export function AnalysisFormDialog({
 
   // Find the selected ignore reason to get its detailsSchema
   const selectedIgnoreReason = ignoreReasons?.find((r) => r.code === watchedIgnoreReasonCode)
+
+  // Compute whether the selected alarm+environment+firstAlarmAt matches an ignored alarm rule.
+  // Only active in create mode (editItem is null).
+  const ignoredAlarmMatch = useMemo((): IgnoredAlarm | null => {
+    if (editItem || !watchedAlarmId || !watchedEnvironmentId || !watchedFirstAlarm || !ignoredAlarms) {
+      return null
+    }
+    // firstAlarmAt is a datetime-local string entered as UTC: "YYYY-MM-DDTHH:mm"
+    const firstAlarmDate = new Date(watchedFirstAlarm + ':00.000Z')
+    const matched = matchIgnoredAlarm({
+      alarmId: watchedAlarmId,
+      environmentId: watchedEnvironmentId,
+      firstAlarmAt: firstAlarmDate,
+      ignoredAlarms,
+    })
+    if (!matched) return null
+    return ignoredAlarms.find((ia) => ia.id === matched.id) ?? null
+  }, [editItem, watchedAlarmId, watchedEnvironmentId, watchedFirstAlarm, ignoredAlarms])
 
   const dateValidation = useDateValidation(watchedFirstAlarm, watchedLastAlarm, watchedAnalysisDate)
 
@@ -464,6 +493,11 @@ export function AnalysisFormDialog({
               />
             </div>
           </FormSection>
+
+          {/* ── Avviso allarme ignorato ── */}
+          {ignoredAlarmMatch && (
+            <IgnoredAlarmWarningBanner ignoredAlarm={ignoredAlarmMatch} />
+          )}
 
           {/* ── Sezione 2: Dettagli Analisi ── */}
           <FormSection label="Dettagli Analisi" color="blue" icon={FileSearch}>

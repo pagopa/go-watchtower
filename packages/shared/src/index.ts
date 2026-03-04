@@ -70,6 +70,8 @@ export { AUTH_PROVIDER_LABELS } from './labels/auth-provider-labels.js';
 
 export { inferLinkType } from './utils/infer-link-type.js';
 export { buildDiff } from './utils/build-diff.js';
+export { matchIgnoredAlarm } from './utils/match-ignored-alarm.js';
+export type { IgnoredAlarmEntry } from './utils/match-ignored-alarm.js';
 
 // ─── Validazione analisi ───────────────────────────────────────────────────────
 
