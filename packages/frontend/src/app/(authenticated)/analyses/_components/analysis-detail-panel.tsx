@@ -4,11 +4,12 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import {
   X, Pencil, Trash2, ExternalLink, Copy, Check,
   Bell, FileText, ListChecks, Info, ShieldCheck,
-  XCircle, AlertCircle, CheckCircle, Circle, ChevronDown,
+  XCircle, AlertCircle, CheckCircle, Circle, ChevronDown, Lock,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAnalysisScores } from '@/hooks/use-analysis-scores'
 import type { AlarmAnalysis } from '@/lib/api-client'
 import { usePreferences } from '@/hooks/use-preferences'
@@ -30,6 +31,8 @@ interface AnalysisDetailPanelProps {
   onDelete: (analysis: AlarmAnalysis) => void
   canWrite: boolean
   canDelete: boolean
+  isLocked?: boolean
+  lockDays?: number | null
 }
 
 // ─── Section header with icon ─────────────────────────────────────────────────
@@ -281,6 +284,8 @@ export function AnalysisDetailPanel({
   onDelete,
   canWrite,
   canDelete,
+  isLocked = false,
+  lockDays,
 }: AnalysisDetailPanelProps) {
   const { validation, quality } = useAnalysisScores(analysis)
   const [validationExpanded, setValidationExpanded] = useState(false)
@@ -450,9 +455,26 @@ export function AnalysisDetailPanel({
             </div>
             <div className="flex shrink-0 items-center gap-0.5">
               {canWrite && (
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(analysis)}>
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
+                isLocked ? (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-md opacity-40 cursor-not-allowed">
+                          <Lock className="h-3.5 w-3.5" />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        {lockDays != null
+                          ? `Modifica bloccata dopo ${lockDays} giorni dalla creazione`
+                          : 'Modifica bloccata'}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                ) : (
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(analysis)}>
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                )
               )}
               {canDelete && (
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onDelete(analysis)}>

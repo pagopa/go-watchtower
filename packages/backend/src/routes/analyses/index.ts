@@ -1,9 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
-import { prisma, Prisma, Resource, type PrismaClient } from "@go-watchtower/database";
+import { prisma, Prisma, Resource, PermissionScope, type PrismaClient } from "@go-watchtower/database";
 
 type TransactionClient = Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends">;
-import { hasPermission, hasPermissionForResource } from "../../services/permission.service.js";
+import { hasPermission, getPermissionScope } from "../../services/permission.service.js";
 import { buildDiff } from "../../services/system-event.service.js";
 import { scoreAnalysis } from "../../services/analysis-scoring.service.js";
 import { SystemEventActions, SystemEventResources, inferLinkType } from "@go-watchtower/shared";
@@ -22,6 +22,7 @@ import {
   ErrorResponseSchema,
   MessageResponseSchema,
   IgnoreReasonsResponseSchema,
+  AnalysisPolicyResponseSchema,
   type ProductIdParams,
   type AlarmAnalysisParams,
   type AlarmAnalysisQuery,
@@ -182,6 +183,34 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
           detailsSchema: r.detailsSchema as Record<string, unknown> | null,
         }))
       );
+    }
+  );
+
+  // ============================================================================
+  // GET ANALYSES POLICY
+  // Returns policy settings relevant to analyses (e.g. edit lock days).
+  // Accessible to any authenticated user — no SYSTEM_SETTING permission required.
+  // ============================================================================
+
+  app.get(
+    "/analyses/policy",
+    {
+      onRequest: [app.authenticate],
+      schema: {
+        tags: ["analyses"],
+        summary: "Get analysis policy settings (e.g. edit lock days)",
+        security: [{ bearerAuth: [] }],
+        response: {
+          200: AnalysisPolicyResponseSchema,
+        },
+      },
+    },
+    async (_request, reply) => {
+      const setting = await prisma.systemSetting.findUnique({
+        where: { key: "analysis_edit_lock_days" },
+      });
+      const editLockDays = typeof setting?.value === "number" ? setting.value : 7;
+      return reply.send({ editLockDays });
     }
   );
 
@@ -637,15 +666,30 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
           return reply.status(404).send({ error: "Analysis not found" });
         }
 
-        // Scope-aware ownership check: ALL can edit any, OWN only own, NONE denied
-        const canWriteForThis = await hasPermissionForResource(
+        // Scope-aware ownership check: ALL can edit any, OWN only own, NONE denied.
+        // Resolved once to avoid a second DB round-trip for the lock check below.
+        const writeScope = await getPermissionScope(
           request.user.userId,
           Resource.ALARM_ANALYSIS,
-          "write",
-          existing.createdById
+          "write"
         );
+        const canWriteForThis =
+          writeScope === PermissionScope.ALL ||
+          (writeScope === PermissionScope.OWN && existing.createdById === request.user.userId);
         if (!canWriteForThis) {
           return reply.status(403).send({ error: "Permission denied" });
+        }
+
+        // Lock check: users with OWN write scope cannot edit analyses older than the configured threshold.
+        if (writeScope === PermissionScope.OWN) {
+          const lockSetting = await prisma.systemSetting.findUnique({ where: { key: "analysis_edit_lock_days" } });
+          const lockDays = typeof lockSetting?.value === "number" ? lockSetting.value : 7;
+          const daysSince = Math.floor((Date.now() - existing.createdAt.getTime()) / 86_400_000);
+          if (daysSince >= lockDays) {
+            return reply.status(403).send({
+              error: `L'analisi non può più essere modificata (blocco dopo ${lockDays} giorni dalla creazione)`,
+            });
+          }
         }
 
         // Verify operator, alarm, and environment in parallel (all independent)
@@ -1298,15 +1342,29 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
           return reply.status(404).send({ error: "Analysis not found" });
         }
 
-        // Scope-aware ownership check for delete
-        const canDeleteThis = await hasPermissionForResource(
+        // Scope-aware ownership check for delete.
+        const deleteScope = await getPermissionScope(
           request.user.userId,
           Resource.ALARM_ANALYSIS,
-          "delete",
-          existing.createdById
+          "delete"
         );
+        const canDeleteThis =
+          deleteScope === PermissionScope.ALL ||
+          (deleteScope === PermissionScope.OWN && existing.createdById === request.user.userId);
         if (!canDeleteThis) {
           return reply.status(403).send({ error: "Permission denied" });
+        }
+
+        // Lock check: users with OWN delete scope cannot delete analyses older than the configured threshold.
+        if (deleteScope === PermissionScope.OWN) {
+          const lockSetting = await prisma.systemSetting.findUnique({ where: { key: "analysis_edit_lock_days" } });
+          const lockDays = typeof lockSetting?.value === "number" ? lockSetting.value : 7;
+          const daysSince = Math.floor((Date.now() - existing.createdAt.getTime()) / 86_400_000);
+          if (daysSince >= lockDays) {
+            return reply.status(403).send({
+              error: `L'analisi non può più essere eliminata (blocco dopo ${lockDays} giorni dalla creazione)`,
+            });
+          }
         }
 
         await prisma.alarmAnalysis.delete({

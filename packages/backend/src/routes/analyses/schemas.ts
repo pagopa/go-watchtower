@@ -364,3 +364,11 @@ export const AnalysisStatsResponseSchema = Type.Object({
   topAlarms: Type.Array(TopAlarmSchema),
   onCallTrend: Type.Array(OnCallTrendSchema),
 });
+
+// ─── Policy ──────────────────────────────────────────────────────────────────
+
+export const AnalysisPolicyResponseSchema = Type.Object({
+  editLockDays: Type.Number({ description: "Days after which an operator cannot edit/delete their own analysis (0 = disabled)" }),
+});
+
+export type AnalysisPolicyResponse = Static<typeof AnalysisPolicyResponseSchema>;

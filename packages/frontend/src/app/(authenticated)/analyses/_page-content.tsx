@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, Plus, Inbox,
+  Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, Plus, Inbox, Lock,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -56,6 +56,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { ResizableTableHead } from '@/components/ui/resizable-table-head'
 import { ColumnConfigurator } from '@/components/ui/column-configurator'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import dynamic from 'next/dynamic'
 import { validateAnalysis, assessQuality, type ValidationResult, type QualityResult } from '@/lib/analysis-validation'
 import { ValidationScoreBadge } from '@/components/analysis/validation-score-badge'
@@ -117,7 +118,7 @@ export function AnalysesPageWrapper() {
 function AnalysesPageContent() {
   const queryClient = useQueryClient()
   const { data: session } = useSession()
-  const { can, canFor, isLoading: permissionsLoading } = usePermissions()
+  const { can, canFor, getScope, isLoading: permissionsLoading } = usePermissions()
   const { preferences, updatePreferences } = usePreferences()
   const searchParams = useSearchParams()
 
@@ -195,11 +196,44 @@ function AnalysesPageContent() {
   const canDelete = !permissionsLoading && can('ALARM_ANALYSIS', 'delete')
   const currentUserId = session?.user?.id
 
+  // Lock days setting: how many days after creation an OPERATOR can no longer edit/delete their own analyses.
+  // Uses a dedicated policy endpoint accessible to any authenticated user (no SYSTEM_SETTING permission needed).
+  const { data: analysisPolicy } = useQuery({
+    queryKey: ['analyses', 'policy'],
+    queryFn: () => api.getAnalysisPolicy(),
+    staleTime: 5 * 60 * 1000,
+    enabled: !permissionsLoading,
+  })
+  const lockDays = analysisPolicy?.editLockDays ?? null
+
+  // Returns true if the analysis is past the edit lock threshold for this user.
+  // Only applies to users with OWN write scope (OPERATOR), for their own analyses.
+  const isAnalysisLocked = useCallback(
+    (analysis: AlarmAnalysis): boolean => {
+      if (lockDays === null) return false
+      if (getScope('ALARM_ANALYSIS', 'write') !== 'OWN') return false
+      if (analysis.createdById !== currentUserId) return false
+      const daysSince = Math.floor((Date.now() - new Date(analysis.createdAt).getTime()) / 86_400_000)
+      return daysSince >= lockDays
+    },
+    [lockDays, getScope, currentUserId]
+  )
+
   const canEditAnalysis = useCallback(
     (analysis: AlarmAnalysis): boolean => {
+      if (isAnalysisLocked(analysis)) return false
       return canFor('ALARM_ANALYSIS', 'write', analysis.createdById, currentUserId)
     },
-    [canFor, currentUserId]
+    [canFor, currentUserId, isAnalysisLocked]
+  )
+
+  const canDeleteAnalysis = useCallback(
+    (analysis: AlarmAnalysis): boolean => {
+      if (!canDelete) return false
+      if (isAnalysisLocked(analysis)) return false
+      return canFor('ALARM_ANALYSIS', 'delete', analysis.createdById, currentUserId)
+    },
+    [canDelete, canFor, currentUserId, isAnalysisLocked]
   )
 
   // Is this the "all products" view?
@@ -692,17 +726,32 @@ function AnalysesPageContent() {
                           : 'bg-card group-hover:bg-muted')
                       }>
                         <div className="flex justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                          {canEditAnalysis(analysis) && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={() => handleEdit(analysis)}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
+                          {canFor('ALARM_ANALYSIS', 'write', analysis.createdById, currentUserId) && (
+                            isAnalysisLocked(analysis) ? (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 cursor-default opacity-40" disabled>
+                                      <Lock className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="left">
+                                    <p>Bloccata dopo {lockDays} giorni dalla creazione</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() => handleEdit(analysis)}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                            )
                           )}
-                          {canDelete && (
+                          {canDeleteAnalysis(analysis) && (
                             <Button
                               variant="ghost"
                               size="icon"
@@ -801,7 +850,9 @@ function AnalysesPageContent() {
         onEdit={handleEdit}
         onDelete={handleDelete}
         canWrite={selectedAnalysis ? canEditAnalysis(selectedAnalysis) : false}
-        canDelete={canDelete}
+        canDelete={selectedAnalysis ? canDeleteAnalysis(selectedAnalysis) : false}
+        isLocked={selectedAnalysis ? isAnalysisLocked(selectedAnalysis) : false}
+        lockDays={lockDays}
       />
 
       {/* Validation Detail Panel */}
