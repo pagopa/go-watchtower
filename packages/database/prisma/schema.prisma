@@ -410,16 +410,19 @@ model AnalysisFinalAction {
 // ═══════════════════════════════════════════════════════════
 
 model AlarmEvent {
-  id            String   @id @default(uuid(7)) @db.Uuid
-  name          String
-  firedAt       DateTime @map("fired_at")
-  description   String?
-  reason        String?
-  awsRegion     String   @map("aws_region")
-  awsAccountId  String   @map("aws_account_id")
-  productId     String   @map("product_id") @db.Uuid
-  environmentId String   @map("environment_id") @db.Uuid
-  createdAt     DateTime @default(now()) @map("created_at")
+  id             String   @id @default(uuid(7)) @db.Uuid
+  name           String
+  firedAt        DateTime @map("fired_at")
+  description    String?
+  reason         String?
+  awsRegion      String   @map("aws_region")
+  awsAccountId   String   @map("aws_account_id")
+  productId      String   @map("product_id") @db.Uuid
+  environmentId  String   @map("environment_id") @db.Uuid
+  // Identificatore univoco del messaggio Slack sorgente — formato "{channelId}/{ts}".
+  // Usato per prevenire duplicati quando lo script di ingestione rilegge messaggi già processati.
+  slackMessageId String?  @unique @map("slack_message_id")
+  createdAt      DateTime @default(now()) @map("created_at")
 
   product     Product     @relation(fields: [productId], references: [id], onDelete: Restrict)
   environment Environment @relation(fields: [environmentId], references: [id], onDelete: Restrict)
@@ -429,6 +432,17 @@ model AlarmEvent {
   @@index([environmentId])
   @@index([awsAccountId])
   @@map("alarm_events")
+}
+
+// Cursori di avanzamento per l'ingestione incrementale di messaggi Slack.
+// Ogni record tiene traccia del timestamp Slack (ts) dell'ultimo messaggio
+// processato per canale, evitando reingestioni duplicate.
+model SlackChannelCursor {
+  channelId String   @id @map("channel_id")
+  latestTs  String   @map("latest_ts")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("slack_channel_cursors")
 }
 
 // ═══════════════════════════════════════════════════════════

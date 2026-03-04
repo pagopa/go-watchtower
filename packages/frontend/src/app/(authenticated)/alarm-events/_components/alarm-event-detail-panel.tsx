@@ -71,23 +71,35 @@ function CopyButton({ value, title = 'Copia' }: { value: string; title?: string 
   )
 }
 
-// ─── Timestamp field with UTC label ──────────────────────────────────────────
+// ─── Timestamp field with UTC + Rome local time ──────────────────────────────
 
 function UtcTimestamp({ isoStr }: { isoStr: string }) {
-  const formatted = new Intl.DateTimeFormat('it-IT', {
-    timeZone: 'UTC',
+  const date = new Date(isoStr)
+  const fmt = (tz: string) => new Intl.DateTimeFormat('it-IT', {
+    timeZone: tz,
     year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit', second: '2-digit',
-  }).format(new Date(isoStr))
+  }).format(date)
+
+  const utcFormatted   = fmt('UTC')
+  const romeFormatted  = fmt('Europe/Rome')
 
   return (
-    <div className="flex items-center gap-1.5">
-      <span className="font-mono text-sm">{formatted}</span>
-      <span className="rounded bg-muted px-1.5 py-px text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">
-        UTC
+    <span className="inline-flex flex-col gap-0.5">
+      <span className="inline-flex items-center gap-1.5">
+        <span className="font-mono text-sm">{utcFormatted}</span>
+        <span className="rounded bg-muted px-1.5 py-px text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">
+          UTC
+        </span>
+        <CopyButton value={isoStr} title="Copia ISO 8601" />
       </span>
-      <CopyButton value={isoStr} title="Copia ISO 8601" />
-    </div>
+      <span className="inline-flex items-center gap-1.5">
+        <span className="font-mono text-xs text-muted-foreground/60">{romeFormatted}</span>
+        <span className="rounded bg-muted px-1.5 py-px text-[10px] font-bold uppercase tracking-wider text-muted-foreground/40">
+          Roma
+        </span>
+      </span>
+    </span>
   )
 }
 

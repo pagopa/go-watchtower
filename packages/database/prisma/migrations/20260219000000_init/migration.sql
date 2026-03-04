@@ -242,18 +242,22 @@ CREATE TABLE "alarm_analyses" (
 -- ═══════════════════════════════════════════════════════════
 
 CREATE TABLE "alarm_events" (
-    "id"             UUID         NOT NULL,
-    "name"           TEXT         NOT NULL,
-    "fired_at"       TIMESTAMP(3) NOT NULL,
-    "description"    TEXT,
-    "reason"         TEXT,
-    "aws_region"     TEXT         NOT NULL,
-    "aws_account_id" TEXT         NOT NULL,
-    "product_id"     UUID         NOT NULL,
-    "environment_id" UUID         NOT NULL,
-    "created_at"     TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "id"              UUID         NOT NULL,
+    "name"            TEXT         NOT NULL,
+    "fired_at"        TIMESTAMP(3) NOT NULL,
+    "description"     TEXT,
+    "reason"          TEXT,
+    "aws_region"      TEXT         NOT NULL,
+    "aws_account_id"  TEXT         NOT NULL,
+    "product_id"      UUID         NOT NULL,
+    "environment_id"  UUID         NOT NULL,
+    -- Identificatore univoco del messaggio Slack sorgente ("{channelId}/{ts}").
+    -- Garantisce idempotenza nello script di ingestione Slack.
+    "slack_message_id" TEXT,
+    "created_at"      TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "alarm_events_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "alarm_events_pkey"            PRIMARY KEY ("id"),
+    CONSTRAINT "alarm_events_slack_message_id_key" UNIQUE ("slack_message_id")
 );
 
 -- ═══════════════════════════════════════════════════════════
@@ -394,6 +398,19 @@ CREATE INDEX "system_events_user_id_idx" ON "system_events"("user_id");
 CREATE INDEX "system_events_action_idx" ON "system_events"("action");
 CREATE INDEX "system_events_resource_resource_id_idx" ON "system_events"("resource", "resource_id");
 CREATE INDEX "system_events_created_at_idx" ON "system_events"("created_at");
+
+-- ═══════════════════════════════════════════════════════════
+-- SLACK INGESTOR
+-- ═══════════════════════════════════════════════════════════
+
+-- Cursori di avanzamento per canale Slack (ingestione incrementale)
+CREATE TABLE "slack_channel_cursors" (
+    "channel_id" TEXT         NOT NULL,
+    "latest_ts"  TEXT         NOT NULL,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "slack_channel_cursors_pkey" PRIMARY KEY ("channel_id")
+);
 
 -- ═══════════════════════════════════════════════════════════
 -- FOREIGN KEYS
