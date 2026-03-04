@@ -62,6 +62,9 @@ export type { SystemEvent, SystemEventsResponse } from './types/system-event.js'
 export { ANALYSIS_TYPE_LABELS, ANALYSIS_STATUS_LABELS } from './labels/analysis-labels.js';
 export { RUNBOOK_STATUS_LABELS } from './labels/runbook-labels.js';
 export { SYSTEM_EVENT_RESOURCE_LABELS, SYSTEM_EVENT_ACTION_LABELS } from './labels/system-event-labels.js';
+export { RESOURCE_LABELS, DISPLAY_RESOURCES } from './labels/resource-labels.js';
+export { PERMISSION_SCOPE_LABELS } from './labels/permission-scope-labels.js';
+export { AUTH_PROVIDER_LABELS } from './labels/auth-provider-labels.js';
 
 // ─── Utility ───────────────────────────────────────────────────────────────────
 

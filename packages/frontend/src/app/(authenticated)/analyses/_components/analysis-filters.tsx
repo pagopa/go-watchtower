@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { Search, X, ChevronDown, ChevronUp, SlidersHorizontal, Settings2 } from 'lucide-react'
+import { Search, X, ChevronDown, SlidersHorizontal, Settings2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { DateTimePicker } from '@/components/ui/date-time-picker'

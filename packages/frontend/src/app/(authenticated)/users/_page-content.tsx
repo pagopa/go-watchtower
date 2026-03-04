@@ -24,6 +24,8 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
+import { AUTH_PROVIDER_LABELS } from '@go-watchtower/shared'
+import type { AuthProvider } from '@go-watchtower/shared'
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 
@@ -108,14 +110,6 @@ function SortButton({
       </span>
     </button>
   )
-}
-
-// ─── Provider label ───────────────────────────────────────────────────────────
-
-const PROVIDER_LABELS: Record<string, string> = {
-  google: 'Google',
-  local: 'Email',
-  github: 'GitHub',
 }
 
 // ─── Loading skeleton ─────────────────────────────────────────────────────────
@@ -321,7 +315,7 @@ export function UsersPage() {
                 {/* Provider */}
                 <div className="hidden w-20 md:block">
                   <span className="text-xs text-muted-foreground">
-                    {PROVIDER_LABELS[user.provider] ?? user.provider}
+                    {AUTH_PROVIDER_LABELS[user.provider as AuthProvider] ?? user.provider}
                   </span>
                 </div>
 

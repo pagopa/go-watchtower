@@ -45,40 +45,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const ALL_RESOURCES = [
-  'PRODUCT',
-  'ENVIRONMENT',
-  'MICROSERVICE',
-  'IGNORED_ALARM',
-  'RUNBOOK',
-  'FINAL_ACTION',
-  'ALARM',
-  'ALARM_ANALYSIS',
-  'DOWNSTREAM',
-  'USER',
-] as const
-
-const RESOURCE_LABELS: Record<string, string> = {
-  PRODUCT: 'Prodotti',
-  ENVIRONMENT: 'Ambienti',
-  MICROSERVICE: 'Microservizi',
-  IGNORED_ALARM: 'Allarmi ignorati',
-  RUNBOOK: 'Runbook',
-  FINAL_ACTION: 'Azioni finali',
-  ALARM: 'Allarmi',
-  ALARM_ANALYSIS: 'Analisi allarmi',
-  DOWNSTREAM: 'Downstream',
-  USER: 'Utenti',
-}
-
-const SCOPE_LABELS: Record<PermissionScope, string> = {
-  NONE: 'Nessuno',
-  OWN: 'Solo propri',
-  ALL: 'Tutti',
-}
+import { DISPLAY_RESOURCES, RESOURCE_LABELS, PERMISSION_SCOPE_LABELS } from '@go-watchtower/shared'
 
 const SCOPE_BADGE_VARIANT: Record<PermissionScope, 'secondary' | 'default' | 'success'> = {
   NONE: 'secondary',
@@ -93,7 +60,7 @@ type PermAction = 'canRead' | 'canWrite' | 'canDelete'
 function ScopeBadge({ scope }: { scope: PermissionScope }) {
   return (
     <Badge variant={SCOPE_BADGE_VARIANT[scope]} className="px-2 py-0.5 text-xs">
-      {SCOPE_LABELS[scope]}
+      {PERMISSION_SCOPE_LABELS[scope]}
     </Badge>
   )
 }
@@ -160,7 +127,7 @@ function PermissionsGrid({ permissions, canWrite, onChange }: PermissionsGridPro
       </div>
 
       <div className="divide-y">
-        {ALL_RESOURCES.map((resource) => (
+        {DISPLAY_RESOURCES.map((resource) => (
           <div
             key={resource}
             className="flex items-center gap-4 px-6 py-3 transition-colors hover:bg-muted/20"
@@ -367,7 +334,7 @@ function RoleDetailPanel({
 
   const handleSavePermissions = () => {
     onUpdatePermissions({
-      permissions: ALL_RESOURCES.map((resource) => {
+      permissions: DISPLAY_RESOURCES.map((resource) => {
         const perm = localPermissions.find((p) => p.resource === resource)
         return {
           resource,

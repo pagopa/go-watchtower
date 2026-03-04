@@ -19,6 +19,8 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
+import { AUTH_PROVIDER_LABELS } from '@go-watchtower/shared'
+import type { AuthProvider } from '@go-watchtower/shared'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -37,12 +39,6 @@ function getInitials(name: string): string {
     .slice(0, 2)
     .map((w) => w[0].toUpperCase())
     .join('')
-}
-
-const PROVIDER_LABELS: Record<string, string> = {
-  google: 'Google',
-  local: 'Email e password',
-  github: 'GitHub',
 }
 
 const THEME_CONFIG = {
@@ -506,7 +502,7 @@ export function ProfilePageContent() {
                   {provider && (
                     <Badge variant="outline" className="text-xs">
                       <KeyRound className="mr-1 h-3 w-3" />
-                      {PROVIDER_LABELS[provider] ?? provider}
+                      {AUTH_PROVIDER_LABELS[provider as AuthProvider] ?? provider}
                     </Badge>
                   )}
                   {userDetail?.isActive === false && (
@@ -600,7 +596,7 @@ export function ProfilePageContent() {
                 <Skeleton className="h-4 w-24" />
               ) : (
                 <span className="text-muted-foreground">
-                  {PROVIDER_LABELS[provider] ?? provider ?? '—'}
+                  {AUTH_PROVIDER_LABELS[provider as AuthProvider] ?? provider ?? '—'}
                 </span>
               )}
             </InfoRow>

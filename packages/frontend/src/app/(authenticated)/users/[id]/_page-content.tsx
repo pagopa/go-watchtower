@@ -35,38 +35,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-
-const ALL_RESOURCES = [
-  'PRODUCT',
-  'ENVIRONMENT',
-  'MICROSERVICE',
-  'IGNORED_ALARM',
-  'RUNBOOK',
-  'FINAL_ACTION',
-  'ALARM',
-  'ALARM_ANALYSIS',
-  'DOWNSTREAM',
-  'USER',
-] as const
-
-const RESOURCE_LABELS: Record<string, string> = {
-  PRODUCT: 'Prodotto',
-  ENVIRONMENT: 'Ambiente',
-  MICROSERVICE: 'Microservizio',
-  IGNORED_ALARM: 'Allarme ignorato',
-  RUNBOOK: 'Runbook',
-  FINAL_ACTION: 'Azione Finale',
-  ALARM: 'Allarme',
-  ALARM_ANALYSIS: 'Analisi allarme',
-  DOWNSTREAM: 'Downstream',
-  USER: 'Utente',
-}
-
-const SCOPE_LABELS: Record<PermissionScope, string> = {
-  NONE: 'Nessuno',
-  OWN: 'Solo propri',
-  ALL: 'Tutti',
-}
+import { DISPLAY_RESOURCES, RESOURCE_LABELS, PERMISSION_SCOPE_LABELS } from '@go-watchtower/shared'
 
 const SCOPE_BADGE_VARIANT: Record<PermissionScope, 'secondary' | 'default' | 'success'> = {
   NONE: 'secondary',
@@ -93,7 +62,7 @@ function UserAvatar({ name }: { name: string }) {
 function ScopeBadge({ scope }: { scope: PermissionScope }) {
   return (
     <Badge variant={SCOPE_BADGE_VARIANT[scope]} className="px-2 py-0.5 text-xs">
-      {SCOPE_LABELS[scope]}
+      {PERMISSION_SCOPE_LABELS[scope]}
     </Badge>
   )
 }
@@ -453,7 +422,7 @@ export function UserDetailPage() {
             </div>
 
             <div className="divide-y">
-              {ALL_RESOURCES.map((resource) => {
+              {DISPLAY_RESOURCES.map((resource) => {
                 const override = getOverride(resource)
                 const hasOverride = override !== null
 
@@ -509,7 +478,7 @@ export function UserDetailPage() {
                                 <SelectContent>
                                   <SelectItem value="inherit" className="text-xs">
                                     <span className="text-muted-foreground">Eredita dal ruolo</span>
-                                    <span className="ml-1 text-[10px] text-muted-foreground/60">({SCOPE_LABELS[roleValue]})</span>
+                                    <span className="ml-1 text-[10px] text-muted-foreground/60">({PERMISSION_SCOPE_LABELS[roleValue]})</span>
                                   </SelectItem>
                                   <SelectItem value="NONE" className="text-xs">Nessuno (NONE)</SelectItem>
                                   <SelectItem value="OWN" className="text-xs">Solo propri (OWN)</SelectItem>
@@ -520,7 +489,7 @@ export function UserDetailPage() {
                               <ScopeBadge scope={effectiveValue} />
                             )}
                             <span className="text-[10px] text-muted-foreground/60 tabular-nums">
-                              ruolo: {SCOPE_LABELS[roleValue]}
+                              ruolo: {PERMISSION_SCOPE_LABELS[roleValue]}
                             </span>
                           </div>
                         )
