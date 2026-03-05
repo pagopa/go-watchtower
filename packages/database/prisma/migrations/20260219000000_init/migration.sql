@@ -269,6 +269,10 @@ CREATE TABLE "system_settings" (
     "key" TEXT NOT NULL,
     "value" JSONB NOT NULL,
     "type" TEXT NOT NULL,
+    -- Formato semantico del valore (es. "WORKING_HOURS").
+    -- null per tipi primitivi o JSON senza shape specifica.
+    -- Valori gestiti dalla costante SettingFormats in @go-watchtower/shared
+    "format" TEXT,
     "category" TEXT NOT NULL,
     "label" TEXT NOT NULL,
     "description" TEXT,

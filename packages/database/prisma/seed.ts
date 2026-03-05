@@ -240,6 +240,7 @@ async function seedSystemSettings() {
       key:         "default_google_role_id",
       value:       ROLE_IDS.GUEST,
       type:        "STRING",
+      format:      null,
       category:    "AUTH",
       label:       "Ruolo predefinito Google",
       description: "Ruolo assegnato automaticamente ai nuovi utenti che accedono per la prima volta tramite Google OAuth",
@@ -248,6 +249,7 @@ async function seedSystemSettings() {
       key:         "analysis_edit_lock_days",
       value:       7,
       type:        "NUMBER",
+      format:      null,
       category:    "ANALYSIS",
       label:       "Giorni blocco modifica analisi",
       description: "Numero di giorni dopo i quali un operatore non può più modificare la propria analisi",
@@ -256,6 +258,7 @@ async function seedSystemSettings() {
       key:         "working_hours",
       value:       { start: "09:00", end: "18:00", days: [1, 2, 3, 4, 5] },
       type:        "JSON",
+      format:      "WORKING_HOURS",
       category:    "SYSTEM",
       label:       "Orari lavorativi",
       description: "Finestra oraria e giorni lavorativi usati per il calcolo delle KPI",
@@ -265,7 +268,7 @@ async function seedSystemSettings() {
   for (const setting of settings) {
     await prisma.systemSetting.upsert({
       where:  { key: setting.key },
-      update: {},
+      update: { format: setting.format },
       create: setting,
     });
     console.log(`  ✅ ${setting.key}`);

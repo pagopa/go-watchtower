@@ -455,6 +455,9 @@ model SystemSetting {
   value       Json
   // valori gestiti dalla costante SettingType in @go-watchtower/shared
   type        String
+  // formato semantico del valore — gestito dalla costante SettingFormats in @go-watchtower/shared
+  // null per tipi primitivi o JSON senza shape specifica
+  format      String?
   // valori gestiti dalla costante SettingCategory in @go-watchtower/shared
   category    String
   label       String

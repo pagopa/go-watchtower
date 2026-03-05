@@ -8,6 +8,7 @@ export const SystemSettingSchema = Type.Object({
   key:         Type.String(),
   value:       Type.Unknown(),
   type:        Type.String(),
+  format:      Type.Union([Type.String(), Type.Null()]),
   category:    Type.String(),
   label:       Type.String(),
   description: Type.Union([Type.String(), Type.Null()]),

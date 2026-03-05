@@ -51,6 +51,7 @@ import {
 import { ResizableTableHead } from '@/components/ui/resizable-table-head'
 import { ColumnConfigurator } from '@/components/ui/column-configurator'
 import dynamic from 'next/dynamic'
+import { isWorkingHoursSetting } from '@go-watchtower/shared'
 import { AlarmEventFilters, type AlarmEventFiltersState } from './_components/alarm-event-filters'
 import { AlarmEventDetailPanel } from './_components/alarm-event-detail-panel'
 import { AlarmEventDailyView, todayUTC } from './_components/alarm-event-daily-view'
@@ -214,10 +215,7 @@ function AlarmEventsPageContent() {
     queryFn:  async () => {
       try {
         const s = await api.getSetting('working_hours')
-        const v = s.value as { start?: unknown; end?: unknown; days?: unknown }
-        if (typeof v?.start === 'string' && typeof v?.end === 'string' && Array.isArray(v?.days)) {
-          return { start: v.start, end: v.end, days: v.days as number[] }
-        }
+        if (isWorkingHoursSetting(s)) return s.value
       } catch { /* non-admin: fallback */ }
       return null
     },

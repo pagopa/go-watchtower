@@ -14,11 +14,29 @@ import {
   type UpdateSettingBody,
 } from "./schemas.js";
 
+type FormatValidator = (value: unknown) => string | null;
+
+const FORMAT_VALIDATORS: Record<string, FormatValidator> = {
+  WORKING_HOURS: (value) => {
+    const v = value as { start?: unknown; end?: unknown; days?: unknown };
+    const timeRe = /^([01]\d|2[0-3]):[0-5]\d$/;
+    if (
+      typeof v?.start !== "string" || !timeRe.test(v.start) ||
+      typeof v?.end   !== "string" || !timeRe.test(v.end)   ||
+      !Array.isArray(v?.days)      || v.days.some((d) => typeof d !== "number" || d < 1 || d > 7)
+    ) {
+      return "working_hours deve avere start/end in formato HH:MM e days come array di numeri 1-7";
+    }
+    return null;
+  },
+};
+
 function formatSetting(s: {
   id: string;
   key: string;
   value: Prisma.JsonValue;
   type: string;
+  format: string | null;
   category: string;
   label: string;
   description: string | null;
@@ -31,6 +49,7 @@ function formatSetting(s: {
     key:         s.key,
     value:       s.value,
     type:        s.type,
+    format:      s.format,
     category:    s.category,
     label:       s.label,
     description: s.description,
@@ -167,18 +186,9 @@ export async function settingRoutes(app: FastifyInstance): Promise<void> {
         return reply.status(400).send({ error: `Value must be a string for setting '${existing.key}'` });
       }
 
-      if (existing.key === "working_hours") {
-        const v = value as { start?: unknown; end?: unknown; days?: unknown };
-        const timeRe = /^([01]\d|2[0-3]):[0-5]\d$/;
-        if (
-          typeof v?.start !== "string" || !timeRe.test(v.start) ||
-          typeof v?.end   !== "string" || !timeRe.test(v.end)   ||
-          !Array.isArray(v?.days)      || v.days.some((d) => typeof d !== "number" || d < 1 || d > 7)
-        ) {
-          return reply.status(400).send({
-            error: "working_hours deve avere start/end in formato HH:MM e days come array di numeri 1-7",
-          });
-        }
+      if (existing.format) {
+        const formatError = FORMAT_VALIDATORS[existing.format]?.(value) ?? null;
+        if (formatError) return reply.status(400).send({ error: formatError });
       }
 
       const updated = await prisma.systemSetting.update({

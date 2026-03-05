@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Loader2, SlidersHorizontal, Check, X, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
+import { isWorkingHoursSetting } from '@go-watchtower/shared'
 import { api, type SystemSetting } from '@/lib/api-client'
 import { usePermissions } from '@/hooks/use-permissions'
 import { Button } from '@/components/ui/button'
@@ -133,7 +134,7 @@ function SettingValueEditor({
     if (e.key === 'Escape') onCancel()
   }
 
-  if (setting.key === 'working_hours') {
+  if (isWorkingHoursSetting(setting)) {
     return (
       <WorkingHoursEditor
         value={draft}
@@ -222,8 +223,8 @@ function SettingValueDisplay({ setting }: { setting: SystemSetting }) {
       </Badge>
     )
   }
-  if (setting.key === 'working_hours') {
-    const wh = setting.value as { start?: string; end?: string; days?: number[] } | null
+  if (isWorkingHoursSetting(setting)) {
+    const wh = setting.value
     const timeRange = wh?.start && wh?.end ? `${wh.start} – ${wh.end}` : '—'
     const dayLabels = (wh?.days ?? []).map((d) => DAYS.find(({ n }) => n === d)?.label).filter(Boolean).join(' ')
     return (
