@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { X, Pencil, Trash2, Copy, Check, BellRing, Cloud, Info } from 'lucide-react'
+import { X, Pencil, Trash2, Copy, Check, BellRing, Cloud, Info, BookOpen, ExternalLink } from 'lucide-react'
+import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import type { AlarmEvent } from '@/lib/api-client'
@@ -279,6 +280,44 @@ export function AlarmEventDetailPanel({
                   </div>
 
                 </div>
+
+                {/* ── Allarme catalogato ────────────────────────────────── */}
+                {event.alarm && (
+                  <div className="space-y-3">
+                    <SectionHeader label="Allarme catalogato" icon={BellRing} />
+                    <div className="rounded-lg border border-border/50 bg-muted/20 px-3.5 py-3 space-y-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-semibold leading-snug break-words">{event.alarm.name}</p>
+                        <Link
+                          href={`/products/${event.product.id}?tab=alarms`}
+                          className="shrink-0 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                        >
+                          Vedi
+                          <ExternalLink className="h-3 w-3" />
+                        </Link>
+                      </div>
+                      {event.alarm.description && (
+                        <p className="text-xs leading-relaxed text-muted-foreground">
+                          {event.alarm.description}
+                        </p>
+                      )}
+                      {event.alarm.runbook && (
+                        <div className="flex items-center gap-2 pt-0.5">
+                          <BookOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
+                          <a
+                            href={event.alarm.runbook.link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex min-w-0 items-center gap-1 text-xs text-primary hover:underline"
+                          >
+                            <span className="truncate">{event.alarm.runbook.name}</span>
+                            <ExternalLink className="h-3 w-3 shrink-0" />
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* ── AWS ───────────────────────────────────────────────── */}
                 <div className="space-y-4">

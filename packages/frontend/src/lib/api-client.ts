@@ -627,6 +627,7 @@ export interface UserPreferences {
   sidebarCollapsed?: boolean
   analysisFiltersCollapsed?: boolean
   alarmEventFiltersCollapsed?: boolean
+  alarmEventViewMode?: 'list' | 'daily' | 'oncall'
   detailPanelWidth?: number
 }
 
@@ -760,12 +761,20 @@ export interface AlarmEvent {
   awsAccountId: string
   product: { id: string; name: string }
   environment: { id: string; name: string }
+  alarmId: string | null
+  alarm: {
+    id: string
+    name: string
+    description: string | null
+    runbook: { id: string; name: string; link: string } | null
+  } | null
   createdAt: string
 }
 
 export interface AlarmEventsFilters {
   productId?: string
   environmentId?: string
+  alarmId?: string
   awsAccountId?: string
   awsRegion?: string
   dateFrom?: string
@@ -788,6 +797,7 @@ export interface CreateAlarmEventData {
 export interface UpdateAlarmEventData {
   description?: string | null
   reason?: string | null
+  alarmId?: string | null
 }
 
 // API methods

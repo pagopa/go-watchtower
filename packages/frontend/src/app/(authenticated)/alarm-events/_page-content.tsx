@@ -122,8 +122,23 @@ function AlarmEventsPageContent() {
   const [editItem, setEditItem] = useState<AlarmEvent | null>(null)
   const [deleteItem, setDeleteItem] = useState<AlarmEvent | null>(null)
 
-  // View mode
+  // View mode — persisted in user preferences.
+  // Initialized to 'list'; synced once preferences load from the server
+  // (staleTime=Infinity, so subsequent navigations resolve from cache synchronously).
   const [viewMode, setViewMode] = useState<'list' | 'daily' | 'oncall'>('list')
+  const viewModeInitialized = useRef(false)
+  useEffect(() => {
+    if (!viewModeInitialized.current && preferences.alarmEventViewMode) {
+      viewModeInitialized.current = true
+      setViewMode(preferences.alarmEventViewMode)
+    }
+  }, [preferences.alarmEventViewMode])
+
+  const handleSetViewMode = useCallback((mode: 'list' | 'daily' | 'oncall') => {
+    viewModeInitialized.current = true
+    setViewMode(mode)
+    updatePreferences({ alarmEventViewMode: mode })
+  }, [updatePreferences])
   const [selectedDate, setSelectedDate] = useState<string>(() => todayUTC())
 
   // Filters collapsed
@@ -400,7 +415,7 @@ function AlarmEventsPageContent() {
               variant={viewMode === 'list' ? 'secondary' : 'ghost'}
               size="sm"
               className="h-6 gap-1.5 px-2 text-xs"
-              onClick={() => setViewMode('list')}
+              onClick={() => handleSetViewMode('list')}
             >
               <LayoutList className="h-3 w-3" />
               Lista
@@ -409,7 +424,7 @@ function AlarmEventsPageContent() {
               variant={viewMode === 'daily' ? 'secondary' : 'ghost'}
               size="sm"
               className="h-6 gap-1.5 px-2 text-xs"
-              onClick={() => setViewMode('daily')}
+              onClick={() => handleSetViewMode('daily')}
             >
               <CalendarDays className="h-3 w-3" />
               Giornaliero
@@ -418,7 +433,7 @@ function AlarmEventsPageContent() {
               variant={viewMode === 'oncall' ? 'secondary' : 'ghost'}
               size="sm"
               className="h-6 gap-1.5 px-2 text-xs"
-              onClick={() => setViewMode('oncall')}
+              onClick={() => handleSetViewMode('oncall')}
             >
               <PhoneCall className="h-3 w-3" />
               Reperibilità

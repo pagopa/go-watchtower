@@ -3,6 +3,7 @@ import { CHANNEL_REGISTRY } from "./config.js";
 import { fetchMessagePages } from "./slack-client.js";
 import { getCursor, saveCursor } from "./cursor-store.js";
 import { getParser } from "./parsers/registry.js";
+import { resolveAlarmId } from "./alarm-resolver.js";
 import type { Message, ParsedAlarmEvent } from "./parsers/types.js";
 
 const VERBOSE = process.env["VERBOSE"] === "1" || process.env["DEBUG"] === "1";
@@ -76,6 +77,8 @@ async function processChannel(
       }
 
       try {
+        const alarmId = await resolveAlarmId(productId, parsed.name);
+
         await prisma.alarmEvent.create({
           data: {
             name:           parsed.name,
@@ -86,6 +89,7 @@ async function processChannel(
             reason:         parsed.reason,
             productId,
             environmentId,
+            alarmId,
             slackMessageId: `${channelId}/${ts}`,
           },
         });

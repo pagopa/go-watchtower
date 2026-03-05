@@ -245,6 +245,7 @@ model Alarm {
   runbook       Runbook?        @relation(fields: [runbookId], references: [id], onDelete: SetNull)
   analyses      AlarmAnalysis[]
   ignoredAlarms IgnoredAlarm[]
+  alarmEvents   AlarmEvent[]
 
   @@unique([productId, name])
   @@index([runbookId])
@@ -422,6 +423,7 @@ model AlarmEvent {
   awsAccountId   String   @map("aws_account_id")
   productId      String   @map("product_id") @db.Uuid
   environmentId  String   @map("environment_id") @db.Uuid
+  alarmId        String?  @map("alarm_id") @db.Uuid
   // Identificatore univoco del messaggio Slack sorgente — formato "{channelId}/{ts}".
   // Usato per prevenire duplicati quando lo script di ingestione rilegge messaggi già processati.
   slackMessageId String?  @unique @map("slack_message_id")
@@ -429,11 +431,13 @@ model AlarmEvent {
 
   product     Product     @relation(fields: [productId], references: [id], onDelete: Restrict)
   environment Environment @relation(fields: [environmentId], references: [id], onDelete: Restrict)
+  alarm       Alarm?      @relation(fields: [alarmId], references: [id], onDelete: SetNull)
 
   @@index([firedAt])
   @@index([productId, firedAt])
   @@index([environmentId])
   @@index([awsAccountId])
+  @@index([alarmId])
   @@map("alarm_events")
 }
 

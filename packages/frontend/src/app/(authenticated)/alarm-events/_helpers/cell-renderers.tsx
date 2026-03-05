@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react'
+import Link from 'next/link'
 import type { AlarmEvent } from '@/lib/api-client'
+import { AlarmRefPopover } from '../_components/alarm-ref-popover'
 
 function formatDateTimeUTC(iso: string): string {
   try {
@@ -22,7 +24,14 @@ export function renderCell(columnId: string, event: AlarmEvent): ReactNode {
         </span>
       )
     case 'name':
-      return <span className="block truncate font-medium text-sm">{event.name}</span>
+      return (
+        <div className="flex min-w-0 items-center gap-1">
+          <span className="truncate font-medium text-sm">{event.name}</span>
+          {event.alarm && (
+            <AlarmRefPopover alarm={event.alarm} productId={event.product.id} />
+          )}
+        </div>
+      )
     case 'product':
       return (
         <span className="inline-flex items-center rounded border px-1.5 py-0.5 text-xs font-medium text-foreground/75">
@@ -46,6 +55,18 @@ export function renderCell(columnId: string, event: AlarmEvent): ReactNode {
     case 'description':
       return event.description
         ? <span className="block truncate text-sm text-muted-foreground">{event.description}</span>
+        : <span className="text-muted-foreground/40 text-sm">—</span>
+    case 'alarm':
+      return event.alarm
+        ? (
+          <Link
+            href={`/products/${event.product.id}?tab=alarms`}
+            className="block truncate text-sm text-primary hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {event.alarm.name}
+          </Link>
+        )
         : <span className="text-muted-foreground/40 text-sm">—</span>
     case 'reason':
       return event.reason

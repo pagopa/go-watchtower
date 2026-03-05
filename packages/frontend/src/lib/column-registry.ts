@@ -25,6 +25,7 @@ export const COLUMN_REGISTRY: Record<string, ColumnDef[]> = {
   alarmEvents: [
     { id: 'firedAt',      label: 'Data scatto',   locked: true,          defaultWidth: 160, minWidth: 130, sortKey: 'firedAt' },
     { id: 'name',         label: 'Nome allarme',                         defaultWidth: 240, minWidth: 140 },
+    { id: 'alarm',        label: 'Allarme',       defaultVisible: false, defaultWidth: 200, minWidth: 120 },
     { id: 'product',      label: 'Prodotto',                             defaultWidth: 110, minWidth: 80 },
     { id: 'environment',  label: 'Ambiente',                             defaultWidth: 110, minWidth: 80 },
     { id: 'awsRegion',    label: 'Region AWS',                           defaultWidth: 130, minWidth: 90 },

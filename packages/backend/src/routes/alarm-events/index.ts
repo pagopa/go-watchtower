@@ -22,7 +22,22 @@ import {
 const include = {
   product:     { select: { id: true, name: true } },
   environment: { select: { id: true, name: true } },
+  alarm: {
+    select: {
+      id:          true,
+      name:        true,
+      description: true,
+      runbook:     { select: { id: true, name: true, link: true } },
+    },
+  },
 } as const;
+
+type EmbeddedAlarm = {
+  id: string;
+  name: string;
+  description: string | null;
+  runbook: { id: string; name: string; link: string } | null;
+} | null;
 
 function formatResponse(event: {
   id: string;
@@ -32,9 +47,11 @@ function formatResponse(event: {
   reason: string | null;
   awsRegion: string;
   awsAccountId: string;
+  alarmId: string | null;
   createdAt: Date;
   product: { id: string; name: string };
   environment: { id: string; name: string };
+  alarm: EmbeddedAlarm;
 }) {
   return {
     ...event,
@@ -61,11 +78,12 @@ export async function alarmEventRoutes(app: FastifyInstance) {
       },
     },
     async (request, reply) => {
-      const { productId, environmentId, awsAccountId, awsRegion, dateFrom, dateTo, page = 1, pageSize = 20 } = request.query;
+      const { productId, environmentId, alarmId, awsAccountId, awsRegion, dateFrom, dateTo, page = 1, pageSize = 20 } = request.query;
 
       const where = {
         ...(productId     && { productId }),
         ...(environmentId && { environmentId }),
+        ...(alarmId       && { alarmId }),
         ...(awsAccountId  && { awsAccountId }),
         ...(awsRegion     && { awsRegion }),
         ...((dateFrom || dateTo) && {
@@ -211,7 +229,7 @@ export async function alarmEventRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const existing = await prisma.alarmEvent.findUnique({
         where: { id: request.params.id },
-        select: { id: true, name: true, description: true, reason: true },
+        select: { id: true, name: true, description: true, reason: true, alarmId: true },
       });
 
       if (!existing) {
@@ -223,6 +241,7 @@ export async function alarmEventRoutes(app: FastifyInstance) {
         data: {
           description: request.body.description,
           reason:      request.body.reason,
+          alarmId:     request.body.alarmId,
         },
         include,
       });
@@ -232,7 +251,7 @@ export async function alarmEventRoutes(app: FastifyInstance) {
         resource:      SystemEventResources.ALARM_EVENTS,
         resourceId:    updated.id,
         resourceLabel: updated.name,
-        metadata:      { changes: buildDiff(existing, updated, ["description", "reason"]) },
+        metadata:      { changes: buildDiff(existing, updated, ["description", "reason", "alarmId"]) },
       });
 
       return reply.send(formatResponse(updated));

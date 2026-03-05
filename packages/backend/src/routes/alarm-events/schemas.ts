@@ -1,6 +1,21 @@
 import { Type, type Static } from "@sinclair/typebox";
 import { ErrorResponseSchema, MessageResponseSchema, RelatedEntitySchema } from "../../schemas/common.js";
 
+// Alarm reference embedded in AlarmEvent — richer than RelatedEntity (includes description + runbook)
+const EmbeddedAlarmSchema = Type.Object({
+  id:          Type.String(),
+  name:        Type.String(),
+  description: Type.Union([Type.String(), Type.Null()]),
+  runbook:     Type.Union([
+    Type.Object({
+      id:   Type.String(),
+      name: Type.String(),
+      link: Type.String(),
+    }),
+    Type.Null(),
+  ]),
+});
+
 export { ErrorResponseSchema, MessageResponseSchema };
 
 // ─── Response ─────────────────────────────────────────────────────────────────
@@ -15,6 +30,8 @@ export const AlarmEventResponseSchema = Type.Object({
   awsAccountId:  Type.String(),
   product:       RelatedEntitySchema,
   environment:   RelatedEntitySchema,
+  alarmId:       Type.Union([Type.String(), Type.Null()]),
+  alarm:         Type.Union([EmbeddedAlarmSchema, Type.Null()]),
   createdAt:     Type.String({ format: "date-time" }),
 });
 
@@ -43,6 +60,7 @@ export type AlarmEventParams = Static<typeof AlarmEventParamsSchema>;
 export const AlarmEventsQuerySchema = Type.Object({
   productId:     Type.Optional(Type.String()),
   environmentId: Type.Optional(Type.String()),
+  alarmId:       Type.Optional(Type.String()),
   awsAccountId:  Type.Optional(Type.String()),
   awsRegion:     Type.Optional(Type.String()),
   dateFrom:      Type.Optional(Type.String({ format: "date-time" })),
@@ -74,6 +92,7 @@ export type CreateAlarmEventBody = Static<typeof CreateAlarmEventBodySchema>;
 export const UpdateAlarmEventBodySchema = Type.Object({
   description: Type.Optional(Type.Union([Type.String(), Type.Null()])),
   reason:      Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  alarmId:     Type.Optional(Type.Union([Type.String(), Type.Null()])),
 });
 
 export type UpdateAlarmEventBody = Static<typeof UpdateAlarmEventBodySchema>;
