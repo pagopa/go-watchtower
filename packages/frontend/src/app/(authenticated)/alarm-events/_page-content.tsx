@@ -4,6 +4,7 @@ import { Suspense, useState, useRef, useEffect, useCallback, useMemo } from 'rea
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, Plus, Inbox, RefreshCw,
+  LayoutList, CalendarDays,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -52,6 +53,7 @@ import { ColumnConfigurator } from '@/components/ui/column-configurator'
 import dynamic from 'next/dynamic'
 import { AlarmEventFilters, type AlarmEventFiltersState } from './_components/alarm-event-filters'
 import { AlarmEventDetailPanel } from './_components/alarm-event-detail-panel'
+import { AlarmEventDailyView, todayUTC } from './_components/alarm-event-daily-view'
 import { renderCell } from './_helpers/cell-renderers'
 
 const AlarmEventFormDialog = dynamic(
@@ -113,6 +115,10 @@ function AlarmEventsPageContent() {
   const [formOpen, setFormOpen] = useState(false)
   const [editItem, setEditItem] = useState<AlarmEvent | null>(null)
   const [deleteItem, setDeleteItem] = useState<AlarmEvent | null>(null)
+
+  // View mode
+  const [viewMode, setViewMode] = useState<'list' | 'daily'>('list')
+  const [selectedDate, setSelectedDate] = useState<string>(() => todayUTC())
 
   // Filters collapsed
   const [userCollapsedOverride, setUserCollapsedOverride] = useState<boolean | null>(null)
@@ -201,6 +207,22 @@ function AlarmEventsPageContent() {
 
   const events     = eventsResponse?.data
   const pagination = eventsResponse?.pagination
+
+  // Working hours — fetched with fallback so non-admin users still get defaults
+  const { data: workingHours } = useQuery({
+    queryKey: ['working-hours'],
+    queryFn:  async () => {
+      try {
+        const s = await api.getSetting('working_hours')
+        const v = s.value as { start?: unknown; end?: unknown; days?: unknown }
+        if (typeof v?.start === 'string' && typeof v?.end === 'string' && Array.isArray(v?.days)) {
+          return { start: v.start, end: v.end, days: v.days as number[] }
+        }
+      } catch { /* non-admin: fallback */ }
+      return null
+    },
+    staleTime: 5 * 60 * 1000,
+  })
 
   // --- Mutations ---
 
@@ -342,7 +364,7 @@ function AlarmEventsPageContent() {
       {/* Results Bar */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          {pagination ? (
+          {viewMode === 'list' && pagination ? (
             <>
               <span className="font-medium tabular-nums text-foreground">{pagination.totalItems}</span>
               {' '}allarmi trovati
@@ -353,20 +375,44 @@ function AlarmEventsPageContent() {
                 </span>
               )}
             </>
-          ) : eventsLoading ? '' : ''}
+          ) : eventsLoading && viewMode === 'list' ? '' : ''}
         </p>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 gap-1.5"
-            onClick={() => refetchEvents()}
-            disabled={eventsFetching}
-            title="Aggiorna"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${eventsFetching ? 'animate-spin' : ''}`} />
-            <span className="text-xs">Aggiorna</span>
-          </Button>
+          {/* View mode toggle */}
+          <div className="flex items-center gap-0.5 rounded-md border bg-card p-0.5">
+            <Button
+              variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+              size="sm"
+              className="h-6 gap-1.5 px-2 text-xs"
+              onClick={() => setViewMode('list')}
+            >
+              <LayoutList className="h-3 w-3" />
+              Lista
+            </Button>
+            <Button
+              variant={viewMode === 'daily' ? 'secondary' : 'ghost'}
+              size="sm"
+              className="h-6 gap-1.5 px-2 text-xs"
+              onClick={() => setViewMode('daily')}
+            >
+              <CalendarDays className="h-3 w-3" />
+              Giornaliero
+            </Button>
+          </div>
+
+          {viewMode === 'list' && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5"
+              onClick={() => refetchEvents()}
+              disabled={eventsFetching}
+              title="Aggiorna"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${eventsFetching ? 'animate-spin' : ''}`} />
+              <span className="text-xs">Aggiorna</span>
+            </Button>
+          )}
           <ColumnConfigurator
             allColumns={allColumns}
             isVisible={isVisible}
@@ -384,8 +430,29 @@ function AlarmEventsPageContent() {
         </div>
       </div>
 
-      {/* Table */}
-      <Card className="overflow-hidden">
+      {/* Daily view */}
+      {viewMode === 'daily' && (
+        <AlarmEventDailyView
+          selectedDate={selectedDate}
+          onDateChange={setSelectedDate}
+          workingHours={workingHours ?? null}
+          filters={filters}
+          visibleColumns={visibleColumns}
+          getWidth={getWidth}
+          totalMinWidth={totalTableMinWidth}
+          canWrite={canWrite}
+          canDelete={canDelete}
+          selectedEventId={selectedEvent?.id ?? null}
+          showDetailPanel={showDetailPanel}
+          lingeringId={lingeringId}
+          onRowClick={handleRowClick}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+        />
+      )}
+
+      {/* Table (list view) */}
+      {viewMode === 'list' && <Card className="overflow-hidden">
         <CardContent className="p-0">
           {eventsLoading ? (
             <div className="divide-y">
@@ -528,10 +595,10 @@ function AlarmEventsPageContent() {
             </div>
           )}
         </CardContent>
-      </Card>
+      </Card>}
 
-      {/* Pagination */}
-      {pagination && pagination.totalPages > 1 && (
+      {/* Pagination (list view only) */}
+      {viewMode === 'list' && pagination && pagination.totalPages > 1 && (
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Righe per pagina</span>

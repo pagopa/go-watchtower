@@ -126,8 +126,7 @@ export function AlarmEventFilters({
               <Select
                 value={filters.productId || ALL_VALUE}
                 onValueChange={(val) => {
-                  updateFilter('productId', val === ALL_VALUE ? '' : val)
-                  updateFilter('environmentId', '')
+                  onFilterChange({ ...filters, productId: val === ALL_VALUE ? '' : val, environmentId: '' })
                 }}
               >
                 <SelectTrigger>

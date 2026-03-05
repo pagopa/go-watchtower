@@ -48,7 +48,7 @@ export const AlarmEventsQuerySchema = Type.Object({
   dateFrom:      Type.Optional(Type.String({ format: "date-time" })),
   dateTo:        Type.Optional(Type.String({ format: "date-time" })),
   page:          Type.Optional(Type.Integer({ minimum: 1, default: 1 })),
-  pageSize:      Type.Optional(Type.Integer({ minimum: 1, maximum: 200, default: 20 })),
+  pageSize:      Type.Optional(Type.Integer({ minimum: 1, maximum: 1000, default: 20 })),
 });
 
 export type AlarmEventsQuery = Static<typeof AlarmEventsQuerySchema>;
