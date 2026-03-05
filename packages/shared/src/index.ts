@@ -57,8 +57,9 @@ export type { AnalysisLink, TrackingEntry } from './types/analysis.js';
 export type { IgnoreReasonFieldDef, IgnoreReasonDetailsSchema, IgnoreReason } from './types/ignore-reason.js';
 export type { TimeConstraintPeriod, TimeConstraintHours, TimeConstraint } from './types/time-constraint.js';
 export type { ResourcePermission, RolePermission, UserPermissions } from './types/permissions.js';
-export type { SystemSetting, GenericSystemSetting, WorkingHoursSystemSetting, FkSystemSetting, RoleFkSystemSetting } from './types/system-setting.js';
+export type { SystemSetting, GenericSystemSetting, WorkingHoursSystemSetting, OnCallHoursSystemSetting, FkSystemSetting, RoleFkSystemSetting } from './types/system-setting.js';
 export type { WorkingHours } from './types/working-hours.js';
+export type { OnCallHours, OnCallOvernightPattern, OnCallAllDayPattern } from './types/on-call-hours.js';
 export type { SystemEvent, SystemEventsResponse } from './types/system-event.js';
 
 // ─── Label ─────────────────────────────────────────────────────────────────────
@@ -72,7 +73,9 @@ export { AUTH_PROVIDER_LABELS } from './labels/auth-provider-labels.js';
 
 // ─── Utility ───────────────────────────────────────────────────────────────────
 
-export { isWorkingHoursSetting, isFkSetting, isFkSettingOf } from './utils/setting-guards.js';
+export { isWorkingHoursSetting, isOnCallHoursSetting, isFkSetting, isFkSettingOf } from './utils/setting-guards.js';
+export { classifyEvent } from './utils/classify-event.js';
+export type { EventClass } from './utils/classify-event.js';
 export { inferLinkType } from './utils/infer-link-type.js';
 export { buildDiff } from './utils/build-diff.js';
 export { matchIgnoredAlarm } from './utils/match-ignored-alarm.js';

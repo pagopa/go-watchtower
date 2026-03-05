@@ -4,7 +4,7 @@ import { Suspense, useState, useRef, useEffect, useCallback, useMemo } from 'rea
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, Plus, Inbox, RefreshCw,
-  LayoutList, CalendarDays,
+  LayoutList, CalendarDays, PhoneCall,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -51,10 +51,15 @@ import {
 import { ResizableTableHead } from '@/components/ui/resizable-table-head'
 import { ColumnConfigurator } from '@/components/ui/column-configurator'
 import dynamic from 'next/dynamic'
-import { isWorkingHoursSetting } from '@go-watchtower/shared'
+import { isWorkingHoursSetting, isOnCallHoursSetting } from '@go-watchtower/shared'
 import { AlarmEventFilters, type AlarmEventFiltersState } from './_components/alarm-event-filters'
 import { AlarmEventDetailPanel } from './_components/alarm-event-detail-panel'
 import { AlarmEventDailyView, todayUTC } from './_components/alarm-event-daily-view'
+
+const AlarmEventOnCallView = dynamic(
+  () => import('./_components/alarm-event-oncall-view').then((m) => ({ default: m.AlarmEventOnCallView })),
+  { ssr: false }
+)
 import { renderCell } from './_helpers/cell-renderers'
 
 const AlarmEventFormDialog = dynamic(
@@ -118,7 +123,7 @@ function AlarmEventsPageContent() {
   const [deleteItem, setDeleteItem] = useState<AlarmEvent | null>(null)
 
   // View mode
-  const [viewMode, setViewMode] = useState<'list' | 'daily'>('list')
+  const [viewMode, setViewMode] = useState<'list' | 'daily' | 'oncall'>('list')
   const [selectedDate, setSelectedDate] = useState<string>(() => todayUTC())
 
   // Filters collapsed
@@ -217,6 +222,19 @@ function AlarmEventsPageContent() {
         const s = await api.getSetting('working_hours')
         if (isWorkingHoursSetting(s)) return s.value
       } catch { /* non-admin: fallback */ }
+      return null
+    },
+    staleTime: 5 * 60 * 1000,
+  })
+
+  // On-call hours — optional, shown only when configured
+  const { data: onCallHours } = useQuery({
+    queryKey: ['on-call-hours'],
+    queryFn:  async () => {
+      try {
+        const s = await api.getSetting('on_call_hours')
+        if (isOnCallHoursSetting(s)) return s.value
+      } catch { /* non-admin or not configured: skip */ }
       return null
     },
     staleTime: 5 * 60 * 1000,
@@ -396,6 +414,15 @@ function AlarmEventsPageContent() {
               <CalendarDays className="h-3 w-3" />
               Giornaliero
             </Button>
+            <Button
+              variant={viewMode === 'oncall' ? 'secondary' : 'ghost'}
+              size="sm"
+              className="h-6 gap-1.5 px-2 text-xs"
+              onClick={() => setViewMode('oncall')}
+            >
+              <PhoneCall className="h-3 w-3" />
+              Reperibilità
+            </Button>
           </div>
 
           {viewMode === 'list' && (
@@ -434,6 +461,26 @@ function AlarmEventsPageContent() {
           selectedDate={selectedDate}
           onDateChange={setSelectedDate}
           workingHours={workingHours ?? null}
+          filters={filters}
+          visibleColumns={visibleColumns}
+          getWidth={getWidth}
+          totalMinWidth={totalTableMinWidth}
+          canWrite={canWrite}
+          canDelete={canDelete}
+          selectedEventId={selectedEvent?.id ?? null}
+          showDetailPanel={showDetailPanel}
+          lingeringId={lingeringId}
+          onRowClick={handleRowClick}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+        />
+      )}
+
+      {/* On-call view */}
+      {viewMode === 'oncall' && (
+        <AlarmEventOnCallView
+          workingHours={workingHours ?? null}
+          onCallHours={onCallHours ?? null}
           filters={filters}
           visibleColumns={visibleColumns}
           getWidth={getWidth}

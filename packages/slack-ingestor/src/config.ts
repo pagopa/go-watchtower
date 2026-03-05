@@ -38,6 +38,8 @@ export const CHANNEL_REGISTRY: ChannelConfig[] = [
   //   defaultAwsAccountId: '644374009812',
   //   defaultAwsRegion:    'eu-south-1',
   // },
+
+  // SEND - prod
   {
     channelId:           'C0585442Z39',
     productId:           'd0000000-0000-0000-0000-000000000001',
@@ -46,12 +48,54 @@ export const CHANNEL_REGISTRY: ChannelConfig[] = [
     defaultAwsAccountId: '350578575906',
     defaultAwsRegion:    'eu-south-1',
   },  
+
+  // SEND - UAT
   {
     channelId:           'C03JJLHL5K8',
     productId:           'd0000000-0000-0000-0000-000000000001',
     environmentId:       'e0000000-0000-0000-0001-000000000002',
     parserId:            'amazon-q',
     defaultAwsAccountId: '644374009812',
+    defaultAwsRegion:    'eu-south-1',
+  },
+
+  // interop - PROD
+  {
+    channelId:           'C0472QPG5D2',
+    productId:           'd0000000-0000-0000-0000-000000000002',
+    environmentId:       'e0000000-0000-0000-0002-000000000001',
+    parserId:            'email-sns',
+    defaultAwsAccountId: '697818730278',
+    defaultAwsRegion:    'eu-south-1',
+  },
+
+  // interop - Attestazione
+  {
+    channelId:           'C06LQ7Y8B17',
+    productId:           'd0000000-0000-0000-0000-000000000002',
+    environmentId:       'e0000000-0000-0000-0002-000000000002',
+    parserId:            'email-sns',
+    defaultAwsAccountId: '533267098416',
+    defaultAwsRegion:    'eu-south-1',
+  },
+
+  // interop - Collaudo
+  {
+    channelId:           'C04708Y1QP5',
+    productId:           'd0000000-0000-0000-0000-000000000002',
+    environmentId:       'e0000000-0000-0000-0002-000000000003',
+    parserId:            'email-sns',
+    defaultAwsAccountId: '895646477129',
+    defaultAwsRegion:    'eu-south-1',
+  },
+
+  // interop - Catalog
+  {
+    channelId:           'C09RVCSL4BS',
+    productId:           'd0000000-0000-0000-0000-000000000002',
+    environmentId:       'e0000000-0000-0000-0002-000000000004',
+    parserId:            'email-sns',
+    defaultAwsAccountId: '697818730278',
     defaultAwsRegion:    'eu-south-1',
   },
 ];

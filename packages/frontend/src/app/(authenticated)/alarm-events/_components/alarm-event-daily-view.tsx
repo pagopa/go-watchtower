@@ -17,13 +17,9 @@ import {
 import { ResizableTableHead } from '@/components/ui/resizable-table-head'
 import { renderCell } from '../_helpers/cell-renderers'
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+import type { WorkingHours } from '@go-watchtower/shared'
 
-export interface WorkingHours {
-  start: string
-  end:   string
-  days:  number[]
-}
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface AlarmEventDailyViewProps {
   selectedDate:    string
@@ -56,7 +52,7 @@ export function shiftDay(dateStr: string, delta: number): string {
   return date.toISOString().slice(0, 10)
 }
 
-function formatDateLong(dateStr: string): string {
+export function formatDateLong(dateStr: string): string {
   const [y, m, d] = dateStr.split('-').map(Number)
   const date = new Date(Date.UTC(y!, m! - 1, d!, 12))
   const s = date.toLocaleDateString('it-IT', {
@@ -65,25 +61,35 @@ function formatDateLong(dateStr: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
-function parseHHMM(hhmm: string): number {
+// ─── Event partitioning ───────────────────────────────────────────────────────
+
+function toMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(':').map(Number)
   return (h ?? 0) * 60 + (m ?? 0)
 }
 
-function minuteOfDayUTC(event: AlarmEvent): number {
-  const d = new Date(event.firedAt)
+function minuteOfDayUTC(isoString: string): number {
+  const d = new Date(isoString)
   return d.getUTCHours() * 60 + d.getUTCMinutes()
 }
 
+function isoWeekdayUTC(isoString: string): number {
+  const d = new Date(isoString)
+  const day = d.getUTCDay()
+  return day === 0 ? 7 : day
+}
+
 function partitionEvents(events: AlarmEvent[], wh: WorkingHours) {
-  const startMin = parseHHMM(wh.start)
-  const endMin   = parseHHMM(wh.end)
   const pre: AlarmEvent[] = [], work: AlarmEvent[] = [], post: AlarmEvent[] = []
+  const whStart = toMinutes(wh.start)
+  const whEnd   = toMinutes(wh.end)
   for (const e of events) {
-    const m = minuteOfDayUTC(e)
-    if      (m < startMin) pre.push(e)
-    else if (m < endMin)   work.push(e)
-    else                   post.push(e)
+    const mod     = minuteOfDayUTC(e.firedAt)
+    const weekday = isoWeekdayUTC(e.firedAt)
+    const isWorkDay = wh.days.includes(weekday)
+    if (isWorkDay && mod >= whStart && mod < whEnd) work.push(e)
+    else if (isWorkDay && mod < whStart)             pre.push(e)
+    else                                             post.push(e)
   }
   return { pre, work, post }
 }
@@ -163,7 +169,7 @@ function DayNavigation({
 
 type BucketId = 'pre' | 'work' | 'post'
 
-interface BucketCfg {
+export interface BucketCfg {
   Icon:        typeof Moon
   label:       string
   headerCls:   string
@@ -199,14 +205,14 @@ const BUCKETS: Record<BucketId, BucketCfg> = {
   },
 }
 
-function BucketSection({
-  id, events, timeRange,
+export function BucketSection({
+  cfg, events, timeRange,
   visibleColumns, getWidth, totalMinWidth,
   canWrite, canDelete,
   selectedEventId, showDetailPanel, lingeringId,
   onRowClick, onEdit, onDelete,
 }: {
-  id:              BucketId
+  cfg:             BucketCfg
   events:          AlarmEvent[]
   timeRange:       string
   visibleColumns:  ColumnDef[]
@@ -222,7 +228,6 @@ function BucketSection({
   onDelete:        (e: AlarmEvent) => void
 }) {
   const [collapsed, setCollapsed] = useState(events.length === 0)
-  const cfg = BUCKETS[id]
   const { Icon } = cfg
 
   return (
@@ -426,9 +431,9 @@ export function AlarmEventDailyView({
         </div>
       ) : (
         <div className="space-y-3">
-          <BucketSection id="post" events={post} timeRange={`${wh.end} – 23:59`} {...bucketProps} />
-          <BucketSection id="work" events={work} timeRange={`${wh.start} – ${wh.end}`} {...bucketProps} />
-          <BucketSection id="pre"  events={pre}  timeRange={`00:00 – ${wh.start}`} {...bucketProps} />
+          <BucketSection cfg={BUCKETS.post} events={post} timeRange={`${wh.end} – 23:59`} {...bucketProps} />
+          <BucketSection cfg={BUCKETS.work} events={work} timeRange={`${wh.start} – ${wh.end}`} {...bucketProps} />
+          <BucketSection cfg={BUCKETS.pre}  events={pre}  timeRange={`00:00 – ${wh.start}`} {...bucketProps} />
         </div>
       )}
     </div>

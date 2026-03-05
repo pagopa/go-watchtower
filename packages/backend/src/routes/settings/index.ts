@@ -32,6 +32,45 @@ const FORMAT_VALIDATORS: Record<string, FormatValidator> = {
     return null;
   },
 
+  ON_CALL_HOURS: (value) => {
+    const v = value as {
+      timezone?:  unknown;
+      overnight?: { start?: unknown; end?: unknown; days?: unknown } | null;
+      allDay?:    { startDay?: unknown; endDay?: unknown; endTime?: unknown } | null;
+    };
+    const timeRe = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+    if (typeof v?.timezone !== "string" || v.timezone.trim() === "") {
+      return "on_call_hours.timezone deve essere una stringa IANA non vuota (es. 'Europe/Rome')";
+    }
+    try { Intl.DateTimeFormat(undefined, { timeZone: v.timezone }); }
+    catch { return `on_call_hours.timezone '${v.timezone}' non è una timezone IANA valida`; }
+
+    if (v.overnight != null) {
+      const o = v.overnight;
+      if (
+        typeof o.start !== "string" || !timeRe.test(o.start) ||
+        typeof o.end   !== "string" || !timeRe.test(o.end)   ||
+        !Array.isArray(o.days)      || o.days.some((d) => typeof d !== "number" || d < 1 || d > 7)
+      ) {
+        return "on_call_hours.overnight deve avere start/end in formato HH:MM e days come array di numeri 1-7";
+      }
+    }
+
+    if (v.allDay != null) {
+      const a = v.allDay;
+      if (
+        typeof a.startDay !== "number" || a.startDay < 1 || a.startDay > 7 ||
+        typeof a.endDay   !== "number" || a.endDay   < 1 || a.endDay   > 7 ||
+        typeof a.endTime  !== "string" || !timeRe.test(a.endTime)
+      ) {
+        return "on_call_hours.allDay deve avere startDay/endDay (1-7) e endTime in formato HH:MM";
+      }
+    }
+
+    return null;
+  },
+
   FK_ROLE: async (value) => {
     if (typeof value !== "string" || !UUID_RE.test(value)) {
       return "Il valore deve essere un UUID valido";

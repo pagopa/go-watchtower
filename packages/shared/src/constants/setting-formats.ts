@@ -1,6 +1,7 @@
 export const SettingFormats = {
-  WORKING_HOURS: 'WORKING_HOURS',
-  FK_ROLE:       'FK_ROLE',
+  WORKING_HOURS:  'WORKING_HOURS',
+  ON_CALL_HOURS:  'ON_CALL_HOURS',
+  FK_ROLE:        'FK_ROLE',
 } as const;
 
 export type SettingFormat   = typeof SettingFormats[keyof typeof SettingFormats];

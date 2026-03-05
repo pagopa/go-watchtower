@@ -177,6 +177,11 @@ function msgPreview(msg: Message): string {
   const attachments = msg.attachments as Array<{ text?: string; fallback?: string }> | undefined;
   if (attachments?.[0]?.text)     return attachments[0].text.slice(0, 160).replace(/\n/g, " ↵ ");
   if (attachments?.[0]?.fallback) return attachments[0].fallback.slice(0, 160).replace(/\n/g, " ↵ ");
+  const files = msg.files as Array<Record<string, unknown>> | undefined;
+  const emailPlain = files?.find((f) => f["filetype"] === "email")?.[
+    "preview_plain_text"
+  ] as string | undefined;
+  if (emailPlain) return emailPlain.slice(0, 160).replace(/\n/g, " ↵ ");
   return "(no preview)";
 }
 

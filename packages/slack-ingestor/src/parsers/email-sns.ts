@@ -5,35 +5,48 @@ import type { ParsedAlarmEvent, ParserFn, Message } from "./types.js";
  *
  * The email body appears in `message.attachments[0]?.text` (or sometimes `message.text`).
  *
- * Body format:
+ * Body format (SNS aligns values with multiple spaces):
  * ```
  * Alarm Details:
- * - Name: alarm-name
- * - Description: CloudWatch alarm for when...
- * - State Change: OK -> ALARM
- * - Reason for State Change: Threshold Crossed...
- * - Timestamp: Wednesday 04 March, 2026 10:48:25 UTC
- * - AWS Account: 730335668132
- * - Alarm Arn: arn:aws:cloudwatch:eu-south-1:730335668132:alarm:alarm-name
+ * - Name:                       alarm-name
+ * - Description:                CloudWatch alarm for when...
+ * - State Change:               OK -> ALARM
+ * - Reason for State Change:    Threshold Crossed...
+ * - Timestamp:                  Wednesday 04 March, 2026 10:48:25 UTC
+ * - AWS Account:                730335668132
+ * - Alarm Arn:                  arn:aws:cloudwatch:eu-south-1:730335668132:alarm:alarm-name
  * ```
  */
 export const parseEmailSns: ParserFn = (message: Message): ParsedAlarmEvent | null => {
-  // Try attachment text first, then fall back to message text
-  const body = message.attachments?.[0]?.text ?? message.text ?? "";
-  const subject = message.attachments?.[0]?.title ?? "";
+  // Slack Email App forwards emails as files with filetype "email".
+  // The email body is in files[0].plain_text and subject in files[0].subject.
+  // Older/other integrations may put content in attachments[0].text instead.
+  const emailFile = (message.files as Array<Record<string, unknown>> | undefined)
+    ?.find((f) => f["filetype"] === "email");
+
+  const body =
+    message.attachments?.[0]?.text ??
+    (emailFile?.["plain_text"] as string | undefined) ??
+    message.text ??
+    "";
+
+  const subject =
+    message.attachments?.[0]?.title ??
+    (emailFile?.["subject"] as string | undefined) ??
+    "";
 
   if (!body) {
     return null;
   }
 
   // ── State filter ─────────────────────────────────────────────────────
-  // Check for ALARM state -- either in "State Change:" or in the subject
-  const hasAlarmState = body.includes("State Change: OK -> ALARM");
+  // SNS aligns values with multiple spaces, so use regex instead of includes()
+  const hasAlarmState   = /State Change:\s+OK\s+->\s+ALARM/.test(body);
   const hasAlarmSubject = subject.startsWith("ALARM:");
 
   // Skip resolution notifications
-  const isResolution = body.includes("State Change: ALARM -> OK");
-  const isOkSubject = subject.startsWith("OK:");
+  const isResolution = /State Change:\s+ALARM\s+->\s+OK/.test(body);
+  const isOkSubject  = subject.startsWith("OK:");
 
   if (isResolution || isOkSubject) {
     return null;
@@ -45,7 +58,8 @@ export const parseEmailSns: ParserFn = (message: Message): ParsedAlarmEvent | nu
   }
 
   // ── Extract fields via regex ─────────────────────────────────────────
-  const name = extractField(body, /^- Name: (.+)$/m);
+  // Use \s+ after the colon to handle SNS's padded alignment
+  const name = extractField(body, /^- Name:\s+(.+)$/m);
   if (!name) {
     console.warn("[email-sns] Could not extract alarm name from body");
     return null;
@@ -60,14 +74,14 @@ export const parseEmailSns: ParserFn = (message: Message): ParsedAlarmEvent | nu
   }
 
   // AWS Account ID
-  const awsAccountId = extractField(body, /^- AWS Account: (\d+)$/m);
+  const awsAccountId = extractField(body, /^- AWS Account:\s+(\d+)$/m);
   if (!awsAccountId) {
     console.warn("[email-sns] Could not extract AWS account ID from body");
     return null;
   }
 
   // Timestamp
-  const timestampStr = extractField(body, /^- Timestamp: (.+)$/m);
+  const timestampStr = extractField(body, /^- Timestamp:\s+(.+)$/m);
   let firedAt: Date;
   if (timestampStr) {
     const parsed = new Date(timestampStr.trim());
@@ -79,7 +93,7 @@ export const parseEmailSns: ParserFn = (message: Message): ParsedAlarmEvent | nu
   }
 
   // Description
-  const description = extractField(body, /^- Description: (.+)$/m) ?? null;
+  const description = extractField(body, /^- Description:\s+(.+)$/m) ?? null;
 
   // Reason -- may span multiple lines before the next "- " field
   const reason = extractReason(body);
@@ -107,7 +121,7 @@ function extractField(body: string, regex: RegExp): string | undefined {
  */
 function extractReason(body: string): string | null {
   const reasonMatch = body.match(
-    /^- Reason for State Change: ([\s\S]*?)(?=\n- |\n\n|$)/m,
+    /^- Reason for State Change:\s+([\s\S]*?)(?=\n- |\n\n|$)/m,
   );
   const reason = reasonMatch?.[1]?.trim();
   return reason || null;

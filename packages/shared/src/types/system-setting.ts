@@ -2,6 +2,7 @@ import type { SettingType }                    from '../constants/setting-types.
 import type { SettingCategory }                from '../constants/setting-categories.js';
 import type { SettingFormat, FkSettingFormat } from '../constants/setting-formats.js';
 import type { WorkingHours }                   from './working-hours.js';
+import type { OnCallHours }                    from './on-call-hours.js';
 
 interface SystemSettingBase {
   id:          string;
@@ -27,6 +28,12 @@ export interface WorkingHoursSystemSetting extends SystemSettingBase {
   value:  WorkingHours;
 }
 
+export interface OnCallHoursSystemSetting extends SystemSettingBase {
+  type:   'JSON';
+  format: 'ON_CALL_HOURS';
+  value:  OnCallHours;
+}
+
 export interface FkSystemSetting<TFormat extends FkSettingFormat = FkSettingFormat>
   extends SystemSettingBase {
   type:   'STRING';
@@ -40,4 +47,5 @@ export type RoleFkSystemSetting = FkSystemSetting<'FK_ROLE'>;
 export type SystemSetting =
   | GenericSystemSetting
   | WorkingHoursSystemSetting
+  | OnCallHoursSystemSetting
   | FkSystemSetting;

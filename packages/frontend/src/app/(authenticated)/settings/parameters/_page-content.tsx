@@ -4,10 +4,11 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Loader2, Check, X, Pencil,
-  Shield, BarChart2, Cpu, Settings2, Clock,
+  Shield, BarChart2, Cpu, Settings2, Clock, PhoneCall,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { isWorkingHoursSetting, isFkSetting } from '@go-watchtower/shared'
+import { isWorkingHoursSetting, isOnCallHoursSetting, isFkSetting } from '@go-watchtower/shared'
+import type { OnCallHours } from '@go-watchtower/shared'
 import { api, type SystemSetting } from '@/lib/api-client'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useFkSettingLabel } from '@/hooks/use-fk-setting-label'
@@ -44,6 +45,11 @@ const DAYS = [
   { n: 6, label: 'Sab', weekend: true  },
   { n: 7, label: 'Dom', weekend: true  },
 ]
+
+const DAY_FULL_NAMES: Record<number, string> = {
+  1: 'Lunedì', 2: 'Martedì', 3: 'Mercoledì',
+  4: 'Giovedì', 5: 'Venerdì', 6: 'Sabato', 7: 'Domenica',
+}
 
 const CATEGORY_META: Record<string, {
   label: string
@@ -201,6 +207,186 @@ function WorkingHoursDialog({
   )
 }
 
+// ─── On-Call Hours Dialog ─────────────────────────────────────────────────────
+
+function OnCallHoursDialog({
+  setting,
+  open,
+  onOpenChange,
+  onSave,
+  isPending,
+}: {
+  setting: SystemSetting
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onSave: (value: unknown) => void
+  isPending: boolean
+}) {
+  const initial = isOnCallHoursSetting(setting) ? setting.value : null
+
+  const [timezone,         setTimezone]         = useState(initial?.timezone         ?? 'Europe/Rome')
+  const [overnightEnabled, setOvernightEnabled] = useState(initial?.overnight != null)
+  const [oStart,           setOStart]           = useState(initial?.overnight?.start ?? '18:00')
+  const [oEnd,             setOEnd]             = useState(initial?.overnight?.end   ?? '09:00')
+  const [oDays,            setODays]            = useState<number[]>(initial?.overnight?.days ?? [1, 2, 3, 4, 5])
+  const [allDayEnabled,    setAllDayEnabled]    = useState(initial?.allDay != null)
+  const [adStartDay,       setAdStartDay]       = useState(initial?.allDay?.startDay ?? 6)
+  const [adEndDay,         setAdEndDay]         = useState(initial?.allDay?.endDay   ?? 1)
+  const [adEndTime,        setAdEndTime]        = useState(initial?.allDay?.endTime  ?? '09:00')
+
+  const toggleODay = (n: number) =>
+    setODays((prev) =>
+      prev.includes(n) ? prev.filter((d) => d !== n) : [...prev, n].sort((a, b) => a - b)
+    )
+
+  const handleSave = () => {
+    const value: OnCallHours = {
+      timezone,
+      ...(overnightEnabled ? { overnight: { start: oStart, end: oEnd, days: oDays } } : {}),
+      ...(allDayEnabled    ? { allDay: { startDay: adStartDay, endDay: adEndDay, endTime: adEndTime } } : {}),
+    }
+    onSave(value)
+  }
+
+  const isValid = timezone.trim() !== '' &&
+    (!overnightEnabled || oDays.length > 0) &&
+    (overnightEnabled || allDayEnabled)
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <div className="flex items-center gap-2.5 mb-1">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-100 dark:bg-rose-950/50">
+              <PhoneCall className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+            </div>
+            <DialogTitle className="text-base">Orari di reperibilità</DialogTitle>
+          </div>
+          <DialogDescription className="text-xs leading-relaxed">
+            Configura le fasce di reperibilità per la classificazione degli allarmi fuori orario.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-5 pt-1">
+          {/* Timezone */}
+          <div className="space-y-1.5">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
+              Fuso orario
+            </p>
+            <Input
+              value={timezone}
+              onChange={(e) => setTimezone(e.target.value)}
+              placeholder="Europe/Rome"
+              className="font-mono text-sm"
+              disabled={isPending}
+            />
+          </div>
+
+          {/* Overnight section */}
+          <div className="space-y-3 rounded-lg border px-3.5 py-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-foreground">Turno notturno feriale</p>
+              <Switch
+                checked={overnightEnabled}
+                onCheckedChange={setOvernightEnabled}
+                disabled={isPending}
+              />
+            </div>
+            {overnightEnabled && (
+              <div className="space-y-3 pt-1">
+                <div className="flex items-end gap-2">
+                  <div className="flex-1 space-y-1">
+                    <label className="text-xs text-muted-foreground">Dalle</label>
+                    <Input type="time" value={oStart} onChange={(e) => setOStart(e.target.value)}
+                      className="font-mono text-sm" disabled={isPending} />
+                  </div>
+                  <div className="pb-2.5 text-sm text-muted-foreground/60 select-none">→</div>
+                  <div className="flex-1 space-y-1">
+                    <label className="text-xs text-muted-foreground">Alle (giorno dopo)</label>
+                    <Input type="time" value={oEnd} onChange={(e) => setOEnd(e.target.value)}
+                      className="font-mono text-sm" disabled={isPending} />
+                  </div>
+                </div>
+                <div className="flex gap-1.5">
+                  {DAYS.map(({ n, label, weekend }) => {
+                    const active = oDays.includes(n)
+                    return (
+                      <button key={n} type="button" onClick={() => toggleODay(n)} disabled={isPending}
+                        className={[
+                          'flex-1 rounded-lg py-2.5 text-xs font-semibold transition-all',
+                          active
+                            ? weekend ? 'bg-orange-500 text-white' : 'bg-primary text-primary-foreground'
+                            : 'bg-muted text-muted-foreground hover:bg-muted/60',
+                        ].join(' ')}>
+                        {label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* AllDay section */}
+          <div className="space-y-3 rounded-lg border px-3.5 py-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-foreground">Turno weekend / multi-giorno</p>
+              <Switch
+                checked={allDayEnabled}
+                onCheckedChange={setAllDayEnabled}
+                disabled={isPending}
+              />
+            </div>
+            {allDayEnabled && (
+              <div className="space-y-2 pt-1">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Da</label>
+                    <Select value={String(adStartDay)} onValueChange={(v) => setAdStartDay(Number(v))}>
+                      <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(DAY_FULL_NAMES).map(([n, name]) => (
+                          <SelectItem key={n} value={n}>{name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">A (fino alle)</label>
+                    <Select value={String(adEndDay)} onValueChange={(v) => setAdEndDay(Number(v))}>
+                      <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(DAY_FULL_NAMES).map(([n, name]) => (
+                          <SelectItem key={n} value={n}>{name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Ora di fine</label>
+                  <Input type="time" value={adEndTime} onChange={(e) => setAdEndTime(e.target.value)}
+                    className="h-8 w-28 font-mono text-sm" disabled={isPending} />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter className="mt-2">
+          <DialogClose asChild>
+            <Button variant="outline" size="sm" disabled={isPending}>Annulla</Button>
+          </DialogClose>
+          <Button size="sm" onClick={handleSave} disabled={isPending || !isValid}>
+            {isPending && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+            Salva
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ─── FK select editor ─────────────────────────────────────────────────────────
 
 function FkSelectEditor({
@@ -278,6 +464,25 @@ function ValueDisplay({ setting }: { setting: SystemSetting }) {
           ? <><span className="text-muted-foreground">{dayLabels}</span> <span className="text-muted-foreground/40 mx-0.5">·</span> {timeRange}</>
           : timeRange
         }
+      </span>
+    )
+  }
+  if (isOnCallHoursSetting(setting)) {
+    const oc = setting.value
+    const parts: string[] = []
+    if (oc.overnight) {
+      const dls = oc.overnight.days.map((d) => DAYS.find(({ n }) => n === d)?.label).filter(Boolean).join(' ')
+      parts.push(`${oc.overnight.start}→${oc.overnight.end}${dls ? ` (${dls})` : ''}`)
+    }
+    if (oc.allDay) {
+      const s = DAYS.find(({ n }) => n === oc.allDay!.startDay)?.label ?? oc.allDay.startDay
+      const e = DAYS.find(({ n }) => n === oc.allDay!.endDay)?.label   ?? oc.allDay.endDay
+      parts.push(`${s}–${e} ${oc.allDay.endTime}`)
+    }
+    return (
+      <span className="font-mono text-xs tabular-nums text-foreground">
+        {parts.length > 0 ? parts.join(' · ') : '—'}
+        <span className="ml-1 text-muted-foreground/50">· {oc.timezone}</span>
       </span>
     )
   }
@@ -373,6 +578,7 @@ function SettingCard({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] })
       queryClient.invalidateQueries({ queryKey: ['working-hours'] })
+      queryClient.invalidateQueries({ queryKey: ['on-call-hours'] })
       setEditing(false)
       setDialogOpen(false)
       toast.success('Configurazione aggiornata')
@@ -382,10 +588,12 @@ function SettingCard({
     },
   })
 
-  const needsDialog = isWorkingHoursSetting(setting)
-  const isFk        = isFkSetting(setting)
-  const isBoolean   = setting.type === 'BOOLEAN'
-  const isInline    = !needsDialog && !isFk && !isBoolean
+  const isWorkingHours = isWorkingHoursSetting(setting)
+  const isOnCallHours  = isOnCallHoursSetting(setting)
+  const needsDialog    = isWorkingHours || isOnCallHours
+  const isFk           = isFkSetting(setting)
+  const isBoolean      = setting.type === 'BOOLEAN'
+  const isInline       = !needsDialog && !isFk && !isBoolean
 
   return (
     <>
@@ -463,8 +671,17 @@ function SettingCard({
         </div>
       </div>
 
-      {needsDialog && (
+      {isWorkingHours && (
         <WorkingHoursDialog
+          setting={setting}
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          onSave={(v) => mutation.mutate(v)}
+          isPending={mutation.isPending}
+        />
+      )}
+      {isOnCallHours && (
+        <OnCallHoursDialog
           setting={setting}
           open={dialogOpen}
           onOpenChange={setDialogOpen}

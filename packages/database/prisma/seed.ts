@@ -263,6 +263,19 @@ async function seedSystemSettings() {
       label:       "Orari lavorativi",
       description: "Finestra oraria e giorni lavorativi usati per il calcolo delle KPI",
     },
+    {
+      key:         "on_call_hours",
+      value:       {
+        timezone:  "Europe/Rome",
+        overnight: { start: "18:00", end: "09:00", days: [1, 2, 3, 4, 5] },
+        allDay:    { startDay: 6, endDay: 1, endTime: "09:00" },
+      },
+      type:        "JSON",
+      format:      "ON_CALL_HOURS",
+      category:    "SYSTEM",
+      label:       "Orari di reperibilità",
+      description: "Finestra oraria di reperibilità: notturna feriale (18:00–09:00) e weekend completo fino a lunedì 09:00",
+    },
   ];
 
   for (const setting of settings) {
