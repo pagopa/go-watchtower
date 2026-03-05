@@ -32,6 +32,7 @@ export interface AlarmEventOnCallViewProps {
   onRowClick:      (e: AlarmEvent) => void
   onEdit:          (e: AlarmEvent) => void
   onDelete:        (e: AlarmEvent) => void
+  isOnCallEvent?:  (e: AlarmEvent) => boolean
 }
 
 // ─── Bucket configs ───────────────────────────────────────────────────────────
@@ -245,7 +246,7 @@ export function AlarmEventOnCallView({
   visibleColumns, getWidth, totalMinWidth,
   canWrite, canDelete,
   selectedEventId, showDetailPanel, lingeringId,
-  onRowClick, onEdit, onDelete,
+  onRowClick, onEdit, onDelete, isOnCallEvent,
 }: AlarmEventOnCallViewProps) {
   const [referenceDate, setReferenceDate] = useState<string>(() => todayUTC())
 
@@ -282,7 +283,7 @@ export function AlarmEventOnCallView({
   )
 
   const bucketProps = { visibleColumns, getWidth, totalMinWidth, canWrite, canDelete,
-    selectedEventId, showDetailPanel, lingeringId, onRowClick, onEdit, onDelete }
+    selectedEventId, showDetailPanel, lingeringId, onRowClick, onEdit, onDelete, isOnCallEvent }
 
   return (
     <div className="space-y-3">

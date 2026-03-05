@@ -110,6 +110,7 @@ CREATE TABLE "environments" (
     "slack_channel_id" TEXT,
     "default_aws_account_id" TEXT,
     "default_aws_region" TEXT,
+    "on_call_alarm_pattern" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 

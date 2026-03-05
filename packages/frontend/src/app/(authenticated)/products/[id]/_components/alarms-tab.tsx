@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { Plus, Pencil, Trash2, Loader2, Bell, BookOpen, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { api, type Alarm, type Runbook } from '@/lib/api-client'
+import { AlarmDetailDialog, type AlarmDetailData } from '@/components/alarm-detail-dialog'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useSortable } from '@/hooks/use-sortable'
 import { Button } from '@/components/ui/button'
@@ -55,6 +56,7 @@ export function AlarmsTab({ productId }: AlarmsTabProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [editItem, setEditItem] = useState<Alarm | null>(null)
   const [deleteItem, setDeleteItem] = useState<Alarm | null>(null)
+  const [detailData, setDetailData] = useState<AlarmDetailData | null>(null)
 
   const canWrite = !permissionsLoading && can('ALARM', 'write')
   const canDelete = !permissionsLoading && can('ALARM', 'delete')
@@ -86,6 +88,21 @@ export function AlarmsTab({ productId }: AlarmsTabProps) {
     resolver: zodResolver(alarmSchema),
     defaultValues: { name: '', description: '', runbookId: undefined },
   })
+
+  const handleViewDetail = (alarm: Alarm) => {
+    const fullRunbook = runbooks?.find((r) => r.id === alarm.runbookId)
+    setDetailData({
+      id:          alarm.id,
+      name:        alarm.name,
+      description: alarm.description,
+      productId:   alarm.productId,
+      runbook:     fullRunbook
+        ? { id: fullRunbook.id, name: fullRunbook.name, link: fullRunbook.link }
+        : alarm.runbook ?? null,
+      createdAt:   alarm.createdAt,
+      updatedAt:   alarm.updatedAt,
+    })
+  }
 
   const handleEdit = (item: Alarm) => {
     reset({
@@ -234,7 +251,8 @@ export function AlarmsTab({ productId }: AlarmsTabProps) {
           {sortedAlarms.map((alarm) => (
             <li
               key={alarm.id}
-              className="group relative flex items-center gap-3 bg-card px-4 py-3 hover:bg-muted/40 transition-colors"
+              className="group relative flex items-center gap-3 bg-card px-4 py-3 hover:bg-muted/40 transition-colors cursor-pointer"
+              onClick={() => handleViewDetail(alarm)}
             >
               <span
                 className="pointer-events-none absolute inset-y-0 left-0 w-0.5 rounded-r-full bg-primary opacity-0 group-hover:opacity-100 transition-opacity duration-150"
@@ -254,7 +272,10 @@ export function AlarmsTab({ productId }: AlarmsTabProps) {
                   </span>
                 )}
                 {(canWrite || canDelete) && (
-                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                  <div
+                    className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     {canWrite && (
                       <Button
                         variant="ghost"
@@ -303,6 +324,12 @@ export function AlarmsTab({ productId }: AlarmsTabProps) {
           )}
         </div>
       )}
+
+      <AlarmDetailDialog
+        open={!!detailData}
+        onClose={() => setDetailData(null)}
+        alarm={detailData}
+      />
 
       <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
         <DialogContent className="sm:max-w-md">

@@ -62,6 +62,7 @@ export const CreateEnvironmentBodySchema = Type.Object({
   slackChannelId:      Type.Optional(Type.String()),
   defaultAwsAccountId: Type.Optional(Type.String()),
   defaultAwsRegion:    Type.Optional(Type.String()),
+  onCallAlarmPattern:  Type.Optional(Type.String()),
 });
 
 export type CreateEnvironmentBody = Static<typeof CreateEnvironmentBodySchema>;
@@ -73,6 +74,7 @@ export const UpdateEnvironmentBodySchema = Type.Object({
   slackChannelId:      Type.Optional(Type.Union([Type.String(), Type.Null()])),
   defaultAwsAccountId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
   defaultAwsRegion:    Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  onCallAlarmPattern:  Type.Optional(Type.Union([Type.String(), Type.Null()])),
 });
 
 export type UpdateEnvironmentBody = Static<typeof UpdateEnvironmentBodySchema>;
@@ -95,6 +97,7 @@ export const EnvironmentResponseSchema = Type.Object({
   slackChannelId:      Type.Union([Type.String(), Type.Null()]),
   defaultAwsAccountId: Type.Union([Type.String(), Type.Null()]),
   defaultAwsRegion:    Type.Union([Type.String(), Type.Null()]),
+  onCallAlarmPattern:  Type.Union([Type.String(), Type.Null()]),
   createdAt:           Type.String(),
   updatedAt:           Type.String(),
 });

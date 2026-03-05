@@ -28,8 +28,8 @@ export function AlarmRefPopover({ alarm, productId }: AlarmRefPopoverProps) {
         <Button
           variant="ghost"
           size="icon"
-          className="h-5 w-5 shrink-0 text-primary/60 hover:text-primary hover:bg-primary/10"
-          title="Dettaglio allarme collegato"
+          className="h-5 w-5 shrink-0 rounded border border-primary/25 bg-primary/8 text-primary/70 hover:text-primary hover:bg-primary/15 hover:border-primary/50 transition-colors"
+          title="Allarme catalogato collegato"
           onClick={(e) => e.stopPropagation()}
         >
           <Bell className="h-3 w-3" />

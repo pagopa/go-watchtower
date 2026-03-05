@@ -50,6 +50,7 @@ const environmentSchema = z.object({
   slackChannelId:      z.string().optional(),
   defaultAwsAccountId: z.string().optional(),
   defaultAwsRegion:    z.string().optional(),
+  onCallAlarmPattern:  z.string().optional(),
 })
 
 type EnvironmentFormData = z.infer<typeof environmentSchema>
@@ -100,7 +101,7 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
     formState: { errors },
   } = useForm<EnvironmentFormData>({
     resolver: zodResolver(environmentSchema) as Resolver<EnvironmentFormData>,
-    defaultValues: { name: '', description: '', order: 0, slackChannelId: '', defaultAwsAccountId: '', defaultAwsRegion: '' },
+    defaultValues: { name: '', description: '', order: 0, slackChannelId: '', defaultAwsAccountId: '', defaultAwsRegion: '', onCallAlarmPattern: '' },
   })
 
   const handleEdit = (item: Environment) => {
@@ -111,6 +112,7 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
       slackChannelId:      item.slackChannelId || '',
       defaultAwsAccountId: item.defaultAwsAccountId || '',
       defaultAwsRegion:    item.defaultAwsRegion || '',
+      onCallAlarmPattern:  item.onCallAlarmPattern || '',
     })
     setEditItem(item)
   }
@@ -137,6 +139,7 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
         slackChannelId:      data.slackChannelId || null,
         defaultAwsAccountId: data.defaultAwsAccountId || null,
         defaultAwsRegion:    data.defaultAwsRegion || null,
+        onCallAlarmPattern:  data.onCallAlarmPattern || null,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products', productId, 'environments'] })
@@ -168,7 +171,7 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
     if (!open) {
       setShowCreateDialog(false)
       setEditItem(null)
-      reset({ name: '', description: '', order: 0, slackChannelId: '', defaultAwsAccountId: '', defaultAwsRegion: '' })
+      reset({ name: '', description: '', order: 0, slackChannelId: '', defaultAwsAccountId: '', defaultAwsRegion: '', onCallAlarmPattern: '' })
     }
   }
 
@@ -181,6 +184,7 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
         slackChannelId:      data.slackChannelId      || undefined,
         defaultAwsAccountId: data.defaultAwsAccountId || undefined,
         defaultAwsRegion:    data.defaultAwsRegion    || undefined,
+        onCallAlarmPattern:  data.onCallAlarmPattern  || undefined,
       })
     }
   }
@@ -227,7 +231,7 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
           <Button
             size="sm"
             onClick={() => {
-              reset({ name: '', description: '', order: 0, slackChannelId: '', defaultAwsAccountId: '', defaultAwsRegion: '' })
+              reset({ name: '', description: '', order: 0, slackChannelId: '', defaultAwsAccountId: '', defaultAwsRegion: '', onCallAlarmPattern: '' })
               setShowCreateDialog(true)
             }}
           >
@@ -257,6 +261,7 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
                 <TableHead className="text-xs text-muted-foreground">Slack Channel</TableHead>
                 <TableHead className="text-xs text-muted-foreground">AWS Account</TableHead>
                 <TableHead className="text-xs text-muted-foreground">AWS Region</TableHead>
+                <TableHead className="text-xs text-muted-foreground">Pattern On-Call</TableHead>
                 {(canWrite || canDelete) && <TableHead className="w-20" />}
               </TableRow>
             </TableHeader>
@@ -299,6 +304,9 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
                   </TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">
                     {env.defaultAwsRegion ?? <span className="opacity-30">—</span>}
+                  </TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">
+                    {env.onCallAlarmPattern ?? <span className="opacity-30">—</span>}
                   </TableCell>
                   {(canWrite || canDelete) && (
                     <TableCell>
@@ -343,7 +351,7 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
               size="sm"
               className="mt-5"
               onClick={() => {
-                reset({ name: '', description: '', order: 0, slackChannelId: '', defaultAwsAccountId: '', defaultAwsRegion: '' })
+                reset({ name: '', description: '', order: 0, slackChannelId: '', defaultAwsAccountId: '', defaultAwsRegion: '', onCallAlarmPattern: '' })
                 setShowCreateDialog(true)
               }}
             >
@@ -468,6 +476,22 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
                     disabled={isMutating}
                   />
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="env-oncall-pattern" className="text-xs">
+                  Pattern allarmi on-call
+                  <span className="ml-1.5 font-normal text-muted-foreground">(opzionale)</span>
+                </Label>
+                <Input
+                  id="env-oncall-pattern"
+                  placeholder="es. ^oncall-"
+                  className="font-mono text-xs"
+                  {...register('onCallAlarmPattern')}
+                  disabled={isMutating}
+                />
+                <p className="text-[11px] text-muted-foreground/70">
+                  Regex per identificare allarmi di reperibilità urgenti. Le righe corrispondenti vengono evidenziate nella lista.
+                </p>
               </div>
             </div>
             <DialogFooter>

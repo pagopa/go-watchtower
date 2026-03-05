@@ -445,6 +445,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
             slackChannelId:      e.slackChannelId ?? null,
             defaultAwsAccountId: e.defaultAwsAccountId ?? null,
             defaultAwsRegion:    e.defaultAwsRegion ?? null,
+            onCallAlarmPattern:  e.onCallAlarmPattern ?? null,
             createdAt:           e.createdAt.toISOString(),
             updatedAt:           e.updatedAt.toISOString(),
           })),
@@ -556,6 +557,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
             slackChannelId:      e.slackChannelId ?? null,
             defaultAwsAccountId: e.defaultAwsAccountId ?? null,
             defaultAwsRegion:    e.defaultAwsRegion ?? null,
+            onCallAlarmPattern:  e.onCallAlarmPattern ?? null,
             createdAt:           e.createdAt.toISOString(),
             updatedAt:           e.updatedAt.toISOString(),
           }))
@@ -613,6 +615,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
             slackChannelId:      request.body.slackChannelId,
             defaultAwsAccountId: request.body.defaultAwsAccountId,
             defaultAwsRegion:    request.body.defaultAwsRegion,
+            onCallAlarmPattern:  request.body.onCallAlarmPattern,
           },
         });
 
@@ -633,6 +636,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           slackChannelId:      environment.slackChannelId ?? null,
           defaultAwsAccountId: environment.defaultAwsAccountId ?? null,
           defaultAwsRegion:    environment.defaultAwsRegion ?? null,
+          onCallAlarmPattern:  environment.onCallAlarmPattern ?? null,
           createdAt:           environment.createdAt.toISOString(),
           updatedAt:           environment.updatedAt.toISOString(),
         });
@@ -672,7 +676,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
 
         const existingEnv = await prisma.environment.findUnique({
           where: { id: request.params.id },
-          select: { name: true, description: true, order: true, slackChannelId: true, defaultAwsAccountId: true, defaultAwsRegion: true },
+          select: { name: true, description: true, order: true, slackChannelId: true, defaultAwsAccountId: true, defaultAwsRegion: true, onCallAlarmPattern: true },
         });
 
         const environment = await prisma.environment.update({
@@ -687,6 +691,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
             slackChannelId:      request.body.slackChannelId,
             defaultAwsAccountId: request.body.defaultAwsAccountId,
             defaultAwsRegion:    request.body.defaultAwsRegion,
+            onCallAlarmPattern:  request.body.onCallAlarmPattern,
           },
         });
 
@@ -713,6 +718,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           slackChannelId:      environment.slackChannelId ?? null,
           defaultAwsAccountId: environment.defaultAwsAccountId ?? null,
           defaultAwsRegion:    environment.defaultAwsRegion ?? null,
+          onCallAlarmPattern:  environment.onCallAlarmPattern ?? null,
           createdAt:           environment.createdAt.toISOString(),
           updatedAt:           environment.updatedAt.toISOString(),
         });

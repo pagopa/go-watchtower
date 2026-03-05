@@ -23,12 +23,14 @@ export interface ColumnDef {
 
 export const COLUMN_REGISTRY: Record<string, ColumnDef[]> = {
   alarmEvents: [
-    { id: 'firedAt',      label: 'Data scatto',   locked: true,          defaultWidth: 160, minWidth: 130, sortKey: 'firedAt' },
-    { id: 'name',         label: 'Nome allarme',                         defaultWidth: 240, minWidth: 140 },
-    { id: 'alarm',        label: 'Allarme',       defaultVisible: false, defaultWidth: 200, minWidth: 120 },
-    { id: 'product',      label: 'Prodotto',                             defaultWidth: 110, minWidth: 80 },
+    { id: 'firedAt',      label: 'Data scatto',   locked: true,          defaultWidth: 186, minWidth: 130, sortKey: 'firedAt' },
+    { id: 'tipo',         label: 'Tipo',                                 defaultWidth: 122, minWidth: 76 },
+    { id: 'link',         label: 'Allarme',                              defaultWidth: 80,  minWidth: 44 },
+    { id: 'name',         label: 'Nome allarme',                         defaultWidth: 510, minWidth: 140 },
+    { id: 'product',      label: 'Prodotto',                             defaultWidth: 116, minWidth: 80 },
     { id: 'environment',  label: 'Ambiente',                             defaultWidth: 110, minWidth: 80 },
-    { id: 'awsRegion',    label: 'Region AWS',                           defaultWidth: 130, minWidth: 90 },
+    { id: 'alarm',        label: 'Allarme (testo)', defaultVisible: false, defaultWidth: 200, minWidth: 120 },
+    { id: 'awsRegion',    label: 'Region AWS',    defaultVisible: false, defaultWidth: 130, minWidth: 90 },
     { id: 'awsAccountId', label: 'Account AWS',   defaultVisible: false, defaultWidth: 140, minWidth: 100 },
     { id: 'description',  label: 'Descrizione',   defaultVisible: false, defaultWidth: 220, minWidth: 120 },
     { id: 'reason',       label: 'Ragione',        defaultVisible: false, defaultWidth: 200, minWidth: 120 },

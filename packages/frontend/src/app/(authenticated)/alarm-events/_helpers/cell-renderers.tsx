@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react'
 import Link from 'next/link'
+import { PhoneCall, BookOpen } from 'lucide-react'
 import type { AlarmEvent } from '@/lib/api-client'
-import { AlarmRefPopover } from '../_components/alarm-ref-popover'
+
+type EmbeddedAlarm = NonNullable<AlarmEvent['alarm']>
 
 function formatDateTimeUTC(iso: string): string {
   try {
@@ -15,7 +17,11 @@ function formatDateTimeUTC(iso: string): string {
   }
 }
 
-export function renderCell(columnId: string, event: AlarmEvent): ReactNode {
+export function renderCell(
+  columnId: string,
+  event: AlarmEvent,
+  opts?: { isOnCall?: boolean; onAlarmClick?: (alarm: EmbeddedAlarm, productId: string) => void },
+): ReactNode {
   switch (columnId) {
     case 'firedAt':
       return (
@@ -24,14 +30,43 @@ export function renderCell(columnId: string, event: AlarmEvent): ReactNode {
         </span>
       )
     case 'name':
-      return (
-        <div className="flex min-w-0 items-center gap-1">
-          <span className="truncate font-medium text-sm">{event.name}</span>
-          {event.alarm && (
-            <AlarmRefPopover alarm={event.alarm} productId={event.product.id} />
-          )}
-        </div>
-      )
+      return <span className="truncate font-medium text-sm">{event.name}</span>
+    case 'tipo':
+      return opts?.isOnCall
+        ? (
+          <span className="inline-flex shrink-0 items-center gap-1 rounded bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+            <PhoneCall className="h-2.5 w-2.5" />
+            on-call
+          </span>
+        )
+        : (
+          <span className="inline-flex items-center rounded border border-border/50 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground/50">
+            normale
+          </span>
+        )
+    case 'link':
+      if (!event.alarm) return <span className="text-muted-foreground/25 text-sm">—</span>
+      return opts?.onAlarmClick
+        ? (
+          <button
+            type="button"
+            title={event.alarm.name}
+            className="inline-flex items-center justify-center rounded-md border border-primary/20 bg-primary/5 p-1 text-primary hover:bg-primary/10 hover:border-primary/40 transition-colors"
+            onClick={(e) => { e.stopPropagation(); opts.onAlarmClick!(event.alarm!, event.product.id) }}
+          >
+            <BookOpen className="h-3.5 w-3.5" />
+          </button>
+        )
+        : (
+          <Link
+            href={`/products/${event.product.id}?tab=alarms`}
+            title={event.alarm.name}
+            className="inline-flex items-center justify-center rounded-md border border-primary/20 bg-primary/5 p-1 text-primary hover:bg-primary/10 hover:border-primary/40 transition-colors"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <BookOpen className="h-3.5 w-3.5" />
+          </Link>
+        )
     case 'product':
       return (
         <span className="inline-flex items-center rounded border px-1.5 py-0.5 text-xs font-medium text-foreground/75">
@@ -61,10 +96,11 @@ export function renderCell(columnId: string, event: AlarmEvent): ReactNode {
         ? (
           <Link
             href={`/products/${event.product.id}?tab=alarms`}
-            className="block truncate text-sm text-primary hover:underline"
+            className="inline-flex items-center gap-1 rounded-md border border-primary/20 bg-primary/5 px-1.5 py-0.5 text-xs font-medium text-primary hover:bg-primary/10 hover:border-primary/40 transition-colors max-w-full"
             onClick={(e) => e.stopPropagation()}
           >
-            {event.alarm.name}
+            <BookOpen className="h-3 w-3 shrink-0" />
+            <span className="truncate">{event.alarm.name}</span>
           </Link>
         )
         : <span className="text-muted-foreground/40 text-sm">—</span>

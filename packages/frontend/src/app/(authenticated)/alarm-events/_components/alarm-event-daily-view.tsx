@@ -37,6 +37,7 @@ export interface AlarmEventDailyViewProps {
   onRowClick:      (e: AlarmEvent) => void
   onEdit:          (e: AlarmEvent) => void
   onDelete:        (e: AlarmEvent) => void
+  isOnCallEvent?:  (e: AlarmEvent) => boolean
 }
 
 // ─── Date utilities ───────────────────────────────────────────────────────────
@@ -210,7 +211,7 @@ export function BucketSection({
   visibleColumns, getWidth, totalMinWidth,
   canWrite, canDelete,
   selectedEventId, showDetailPanel, lingeringId,
-  onRowClick, onEdit, onDelete,
+  onRowClick, onEdit, onDelete, isOnCallEvent,
 }: {
   cfg:             BucketCfg
   events:          AlarmEvent[]
@@ -226,6 +227,7 @@ export function BucketSection({
   onRowClick:      (e: AlarmEvent) => void
   onEdit:          (e: AlarmEvent) => void
   onDelete:        (e: AlarmEvent) => void
+  isOnCallEvent?:  (e: AlarmEvent) => boolean
 }) {
   const [collapsed, setCollapsed] = useState(events.length === 0)
   const { Icon } = cfg
@@ -292,6 +294,7 @@ export function BucketSection({
                 {events.map((event) => {
                   const isSelected  = event.id === selectedEventId && showDetailPanel
                   const isLingering = event.id === lingeringId && !showDetailPanel
+                  const isOnCall    = isOnCallEvent ? isOnCallEvent(event) : false
                   return (
                     <TableRow
                       key={event.id}
@@ -301,7 +304,9 @@ export function BucketSection({
                           ? 'analysis-row-selected hover:bg-primary/[0.09]'
                           : isLingering
                             ? 'analysis-row-lingering hover:bg-muted/30'
-                            : 'transition-colors hover:bg-muted/30')
+                            : isOnCall
+                              ? 'bg-rose-500/[0.04] hover:bg-rose-500/[0.06] transition-colors border-l-[3px] border-l-rose-500/60'
+                              : 'transition-colors hover:bg-muted/30')
                       }
                       onClick={(e) => {
                         if ((e.target as HTMLElement).closest('button')) return
@@ -318,7 +323,7 @@ export function BucketSection({
                               ? { width: `${getWidth(col.id)}px` }
                               : undefined}
                           >
-                            {renderCell(col.id, event)}
+                            {renderCell(col.id, event, { isOnCall })}
                           </TableCell>
                         )
                       })}
@@ -371,7 +376,7 @@ export function AlarmEventDailyView({
   visibleColumns, getWidth, totalMinWidth,
   canWrite, canDelete,
   selectedEventId, showDetailPanel, lingeringId,
-  onRowClick, onEdit, onDelete,
+  onRowClick, onEdit, onDelete, isOnCallEvent,
 }: AlarmEventDailyViewProps) {
   const wh = workingHours ?? DEFAULT_WH
 
@@ -406,7 +411,7 @@ export function AlarmEventDailyView({
   )
 
   const bucketProps = { visibleColumns, getWidth, totalMinWidth, canWrite, canDelete,
-    selectedEventId, showDetailPanel, lingeringId, onRowClick, onEdit, onDelete }
+    selectedEventId, showDetailPanel, lingeringId, onRowClick, onEdit, onDelete, isOnCallEvent }
 
   return (
     <div className="space-y-3">

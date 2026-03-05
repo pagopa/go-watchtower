@@ -16,6 +16,7 @@ import {
   type CreateAlarmEventData,
   type UpdateAlarmEventData,
 } from '@/lib/api-client'
+import { AlarmDetailDialog, type AlarmDetailData } from '@/components/alarm-detail-dialog'
 import { usePermissions } from '@/hooks/use-permissions'
 import { usePreferences } from '@/hooks/use-preferences'
 import { usePageSize, type AllowedPageSize } from '@/hooks/use-page-size'
@@ -122,6 +123,10 @@ function AlarmEventsPageContent() {
   const [editItem, setEditItem] = useState<AlarmEvent | null>(null)
   const [deleteItem, setDeleteItem] = useState<AlarmEvent | null>(null)
 
+  // Alarm detail dialog
+  const [alarmDialogOpen, setAlarmDialogOpen] = useState(false)
+  const [alarmDialogData, setAlarmDialogData] = useState<AlarmDetailData | null>(null)
+
   // View mode — persisted in user preferences.
   // Initialized to 'list'; synced once preferences load from the server
   // (staleTime=Infinity, so subsequent navigations resolve from cache synchronously).
@@ -196,6 +201,27 @@ function AlarmEventsPageContent() {
     queryFn: () => api.getEnvironments(filters.productId),
     enabled: !!filters.productId,
   })
+
+  // All environments across all products — used to build the on-call pattern map
+  // when no product filter is active. Fetched in parallel, stale for 5 min.
+  const productIds = useMemo(() => products?.map((p) => p.id) ?? [], [products])
+  const { data: allEnvironments } = useQuery<Environment[]>({
+    queryKey: ['environments-all', productIds],
+    queryFn: async () => {
+      if (!productIds.length) return []
+      const arrays = await Promise.all(productIds.map((id) => api.getEnvironments(id)))
+      return arrays.flat()
+    },
+    enabled: !filters.productId && productIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  // Map environmentId → onCallAlarmPattern for on-call row highlighting
+  const onCallPatternMap = useMemo(() => {
+    const src = filters.productId ? environments : allEnvironments
+    if (!src?.length) return new Map<string, string>()
+    return new Map(src.filter((e) => e.onCallAlarmPattern).map((e) => [e.id, e.onCallAlarmPattern!]))
+  }, [filters.productId, environments, allEnvironments])
 
   const queryParams = useMemo(() => ({
     page,
@@ -371,6 +397,23 @@ function AlarmEventsPageContent() {
     }
   }
 
+  const handleAlarmClick = useCallback((alarm: NonNullable<AlarmEvent['alarm']>, productId: string) => {
+    setAlarmDialogData({
+      id:          alarm.id,
+      name:        alarm.name,
+      description: alarm.description,
+      productId,
+      runbook:     alarm.runbook ?? null,
+    })
+    setAlarmDialogOpen(true)
+  }, [])
+
+  const isOnCallEvent = useCallback((event: AlarmEvent): boolean => {
+    const pattern = onCallPatternMap.get(event.environment.id)
+    if (!pattern) return false
+    try { return new RegExp(pattern).test(event.name) } catch { return false }
+  }, [onCallPatternMap])
+
   // --- Main Render ---
 
   return (
@@ -488,6 +531,7 @@ function AlarmEventsPageContent() {
           onRowClick={handleRowClick}
           onEdit={handleEdit}
           onDelete={handleDelete}
+          isOnCallEvent={isOnCallEvent}
         />
       )}
 
@@ -508,6 +552,7 @@ function AlarmEventsPageContent() {
           onRowClick={handleRowClick}
           onEdit={handleEdit}
           onDelete={handleDelete}
+          isOnCallEvent={isOnCallEvent}
         />
       )}
 
@@ -573,6 +618,7 @@ function AlarmEventsPageContent() {
                 {events.map((event) => {
                   const isSelected  = event.id === selectedEvent?.id && showDetailPanel
                   const isLingering = event.id === lingeringId && !showDetailPanel
+                  const isOnCall    = isOnCallEvent(event)
                   return (
                     <TableRow
                       key={event.id}
@@ -582,7 +628,9 @@ function AlarmEventsPageContent() {
                           ? 'analysis-row-selected hover:bg-primary/[0.09]'
                           : isLingering
                             ? 'analysis-row-lingering hover:bg-muted/30'
-                            : 'transition-colors hover:bg-muted/30')
+                            : isOnCall
+                              ? 'bg-rose-500/[0.04] hover:bg-rose-500/[0.06] transition-colors border-l-[3px] border-l-rose-500/60'
+                              : 'transition-colors hover:bg-muted/30')
                       }
                       onClick={(e) => {
                         if ((e.target as HTMLElement).closest('button')) return
@@ -597,7 +645,7 @@ function AlarmEventsPageContent() {
                             className="overflow-hidden py-2.5"
                             style={(!isLastDataCol && getWidth(col.id)) ? { width: `${getWidth(col.id)}px` } : undefined}
                           >
-                            {renderCell(col.id, event)}
+                            {renderCell(col.id, event, { isOnCall, onAlarmClick: handleAlarmClick })}
                           </TableCell>
                         )
                       })}
@@ -710,6 +758,13 @@ function AlarmEventsPageContent() {
         </div>
       )}
 
+      {/* Alarm detail dialog */}
+      <AlarmDetailDialog
+        open={alarmDialogOpen}
+        onClose={() => setAlarmDialogOpen(false)}
+        alarm={alarmDialogData}
+      />
+
       {/* Detail Side Panel */}
       <AlarmEventDetailPanel
         event={selectedEvent}
@@ -719,6 +774,8 @@ function AlarmEventsPageContent() {
         onDelete={handleDelete}
         canWrite={canWrite}
         canDelete={canDelete}
+        isOnCall={selectedEvent ? isOnCallEvent(selectedEvent) : false}
+        onAlarmClick={handleAlarmClick}
       />
 
       {/* Create/Edit Form Dialog */}

@@ -238,6 +238,7 @@ export interface Environment {
   slackChannelId: string | null
   defaultAwsAccountId: string | null
   defaultAwsRegion: string | null
+  onCallAlarmPattern: string | null
   createdAt: string
   updatedAt: string
 }
@@ -249,6 +250,7 @@ export interface CreateEnvironmentData {
   slackChannelId?: string
   defaultAwsAccountId?: string
   defaultAwsRegion?: string
+  onCallAlarmPattern?: string
 }
 
 export interface UpdateEnvironmentData {
@@ -258,6 +260,7 @@ export interface UpdateEnvironmentData {
   slackChannelId?: string | null
   defaultAwsAccountId?: string | null
   defaultAwsRegion?: string | null
+  onCallAlarmPattern?: string | null
 }
 
 export interface Microservice {

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { X, Pencil, Trash2, Copy, Check, BellRing, Cloud, Info, BookOpen, ExternalLink } from 'lucide-react'
+import { X, Pencil, Trash2, Copy, Check, BellRing, Cloud, Info, BookOpen, ExternalLink, PhoneCall } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -16,6 +16,8 @@ interface AlarmEventDetailPanelProps {
   onDelete: (event: AlarmEvent) => void
   canWrite: boolean
   canDelete: boolean
+  isOnCall?: boolean
+  onAlarmClick?: (alarm: NonNullable<AlarmEvent['alarm']>, productId: string) => void
 }
 
 // ─── Section header ───────────────────────────────────────────────────────────
@@ -120,6 +122,8 @@ export function AlarmEventDetailPanel({
   onDelete,
   canWrite,
   canDelete,
+  isOnCall,
+  onAlarmClick,
 }: AlarmEventDetailPanelProps) {
   const { preferences, updatePreferences } = usePreferences()
   const [dragWidth, setDragWidth] = useState<number | null>(null)
@@ -222,7 +226,7 @@ export function AlarmEventDetailPanel({
           <>
             {/* Header */}
             <div className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-5 py-4">
-              <div className="min-w-0 space-y-1">
+              <div className="min-w-0 space-y-1.5">
                 <h2 className="text-base font-semibold leading-tight break-words pr-2">
                   {event.name}
                 </h2>
@@ -231,6 +235,16 @@ export function AlarmEventDetailPanel({
                   <span className="mx-1.5 text-border">·</span>
                   {event.environment.name}
                 </p>
+                {isOnCall ? (
+                  <span className="inline-flex items-center gap-1 rounded bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                    <PhoneCall className="h-2.5 w-2.5" />
+                    on-call
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center rounded border border-border/50 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground/50">
+                    normale
+                  </span>
+                )}
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 {canWrite && (
@@ -288,13 +302,24 @@ export function AlarmEventDetailPanel({
                     <div className="rounded-lg border border-border/50 bg-muted/20 px-3.5 py-3 space-y-2.5">
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-sm font-semibold leading-snug break-words">{event.alarm.name}</p>
-                        <Link
-                          href={`/products/${event.product.id}?tab=alarms`}
-                          className="shrink-0 inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                        >
-                          Vedi
-                          <ExternalLink className="h-3 w-3" />
-                        </Link>
+                        {onAlarmClick ? (
+                          <button
+                            type="button"
+                            className="shrink-0 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                            onClick={() => onAlarmClick(event.alarm!, event.product.id)}
+                          >
+                            <BookOpen className="h-3 w-3" />
+                            Dettaglio
+                          </button>
+                        ) : (
+                          <Link
+                            href={`/products/${event.product.id}?tab=alarms`}
+                            className="shrink-0 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                          >
+                            Vedi
+                            <ExternalLink className="h-3 w-3" />
+                          </Link>
+                        )}
                       </div>
                       {event.alarm.description && (
                         <p className="text-xs leading-relaxed text-muted-foreground">
