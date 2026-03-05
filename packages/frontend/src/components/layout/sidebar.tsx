@@ -109,7 +109,7 @@ const navGroups: NavGroup[] = [
     label: 'Sistema',
     items: [
       {
-        title: 'Parametri',
+        title: 'Configurazioni',
         href: '/settings/parameters',
         icon: SlidersHorizontal,
         resource: 'SYSTEM_SETTING',

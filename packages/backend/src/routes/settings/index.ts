@@ -14,7 +14,9 @@ import {
   type UpdateSettingBody,
 } from "./schemas.js";
 
-type FormatValidator = (value: unknown) => string | null;
+type FormatValidator = (value: unknown) => string | null | Promise<string | null>;
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const FORMAT_VALIDATORS: Record<string, FormatValidator> = {
   WORKING_HOURS: (value) => {
@@ -28,6 +30,14 @@ const FORMAT_VALIDATORS: Record<string, FormatValidator> = {
       return "working_hours deve avere start/end in formato HH:MM e days come array di numeri 1-7";
     }
     return null;
+  },
+
+  FK_ROLE: async (value) => {
+    if (typeof value !== "string" || !UUID_RE.test(value)) {
+      return "Il valore deve essere un UUID valido";
+    }
+    const role = await prisma.role.findUnique({ where: { id: value }, select: { id: true } });
+    return role ? null : `Nessun ruolo trovato con ID '${value}'`;
   },
 };
 
@@ -187,7 +197,7 @@ export async function settingRoutes(app: FastifyInstance): Promise<void> {
       }
 
       if (existing.format) {
-        const formatError = FORMAT_VALIDATORS[existing.format]?.(value) ?? null;
+        const formatError = await (FORMAT_VALIDATORS[existing.format]?.(value) ?? null);
         if (formatError) return reply.status(400).send({ error: formatError });
       }
 

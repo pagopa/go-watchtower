@@ -12,8 +12,8 @@ export type { SettingType } from './constants/setting-types.js';
 export { SettingCategories } from './constants/setting-categories.js';
 export type { SettingCategory } from './constants/setting-categories.js';
 
-export { SettingFormats } from './constants/setting-formats.js';
-export type { SettingFormat } from './constants/setting-formats.js';
+export { SettingFormats, FK_SETTING_FORMATS } from './constants/setting-formats.js';
+export type { SettingFormat, FkSettingFormat } from './constants/setting-formats.js';
 
 // ─── Costanti nuove ────────────────────────────────────────────────────────────
 
@@ -57,7 +57,7 @@ export type { AnalysisLink, TrackingEntry } from './types/analysis.js';
 export type { IgnoreReasonFieldDef, IgnoreReasonDetailsSchema, IgnoreReason } from './types/ignore-reason.js';
 export type { TimeConstraintPeriod, TimeConstraintHours, TimeConstraint } from './types/time-constraint.js';
 export type { ResourcePermission, RolePermission, UserPermissions } from './types/permissions.js';
-export type { SystemSetting, GenericSystemSetting, WorkingHoursSystemSetting } from './types/system-setting.js';
+export type { SystemSetting, GenericSystemSetting, WorkingHoursSystemSetting, FkSystemSetting, RoleFkSystemSetting } from './types/system-setting.js';
 export type { WorkingHours } from './types/working-hours.js';
 export type { SystemEvent, SystemEventsResponse } from './types/system-event.js';
 
@@ -72,7 +72,7 @@ export { AUTH_PROVIDER_LABELS } from './labels/auth-provider-labels.js';
 
 // ─── Utility ───────────────────────────────────────────────────────────────────
 
-export { isWorkingHoursSetting } from './utils/setting-guards.js';
+export { isWorkingHoursSetting, isFkSetting, isFkSettingOf } from './utils/setting-guards.js';
 export { inferLinkType } from './utils/infer-link-type.js';
 export { buildDiff } from './utils/build-diff.js';
 export { matchIgnoredAlarm } from './utils/match-ignored-alarm.js';

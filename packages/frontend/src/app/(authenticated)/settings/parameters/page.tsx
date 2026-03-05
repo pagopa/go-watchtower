@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { SystemParametersPage } from './_page-content'
 
 export const metadata: Metadata = {
-  title: 'Parametri di sistema',
+  title: 'Configurazioni',
 }
 
 export default function Page() {

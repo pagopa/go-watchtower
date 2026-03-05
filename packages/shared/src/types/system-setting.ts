@@ -1,7 +1,7 @@
-import type { SettingType } from '../constants/setting-types.js';
-import type { SettingCategory } from '../constants/setting-categories.js';
-import type { SettingFormat } from '../constants/setting-formats.js';
-import type { WorkingHours } from './working-hours.js';
+import type { SettingType }                    from '../constants/setting-types.js';
+import type { SettingCategory }                from '../constants/setting-categories.js';
+import type { SettingFormat, FkSettingFormat } from '../constants/setting-formats.js';
+import type { WorkingHours }                   from './working-hours.js';
 
 interface SystemSettingBase {
   id:          string;
@@ -27,4 +27,17 @@ export interface WorkingHoursSystemSetting extends SystemSettingBase {
   value:  WorkingHours;
 }
 
-export type SystemSetting = GenericSystemSetting | WorkingHoursSystemSetting;
+export interface FkSystemSetting<TFormat extends FkSettingFormat = FkSettingFormat>
+  extends SystemSettingBase {
+  type:   'STRING';
+  format: TFormat;
+  value:  string;
+}
+
+/** Alias nominale per documentazione */
+export type RoleFkSystemSetting = FkSystemSetting<'FK_ROLE'>;
+
+export type SystemSetting =
+  | GenericSystemSetting
+  | WorkingHoursSystemSetting
+  | FkSystemSetting;

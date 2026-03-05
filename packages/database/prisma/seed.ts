@@ -240,7 +240,7 @@ async function seedSystemSettings() {
       key:         "default_google_role_id",
       value:       ROLE_IDS.GUEST,
       type:        "STRING",
-      format:      null,
+      format:      "FK_ROLE",
       category:    "AUTH",
       label:       "Ruolo predefinito Google",
       description: "Ruolo assegnato automaticamente ai nuovi utenti che accedono per la prima volta tramite Google OAuth",

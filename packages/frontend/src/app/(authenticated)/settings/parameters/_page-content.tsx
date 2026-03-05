@@ -2,208 +2,248 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Loader2, SlidersHorizontal, Check, X, Pencil } from 'lucide-react'
+import {
+  Loader2, Check, X, Pencil,
+  Shield, BarChart2, Cpu, Settings2, Clock,
+} from 'lucide-react'
 import { toast } from 'sonner'
-import { isWorkingHoursSetting } from '@go-watchtower/shared'
+import { isWorkingHoursSetting, isFkSetting } from '@go-watchtower/shared'
 import { api, type SystemSetting } from '@/lib/api-client'
 import { usePermissions } from '@/hooks/use-permissions'
+import { useFkSettingLabel } from '@/hooks/use-fk-setting-label'
+import { FK_RESOLVERS } from '@/lib/fk-setting-resolvers'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
-import { Badge } from '@/components/ui/badge'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
-// ─── Working hours constants ──────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const DAYS = [
-  { n: 1, label: 'Lun' },
-  { n: 2, label: 'Mar' },
-  { n: 3, label: 'Mer' },
-  { n: 4, label: 'Gio' },
-  { n: 5, label: 'Ven' },
-  { n: 6, label: 'Sab' },
-  { n: 7, label: 'Dom' },
+  { n: 1, label: 'Lun', weekend: false },
+  { n: 2, label: 'Mar', weekend: false },
+  { n: 3, label: 'Mer', weekend: false },
+  { n: 4, label: 'Gio', weekend: false },
+  { n: 5, label: 'Ven', weekend: false },
+  { n: 6, label: 'Sab', weekend: true  },
+  { n: 7, label: 'Dom', weekend: true  },
 ]
 
-// ─── WorkingHours editor ──────────────────────────────────────────────────────
+const CATEGORY_META: Record<string, {
+  label: string
+  Icon: React.ComponentType<{ className?: string }>
+  accent: string
+  headerCls: string
+}> = {
+  AUTH:     { label: 'Autenticazione', Icon: Shield,   accent: 'bg-blue-500',   headerCls: 'text-blue-600 dark:text-blue-400'   },
+  ANALYSIS: { label: 'Analisi',        Icon: BarChart2, accent: 'bg-amber-500',  headerCls: 'text-amber-600 dark:text-amber-400' },
+  SYSTEM:   { label: 'Sistema',        Icon: Cpu,       accent: 'bg-violet-500', headerCls: 'text-violet-600 dark:text-violet-400' },
+}
 
-function WorkingHoursEditor({
-  value,
+const DEFAULT_CATEGORY = { label: 'Generale', Icon: Settings2, accent: 'bg-slate-400', headerCls: 'text-slate-500' }
+
+const TYPE_DOT: Record<string, string> = {
+  STRING:  'bg-blue-400',
+  NUMBER:  'bg-amber-400',
+  BOOLEAN: 'bg-emerald-400',
+  JSON:    'bg-violet-400',
+}
+
+// ─── Working Hours Dialog ─────────────────────────────────────────────────────
+
+function WorkingHoursDialog({
+  setting,
+  open,
+  onOpenChange,
   onSave,
-  onCancel,
   isPending,
 }: {
-  value: unknown
-  onSave: (v: unknown) => void
-  onCancel: () => void
+  setting: SystemSetting
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onSave: (value: unknown) => void
   isPending: boolean
 }) {
-  const initial = value as { start?: string; end?: string; days?: number[] } | null
+  const initial = isWorkingHoursSetting(setting) ? setting.value : null
   const [start, setStart] = useState(initial?.start ?? '09:00')
   const [end,   setEnd]   = useState(initial?.end   ?? '18:00')
   const [days,  setDays]  = useState<number[]>(initial?.days ?? [1, 2, 3, 4, 5])
 
   const toggleDay = (n: number) =>
-    setDays((prev) => prev.includes(n) ? prev.filter((d) => d !== n) : [...prev, n].sort((a, b) => a - b))
+    setDays((prev) =>
+      prev.includes(n) ? prev.filter((d) => d !== n) : [...prev, n].sort((a, b) => a - b)
+    )
+
+  const selectedLabels = DAYS.filter(({ n }) => days.includes(n)).map(({ label }) => label)
+  const previewText = selectedLabels.length > 0
+    ? `${selectedLabels.join(', ')} · ${start}–${end}`
+    : `Nessun giorno selezionato`
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <Input
-          type="time"
-          value={start}
-          onChange={(e) => setStart(e.target.value)}
-          className="h-7 w-28 text-sm"
-          disabled={isPending}
-        />
-        <span className="text-xs text-muted-foreground">–</span>
-        <Input
-          type="time"
-          value={end}
-          onChange={(e) => setEnd(e.target.value)}
-          className="h-7 w-28 text-sm"
-          disabled={isPending}
-        />
-      </div>
-      <div className="flex items-center gap-1">
-        {DAYS.map(({ n, label }) => (
-          <button
-            key={n}
-            type="button"
-            onClick={() => toggleDay(n)}
-            disabled={isPending}
-            className={`rounded px-1.5 py-0.5 text-xs font-medium transition-colors ${
-              days.includes(n)
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80'
-            }`}
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <div className="flex items-center gap-2.5 mb-1">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-950/50">
+              <Clock className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+            </div>
+            <DialogTitle className="text-base">Orari lavorativi</DialogTitle>
+          </div>
+          <DialogDescription className="text-xs leading-relaxed">
+            Configura la finestra oraria e i giorni lavorativi usati per il calcolo delle KPI e il
+            filtraggio temporale degli allarmi.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-5 pt-1">
+          {/* Time range */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
+              Fascia oraria
+            </p>
+            <div className="flex items-end gap-2">
+              <div className="flex-1 space-y-1">
+                <label className="text-xs text-muted-foreground">Dalle</label>
+                <Input
+                  type="time"
+                  value={start}
+                  onChange={(e) => setStart(e.target.value)}
+                  className="font-mono text-sm"
+                  disabled={isPending}
+                />
+              </div>
+              <div className="pb-2.5 text-sm text-muted-foreground/60 select-none">—</div>
+              <div className="flex-1 space-y-1">
+                <label className="text-xs text-muted-foreground">Alle</label>
+                <Input
+                  type="time"
+                  value={end}
+                  onChange={(e) => setEnd(e.target.value)}
+                  className="font-mono text-sm"
+                  disabled={isPending}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Days */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
+              Giorni lavorativi
+            </p>
+            <div className="flex gap-1.5">
+              {DAYS.map(({ n, label, weekend }) => {
+                const active = days.includes(n)
+                return (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => toggleDay(n)}
+                    disabled={isPending}
+                    className={[
+                      'flex-1 rounded-lg py-3 text-xs font-semibold transition-all duration-150',
+                      active
+                        ? weekend
+                          ? 'bg-orange-500 text-white shadow-sm'
+                          : 'bg-primary text-primary-foreground shadow-sm'
+                        : 'bg-muted text-muted-foreground hover:bg-muted/60',
+                    ].join(' ')}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Preview */}
+          <div className="rounded-lg border bg-muted/30 px-3.5 py-3">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 mb-1">
+              Anteprima
+            </p>
+            <p className="font-mono text-sm font-medium">{previewText}</p>
+          </div>
+        </div>
+
+        <DialogFooter className="mt-2">
+          <DialogClose asChild>
+            <Button variant="outline" size="sm" disabled={isPending}>
+              Annulla
+            </Button>
+          </DialogClose>
+          <Button
+            size="sm"
+            onClick={() => onSave({ start, end, days })}
+            disabled={isPending || days.length === 0}
           >
-            {label}
-          </button>
-        ))}
-      </div>
-      <div className="flex items-center gap-1">
-        <Button
-          size="icon"
-          variant="ghost"
-          className="h-6 w-6 text-green-600 hover:text-green-700 hover:bg-green-50"
-          onClick={() => onSave({ start, end, days })}
-          disabled={isPending}
-        >
-          {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-        </Button>
-        <Button
-          size="icon"
-          variant="ghost"
-          className="h-6 w-6 text-muted-foreground hover:text-foreground"
-          onClick={onCancel}
-          disabled={isPending}
-        >
-          <X className="h-3 w-3" />
-        </Button>
-      </div>
-    </div>
+            {isPending && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+            Salva
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
-// ─── Type-aware inline editor ─────────────────────────────────────────────────
+// ─── FK select editor ─────────────────────────────────────────────────────────
 
-function SettingValueEditor({
+function FkSelectEditor({
   setting,
   onSave,
   onCancel,
   isPending,
 }: {
   setting: SystemSetting
-  onSave: (value: unknown) => void
+  onSave: (v: unknown) => void
   onCancel: () => void
   isPending: boolean
 }) {
-  const [draft, setDraft] = useState<unknown>(setting.value)
+  const resolver = setting.format ? FK_RESOLVERS[setting.format] : null
+  const { data: options = [], isLoading } = useQuery({
+    queryKey: resolver?.queryKey ?? ['__fk_noop__'],
+    queryFn:  resolver?.fetch    ?? (() => Promise.resolve([])),
+    enabled:  resolver !== null,
+    staleTime: 5 * 60 * 1000,
+  })
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') onSave(draft)
-    if (e.key === 'Escape') onCancel()
-  }
-
-  if (isWorkingHoursSetting(setting)) {
-    return (
-      <WorkingHoursEditor
-        value={draft}
-        onSave={onSave}
-        onCancel={onCancel}
-        isPending={isPending}
-      />
-    )
-  }
-
-  if (setting.type === 'BOOLEAN') {
-    return (
-      <div className="flex items-center gap-2">
-        <Switch
-          checked={!!draft}
-          onCheckedChange={(v) => setDraft(v)}
-          disabled={isPending}
-        />
-        <span className="text-xs text-muted-foreground">{draft ? 'Attivo' : 'Inattivo'}</span>
-        <div className="ml-2 flex gap-1">
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-6 w-6 text-green-600 hover:text-green-700 hover:bg-green-50"
-            onClick={() => onSave(draft)}
-            disabled={isPending}
-          >
-            {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-6 w-6 text-muted-foreground hover:text-foreground"
-            onClick={onCancel}
-            disabled={isPending}
-          >
-            <X className="h-3 w-3" />
-          </Button>
-        </div>
-      </div>
-    )
-  }
+  const currentValue = typeof setting.value === 'string' ? setting.value : ''
 
   return (
-    <div className="flex items-center gap-2">
-      <Input
-        type={setting.type === 'NUMBER' ? 'number' : 'text'}
-        value={String(draft ?? '')}
-        onChange={(e) =>
-          setDraft(setting.type === 'NUMBER' ? Number(e.target.value) : e.target.value)
-        }
-        onKeyDown={handleKeyDown}
-        className="h-7 w-48 text-sm"
-        autoFocus
-        disabled={isPending}
-      />
-      <Button
-        size="icon"
-        variant="ghost"
-        className="h-6 w-6 text-green-600 hover:text-green-700 hover:bg-green-50"
-        onClick={() => onSave(draft)}
-        disabled={isPending}
+    <div className="flex items-center gap-1.5">
+      <Select
+        value={currentValue}
+        onValueChange={(v) => onSave(v)}
+        disabled={isPending || isLoading}
       >
-        {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-      </Button>
+        <SelectTrigger className="h-7 w-44 text-sm">
+          <SelectValue placeholder={isLoading ? 'Caricamento…' : 'Seleziona…'} />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((o) => (
+            <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       <Button
         size="icon"
         variant="ghost"
-        className="h-6 w-6 text-muted-foreground hover:text-foreground"
+        className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
         onClick={onCancel}
         disabled={isPending}
       >
@@ -215,109 +255,303 @@ function SettingValueEditor({
 
 // ─── Value display ─────────────────────────────────────────────────────────────
 
-function SettingValueDisplay({ setting }: { setting: SystemSetting }) {
-  if (setting.type === 'BOOLEAN') {
+function ValueDisplay({ setting }: { setting: SystemSetting }) {
+  const fkLabel = useFkSettingLabel(setting.format, setting.value)
+
+  if (isFkSetting(setting)) {
     return (
-      <Badge variant={setting.value ? 'default' : 'secondary'} className="text-xs">
-        {setting.value ? 'Attivo' : 'Inattivo'}
-      </Badge>
+      <span className="rounded bg-muted px-2 py-0.5 text-sm font-medium text-foreground">
+        {fkLabel ?? <span className="animate-pulse text-muted-foreground/40">···</span>}
+      </span>
     )
   }
   if (isWorkingHoursSetting(setting)) {
     const wh = setting.value
-    const timeRange = wh?.start && wh?.end ? `${wh.start} – ${wh.end}` : '—'
-    const dayLabels = (wh?.days ?? []).map((d) => DAYS.find(({ n }) => n === d)?.label).filter(Boolean).join(' ')
+    const timeRange = wh?.start && wh?.end ? `${wh.start}–${wh.end}` : '—'
+    const dayLabels = (wh?.days ?? [])
+      .map((d) => DAYS.find(({ n }) => n === d)?.label)
+      .filter(Boolean)
+      .join(' · ')
     return (
-      <span className="font-mono text-sm">{timeRange}{dayLabels ? ` · ${dayLabels}` : ''}</span>
+      <span className="font-mono text-sm tabular-nums text-foreground">
+        {dayLabels
+          ? <><span className="text-muted-foreground">{dayLabels}</span> <span className="text-muted-foreground/40 mx-0.5">·</span> {timeRange}</>
+          : timeRange
+        }
+      </span>
     )
   }
+  if (setting.type === 'BOOLEAN') {
+    return null // rendered as live switch in the row
+  }
+  if (setting.type === 'NUMBER') {
+    return (
+      <span className="font-mono text-sm font-semibold tabular-nums">
+        {String(setting.value ?? '—')}
+      </span>
+    )
+  }
+  const val = String(setting.value ?? '')
+  const display = val.length > 36 ? val.slice(0, 34) + '…' : val
   return (
-    <span className="font-mono text-sm">{String(setting.value ?? '')}</span>
-  )
-}
-
-// ─── Type badge ────────────────────────────────────────────────────────────────
-
-function TypeBadge({ type }: { type: SystemSetting['type'] }) {
-  const colors = {
-    STRING:  'bg-blue-50 text-blue-700 border-blue-200',
-    NUMBER:  'bg-amber-50 text-amber-700 border-amber-200',
-    BOOLEAN: 'bg-purple-50 text-purple-700 border-purple-200',
-    JSON:    'bg-green-50 text-green-700 border-green-200',
-  } as const
-  return (
-    <span
-      className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-mono font-semibold uppercase tracking-wide ${colors[type]}`}
-    >
-      {type}
+    <span className="rounded bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground">
+      {display || '—'}
     </span>
   )
 }
 
-// ─── Group rows ────────────────────────────────────────────────────────────────
+// ─── Inline editor (STRING / NUMBER) ──────────────────────────────────────────
 
-function SettingRow({
+function InlineEditor({
+  setting,
+  onSave,
+  onCancel,
+  isPending,
+}: {
+  setting: SystemSetting
+  onSave: (v: unknown) => void
+  onCancel: () => void
+  isPending: boolean
+}) {
+  const [draft, setDraft] = useState<unknown>(setting.value)
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <Input
+        type={setting.type === 'NUMBER' ? 'number' : 'text'}
+        value={String(draft ?? '')}
+        onChange={(e) =>
+          setDraft(setting.type === 'NUMBER' ? Number(e.target.value) : e.target.value)
+        }
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') onSave(draft)
+          if (e.key === 'Escape') onCancel()
+        }}
+        className="h-7 w-44 font-mono text-sm"
+        autoFocus
+        disabled={isPending}
+      />
+      <Button
+        size="icon"
+        variant="ghost"
+        className="h-6 w-6 shrink-0 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 dark:hover:bg-emerald-950/30"
+        onClick={() => onSave(draft)}
+        disabled={isPending}
+      >
+        {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+      </Button>
+      <Button
+        size="icon"
+        variant="ghost"
+        className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+        onClick={onCancel}
+        disabled={isPending}
+      >
+        <X className="h-3 w-3" />
+      </Button>
+    </div>
+  )
+}
+
+// ─── Setting card row ─────────────────────────────────────────────────────────
+
+function SettingCard({
   setting,
   canWrite,
+  accent,
 }: {
   setting: SystemSetting
   canWrite: boolean
+  accent: string
 }) {
   const queryClient = useQueryClient()
   const [editing, setEditing] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(false)
 
   const mutation = useMutation({
     mutationFn: (value: unknown) => api.updateSetting(setting.key, value),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] })
+      queryClient.invalidateQueries({ queryKey: ['working-hours'] })
       setEditing(false)
-      toast.success(`Parametro aggiornato`)
+      setDialogOpen(false)
+      toast.success('Configurazione aggiornata')
     },
     onError: (err: Error) => {
       toast.error(err.message || 'Errore durante il salvataggio')
     },
   })
 
+  const needsDialog = isWorkingHoursSetting(setting)
+  const isFk        = isFkSetting(setting)
+  const isBoolean   = setting.type === 'BOOLEAN'
+  const isInline    = !needsDialog && !isFk && !isBoolean
+
   return (
-    <TableRow className="group">
-      <TableCell className="font-mono text-xs text-muted-foreground py-3">
-        {setting.key}
-      </TableCell>
-      <TableCell className="py-3">
-        <div className="font-medium text-sm">{setting.label}</div>
-        {setting.description && (
-          <div className="text-xs text-muted-foreground mt-0.5">{setting.description}</div>
-        )}
-      </TableCell>
-      <TableCell className="py-3">
-        <TypeBadge type={setting.type} />
-      </TableCell>
-      <TableCell className="py-3">
-        {editing ? (
-          <SettingValueEditor
-            setting={setting}
-            onSave={(v) => mutation.mutate(v)}
-            onCancel={() => setEditing(false)}
-            isPending={mutation.isPending}
-          />
-        ) : (
-          <div className="flex items-center gap-2">
-            <SettingValueDisplay setting={setting} />
-            {canWrite && (
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                onClick={() => setEditing(true)}
-                title="Modifica"
-              >
-                <Pencil className="h-3 w-3" />
-              </Button>
+    <>
+      <div className="group relative flex items-start gap-0 overflow-hidden rounded-xl border bg-card transition-shadow hover:shadow-sm">
+        {/* Left accent strip */}
+        <div className={`w-[3px] shrink-0 self-stretch rounded-l-xl ${accent} opacity-40 group-hover:opacity-70 transition-opacity`} />
+
+        {/* Content */}
+        <div className="flex flex-1 items-start justify-between gap-4 px-5 py-4 min-w-0">
+          {/* Left: label + description + key */}
+          <div className="flex items-start gap-3 min-w-0 flex-1">
+            <div className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${TYPE_DOT[setting.type] ?? 'bg-slate-400'}`} />
+            <div className="min-w-0 flex-1 space-y-0.5">
+              <p className="text-sm font-semibold leading-snug text-foreground">
+                {setting.label}
+              </p>
+              {setting.description && (
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  {setting.description}
+                </p>
+              )}
+              <p className="pt-1 font-mono text-[10px] text-muted-foreground/30 select-all">
+                {setting.key}
+              </p>
+            </div>
+          </div>
+
+          {/* Right: value + edit */}
+          <div className="flex shrink-0 items-center gap-2">
+            {isBoolean ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">
+                  {setting.value ? 'Attivo' : 'Inattivo'}
+                </span>
+                <Switch
+                  checked={!!setting.value}
+                  onCheckedChange={(v) => canWrite && mutation.mutate(v)}
+                  disabled={!canWrite || mutation.isPending}
+                />
+                {mutation.isPending && (
+                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                )}
+              </div>
+            ) : editing && isFk ? (
+              <FkSelectEditor
+                setting={setting}
+                onSave={(v) => mutation.mutate(v)}
+                onCancel={() => setEditing(false)}
+                isPending={mutation.isPending}
+              />
+            ) : editing && isInline ? (
+              <InlineEditor
+                setting={setting}
+                onSave={(v) => mutation.mutate(v)}
+                onCancel={() => setEditing(false)}
+                isPending={mutation.isPending}
+              />
+            ) : (
+              <div className="flex items-center gap-2">
+                <ValueDisplay setting={setting} />
+                {canWrite && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+                    onClick={() => needsDialog ? setDialogOpen(true) : setEditing(true)}
+                    title="Modifica"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
             )}
           </div>
-        )}
-      </TableCell>
-    </TableRow>
+        </div>
+      </div>
+
+      {needsDialog && (
+        <WorkingHoursDialog
+          setting={setting}
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          onSave={(v) => mutation.mutate(v)}
+          isPending={mutation.isPending}
+        />
+      )}
+    </>
+  )
+}
+
+// ─── Category section ─────────────────────────────────────────────────────────
+
+function CategorySection({
+  category,
+  settings,
+  canWrite,
+}: {
+  category: string
+  settings: SystemSetting[]
+  canWrite: boolean
+}) {
+  const meta = CATEGORY_META[category] ?? DEFAULT_CATEGORY
+  const { Icon } = meta
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center gap-2.5 px-0.5">
+        <div className={`flex h-6 w-6 items-center justify-center rounded-md bg-muted ${meta.headerCls}`}>
+          <Icon className="h-3.5 w-3.5" />
+        </div>
+        <h2 className={`text-xs font-bold uppercase tracking-widest ${meta.headerCls}`}>
+          {meta.label}
+        </h2>
+        <div className="flex-1 border-t border-border/40" />
+        <span className="text-[10px] font-mono text-muted-foreground/40 tabular-nums">
+          {settings.length} {settings.length === 1 ? 'voce' : 'voci'}
+        </span>
+      </div>
+
+      <div className="space-y-2">
+        {settings.map((s) => (
+          <SettingCard
+            key={s.key}
+            setting={s}
+            canWrite={canWrite}
+            accent={meta.accent}
+          />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+// ─── Skeleton loading ─────────────────────────────────────────────────────────
+
+function LoadingSkeleton() {
+  return (
+    <div className="space-y-8">
+      {[3, 1, 2].map((count, gi) => (
+        <div key={gi} className="space-y-3">
+          <div className="flex items-center gap-2.5 px-0.5">
+            <Skeleton className="h-6 w-6 rounded-md" />
+            <Skeleton className="h-3 w-24" />
+            <div className="flex-1 border-t border-border/40" />
+          </div>
+          <div className="space-y-2">
+            {[...Array(count)].map((_, i) => (
+              <div key={i} className="flex items-start gap-0 overflow-hidden rounded-xl border bg-card">
+                <div className="w-[3px] self-stretch bg-muted" />
+                <div className="flex flex-1 items-start justify-between gap-4 px-5 py-4">
+                  <div className="flex items-start gap-3 flex-1">
+                    <Skeleton className="mt-1.5 h-2 w-2 rounded-full" />
+                    <div className="space-y-2 flex-1">
+                      <Skeleton className="h-4 w-48" />
+                      <Skeleton className="h-3 w-72" />
+                      <Skeleton className="h-2.5 w-36 mt-2" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-5 w-24 rounded" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -328,77 +562,58 @@ export function SystemParametersPage() {
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ['settings'],
-    queryFn: api.getSettings,
+    queryFn:  api.getSettings,
   })
 
   const canWrite = !permissionsLoading && can('SYSTEM_SETTING', 'write')
 
-  // Group settings by category
   const grouped = settings?.reduce<Record<string, SystemSetting[]>>((acc, s) => {
     if (!acc[s.category]) acc[s.category] = []
     acc[s.category]!.push(s)
     return acc
   }, {}) ?? {}
 
-  const categories = Object.keys(grouped).sort()
+  // Sort categories: AUTH first, then ANALYSIS, SYSTEM, rest alphabetically
+  const CATEGORY_ORDER = ['AUTH', 'ANALYSIS', 'SYSTEM']
+  const categories = Object.keys(grouped).sort((a, b) => {
+    const ia = CATEGORY_ORDER.indexOf(a)
+    const ib = CATEGORY_ORDER.indexOf(b)
+    if (ia !== -1 && ib !== -1) return ia - ib
+    if (ia !== -1) return -1
+    if (ib !== -1) return 1
+    return a.localeCompare(b)
+  })
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8 px-4 py-8">
+    <div className="mx-auto max-w-3xl space-y-10 px-4 py-8">
       {/* Header */}
-      <div className="space-y-1">
-        <div className="flex items-center gap-2">
-          <SlidersHorizontal className="h-5 w-5 text-muted-foreground" />
-          <h1 className="text-2xl font-bold tracking-tight">Parametri di sistema</h1>
-        </div>
+      <div className="space-y-1.5">
+        <h1 className="text-xl font-semibold tracking-tight">Configurazioni</h1>
         <p className="text-sm text-muted-foreground">
-          Visualizza e modifica i parametri di configurazione del sistema. Clicca sul valore per modificarlo.
+          Parametri di sistema e impostazioni dell&apos;applicazione.
+          {!canWrite && !permissionsLoading && (
+            <span className="ml-2 text-xs text-muted-foreground/60">(sola lettura)</span>
+          )}
         </p>
       </div>
 
       {/* Content */}
       {isLoading ? (
-        <div className="space-y-6">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="space-y-2">
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-40 w-full" />
-            </div>
-          ))}
-        </div>
+        <LoadingSkeleton />
       ) : categories.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16 text-center">
-          <SlidersHorizontal className="mb-3 h-8 w-8 text-muted-foreground/40" />
-          <p className="text-sm font-medium text-muted-foreground">Nessun parametro configurato</p>
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-20 text-center">
+          <Settings2 className="mb-3 h-8 w-8 text-muted-foreground/30" />
+          <p className="text-sm font-medium text-muted-foreground">Nessuna configurazione disponibile</p>
         </div>
       ) : (
-        <div className="space-y-8">
+        <div className="space-y-10">
           {categories.map((category) => (
-            <div key={category} className="space-y-2">
-              <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60 px-1">
-                {category}
-              </h2>
-              <div className="rounded-lg border overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/30 hover:bg-muted/30">
-                      <TableHead className="w-48 text-xs">Chiave</TableHead>
-                      <TableHead className="text-xs">Parametro</TableHead>
-                      <TableHead className="w-24 text-xs">Tipo</TableHead>
-                      <TableHead className="w-64 text-xs">Valore</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {grouped[category]!.map((setting) => (
-                      <SettingRow
-                        key={setting.key}
-                        setting={setting}
-                        canWrite={canWrite}
-                      />
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
+            <CategorySection
+              key={category}
+              category={category}
+              settings={grouped[category]!}
+              canWrite={canWrite}
+            />
           ))}
         </div>
       )}
