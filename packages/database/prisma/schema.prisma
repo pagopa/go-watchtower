@@ -176,13 +176,16 @@ model Product {
 }
 
 model Environment {
-  id          String   @id @default(uuid(7)) @db.Uuid
-  name        String
-  description String?
-  order       Int      @default(0)
-  productId   String   @map("product_id") @db.Uuid
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id                  String   @id @default(uuid(7)) @db.Uuid
+  name                String
+  description         String?
+  order               Int      @default(0)
+  productId           String   @map("product_id") @db.Uuid
+  slackChannelId      String?  @map("slack_channel_id")
+  defaultAwsAccountId String?  @map("default_aws_account_id")
+  defaultAwsRegion    String?  @map("default_aws_region")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
 
   product       Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
   analyses      AlarmAnalysis[]

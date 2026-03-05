@@ -437,13 +437,16 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
 
         reply.send({
           environments: environments.map((e: Environment) => ({
-            id: e.id,
-            name: e.name,
-            description: e.description,
-            order: e.order,
-            productId: e.productId,
-            createdAt: e.createdAt.toISOString(),
-            updatedAt: e.updatedAt.toISOString(),
+            id:                  e.id,
+            name:                e.name,
+            description:         e.description,
+            order:               e.order,
+            productId:           e.productId,
+            slackChannelId:      e.slackChannelId ?? null,
+            defaultAwsAccountId: e.defaultAwsAccountId ?? null,
+            defaultAwsRegion:    e.defaultAwsRegion ?? null,
+            createdAt:           e.createdAt.toISOString(),
+            updatedAt:           e.updatedAt.toISOString(),
           })),
           alarms: alarms.map((a: Alarm & { runbook: { id: string; name: string } | null }) => ({
             id: a.id,
@@ -545,13 +548,16 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
 
         reply.send(
           environments.map((e: Environment) => ({
-            id: e.id,
-            name: e.name,
-            description: e.description,
-            order: e.order,
-            productId: e.productId,
-            createdAt: e.createdAt.toISOString(),
-            updatedAt: e.updatedAt.toISOString(),
+            id:                  e.id,
+            name:                e.name,
+            description:         e.description,
+            order:               e.order,
+            productId:           e.productId,
+            slackChannelId:      e.slackChannelId ?? null,
+            defaultAwsAccountId: e.defaultAwsAccountId ?? null,
+            defaultAwsRegion:    e.defaultAwsRegion ?? null,
+            createdAt:           e.createdAt.toISOString(),
+            updatedAt:           e.updatedAt.toISOString(),
           }))
         );
       } catch (error) {
@@ -600,10 +606,13 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
 
         const environment = await prisma.environment.create({
           data: {
-            name: request.body.name,
-            description: request.body.description,
-            order: request.body.order ?? 0,
-            productId: request.params.productId,
+            name:                request.body.name,
+            description:         request.body.description,
+            order:               request.body.order ?? 0,
+            productId:           request.params.productId,
+            slackChannelId:      request.body.slackChannelId,
+            defaultAwsAccountId: request.body.defaultAwsAccountId,
+            defaultAwsRegion:    request.body.defaultAwsRegion,
           },
         });
 
@@ -616,13 +625,16 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         reply.status(201).send({
-          id: environment.id,
-          name: environment.name,
-          description: environment.description,
-          order: environment.order,
-          productId: environment.productId,
-          createdAt: environment.createdAt.toISOString(),
-          updatedAt: environment.updatedAt.toISOString(),
+          id:                  environment.id,
+          name:                environment.name,
+          description:         environment.description,
+          order:               environment.order,
+          productId:           environment.productId,
+          slackChannelId:      environment.slackChannelId ?? null,
+          defaultAwsAccountId: environment.defaultAwsAccountId ?? null,
+          defaultAwsRegion:    environment.defaultAwsRegion ?? null,
+          createdAt:           environment.createdAt.toISOString(),
+          updatedAt:           environment.updatedAt.toISOString(),
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to create environment";
@@ -660,7 +672,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
 
         const existingEnv = await prisma.environment.findUnique({
           where: { id: request.params.id },
-          select: { name: true, description: true, order: true },
+          select: { name: true, description: true, order: true, slackChannelId: true, defaultAwsAccountId: true, defaultAwsRegion: true },
         });
 
         const environment = await prisma.environment.update({
@@ -669,9 +681,12 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
             productId: request.params.productId,
           },
           data: {
-            name: request.body.name,
-            description: request.body.description,
-            order: request.body.order,
+            name:                request.body.name,
+            description:         request.body.description,
+            order:               request.body.order,
+            slackChannelId:      request.body.slackChannelId,
+            defaultAwsAccountId: request.body.defaultAwsAccountId,
+            defaultAwsRegion:    request.body.defaultAwsRegion,
           },
         });
 
@@ -690,13 +705,16 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         reply.send({
-          id: environment.id,
-          name: environment.name,
-          description: environment.description,
-          order: environment.order,
-          productId: environment.productId,
-          createdAt: environment.createdAt.toISOString(),
-          updatedAt: environment.updatedAt.toISOString(),
+          id:                  environment.id,
+          name:                environment.name,
+          description:         environment.description,
+          order:               environment.order,
+          productId:           environment.productId,
+          slackChannelId:      environment.slackChannelId ?? null,
+          defaultAwsAccountId: environment.defaultAwsAccountId ?? null,
+          defaultAwsRegion:    environment.defaultAwsRegion ?? null,
+          createdAt:           environment.createdAt.toISOString(),
+          updatedAt:           environment.updatedAt.toISOString(),
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to update environment";

@@ -107,6 +107,9 @@ CREATE TABLE "environments" (
     "description" TEXT,
     "order" INTEGER NOT NULL DEFAULT 0,
     "product_id" UUID NOT NULL,
+    "slack_channel_id" TEXT,
+    "default_aws_account_id" TEXT,
+    "default_aws_region" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 

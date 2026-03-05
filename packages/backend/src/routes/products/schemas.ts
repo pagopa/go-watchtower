@@ -56,17 +56,23 @@ export const ProductsResponseSchema = Type.Array(ProductResponseSchema);
 // ============================================================================
 
 export const CreateEnvironmentBodySchema = Type.Object({
-  name: Type.String({ minLength: 1, maxLength: 255 }),
-  description: Type.Optional(Type.String()),
-  order: Type.Optional(Type.Number({ minimum: 0 })),
+  name:                Type.String({ minLength: 1, maxLength: 255 }),
+  description:         Type.Optional(Type.String()),
+  order:               Type.Optional(Type.Number({ minimum: 0 })),
+  slackChannelId:      Type.Optional(Type.String()),
+  defaultAwsAccountId: Type.Optional(Type.String()),
+  defaultAwsRegion:    Type.Optional(Type.String()),
 });
 
 export type CreateEnvironmentBody = Static<typeof CreateEnvironmentBodySchema>;
 
 export const UpdateEnvironmentBodySchema = Type.Object({
-  name: Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
-  description: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-  order: Type.Optional(Type.Number({ minimum: 0 })),
+  name:                Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
+  description:         Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  order:               Type.Optional(Type.Number({ minimum: 0 })),
+  slackChannelId:      Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  defaultAwsAccountId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  defaultAwsRegion:    Type.Optional(Type.Union([Type.String(), Type.Null()])),
 });
 
 export type UpdateEnvironmentBody = Static<typeof UpdateEnvironmentBodySchema>;
@@ -81,13 +87,16 @@ export type EnvironmentParams = Static<typeof EnvironmentParamsSchema>;
 export type ProductIdParams = Static<typeof ProductIdParamsSchema>;
 
 export const EnvironmentResponseSchema = Type.Object({
-  id: Type.String(),
-  name: Type.String(),
-  description: Type.Union([Type.String(), Type.Null()]),
-  order: Type.Number(),
-  productId: Type.String(),
-  createdAt: Type.String(),
-  updatedAt: Type.String(),
+  id:                  Type.String(),
+  name:                Type.String(),
+  description:         Type.Union([Type.String(), Type.Null()]),
+  order:               Type.Number(),
+  productId:           Type.String(),
+  slackChannelId:      Type.Union([Type.String(), Type.Null()]),
+  defaultAwsAccountId: Type.Union([Type.String(), Type.Null()]),
+  defaultAwsRegion:    Type.Union([Type.String(), Type.Null()]),
+  createdAt:           Type.String(),
+  updatedAt:           Type.String(),
 });
 
 export const EnvironmentsResponseSchema = Type.Array(EnvironmentResponseSchema);

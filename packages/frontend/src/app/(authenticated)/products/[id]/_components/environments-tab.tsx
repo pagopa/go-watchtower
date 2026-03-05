@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Plus, Pencil, Trash2, Loader2, Server, Minus } from 'lucide-react'
+import { Plus, Pencil, Trash2, Loader2, Server, Minus, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { api, type Environment } from '@/lib/api-client'
 import { usePermissions } from '@/hooks/use-permissions'
@@ -44,9 +44,12 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 
 const environmentSchema = z.object({
-  name: z.string().min(1, 'Il nome è obbligatorio'),
-  description: z.string().optional(),
-  order: z.coerce.number().min(0, "L'ordine deve essere >= 0").optional(),
+  name:                z.string().min(1, 'Il nome è obbligatorio'),
+  description:         z.string().optional(),
+  order:               z.coerce.number().min(0, "L'ordine deve essere >= 0").optional(),
+  slackChannelId:      z.string().optional(),
+  defaultAwsAccountId: z.string().optional(),
+  defaultAwsRegion:    z.string().optional(),
 })
 
 type EnvironmentFormData = z.infer<typeof environmentSchema>
@@ -74,6 +77,17 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
     queryFn: () => api.getEnvironments(productId),
   })
 
+  const { data: slackWorkspaceUrl } = useQuery({
+    queryKey: ['setting', 'slack_workspace_url'],
+    queryFn: async () => {
+      try {
+        const s = await api.getSetting('slack_workspace_url')
+        return typeof s.value === 'string' ? s.value.replace(/\/$/, '') : null
+      } catch { return null }
+    },
+    staleTime: 10 * 60 * 1000,
+  })
+
   type EnvSortKey = 'name' | 'order'
   const { sortedData: sortedEnvironments, sortConfig, requestSort } = useSortable<Environment, EnvSortKey>(environments, 'order')
 
@@ -86,14 +100,17 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
     formState: { errors },
   } = useForm<EnvironmentFormData>({
     resolver: zodResolver(environmentSchema) as Resolver<EnvironmentFormData>,
-    defaultValues: { name: '', description: '', order: 0 },
+    defaultValues: { name: '', description: '', order: 0, slackChannelId: '', defaultAwsAccountId: '', defaultAwsRegion: '' },
   })
 
   const handleEdit = (item: Environment) => {
     reset({
-      name: item.name,
-      description: item.description || '',
-      order: item.order,
+      name:                item.name,
+      description:         item.description || '',
+      order:               item.order,
+      slackChannelId:      item.slackChannelId || '',
+      defaultAwsAccountId: item.defaultAwsAccountId || '',
+      defaultAwsRegion:    item.defaultAwsRegion || '',
     })
     setEditItem(item)
   }
@@ -114,9 +131,12 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: EnvironmentFormData }) =>
       api.updateEnvironment(productId, id, {
-        name: data.name,
-        description: data.description,
-        order: data.order,
+        name:                data.name,
+        description:         data.description,
+        order:               data.order,
+        slackChannelId:      data.slackChannelId || null,
+        defaultAwsAccountId: data.defaultAwsAccountId || null,
+        defaultAwsRegion:    data.defaultAwsRegion || null,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products', productId, 'environments'] })
@@ -148,7 +168,7 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
     if (!open) {
       setShowCreateDialog(false)
       setEditItem(null)
-      reset({ name: '', description: '', order: 0 })
+      reset({ name: '', description: '', order: 0, slackChannelId: '', defaultAwsAccountId: '', defaultAwsRegion: '' })
     }
   }
 
@@ -156,7 +176,12 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
     if (editItem) {
       updateMutation.mutate({ id: editItem.id, data })
     } else {
-      createMutation.mutate(data)
+      createMutation.mutate({
+        ...data,
+        slackChannelId:      data.slackChannelId      || undefined,
+        defaultAwsAccountId: data.defaultAwsAccountId || undefined,
+        defaultAwsRegion:    data.defaultAwsRegion    || undefined,
+      })
     }
   }
 
@@ -202,7 +227,7 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
           <Button
             size="sm"
             onClick={() => {
-              reset({ name: '', description: '', order: 0 })
+              reset({ name: '', description: '', order: 0, slackChannelId: '', defaultAwsAccountId: '', defaultAwsRegion: '' })
               setShowCreateDialog(true)
             }}
           >
@@ -229,6 +254,9 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
                 <SortableTableHead columnKey="name" sortConfig={sortConfig} onSort={requestSort}>
                   Nome
                 </SortableTableHead>
+                <TableHead className="text-xs text-muted-foreground">Slack Channel</TableHead>
+                <TableHead className="text-xs text-muted-foreground">AWS Account</TableHead>
+                <TableHead className="text-xs text-muted-foreground">AWS Region</TableHead>
                 {(canWrite || canDelete) && <TableHead className="w-20" />}
               </TableRow>
             </TableHeader>
@@ -245,6 +273,32 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
                     {env.description && (
                       <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">{env.description}</p>
                     )}
+                  </TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">
+                    {env.slackChannelId ? (
+                      <span className="flex items-center gap-1">
+                        {env.slackChannelId}
+                        {slackWorkspaceUrl && (
+                          <a
+                            href={`${slackWorkspaceUrl}/archives/${env.slackChannelId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-muted-foreground/50 hover:text-foreground transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="opacity-30">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">
+                    {env.defaultAwsAccountId ?? <span className="opacity-30">—</span>}
+                  </TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">
+                    {env.defaultAwsRegion ?? <span className="opacity-30">—</span>}
                   </TableCell>
                   {(canWrite || canDelete) && (
                     <TableCell>
@@ -289,7 +343,7 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
               size="sm"
               className="mt-5"
               onClick={() => {
-                reset({ name: '', description: '', order: 0 })
+                reset({ name: '', description: '', order: 0, slackChannelId: '', defaultAwsAccountId: '', defaultAwsRegion: '' })
                 setShowCreateDialog(true)
               }}
             >
@@ -371,6 +425,50 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
                 {...register('description')}
                 disabled={isMutating}
               />
+            </div>
+            <div className="space-y-3 rounded-lg border border-dashed p-3">
+              <p className="text-xs font-medium text-muted-foreground">Ingestione Slack</p>
+              <div className="space-y-2">
+                <Label htmlFor="env-slack-channel" className="text-xs">
+                  Slack Channel ID
+                  <span className="ml-1.5 font-normal text-muted-foreground">(opzionale)</span>
+                </Label>
+                <Input
+                  id="env-slack-channel"
+                  placeholder="es. C0472QPG5D2"
+                  className="font-mono text-xs"
+                  {...register('slackChannelId')}
+                  disabled={isMutating}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="env-aws-account" className="text-xs">
+                    AWS Account ID
+                    <span className="ml-1 font-normal text-muted-foreground">(opz.)</span>
+                  </Label>
+                  <Input
+                    id="env-aws-account"
+                    placeholder="es. 697818730278"
+                    className="font-mono text-xs"
+                    {...register('defaultAwsAccountId')}
+                    disabled={isMutating}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="env-aws-region" className="text-xs">
+                    AWS Region
+                    <span className="ml-1 font-normal text-muted-foreground">(opz.)</span>
+                  </Label>
+                  <Input
+                    id="env-aws-region"
+                    placeholder="es. eu-south-1"
+                    className="font-mono text-xs"
+                    {...register('defaultAwsRegion')}
+                    disabled={isMutating}
+                  />
+                </div>
+              </div>
             </div>
             <DialogFooter>
               <Button

@@ -235,6 +235,9 @@ export interface Environment {
   description: string | null
   order: number
   productId: string
+  slackChannelId: string | null
+  defaultAwsAccountId: string | null
+  defaultAwsRegion: string | null
   createdAt: string
   updatedAt: string
 }
@@ -243,12 +246,18 @@ export interface CreateEnvironmentData {
   name: string
   description?: string
   order?: number
+  slackChannelId?: string
+  defaultAwsAccountId?: string
+  defaultAwsRegion?: string
 }
 
 export interface UpdateEnvironmentData {
   name?: string
   description?: string | null
   order?: number
+  slackChannelId?: string | null
+  defaultAwsAccountId?: string | null
+  defaultAwsRegion?: string | null
 }
 
 export interface Microservice {

@@ -12,7 +12,7 @@ export interface FkResolver {
 
 export const FK_RESOLVERS: Partial<Record<string, FkResolver>> = {
   FK_ROLE: {
-    queryKey: ['roles'],
+    queryKey: ['roles', 'fk-options'],
     fetch:    async () => {
       const roles = await api.getRoles()
       return roles.map((r) => ({ id: r.id, label: r.name }))
