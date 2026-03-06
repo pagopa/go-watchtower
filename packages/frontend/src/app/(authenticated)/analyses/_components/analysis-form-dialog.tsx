@@ -152,6 +152,8 @@ interface AnalysisFormDialogProps {
   selectedProductId?: string
   onProductChange?: (productId: string) => void
   futureOffsetMinutes?: number | null
+  /** Initial values for pre-filling the form (e.g. from an alarm event). Merged with defaults on create. */
+  initialValues?: Partial<AnalysisFormData>
 }
 
 export function AnalysisFormDialog({
@@ -166,6 +168,7 @@ export function AnalysisFormDialog({
   selectedProductId,
   onProductChange,
   futureOffsetMinutes,
+  initialValues,
 }: AnalysisFormDialogProps) {
   const { data: session } = useSession()
   const { can } = usePermissions()
@@ -343,10 +346,11 @@ export function AnalysisFormDialog({
         downstreamIds: [],
         links: [],
         trackingIds: [],
+        ...initialValues,
       })
     }
     lastAlarmAutoFilledRef.current = false
-  }, [editItem, reset, open, session?.user?.id])
+  }, [editItem, reset, open, session?.user?.id, initialValues])
 
   const watchedFirstAlarm = watch('firstAlarmAt')
   const watchedLastAlarm = watch('lastAlarmAt')

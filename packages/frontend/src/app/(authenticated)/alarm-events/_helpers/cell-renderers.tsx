@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import Link from 'next/link'
-import { PhoneCall, BookOpen } from 'lucide-react'
+import { PhoneCall, BookOpen, FileSearch } from 'lucide-react'
 import type { AlarmEvent } from '@/lib/api-client'
 
 type EmbeddedAlarm = NonNullable<AlarmEvent['alarm']>
@@ -75,6 +75,18 @@ export const AlarmEventCell = memo(function AlarmEventCell({
             <BookOpen className="h-3.5 w-3.5" />
           </Link>
         )
+    case 'analysis':
+      if (!event.analysisId) return <span className="text-muted-foreground/25 text-sm">—</span>
+      return (
+        <Link
+          href={`/analyses?productId=${event.product.id}&analysisId=${event.analysisId}`}
+          title="Vai all'analisi collegata"
+          className="inline-flex items-center justify-center rounded-md border border-emerald-500/20 bg-emerald-500/5 p-1 text-emerald-600 hover:bg-emerald-500/10 hover:border-emerald-500/40 transition-colors dark:text-emerald-400"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <FileSearch className="h-3.5 w-3.5" />
+        </Link>
+      )
     case 'product':
       return (
         <span className="inline-flex items-center rounded border px-1.5 py-0.5 text-xs font-medium text-foreground/75">

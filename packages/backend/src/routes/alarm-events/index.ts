@@ -79,12 +79,13 @@ export async function alarmEventRoutes(app: FastifyInstance) {
       },
     },
     async (request, reply) => {
-      const { productId, environmentId, alarmId, awsAccountId, awsRegion, dateFrom, dateTo, page = 1, pageSize = 20 } = request.query;
+      const { productId, environmentId, alarmId, analysisId, awsAccountId, awsRegion, dateFrom, dateTo, page = 1, pageSize = 20 } = request.query;
 
       const where = {
         ...(productId     && { productId }),
         ...(environmentId && { environmentId }),
         ...(alarmId       && { alarmId }),
+        ...(analysisId    && { analysisId }),
         ...(awsAccountId  && { awsAccountId }),
         ...(awsRegion     && { awsRegion }),
         ...((dateFrom || dateTo) && {
@@ -237,14 +238,17 @@ export async function alarmEventRoutes(app: FastifyInstance) {
         return reply.status(404).send({ error: "Alarm event not found" });
       }
 
+      // Only include fields that were explicitly sent in the body.
+      // Prisma ignores undefined but treats null as "set to null".
+      const data: Record<string, unknown> = {};
+      if (request.body.description !== undefined) data.description = request.body.description || null;
+      if (request.body.reason !== undefined)      data.reason      = request.body.reason || null;
+      if (request.body.alarmId !== undefined)     data.alarmId     = request.body.alarmId || null;
+      if (request.body.analysisId !== undefined)  data.analysisId  = request.body.analysisId || null;
+
       const updated = await prisma.alarmEvent.update({
         where: { id: request.params.id },
-        data: {
-          description: request.body.description,
-          reason:      request.body.reason,
-          alarmId:     request.body.alarmId,
-          analysisId:  request.body.analysisId,
-        },
+        data,
         include,
       });
 

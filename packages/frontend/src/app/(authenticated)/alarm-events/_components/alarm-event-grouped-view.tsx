@@ -14,19 +14,23 @@ import {
 } from '@/components/ui/table'
 import { ResizableTableHead } from '@/components/ui/resizable-table-head'
 import { AlarmEventCell } from '../_helpers/cell-renderers'
-import type { AlarmEventDailyViewProps } from './alarm-event-daily-view'
+import type { AlarmEventOnCallViewProps } from './alarm-event-oncall-view'
 import {
-  DayNavigation, partitionEvents, localDayBoundsUTC, todayUTC,
-  BUCKETS, type BucketCfg,
+  todayUTC,
+  type BucketCfg,
 } from './alarm-event-daily-view'
-import { Button } from '@/components/ui/button'
-import { Pencil, Trash2, Inbox } from 'lucide-react'
+import {
+  ONCALL_BUCKETS, partitionShiftEvents,
+  buildShiftRange, isOnCallAllDay, OnCallNavigation,
+} from './alarm-event-oncall-view'
+import { Inbox } from 'lucide-react'
+import { AlarmEventRowActions } from './alarm-event-row-actions'
 
 import type { WorkingHours } from '@go-watchtower/shared'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export type AlarmEventGroupedViewProps = AlarmEventDailyViewProps
+export type AlarmEventGroupedViewProps = AlarmEventOnCallViewProps
 
 interface AlarmGroup {
   alarmName: string
@@ -110,12 +114,16 @@ const EventRow = forwardRef<HTMLTableRowElement, {
   onDelete: (e: AlarmEvent) => void
   isOnCallEvent?: (e: AlarmEvent) => boolean
   onAlarmClick?: (alarm: NonNullable<AlarmEvent['alarm']>, productId: string) => void
+  onCreateAnalysis?: (e: AlarmEvent) => void
+  onAssociateAnalysis?: (e: AlarmEvent) => void
+  onUnlinkAnalysis?: (e: AlarmEvent) => void
   indented?: boolean
   dataIndex?: number
 }>(function EventRow({
   event, visibleColumns, getWidth, canWrite, canDelete,
   selectedEventId, showDetailPanel, lingeringId,
   onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
+  onCreateAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
   indented, dataIndex,
 }, ref) {
   const isSelected  = event.id === selectedEventId && showDetailPanel
@@ -162,25 +170,16 @@ const EventRow = forwardRef<HTMLTableRowElement, {
             ? 'bg-primary/[0.07] group-hover:bg-primary/[0.09]'
             : 'bg-card group-hover:bg-muted')
         }>
-          <div className="flex justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-            {canWrite && (
-              <Button
-                variant="ghost" size="icon" className="h-7 w-7"
-                onClick={() => onEdit(event)}
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </Button>
-            )}
-            {canDelete && (
-              <Button
-                variant="ghost" size="icon"
-                className="h-7 w-7 text-destructive hover:text-destructive"
-                onClick={() => onDelete(event)}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            )}
-          </div>
+          <AlarmEventRowActions
+            event={event}
+            canWrite={canWrite}
+            canDelete={canDelete}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onCreateAnalysis={onCreateAnalysis}
+            onAssociateAnalysis={onAssociateAnalysis}
+            onUnlinkAnalysis={onUnlinkAnalysis}
+          />
         </TableCell>
       )}
     </TableRow>
@@ -204,6 +203,7 @@ function GroupedBucketSection({
   canWrite, canDelete,
   selectedEventId, showDetailPanel, lingeringId,
   onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
+  onCreateAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
 }: {
   cfg:             BucketCfg
   events:          AlarmEvent[]
@@ -221,6 +221,9 @@ function GroupedBucketSection({
   onDelete:        (e: AlarmEvent) => void
   isOnCallEvent?:  (e: AlarmEvent) => boolean
   onAlarmClick?:   (alarm: NonNullable<AlarmEvent['alarm']>, productId: string) => void
+  onCreateAnalysis?:    (e: AlarmEvent) => void
+  onAssociateAnalysis?: (e: AlarmEvent) => void
+  onUnlinkAnalysis?:    (e: AlarmEvent) => void
 }) {
   const [collapsed, setCollapsed] = useState(events.length === 0)
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
@@ -274,6 +277,7 @@ function GroupedBucketSection({
     visibleColumns, getWidth, canWrite, canDelete,
     selectedEventId, showDetailPanel, lingeringId,
     onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
+    onCreateAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
   }
 
   const renderFlatItem = (item: FlatItem, ref?: (el: HTMLTableRowElement | null) => void, dataIndex?: number) => {
@@ -400,29 +404,32 @@ function GroupedBucketSection({
 const DEFAULT_WH: WorkingHours = { timezone: 'Europe/Rome', start: '09:00', end: '18:00', days: [1, 2, 3, 4, 5] }
 
 export function AlarmEventGroupedView({
-  selectedDate, onDateChange, workingHours, filters,
+  workingHours, onCallHours, filters,
   visibleColumns, getWidth, totalMinWidth,
   canWrite, canDelete,
   selectedEventId, showDetailPanel, lingeringId,
   onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
+  onCreateAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
 }: AlarmEventGroupedViewProps) {
-  const wh = workingHours ?? DEFAULT_WH
-  const tz = wh.timezone ?? 'Europe/Rome'
+  const [referenceDate, setReferenceDate] = useState<string>(() => todayUTC())
 
-  const { dateFrom, dateTo } = localDayBoundsUTC(selectedDate, tz)
+  const wh     = workingHours ?? DEFAULT_WH
+  const allDay = isOnCallAllDay(referenceDate, onCallHours)
+  const { dateFrom, dateTo, splitAt, overnightStart, overnightEnd, workEnd } =
+    buildShiftRange(referenceDate, wh, onCallHours, allDay)
 
   const queryParams = useMemo(() => ({
     page:     1,
     pageSize: 1000,
+    dateFrom,
+    dateTo,
     ...(filters.productId     && { productId:     filters.productId }),
     ...(filters.environmentId && { environmentId: filters.environmentId }),
     ...(filters.awsAccountId  && { awsAccountId:  filters.awsAccountId }),
     ...(filters.awsRegion     && { awsRegion:      filters.awsRegion }),
-    dateFrom,
-    dateTo,
-  }), [selectedDate, filters.productId, filters.environmentId, filters.awsAccountId, filters.awsRegion, dateFrom, dateTo])
+  }), [dateFrom, dateTo, filters.productId, filters.environmentId, filters.awsAccountId, filters.awsRegion])
 
-  const isToday = selectedDate === todayUTC()
+  const isToday = referenceDate === todayUTC()
 
   const { data, isLoading, isFetching, refetch } = useQuery<PaginatedResponse<AlarmEvent>>({
     queryKey:             ['alarm-events-grouped', queryParams],
@@ -435,28 +442,32 @@ export function AlarmEventGroupedView({
   const totalCount = data?.pagination?.totalItems ?? null
   const tooMany    = totalCount !== null && totalCount > 1000
 
-  const { pre, work, post } = useMemo(
-    () => partitionEvents(allEvents, wh),
-    [allEvents, wh],
+  const { oncall, work } = useMemo(
+    () => partitionShiftEvents(allEvents, splitAt),
+    [allEvents, splitAt],
   )
 
   const bucketProps = { visibleColumns, getWidth, totalMinWidth, canWrite, canDelete,
-    selectedEventId, showDetailPanel, lingeringId, onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick }
+    selectedEventId, showDetailPanel, lingeringId, onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
+    onCreateAnalysis, onAssociateAnalysis, onUnlinkAnalysis }
 
   return (
     <div className="space-y-3">
-      <DayNavigation
-        selectedDate={selectedDate}
-        onDateChange={onDateChange}
+      <OnCallNavigation
+        referenceDate={referenceDate}
+        onDateChange={setReferenceDate}
         isFetching={isFetching}
         onRefresh={() => refetch()}
         totalCount={isLoading ? null : totalCount}
+        allDay={allDay}
+        overnightStart={overnightStart}
+        workEnd={workEnd}
       />
 
       {tooMany && (
         <div className="flex items-center gap-2 rounded-md border border-yellow-300/60 bg-yellow-50/60 px-3 py-2 text-xs text-yellow-700 dark:border-yellow-800/30 dark:bg-yellow-950/20 dark:text-yellow-400">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-          Questo giorno supera i 1000 eventi — sono mostrati solo i primi 1000.
+          Questo turno supera i 1000 eventi — sono mostrati solo i primi 1000.
         </div>
       )}
 
@@ -464,11 +475,14 @@ export function AlarmEventGroupedView({
         <div className="flex items-center justify-center py-16 text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin" />
         </div>
+      ) : allDay ? (
+        <div className="space-y-3">
+          <GroupedBucketSection cfg={ONCALL_BUCKETS.oncall} events={oncall} timeRange="00:00 – 23:59" {...bucketProps} />
+        </div>
       ) : (
         <div className="space-y-3">
-          <GroupedBucketSection cfg={BUCKETS.post} events={post} timeRange={`${wh.end} – 23:59`} {...bucketProps} />
-          <GroupedBucketSection cfg={BUCKETS.work} events={work} timeRange={`${wh.start} – ${wh.end}`} {...bucketProps} />
-          <GroupedBucketSection cfg={BUCKETS.pre}  events={pre}  timeRange={`00:00 – ${wh.start}`} {...bucketProps} />
+          <GroupedBucketSection cfg={ONCALL_BUCKETS.work} events={work} timeRange={`${overnightEnd} – ${workEnd}`} {...bucketProps} />
+          <GroupedBucketSection cfg={ONCALL_BUCKETS.oncall} events={oncall} timeRange={`${overnightStart} – ${overnightEnd}`} {...bucketProps} />
         </div>
       )}
     </div>

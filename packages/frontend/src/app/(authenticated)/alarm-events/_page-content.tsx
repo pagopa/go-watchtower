@@ -3,7 +3,7 @@
 import { Suspense, useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Pencil, Trash2, Plus, Inbox, RefreshCw,
+  Plus, Inbox, RefreshCw,
   LayoutList, CalendarDays, PhoneCall, Layers,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -13,6 +13,9 @@ import {
   type Product,
   type AlarmEvent,
   type Environment,
+  type UserDetail,
+  type AlarmAnalysis,
+  type CreateAlarmAnalysisData,
   type PaginatedResponse,
   type CreateAlarmEventData,
   type UpdateAlarmEventData,
@@ -57,6 +60,21 @@ const AlarmEventFormDialog = dynamic(
   () => import('./_components/alarm-event-form-dialog').then((m) => ({ default: m.AlarmEventFormDialog })),
   { ssr: false }
 )
+
+const AssociateAnalysisDialog = dynamic(
+  () => import('./_components/associate-analysis-dialog').then((m) => ({ default: m.AssociateAnalysisDialog })),
+  { ssr: false }
+)
+
+const AnalysisFormDialog = dynamic(
+  () => import('../analyses/_components/analysis-form-dialog').then((m) => ({ default: m.AnalysisFormDialog })),
+  { ssr: false }
+)
+
+import { AlarmEventRowActions } from './_components/alarm-event-row-actions'
+import { UnlinkAlarmEventDialog } from './_components/unlink-alarm-event-dialog'
+import type { AnalysisFormData } from '../analyses/_components/analysis-form-dialog'
+import { isoToRomeLocal, isoToUTCLocal } from '../analyses/_components/analysis-form-schemas'
 
 const DEFAULT_FILTERS: AlarmEventFiltersState = {
   productId:    '',
@@ -116,6 +134,15 @@ function AlarmEventsPageContent() {
   const [alarmDialogOpen, setAlarmDialogOpen] = useState(false)
   const [alarmDialogData, setAlarmDialogData] = useState<AlarmDetailData | null>(null)
 
+  // Analysis actions from alarm event
+  const [analysisFormOpen, setAnalysisFormOpen] = useState(false)
+  const [analysisInitialValues, setAnalysisInitialValues] = useState<Partial<AnalysisFormData> | undefined>(undefined)
+  const [analysisProductId, setAnalysisProductId] = useState('')
+  const [analysisSourceEventId, setAnalysisSourceEventId] = useState<string | null>(null)
+  const [associateDialogOpen, setAssociateDialogOpen] = useState(false)
+  const [associateEvent, setAssociateEvent] = useState<AlarmEvent | null>(null)
+  const [unlinkEvent, setUnlinkEvent] = useState<AlarmEvent | null>(null)
+
   // View mode — persisted in user preferences.
   // Initialized to 'list'; synced once preferences load from the server
   // (staleTime=Infinity, so subsequent navigations resolve from cache synchronously).
@@ -168,6 +195,13 @@ function AlarmEventsPageContent() {
     queryKey: ['products', filters.productId, 'environments'],
     queryFn: () => api.getEnvironments(filters.productId),
     enabled: !!filters.productId,
+  })
+
+  // Users — needed for the analysis form dialog
+  const { data: users } = useQuery<UserDetail[]>({
+    queryKey: ['users'],
+    queryFn: api.getUsers,
+    enabled: can('USER', 'read'),
   })
 
   // All environments across all products — used to build the on-call pattern map
@@ -271,7 +305,7 @@ function AlarmEventsPageContent() {
   const createMutation = useMutation({
     mutationFn: (data: CreateAlarmEventData) => api.createAlarmEvent(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['alarm-events'] })
+      queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string).startsWith('alarm-events') })
       setPage(1)
       toast.success('Allarme scattato creato con successo')
       setEditItem(null)
@@ -286,7 +320,7 @@ function AlarmEventsPageContent() {
     mutationFn: ({ id, data }: { id: string; data: UpdateAlarmEventData }) =>
       api.updateAlarmEvent(id, data),
     onSuccess: (updated) => {
-      queryClient.invalidateQueries({ queryKey: ['alarm-events'] })
+      queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string).startsWith('alarm-events') })
       toast.success('Allarme aggiornato con successo')
       setEditItem(null)
       setFormOpen(false)
@@ -301,7 +335,7 @@ function AlarmEventsPageContent() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteAlarmEvent(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['alarm-events'] })
+      queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string).startsWith('alarm-events') })
       toast.success('Allarme scattato eliminato con successo')
       setDeleteItem(null)
       setShowDetailPanel(false)
@@ -391,6 +425,62 @@ function AlarmEventsPageContent() {
     if (!regex) return false
     return regex.test(event.name)
   }, [onCallRegexMap])
+
+  // --- Analysis actions from alarm event ---
+
+  const handleCreateAnalysisFromEvent = useCallback((event: AlarmEvent) => {
+    setShowDetailPanel(false)
+    setAnalysisProductId(event.product.id)
+    setAnalysisSourceEventId(event.id)
+    setAnalysisInitialValues({
+      analysisDate: isoToRomeLocal(new Date().toISOString()),
+      firstAlarmAt: isoToUTCLocal(event.firedAt),
+      lastAlarmAt:  isoToUTCLocal(event.firedAt),
+      alarmId:      event.alarmId ?? '',
+      environmentId: event.environment.id,
+      occurrences:  1,
+    })
+    setAnalysisFormOpen(true)
+  }, [])
+
+  const handleAssociateAnalysis = useCallback((event: AlarmEvent) => {
+    setShowDetailPanel(false)
+    setAssociateEvent(event)
+    setAssociateDialogOpen(true)
+  }, [])
+
+  const handleUnlinkAnalysis = useCallback((event: AlarmEvent) => {
+    setShowDetailPanel(false)
+    setUnlinkEvent(event)
+  }, [])
+
+  const createAnalysisMutation = useMutation({
+    mutationFn: async (formData: AnalysisFormData) => {
+      const data: CreateAlarmAnalysisData = {
+        ...formData,
+        occurrences: typeof formData.occurrences === 'number' ? formData.occurrences : undefined,
+        analysisType: formData.analysisType as CreateAlarmAnalysisData['analysisType'],
+        status: formData.status as CreateAlarmAnalysisData['status'],
+      }
+      const analysis = await api.createAnalysis(analysisProductId, data)
+      // Link the alarm event to the new analysis
+      if (analysisSourceEventId) {
+        await api.updateAlarmEvent(analysisSourceEventId, { analysisId: analysis.id })
+      }
+      return analysis
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string).startsWith('alarm-events') })
+      queryClient.invalidateQueries({ queryKey: ['analyses'] })
+      toast.success('Analisi creata e evento associato')
+      setAnalysisFormOpen(false)
+      setAnalysisSourceEventId(null)
+      setAnalysisInitialValues(undefined)
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Errore durante la creazione dell\'analisi')
+    },
+  })
 
   // --- Main Render ---
 
@@ -520,6 +610,9 @@ function AlarmEventsPageContent() {
           onDelete={handleDelete}
           isOnCallEvent={isOnCallEvent}
           onAlarmClick={handleAlarmClick}
+          onCreateAnalysis={handleCreateAnalysisFromEvent}
+          onAssociateAnalysis={handleAssociateAnalysis}
+          onUnlinkAnalysis={handleUnlinkAnalysis}
         />
       )}
 
@@ -542,15 +635,17 @@ function AlarmEventsPageContent() {
           onDelete={handleDelete}
           isOnCallEvent={isOnCallEvent}
           onAlarmClick={handleAlarmClick}
+          onCreateAnalysis={handleCreateAnalysisFromEvent}
+          onAssociateAnalysis={handleAssociateAnalysis}
+          onUnlinkAnalysis={handleUnlinkAnalysis}
         />
       )}
 
       {/* Grouped view */}
       {viewMode === 'grouped' && (
         <AlarmEventGroupedView
-          selectedDate={selectedDate}
-          onDateChange={setSelectedDate}
           workingHours={workingHours ?? null}
+          onCallHours={onCallHours ?? null}
           filters={filters}
           visibleColumns={visibleColumns}
           getWidth={getWidth}
@@ -565,6 +660,9 @@ function AlarmEventsPageContent() {
           onDelete={handleDelete}
           isOnCallEvent={isOnCallEvent}
           onAlarmClick={handleAlarmClick}
+          onCreateAnalysis={handleCreateAnalysisFromEvent}
+          onAssociateAnalysis={handleAssociateAnalysis}
+          onUnlinkAnalysis={handleUnlinkAnalysis}
         />
       )}
 
@@ -648,28 +746,16 @@ function AlarmEventsPageContent() {
                             ? 'bg-primary/[0.07] group-hover:bg-primary/[0.09]'
                             : 'bg-card group-hover:bg-muted')
                         }>
-                          <div className="flex justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                            {canWrite && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7"
-                                onClick={() => handleEdit(event)}
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                            )}
-                            {canDelete && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-destructive hover:text-destructive"
-                                onClick={() => handleDelete(event)}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            )}
-                          </div>
+                          <AlarmEventRowActions
+                            event={event}
+                            canWrite={canWrite}
+                            canDelete={canDelete}
+                            onEdit={handleEdit}
+                            onDelete={handleDelete}
+                            onCreateAnalysis={handleCreateAnalysisFromEvent}
+                            onAssociateAnalysis={handleAssociateAnalysis}
+                            onUnlinkAnalysis={handleUnlinkAnalysis}
+                          />
                         </TableCell>
                       )}
                     </TableRow>
@@ -745,6 +831,74 @@ function AlarmEventsPageContent() {
         onConfirm={() => deleteItem && deleteMutation.mutate(deleteItem.id)}
         isPending={deleteMutation.isPending}
       />
+
+      {/* Create Analysis from Alarm Event */}
+      <AnalysisFormDialog
+        open={analysisFormOpen}
+        onOpenChange={(open) => {
+          setAnalysisFormOpen(open)
+          if (!open) {
+            setAnalysisSourceEventId(null)
+            setAnalysisInitialValues(undefined)
+          }
+        }}
+        editItem={null}
+        onSubmit={(data) => createAnalysisMutation.mutate(data)}
+        isPending={createAnalysisMutation.isPending}
+        users={users}
+        products={products}
+        selectedProductId={analysisProductId}
+        onProductChange={setAnalysisProductId}
+        initialValues={analysisInitialValues}
+      />
+
+      {/* Associate Alarm Event to Existing Analysis */}
+      <AssociateAnalysisDialog
+        open={associateDialogOpen}
+        onOpenChange={setAssociateDialogOpen}
+        event={associateEvent}
+        onAssociated={() => {
+          queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string).startsWith('alarm-events') })
+        }}
+      />
+
+      {/* Unlink Alarm Event from Analysis */}
+      <UnlinkAlarmEventFromRow
+        unlinkEvent={unlinkEvent}
+        onClose={() => setUnlinkEvent(null)}
+      />
     </div>
+  )
+}
+
+/** Fetches the linked analysis and renders the UnlinkAlarmEventDialog. */
+function UnlinkAlarmEventFromRow({ unlinkEvent, onClose }: {
+  unlinkEvent: AlarmEvent | null
+  onClose: () => void
+}) {
+  const queryClient = useQueryClient()
+  const productId = unlinkEvent?.product.id ?? ''
+  const analysisId = unlinkEvent?.analysisId ?? ''
+
+  const { data: analysis } = useQuery<AlarmAnalysis>({
+    queryKey: ['analysis', productId, analysisId],
+    queryFn: () => api.getAnalysis(productId, analysisId),
+    enabled: !!unlinkEvent && !!analysisId,
+    staleTime: 30_000,
+  })
+
+  return (
+    <UnlinkAlarmEventDialog
+      open={!!unlinkEvent}
+      onOpenChange={(open) => { if (!open) onClose() }}
+      eventId={unlinkEvent?.id ?? null}
+      eventName={unlinkEvent?.name ?? ''}
+      analysis={analysis ?? null}
+      onCompleted={() => {
+        queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string).startsWith('alarm-events') })
+        queryClient.invalidateQueries({ queryKey: ['analyses'] })
+        onClose()
+      }}
+    />
   )
 }

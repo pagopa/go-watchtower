@@ -44,6 +44,7 @@ import dynamic from 'next/dynamic'
 import { validateAnalysis, assessQuality, type ValidationResult, type QualityResult } from '@/lib/analysis-validation'
 import { ValidationScoreBadge } from '@/components/analysis/validation-score-badge'
 import { ValidationDetailPanel } from '@/components/analysis/validation-detail-panel'
+import { fromZonedTime } from 'date-fns-tz'
 import { AnalysisFilters, type AnalysisFiltersState } from './_components/analysis-filters'
 import type { AnalysisFormData } from './_components/analysis-form-dialog'
 import { AnalysisDetailPanel } from './_components/analysis-detail-panel'
@@ -291,8 +292,8 @@ function AnalysesPageContent() {
     ...(filters.alarmId && { alarmId: filters.alarmId }),
     ...(filters.finalActionId && { finalActionId: filters.finalActionId }),
     ...(filters.isOnCall !== undefined && { isOnCall: filters.isOnCall }),
-    ...(filters.dateFrom && { dateFrom: filters.dateFrom }),
-    ...(filters.dateTo && { dateTo: filters.dateTo }),
+    ...(filters.dateFrom && { dateFrom: fromZonedTime(filters.dateFrom + 'T00:00:00', 'Europe/Rome').toISOString() }),
+    ...(filters.dateTo && { dateTo: fromZonedTime(filters.dateTo + 'T23:59:59', 'Europe/Rome').toISOString() }),
     ...(filters.ignoreReasonCode && { ignoreReasonCode: filters.ignoreReasonCode }),
     ...(filters.runbookId && { runbookId: filters.runbookId }),
     ...(filters.microserviceId && { microserviceId: filters.microserviceId }),

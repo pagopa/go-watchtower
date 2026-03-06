@@ -771,6 +771,7 @@ export interface AlarmEvent {
     description: string | null
     runbook: { id: string; name: string; link: string } | null
   } | null
+  analysisId: string | null
   createdAt: string
 }
 
@@ -778,6 +779,7 @@ export interface AlarmEventsFilters {
   productId?: string
   environmentId?: string
   alarmId?: string
+  analysisId?: string
   awsAccountId?: string
   awsRegion?: string
   dateFrom?: string
@@ -801,6 +803,7 @@ export interface UpdateAlarmEventData {
   description?: string | null
   reason?: string | null
   alarmId?: string | null
+  analysisId?: string | null
 }
 
 // API methods

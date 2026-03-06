@@ -1,13 +1,105 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { X, Pencil, Trash2, Copy, Check, BellRing, Cloud, Info, BookOpen, ExternalLink, PhoneCall } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { X, Pencil, Trash2, Copy, Check, BellRing, Cloud, Info, BookOpen, ExternalLink, PhoneCall, FileSearch, Unlink } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import type { AlarmEvent } from '@/lib/api-client'
+import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import { api, type AlarmEvent, type AlarmAnalysis } from '@/lib/api-client'
 import { sanitizeUrl } from '@/lib/sanitize-url'
 import { usePreferences } from '@/hooks/use-preferences'
+import { ANALYSIS_STATUS_LABELS, ANALYSIS_TYPE_LABELS } from '../../analyses/_lib/constants'
+import { UnlinkAlarmEventDialog } from './unlink-alarm-event-dialog'
+
+// ─── Linked analysis section ──────────────────────────────────────────────────
+
+function LinkedAnalysisSection({ analysisId, productId, eventId, eventName }: {
+  analysisId: string; productId: string; eventId: string; eventName: string
+}) {
+  const queryClient = useQueryClient()
+  const [unlinkOpen, setUnlinkOpen] = useState(false)
+  const { data: analysis, isLoading } = useQuery<AlarmAnalysis>({
+    queryKey: ['analysis', productId, analysisId],
+    queryFn: () => api.getAnalysis(productId, analysisId),
+    staleTime: 30_000,
+  })
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <SectionHeader label="Analisi collegata" icon={FileSearch} />
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-3 w-1/2" />
+        </div>
+      </div>
+    )
+  }
+
+  if (!analysis) return null
+
+  const romeDate = new Intl.DateTimeFormat('it-IT', {
+    timeZone: 'Europe/Rome',
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  }).format(new Date(analysis.analysisDate))
+
+  return (
+    <div className="space-y-4">
+      <SectionHeader label="Analisi collegata" icon={FileSearch} />
+      <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3.5">
+        <div className="flex items-start justify-between gap-3">
+          <Link
+            href={`/analyses?productId=${productId}&analysisId=${analysisId}`}
+            className="min-w-0 flex-1 space-y-1.5 transition-opacity hover:opacity-70"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-sm font-medium truncate">{analysis.alarm.name}</p>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+              <span className="font-mono tabular-nums">{romeDate}</span>
+              <span className="text-border">·</span>
+              <span>{analysis.operator.name}</span>
+              <span className="text-border">·</span>
+              <span className="tabular-nums">{analysis.occurrences} occ.</span>
+            </div>
+          </Link>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+              {ANALYSIS_STATUS_LABELS[analysis.status]}
+            </Badge>
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+              {ANALYSIS_TYPE_LABELS[analysis.analysisType]}
+            </Badge>
+            <button
+              type="button"
+              title="Scollega dall'analisi"
+              onClick={(e) => { e.stopPropagation(); setUnlinkOpen(true) }}
+              className="ml-1 inline-flex items-center justify-center rounded p-1 text-muted-foreground/40 transition-colors hover:bg-destructive/10 hover:text-destructive"
+            >
+              <Unlink className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <UnlinkAlarmEventDialog
+        open={unlinkOpen}
+        onOpenChange={setUnlinkOpen}
+        eventId={eventId}
+        eventName={eventName}
+        analysis={analysis}
+        onCompleted={() => {
+          queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string).startsWith('alarm-events') })
+        }}
+      />
+    </div>
+  )
+}
+
+// ─── Main panel ──────────────────────────────────────────────────────────────
 
 interface AlarmEventDetailPanelProps {
   event: AlarmEvent | null
@@ -386,6 +478,16 @@ export function AlarmEventDetailPanel({
                       </Field>
                     )}
                   </div>
+                )}
+
+                {/* ── Analisi collegata ───────────────────────────────── */}
+                {event.analysisId && (
+                  <LinkedAnalysisSection
+                    analysisId={event.analysisId}
+                    productId={event.product.id}
+                    eventId={event.id}
+                    eventName={event.name}
+                  />
                 )}
 
                 {/* ── Metadata ──────────────────────────────────────────── */}

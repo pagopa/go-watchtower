@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   ChevronLeft, ChevronRight, ChevronDown,
   Moon, Sun, Sunset,
-  Loader2, Inbox, RefreshCw, Pencil, Trash2, AlertTriangle,
+  Loader2, Inbox, RefreshCw, AlertTriangle,
 } from 'lucide-react'
 import { api, type AlarmEvent, type PaginatedResponse } from '@/lib/api-client'
 import type { ColumnDef } from '@/lib/column-registry'
@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/table'
 import { ResizableTableHead } from '@/components/ui/resizable-table-head'
 import { AlarmEventCell } from '../_helpers/cell-renderers'
+import { AlarmEventRowActions } from './alarm-event-row-actions'
 
 import type { WorkingHours } from '@go-watchtower/shared'
 
@@ -40,6 +41,9 @@ export interface AlarmEventDailyViewProps {
   onDelete:        (e: AlarmEvent) => void
   isOnCallEvent?:  (e: AlarmEvent) => boolean
   onAlarmClick?:   (alarm: NonNullable<AlarmEvent['alarm']>, productId: string) => void
+  onCreateAnalysis?:    (e: AlarmEvent) => void
+  onAssociateAnalysis?: (e: AlarmEvent) => void
+  onUnlinkAnalysis?:    (e: AlarmEvent) => void
 }
 
 // ─── Date utilities ───────────────────────────────────────────────────────────
@@ -248,6 +252,7 @@ export function BucketSection({
   canWrite, canDelete,
   selectedEventId, showDetailPanel, lingeringId,
   onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
+  onCreateAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
 }: {
   cfg:             BucketCfg
   events:          AlarmEvent[]
@@ -265,6 +270,9 @@ export function BucketSection({
   onDelete:        (e: AlarmEvent) => void
   isOnCallEvent?:  (e: AlarmEvent) => boolean
   onAlarmClick?:   (alarm: NonNullable<AlarmEvent['alarm']>, productId: string) => void
+  onCreateAnalysis?:    (e: AlarmEvent) => void
+  onAssociateAnalysis?: (e: AlarmEvent) => void
+  onUnlinkAnalysis?:    (e: AlarmEvent) => void
 }) {
   const [collapsed, setCollapsed] = useState(events.length === 0)
   const { Icon } = cfg
@@ -327,25 +335,16 @@ export function BucketSection({
               ? 'bg-primary/[0.07] group-hover:bg-primary/[0.09]'
               : 'bg-card group-hover:bg-muted')
           }>
-            <div className="flex justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-              {canWrite && (
-                <Button
-                  variant="ghost" size="icon" className="h-7 w-7"
-                  onClick={() => onEdit(event)}
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
-              )}
-              {canDelete && (
-                <Button
-                  variant="ghost" size="icon"
-                  className="h-7 w-7 text-destructive hover:text-destructive"
-                  onClick={() => onDelete(event)}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              )}
-            </div>
+            <AlarmEventRowActions
+              event={event}
+              canWrite={canWrite}
+              canDelete={canDelete}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onCreateAnalysis={onCreateAnalysis}
+              onAssociateAnalysis={onAssociateAnalysis}
+              onUnlinkAnalysis={onUnlinkAnalysis}
+            />
           </TableCell>
         )}
       </TableRow>
@@ -459,6 +458,7 @@ export function AlarmEventDailyView({
   canWrite, canDelete,
   selectedEventId, showDetailPanel, lingeringId,
   onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
+  onCreateAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
 }: AlarmEventDailyViewProps) {
   const wh = workingHours ?? DEFAULT_WH
   const tz = wh.timezone ?? 'Europe/Rome'
@@ -495,7 +495,8 @@ export function AlarmEventDailyView({
   )
 
   const bucketProps = { visibleColumns, getWidth, totalMinWidth, canWrite, canDelete,
-    selectedEventId, showDetailPanel, lingeringId, onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick }
+    selectedEventId, showDetailPanel, lingeringId, onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
+    onCreateAnalysis, onAssociateAnalysis, onUnlinkAnalysis }
 
   return (
     <div className="space-y-3">

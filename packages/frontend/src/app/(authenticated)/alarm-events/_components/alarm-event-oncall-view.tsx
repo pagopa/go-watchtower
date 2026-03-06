@@ -34,11 +34,14 @@ export interface AlarmEventOnCallViewProps {
   onDelete:        (e: AlarmEvent) => void
   isOnCallEvent?:  (e: AlarmEvent) => boolean
   onAlarmClick?:   (alarm: NonNullable<AlarmEvent['alarm']>, productId: string) => void
+  onCreateAnalysis?:    (e: AlarmEvent) => void
+  onAssociateAnalysis?: (e: AlarmEvent) => void
+  onUnlinkAnalysis?:    (e: AlarmEvent) => void
 }
 
 // ─── Bucket configs ───────────────────────────────────────────────────────────
 
-const ONCALL_BUCKETS: Record<'oncall' | 'work', BucketCfg> = {
+export const ONCALL_BUCKETS: Record<'oncall' | 'work', BucketCfg> = {
   oncall: {
     Icon:      PhoneCall,
     label:     'Reperibilità',
@@ -108,7 +111,7 @@ function localDayBoundsUTC(dateStr: string, tz: string): { from: string; to: str
  * Uses allDay.startDay/endDay if configured; falls back to Sat (6) / Sun (7).
  * The endDay itself is NOT "full day" (it terminates at endTime via overnight).
  */
-function isOnCallAllDay(dateStr: string, oc: OnCallHours | null): boolean {
+export function isOnCallAllDay(dateStr: string, oc: OnCallHours | null): boolean {
   const isoDay = isoWeekdayOfDate(dateStr)
 
   if (oc?.allDay) {
@@ -133,7 +136,7 @@ interface ShiftRange {
   workEnd:        string
 }
 
-function buildShiftRange(
+export function buildShiftRange(
   referenceDate: string,
   wh: WorkingHours,
   oc: OnCallHours | null,
@@ -167,7 +170,7 @@ function buildShiftRange(
   }
 }
 
-function partitionShiftEvents(
+export function partitionShiftEvents(
   events: AlarmEvent[],
   splitAt: string | null,
 ): { oncall: AlarmEvent[]; work: AlarmEvent[] } {
@@ -191,7 +194,7 @@ function shortWeekday(dateStr: string): string {
 
 // ─── Navigation header ────────────────────────────────────────────────────────
 
-function OnCallNavigation({
+export function OnCallNavigation({
   referenceDate, onDateChange, isFetching, onRefresh,
   totalCount, allDay, overnightStart, workEnd,
 }: {
@@ -284,6 +287,7 @@ export function AlarmEventOnCallView({
   canWrite, canDelete,
   selectedEventId, showDetailPanel, lingeringId,
   onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
+  onCreateAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
 }: AlarmEventOnCallViewProps) {
   const [referenceDate, setReferenceDate] = useState<string>(() => todayUTC())
 
@@ -320,7 +324,8 @@ export function AlarmEventOnCallView({
   )
 
   const bucketProps = { visibleColumns, getWidth, totalMinWidth, canWrite, canDelete,
-    selectedEventId, showDetailPanel, lingeringId, onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick }
+    selectedEventId, showDetailPanel, lingeringId, onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
+    onCreateAnalysis, onAssociateAnalysis, onUnlinkAnalysis }
 
   return (
     <div className="space-y-3">

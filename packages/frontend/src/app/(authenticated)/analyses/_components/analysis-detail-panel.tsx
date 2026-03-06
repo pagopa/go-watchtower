@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  X, Pencil, Trash2, ExternalLink, Copy, Check,
-  Bell, FileText, ListChecks, Info, ShieldCheck,
+  X, Pencil, Trash2, ExternalLink, Copy, Check, Unlink,
+  Bell, FileText, ListChecks, Info, ShieldCheck, Zap,
   XCircle, AlertCircle, CheckCircle, Circle, ChevronDown, Lock,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -11,9 +12,10 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAnalysisScores } from '@/hooks/use-analysis-scores'
-import type { AlarmAnalysis } from '@/lib/api-client'
+import { api, type AlarmAnalysis, type AlarmEvent, type PaginatedResponse } from '@/lib/api-client'
 import { sanitizeUrl } from '@/lib/sanitize-url'
 import { usePreferences } from '@/hooks/use-preferences'
+import { UnlinkAlarmEventDialog } from '../../alarm-events/_components/unlink-alarm-event-dialog'
 import {
   ANALYSIS_TYPE_LABELS,
   ANALYSIS_STATUS_LABELS,
@@ -23,6 +25,76 @@ import {
   formatDateTimeDual,
   computeMTTA,
 } from '../_lib/constants'
+
+// ─── Linked alarm events sub-section ──────────────────────────────────────────
+
+function LinkedAlarmEvents({ analysis }: { analysis: AlarmAnalysis }) {
+  const queryClient = useQueryClient()
+  const [unlinkEvent, setUnlinkEvent] = useState<AlarmEvent | null>(null)
+
+  const { data } = useQuery<PaginatedResponse<AlarmEvent>>({
+    queryKey: ['alarm-events', { analysisId: analysis.id }],
+    queryFn: () => api.getAlarmEvents({ analysisId: analysis.id, pageSize: 100 }),
+    staleTime: 30_000,
+  })
+
+  const events = data?.data ?? []
+  if (events.length === 0) return null
+
+  return (
+    <section className="space-y-4">
+      <SectionHeader label="Alarm Events collegati" icon={Zap} />
+      <div className="rounded-lg border border-border overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b bg-muted/30 text-xs text-muted-foreground">
+              <th className="px-3 py-2 text-left font-medium">Data scatto</th>
+              <th className="px-3 py-2 text-left font-medium">Nome</th>
+              <th className="px-3 py-2 text-left font-medium">Ambiente</th>
+              <th className="px-3 py-2 w-10" />
+            </tr>
+          </thead>
+          <tbody>
+            {events.map((event) => (
+              <tr key={event.id} className="group border-b border-border/50 last:border-0">
+                <td className="px-3 py-2 font-mono text-xs tabular-nums text-muted-foreground">
+                  {formatDateTimeUTC(event.firedAt)}
+                </td>
+                <td className="px-3 py-2 truncate max-w-[200px]">{event.name}</td>
+                <td className="px-3 py-2 text-muted-foreground">{event.environment.name}</td>
+                <td className="px-1 py-1">
+                  <button
+                    type="button"
+                    title="Scollega"
+                    onClick={() => setUnlinkEvent(event)}
+                    className="inline-flex items-center justify-center rounded p-1 text-muted-foreground/30 opacity-0 transition-all group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Unlink className="h-3.5 w-3.5" />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <UnlinkAlarmEventDialog
+        open={!!unlinkEvent}
+        onOpenChange={(open) => { if (!open) setUnlinkEvent(null) }}
+        eventId={unlinkEvent?.id ?? null}
+        eventName={unlinkEvent?.name ?? ''}
+        analysis={analysis}
+        onCompleted={() => {
+          queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string).startsWith('alarm-events') })
+          queryClient.invalidateQueries({ queryKey: ['analyses'] })
+          setUnlinkEvent(null)
+        }}
+      />
+    </section>
+  )
+}
+
+// ─── Main panel ──────────────────────────────────────────────────────────────
 
 interface AnalysisDetailPanelProps {
   analysis: AlarmAnalysis | null
@@ -872,7 +944,10 @@ export function AnalysisDetailPanel({
               </section>
             )}
 
-            {/* ── Sezione 4: Metadati ── */}
+            {/* ── Sezione 4: Alarm Events collegati ── */}
+            <LinkedAlarmEvents analysis={analysis} />
+
+            {/* ── Sezione 5: Metadati ── */}
             <section className="space-y-4">
               <SectionHeader label="Metadati" icon={Info} />
               <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
