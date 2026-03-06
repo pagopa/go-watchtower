@@ -4,7 +4,7 @@ import { Suspense, useState, useRef, useEffect, useCallback, useMemo } from 'rea
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, Plus, Inbox, RefreshCw,
-  LayoutList, CalendarDays, PhoneCall,
+  LayoutList, CalendarDays, PhoneCall, Layers,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -59,6 +59,11 @@ import { AlarmEventDailyView, todayUTC } from './_components/alarm-event-daily-v
 
 const AlarmEventOnCallView = dynamic(
   () => import('./_components/alarm-event-oncall-view').then((m) => ({ default: m.AlarmEventOnCallView })),
+  { ssr: false }
+)
+
+const AlarmEventGroupedView = dynamic(
+  () => import('./_components/alarm-event-grouped-view').then((m) => ({ default: m.AlarmEventGroupedView })),
   { ssr: false }
 )
 import { AlarmEventCell } from './_helpers/cell-renderers'
@@ -130,7 +135,7 @@ function AlarmEventsPageContent() {
   // View mode — persisted in user preferences.
   // Initialized to 'list'; synced once preferences load from the server
   // (staleTime=Infinity, so subsequent navigations resolve from cache synchronously).
-  const [viewMode, setViewMode] = useState<'list' | 'daily' | 'oncall'>('list')
+  const [viewMode, setViewMode] = useState<'list' | 'daily' | 'oncall' | 'grouped'>('list')
   const viewModeInitialized = useRef(false)
   useEffect(() => {
     if (!viewModeInitialized.current && preferences.alarmEventViewMode) {
@@ -139,7 +144,7 @@ function AlarmEventsPageContent() {
     }
   }, [preferences.alarmEventViewMode])
 
-  const handleSetViewMode = useCallback((mode: 'list' | 'daily' | 'oncall') => {
+  const handleSetViewMode = useCallback((mode: 'list' | 'daily' | 'oncall' | 'grouped') => {
     viewModeInitialized.current = true
     setViewMode(mode)
     updatePreferences({ alarmEventViewMode: mode })
@@ -473,6 +478,15 @@ function AlarmEventsPageContent() {
               Giornaliero
             </Button>
             <Button
+              variant={viewMode === 'grouped' ? 'secondary' : 'ghost'}
+              size="sm"
+              className="h-6 gap-1.5 px-2 text-xs"
+              onClick={() => handleSetViewMode('grouped')}
+            >
+              <Layers className="h-3 w-3" />
+              Raggruppato
+            </Button>
+            <Button
               variant={viewMode === 'oncall' ? 'secondary' : 'ghost'}
               size="sm"
               className="h-6 gap-1.5 px-2 text-xs"
@@ -541,6 +555,29 @@ function AlarmEventsPageContent() {
         <AlarmEventOnCallView
           workingHours={workingHours ?? null}
           onCallHours={onCallHours ?? null}
+          filters={filters}
+          visibleColumns={visibleColumns}
+          getWidth={getWidth}
+          totalMinWidth={totalTableMinWidth}
+          canWrite={canWrite}
+          canDelete={canDelete}
+          selectedEventId={selectedEvent?.id ?? null}
+          showDetailPanel={showDetailPanel}
+          lingeringId={lingeringId}
+          onRowClick={handleRowClick}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          isOnCallEvent={isOnCallEvent}
+          onAlarmClick={handleAlarmClick}
+        />
+      )}
+
+      {/* Grouped view */}
+      {viewMode === 'grouped' && (
+        <AlarmEventGroupedView
+          selectedDate={selectedDate}
+          onDateChange={setSelectedDate}
+          workingHours={workingHours ?? null}
           filters={filters}
           visibleColumns={visibleColumns}
           getWidth={getWidth}

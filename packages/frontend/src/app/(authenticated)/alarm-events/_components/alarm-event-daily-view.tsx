@@ -95,7 +95,7 @@ function isoWeekdayInTz(isoString: string, tz: string): number {
  * Usa come riferimento il noon UTC per stimare l'offset (accurato per offset fissi
  * e per la maggior parte dei casi DST).
  */
-function localDayBoundsUTC(dateStr: string, tz: string): { dateFrom: string; dateTo: string } {
+export function localDayBoundsUTC(dateStr: string, tz: string): { dateFrom: string; dateTo: string } {
   const [y, mo, d] = dateStr.split('-').map(Number)
   const noonUTC = new Date(Date.UTC(y!, mo! - 1, d!, 12))
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -112,7 +112,7 @@ function localDayBoundsUTC(dateStr: string, tz: string): { dateFrom: string; dat
   }
 }
 
-function partitionEvents(events: AlarmEvent[], wh: WorkingHours) {
+export function partitionEvents(events: AlarmEvent[], wh: WorkingHours) {
   const tz      = wh.timezone ?? 'Europe/Rome'
   const whStart = toMinutes(wh.start)
   const whEnd   = toMinutes(wh.end)
@@ -130,7 +130,7 @@ function partitionEvents(events: AlarmEvent[], wh: WorkingHours) {
 
 // ─── Day navigation header ────────────────────────────────────────────────────
 
-function DayNavigation({
+export function DayNavigation({
   selectedDate, onDateChange, isFetching, onRefresh, totalCount,
 }: {
   selectedDate: string
@@ -212,7 +212,7 @@ export interface BucketCfg {
   countCls:    string
 }
 
-const BUCKETS: Record<BucketId, BucketCfg> = {
+export const BUCKETS: Record<BucketId, BucketCfg> = {
   pre: {
     Icon:      Moon,
     label:     'Fuori orario — Mattina',

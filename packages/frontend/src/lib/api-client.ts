@@ -630,7 +630,7 @@ export interface UserPreferences {
   sidebarCollapsed?: boolean
   analysisFiltersCollapsed?: boolean
   alarmEventFiltersCollapsed?: boolean
-  alarmEventViewMode?: 'list' | 'daily' | 'oncall'
+  alarmEventViewMode?: 'list' | 'daily' | 'oncall' | 'grouped'
   detailPanelWidth?: number
 }
 
