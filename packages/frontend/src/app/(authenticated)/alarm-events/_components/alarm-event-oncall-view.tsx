@@ -33,6 +33,7 @@ export interface AlarmEventOnCallViewProps {
   onEdit:          (e: AlarmEvent) => void
   onDelete:        (e: AlarmEvent) => void
   isOnCallEvent?:  (e: AlarmEvent) => boolean
+  onAlarmClick?:   (alarm: NonNullable<AlarmEvent['alarm']>, productId: string) => void
 }
 
 // ─── Bucket configs ───────────────────────────────────────────────────────────
@@ -56,7 +57,7 @@ const ONCALL_BUCKETS: Record<'oncall' | 'work', BucketCfg> = {
   },
 }
 
-const DEFAULT_WH: WorkingHours = { start: '09:00', end: '18:00', days: [1, 2, 3, 4, 5] }
+const DEFAULT_WH: WorkingHours = { timezone: 'Europe/Rome', start: '09:00', end: '18:00', days: [1, 2, 3, 4, 5] }
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -66,6 +67,40 @@ function isoWeekdayOfDate(dateStr: string): number {
   const date = new Date(Date.UTC(y!, m! - 1, d!, 12))
   const jsDay = date.getUTCDay()
   return jsDay === 0 ? 7 : jsDay
+}
+
+/**
+ * Converte "YYYY-MM-DD HH:MM" nell'ora locale della timezone `tz` in un istante UTC.
+ * Usa il noon UTC dello stesso giorno per stimare l'offset (preciso per offset fissi
+ * e per la maggior parte dei casi DST).
+ */
+function localTimeToUTC(dateStr: string, timeHHMM: string, tz: string): string {
+  const [y, mo, d] = dateStr.split('-').map(Number)
+  const [th, tm]   = timeHHMM.split(':').map(Number)
+  const noonUTC    = new Date(Date.UTC(y!, mo! - 1, d!, 12))
+  const parts      = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hour: 'numeric', minute: 'numeric', hour12: false,
+  }).formatToParts(noonUTC)
+  const lh       = Number(parts.find((p) => p.type === 'hour')?.value   ?? 12)
+  const lm       = Number(parts.find((p) => p.type === 'minute')?.value ?? 0)
+  const offsetMs = ((lh * 60 + lm) - 12 * 60) * 60_000
+  return new Date(Date.UTC(y!, mo! - 1, d!, th!, tm!, 0) - offsetMs).toISOString()
+}
+
+/** Bound UTC per l'intera giornata locale `dateStr` nella timezone `tz`. */
+function localDayBoundsUTC(dateStr: string, tz: string): { from: string; to: string } {
+  const [y, mo, d] = dateStr.split('-').map(Number)
+  const noonUTC    = new Date(Date.UTC(y!, mo! - 1, d!, 12))
+  const parts      = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hour: 'numeric', minute: 'numeric', hour12: false,
+  }).formatToParts(noonUTC)
+  const lh       = Number(parts.find((p) => p.type === 'hour')?.value   ?? 12)
+  const lm       = Number(parts.find((p) => p.type === 'minute')?.value ?? 0)
+  const offsetMs = ((lh * 60 + lm) - 12 * 60) * 60_000
+  return {
+    from: new Date(Date.UTC(y!, mo! - 1, d!, 0)  - offsetMs).toISOString(),
+    to:   new Date(Date.UTC(y!, mo! - 1, d!, 24) - offsetMs - 1).toISOString(),
+  }
 }
 
 /**
@@ -104,15 +139,17 @@ function buildShiftRange(
   oc: OnCallHours | null,
   allDay: boolean,
 ): ShiftRange {
+  const tz             = oc?.timezone ?? wh.timezone ?? 'Europe/Rome'
   const overnightStart = oc?.overnight?.start ?? '18:00'
   const overnightEnd   = oc?.overnight?.end   ?? '09:00'
   const workEnd        = wh.end
 
   if (allDay) {
+    const { from, to } = localDayBoundsUTC(referenceDate, tz)
     return {
-      dateFrom:       `${referenceDate}T00:00:00.000Z`,
-      dateTo:         `${referenceDate}T23:59:59.999Z`,
-      splitAt:        null,
+      dateFrom: from,
+      dateTo:   to,
+      splitAt:  null,
       overnightStart,
       overnightEnd,
       workEnd,
@@ -121,9 +158,9 @@ function buildShiftRange(
 
   const prevDate = shiftDay(referenceDate, -1)
   return {
-    dateFrom:       `${prevDate}T${overnightStart}:00.000Z`,
-    dateTo:         `${referenceDate}T${workEnd}:00.000Z`,
-    splitAt:        `${referenceDate}T${overnightEnd}:00.000Z`,
+    dateFrom: localTimeToUTC(prevDate,       overnightStart, tz),
+    dateTo:   localTimeToUTC(referenceDate,  workEnd,        tz),
+    splitAt:  localTimeToUTC(referenceDate,  overnightEnd,   tz),
     overnightStart,
     overnightEnd,
     workEnd,
@@ -246,7 +283,7 @@ export function AlarmEventOnCallView({
   visibleColumns, getWidth, totalMinWidth,
   canWrite, canDelete,
   selectedEventId, showDetailPanel, lingeringId,
-  onRowClick, onEdit, onDelete, isOnCallEvent,
+  onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
 }: AlarmEventOnCallViewProps) {
   const [referenceDate, setReferenceDate] = useState<string>(() => todayUTC())
 
@@ -283,7 +320,7 @@ export function AlarmEventOnCallView({
   )
 
   const bucketProps = { visibleColumns, getWidth, totalMinWidth, canWrite, canDelete,
-    selectedEventId, showDetailPanel, lingeringId, onRowClick, onEdit, onDelete, isOnCallEvent }
+    selectedEventId, showDetailPanel, lingeringId, onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick }
 
   return (
     <div className="space-y-3">

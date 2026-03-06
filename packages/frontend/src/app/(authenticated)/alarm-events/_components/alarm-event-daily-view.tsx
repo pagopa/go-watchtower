@@ -38,6 +38,7 @@ export interface AlarmEventDailyViewProps {
   onEdit:          (e: AlarmEvent) => void
   onDelete:        (e: AlarmEvent) => void
   isOnCallEvent?:  (e: AlarmEvent) => boolean
+  onAlarmClick?:   (alarm: NonNullable<AlarmEvent['alarm']>, productId: string) => void
 }
 
 // ─── Date utilities ───────────────────────────────────────────────────────────
@@ -69,24 +70,56 @@ function toMinutes(hhmm: string): number {
   return (h ?? 0) * 60 + (m ?? 0)
 }
 
-function minuteOfDayUTC(isoString: string): number {
-  const d = new Date(isoString)
-  return d.getUTCHours() * 60 + d.getUTCMinutes()
+/** Minuto del giorno (0–1439) dell'istante ISO nella timezone indicata. */
+function minuteOfDayInTz(isoString: string, tz: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hour: 'numeric', minute: 'numeric', hour12: false,
+  }).formatToParts(new Date(isoString))
+  const h = Number(parts.find((p) => p.type === 'hour')?.value   ?? 0)
+  const m = Number(parts.find((p) => p.type === 'minute')?.value ?? 0)
+  return h * 60 + m
 }
 
-function isoWeekdayUTC(isoString: string): number {
-  const d = new Date(isoString)
-  const day = d.getUTCDay()
-  return day === 0 ? 7 : day
+/** ISO weekday (1=Lun…7=Dom) del giorno locale dell'istante nella timezone indicata. */
+function isoWeekdayInTz(isoString: string, tz: string): number {
+  const localDate = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date(isoString)) // "YYYY-MM-DD"
+  const [y, mo, d] = localDate.split('-').map(Number)
+  const dow = new Date(Date.UTC(y!, mo! - 1, d!, 12)).getUTCDay()
+  return dow === 0 ? 7 : dow
+}
+
+/**
+ * Restituisce i bound UTC per l'intera giornata locale `dateStr` nella timezone `tz`.
+ * Usa come riferimento il noon UTC per stimare l'offset (accurato per offset fissi
+ * e per la maggior parte dei casi DST).
+ */
+function localDayBoundsUTC(dateStr: string, tz: string): { dateFrom: string; dateTo: string } {
+  const [y, mo, d] = dateStr.split('-').map(Number)
+  const noonUTC = new Date(Date.UTC(y!, mo! - 1, d!, 12))
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hour: 'numeric', minute: 'numeric', hour12: false,
+  }).formatToParts(noonUTC)
+  const lh = Number(parts.find((p) => p.type === 'hour')?.value   ?? 12)
+  const lm = Number(parts.find((p) => p.type === 'minute')?.value ?? 0)
+  const offsetMs = ((lh * 60 + lm) - 12 * 60) * 60_000
+  const startMs  = Date.UTC(y!, mo! - 1, d!, 0)  - offsetMs
+  const endMs    = Date.UTC(y!, mo! - 1, d!, 24) - offsetMs - 1
+  return {
+    dateFrom: new Date(startMs).toISOString(),
+    dateTo:   new Date(endMs).toISOString(),
+  }
 }
 
 function partitionEvents(events: AlarmEvent[], wh: WorkingHours) {
-  const pre: AlarmEvent[] = [], work: AlarmEvent[] = [], post: AlarmEvent[] = []
+  const tz      = wh.timezone ?? 'Europe/Rome'
   const whStart = toMinutes(wh.start)
   const whEnd   = toMinutes(wh.end)
+  const pre: AlarmEvent[] = [], work: AlarmEvent[] = [], post: AlarmEvent[] = []
   for (const e of events) {
-    const mod     = minuteOfDayUTC(e.firedAt)
-    const weekday = isoWeekdayUTC(e.firedAt)
+    const mod       = minuteOfDayInTz(e.firedAt, tz)
+    const weekday   = isoWeekdayInTz(e.firedAt, tz)
     const isWorkDay = wh.days.includes(weekday)
     if (isWorkDay && mod >= whStart && mod < whEnd) work.push(e)
     else if (isWorkDay && mod < whStart)             pre.push(e)
@@ -211,7 +244,7 @@ export function BucketSection({
   visibleColumns, getWidth, totalMinWidth,
   canWrite, canDelete,
   selectedEventId, showDetailPanel, lingeringId,
-  onRowClick, onEdit, onDelete, isOnCallEvent,
+  onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
 }: {
   cfg:             BucketCfg
   events:          AlarmEvent[]
@@ -228,6 +261,7 @@ export function BucketSection({
   onEdit:          (e: AlarmEvent) => void
   onDelete:        (e: AlarmEvent) => void
   isOnCallEvent?:  (e: AlarmEvent) => boolean
+  onAlarmClick?:   (alarm: NonNullable<AlarmEvent['alarm']>, productId: string) => void
 }) {
   const [collapsed, setCollapsed] = useState(events.length === 0)
   const { Icon } = cfg
@@ -323,7 +357,7 @@ export function BucketSection({
                               ? { width: `${getWidth(col.id)}px` }
                               : undefined}
                           >
-                            {renderCell(col.id, event, { isOnCall })}
+                            {renderCell(col.id, event, { isOnCall, onAlarmClick })}
                           </TableCell>
                         )
                       })}
@@ -369,19 +403,19 @@ export function BucketSection({
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 
-const DEFAULT_WH: WorkingHours = { start: '09:00', end: '18:00', days: [1, 2, 3, 4, 5] }
+const DEFAULT_WH: WorkingHours = { timezone: 'Europe/Rome', start: '09:00', end: '18:00', days: [1, 2, 3, 4, 5] }
 
 export function AlarmEventDailyView({
   selectedDate, onDateChange, workingHours, filters,
   visibleColumns, getWidth, totalMinWidth,
   canWrite, canDelete,
   selectedEventId, showDetailPanel, lingeringId,
-  onRowClick, onEdit, onDelete, isOnCallEvent,
+  onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
 }: AlarmEventDailyViewProps) {
   const wh = workingHours ?? DEFAULT_WH
+  const tz = wh.timezone ?? 'Europe/Rome'
 
-  const dateFrom = `${selectedDate}T00:00:00.000Z`
-  const dateTo   = `${selectedDate}T23:59:59.999Z`
+  const { dateFrom, dateTo } = localDayBoundsUTC(selectedDate, tz)
 
   const queryParams = useMemo(() => ({
     page:     1,
@@ -411,7 +445,7 @@ export function AlarmEventDailyView({
   )
 
   const bucketProps = { visibleColumns, getWidth, totalMinWidth, canWrite, canDelete,
-    selectedEventId, showDetailPanel, lingeringId, onRowClick, onEdit, onDelete, isOnCallEvent }
+    selectedEventId, showDetailPanel, lingeringId, onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick }
 
   return (
     <div className="space-y-3">

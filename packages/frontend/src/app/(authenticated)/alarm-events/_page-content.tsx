@@ -532,6 +532,7 @@ function AlarmEventsPageContent() {
           onEdit={handleEdit}
           onDelete={handleDelete}
           isOnCallEvent={isOnCallEvent}
+          onAlarmClick={handleAlarmClick}
         />
       )}
 
@@ -553,6 +554,7 @@ function AlarmEventsPageContent() {
           onEdit={handleEdit}
           onDelete={handleDelete}
           isOnCallEvent={isOnCallEvent}
+          onAlarmClick={handleAlarmClick}
         />
       )}
 
@@ -563,11 +565,11 @@ function AlarmEventsPageContent() {
             <div className="divide-y">
               <div className="flex items-center gap-4 bg-muted/30 px-4 py-2.5">
                 {[24, 20, 14, 14, 16].map((w, i) => (
-                  <Skeleton key={i} className={`h-3 w-${w} rounded`} />
+                  <Skeleton key={`hcol-${i}`} className={`h-3 w-${w} rounded`} />
                 ))}
               </div>
               {[...Array(8)].map((_, i) => (
-                <div key={i} className="flex items-center gap-4 px-4 py-3" style={{ animationDelay: `${i * 40}ms` }}>
+                <div key={`srow-${i}`} className="flex items-center gap-4 px-4 py-3" style={{ animationDelay: `${i * 40}ms` }}>
                   <Skeleton className="h-3.5 w-32 rounded" />
                   <Skeleton className="h-3.5 w-44 rounded" />
                   <Skeleton className="h-5 w-20 rounded" />

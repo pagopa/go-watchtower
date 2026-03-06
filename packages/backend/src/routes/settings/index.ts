@@ -20,8 +20,13 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 const FORMAT_VALIDATORS: Record<string, FormatValidator> = {
   WORKING_HOURS: (value) => {
-    const v = value as { start?: unknown; end?: unknown; days?: unknown };
+    const v = value as { timezone?: unknown; start?: unknown; end?: unknown; days?: unknown };
     const timeRe = /^([01]\d|2[0-3]):[0-5]\d$/;
+    if (typeof v?.timezone !== "string" || v.timezone.trim() === "") {
+      return "working_hours.timezone deve essere una stringa IANA non vuota (es. 'Europe/Rome')";
+    }
+    try { Intl.DateTimeFormat(undefined, { timeZone: v.timezone }); }
+    catch { return `working_hours.timezone '${v.timezone}' non è una timezone IANA valida`; }
     if (
       typeof v?.start !== "string" || !timeRe.test(v.start) ||
       typeof v?.end   !== "string" || !timeRe.test(v.end)   ||

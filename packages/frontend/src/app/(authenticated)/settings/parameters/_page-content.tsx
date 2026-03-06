@@ -87,6 +87,7 @@ function WorkingHoursDialog({
   isPending: boolean
 }) {
   const initial = isWorkingHoursSetting(setting) ? setting.value : null
+  const [timezone, setTimezone] = useState(initial?.timezone ?? 'Europe/Rome')
   const [start, setStart] = useState(initial?.start ?? '09:00')
   const [end,   setEnd]   = useState(initial?.end   ?? '18:00')
   const [days,  setDays]  = useState<number[]>(initial?.days ?? [1, 2, 3, 4, 5])
@@ -118,6 +119,20 @@ function WorkingHoursDialog({
         </DialogHeader>
 
         <div className="space-y-5 pt-1">
+          {/* Timezone */}
+          <div className="space-y-1.5">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
+              Fuso orario
+            </p>
+            <Input
+              value={timezone}
+              onChange={(e) => setTimezone(e.target.value)}
+              placeholder="Europe/Rome"
+              className="font-mono text-sm"
+              disabled={isPending}
+            />
+          </div>
+
           {/* Time range */}
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
@@ -125,8 +140,9 @@ function WorkingHoursDialog({
             </p>
             <div className="flex items-end gap-2">
               <div className="flex-1 space-y-1">
-                <label className="text-xs text-muted-foreground">Dalle</label>
+                <label htmlFor="wh-start" className="text-xs text-muted-foreground">Dalle</label>
                 <Input
+                  id="wh-start"
                   type="time"
                   value={start}
                   onChange={(e) => setStart(e.target.value)}
@@ -136,8 +152,9 @@ function WorkingHoursDialog({
               </div>
               <div className="pb-2.5 text-sm text-muted-foreground/60 select-none">—</div>
               <div className="flex-1 space-y-1">
-                <label className="text-xs text-muted-foreground">Alle</label>
+                <label htmlFor="wh-end" className="text-xs text-muted-foreground">Alle</label>
                 <Input
+                  id="wh-end"
                   type="time"
                   value={end}
                   onChange={(e) => setEnd(e.target.value)}
@@ -195,7 +212,7 @@ function WorkingHoursDialog({
           </DialogClose>
           <Button
             size="sm"
-            onClick={() => onSave({ start, end, days })}
+            onClick={() => onSave({ timezone, start, end, days })}
             disabled={isPending || days.length === 0}
           >
             {isPending && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
@@ -296,14 +313,14 @@ function OnCallHoursDialog({
               <div className="space-y-3 pt-1">
                 <div className="flex items-end gap-2">
                   <div className="flex-1 space-y-1">
-                    <label className="text-xs text-muted-foreground">Dalle</label>
-                    <Input type="time" value={oStart} onChange={(e) => setOStart(e.target.value)}
+                    <label htmlFor="oc-o-start" className="text-xs text-muted-foreground">Dalle</label>
+                    <Input id="oc-o-start" type="time" value={oStart} onChange={(e) => setOStart(e.target.value)}
                       className="font-mono text-sm" disabled={isPending} />
                   </div>
                   <div className="pb-2.5 text-sm text-muted-foreground/60 select-none">→</div>
                   <div className="flex-1 space-y-1">
-                    <label className="text-xs text-muted-foreground">Alle (giorno dopo)</label>
-                    <Input type="time" value={oEnd} onChange={(e) => setOEnd(e.target.value)}
+                    <label htmlFor="oc-o-end" className="text-xs text-muted-foreground">Alle (giorno dopo)</label>
+                    <Input id="oc-o-end" type="time" value={oEnd} onChange={(e) => setOEnd(e.target.value)}
                       className="font-mono text-sm" disabled={isPending} />
                   </div>
                 </div>
@@ -341,9 +358,9 @@ function OnCallHoursDialog({
               <div className="space-y-2 pt-1">
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">Da</label>
+                    <label htmlFor="oc-ad-start" className="text-xs text-muted-foreground">Da</label>
                     <Select value={String(adStartDay)} onValueChange={(v) => setAdStartDay(Number(v))}>
-                      <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectTrigger id="oc-ad-start" className="h-8 text-sm"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {Object.entries(DAY_FULL_NAMES).map(([n, name]) => (
                           <SelectItem key={n} value={n}>{name}</SelectItem>
@@ -352,9 +369,9 @@ function OnCallHoursDialog({
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">A (fino alle)</label>
+                    <label htmlFor="oc-ad-end" className="text-xs text-muted-foreground">A (fino alle)</label>
                     <Select value={String(adEndDay)} onValueChange={(v) => setAdEndDay(Number(v))}>
-                      <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectTrigger id="oc-ad-end" className="h-8 text-sm"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {Object.entries(DAY_FULL_NAMES).map(([n, name]) => (
                           <SelectItem key={n} value={n}>{name}</SelectItem>
@@ -364,8 +381,8 @@ function OnCallHoursDialog({
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Ora di fine</label>
-                  <Input type="time" value={adEndTime} onChange={(e) => setAdEndTime(e.target.value)}
+                  <label htmlFor="oc-ad-endtime" className="text-xs text-muted-foreground">Ora di fine</label>
+                  <Input id="oc-ad-endtime" type="time" value={adEndTime} onChange={(e) => setAdEndTime(e.target.value)}
                     className="h-8 w-28 font-mono text-sm" disabled={isPending} />
                 </div>
               </div>
@@ -464,6 +481,9 @@ function ValueDisplay({ setting }: { setting: SystemSetting }) {
           ? <><span className="text-muted-foreground">{dayLabels}</span> <span className="text-muted-foreground/40 mx-0.5">·</span> {timeRange}</>
           : timeRange
         }
+        {wh?.timezone && (
+          <span className="ml-1 text-muted-foreground/50">· {wh.timezone}</span>
+        )}
       </span>
     )
   }
@@ -533,7 +553,6 @@ function InlineEditor({
           if (e.key === 'Escape') onCancel()
         }}
         className="h-7 w-44 font-mono text-sm"
-        autoFocus
         disabled={isPending}
       />
       <Button
@@ -750,7 +769,7 @@ function LoadingSkeleton() {
           </div>
           <div className="space-y-2">
             {[...Array(count)].map((_, i) => (
-              <div key={i} className="flex items-start gap-0 overflow-hidden rounded-xl border bg-card">
+              <div key={`${gi}-${i}`} className="flex items-start gap-0 overflow-hidden rounded-xl border bg-card">
                 <div className="w-[3px] self-stretch bg-muted" />
                 <div className="flex flex-1 items-start justify-between gap-4 px-5 py-4">
                   <div className="flex items-start gap-3 flex-1">

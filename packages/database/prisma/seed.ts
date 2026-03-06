@@ -256,7 +256,7 @@ async function seedSystemSettings() {
     },
     {
       key:         "working_hours",
-      value:       { start: "09:00", end: "18:00", days: [1, 2, 3, 4, 5] },
+      value:       { timezone: "Europe/Rome", start: "09:00", end: "18:00", days: [1, 2, 3, 4, 5] },
       type:        "JSON",
       format:      "WORKING_HOURS",
       category:    "SYSTEM",
