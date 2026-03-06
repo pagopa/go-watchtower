@@ -4,9 +4,10 @@ import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Pencil, Trash2, Loader2, X, CalendarDays, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Pencil, Trash2, X, CalendarDays, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { formatDateTime as formatDate } from '@/lib/format'
 import {
   api,
   type UserDetailWithOverrides,
@@ -25,16 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+import { DeleteConfirmDialog } from '@/components/delete-confirm-dialog'
 import { DISPLAY_RESOURCES, RESOURCE_LABELS, PERMISSION_SCOPE_LABELS } from '@go-watchtower/shared'
 
 const SCOPE_BADGE_VARIANT: Record<PermissionScope, 'secondary' | 'default' | 'success'> = {
@@ -146,15 +138,6 @@ export function UserDetailPage() {
 
   const canWrite = !permissionsLoading && can('USER', 'write')
   const canDelete = !permissionsLoading && can('USER', 'delete')
-
-  const formatDate = (dateString: string) =>
-    new Date(dateString).toLocaleDateString('it-IT', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
 
   if (userLoading) {
     return (
@@ -522,30 +505,13 @@ export function UserDetailPage() {
       </div>
 
       {/* Delete dialog */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Conferma eliminazione</AlertDialogTitle>
-            <AlertDialogDescription>
-              Sei sicuro di voler eliminare l&apos;utente &quot;{user.name}&quot;?
-              Questa azione non pu&ograve; essere annullata.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deleteMutation.mutate()}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={deleteMutation.isPending}
-            >
-              {deleteMutation.isPending && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              Elimina
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteConfirmDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        description={`Sei sicuro di voler eliminare l'utente "${user.name}"? Questa azione non può essere annullata.`}
+        onConfirm={() => deleteMutation.mutate()}
+        isPending={deleteMutation.isPending}
+      />
     </div>
   )
 }

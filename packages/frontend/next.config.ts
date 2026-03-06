@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
     root: path.resolve(__dirname, '../../'),
   },
   images: {
-    qualities: [75, 100],
+    qualities: [75, 85, 100],
   },
   experimental: {
     optimizePackageImports: ['lucide-react', 'recharts'],

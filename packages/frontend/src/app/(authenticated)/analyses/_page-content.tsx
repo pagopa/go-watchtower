@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, Plus, Inbox, Lock,
+  Pencil, Trash2, Plus, Inbox, Lock,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -23,7 +23,7 @@ import {
   type ProductFilterOptions,
 } from '@/lib/api-client'
 import { usePermissions } from '@/hooks/use-permissions'
-import { usePreferences } from '@/hooks/use-preferences'
+import { useCollapsiblePreference } from '@/hooks/use-collapsible-preference'
 import { usePageSize, type AllowedPageSize } from '@/hooks/use-page-size'
 import { useColumnSettings } from '@/hooks/use-column-settings'
 import { COLUMN_REGISTRY } from '@/lib/column-registry'
@@ -31,30 +31,13 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
   Table,
   TableBody,
   TableCell,
-  TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { ResizableTableHead } from '@/components/ui/resizable-table-head'
+import { DeleteConfirmDialog } from '@/components/delete-confirm-dialog'
+import { DataTableHeader, PaginationControls, useTableMinWidth, useSort } from '@/components/data-table'
 import { ColumnConfigurator } from '@/components/ui/column-configurator'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import dynamic from 'next/dynamic'
@@ -119,7 +102,7 @@ function AnalysesPageContent() {
   const queryClient = useQueryClient()
   const { data: session } = useSession()
   const { can, canFor, getScope, isLoading: permissionsLoading } = usePermissions()
-  const { preferences, updatePreferences } = usePreferences()
+
   const searchParams = useSearchParams()
 
   // Product / analysis from URL search params (optional)
@@ -140,8 +123,7 @@ function AnalysesPageContent() {
   const { pageSize, setPageSize } = usePageSize()
 
   // Sorting
-  const [sortBy, setSortBy] = useState<string>('analysisDate')
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+  const { sortBy, sortOrder, handleSort } = useSort('analysisDate')
 
   // UI state
   const [selectedAnalysis, setSelectedAnalysis] = useState<AlarmAnalysis | null>(null)
@@ -178,18 +160,7 @@ function AnalysesPageContent() {
     }
   }, [linkedAnalysis])
 
-  // Filters collapsed — user override state for immediate toggle (no effect needed).
-  // null = "user hasn't toggled yet", so the server preference is used directly.
-  const [userCollapsedOverride, setUserCollapsedOverride] = useState<boolean | null>(null)
-  const filtersCollapsed = userCollapsedOverride !== null
-    ? userCollapsedOverride
-    : (preferences.analysisFiltersCollapsed ?? true)
-
-  const handleToggleFiltersCollapsed = useCallback(() => {
-    const next = !filtersCollapsed
-    setUserCollapsedOverride(next)
-    updatePreferences({ analysisFiltersCollapsed: next })
-  }, [filtersCollapsed, updatePreferences])
+  const { collapsed: filtersCollapsed, toggle: handleToggleFiltersCollapsed } = useCollapsiblePreference('analysisFiltersCollapsed')
 
   // Permissions
   const canWrite = !permissionsLoading && can('ALARM_ANALYSIS', 'write')
@@ -258,27 +229,7 @@ function AnalysesPageContent() {
     resetColumns,
   } = useColumnSettings('analyses', columnDefs)
 
-  // Min-width needed before horizontal scroll kicks in.
-  // The last visible data column has no explicit width so it can expand to fill
-  // the remaining space; we only need its minWidth here.
-  const totalTableMinWidth = useMemo(() => {
-    if (visibleColumns.length === 0) return 0
-    const lastIdx = visibleColumns.length - 1
-    const nonLastSum = visibleColumns
-      .slice(0, lastIdx)
-      .reduce((sum, col) => sum + (getWidth(col.id) ?? col.defaultWidth ?? 150), 0)
-    // Use the same width calculation as ResizableTableHead for the last column
-    // so the CSS min-width on the <table> matches the actual rendered minimum.
-    // Using col.minWidth here (< defaultWidth) causes the table to render wider
-    // than the CSS min-width, making the scroll range too short and hiding the
-    // right edge of the last data column behind the sticky actions column.
-    const lastDataCol = visibleColumns[lastIdx]
-    const lastColMin = lastDataCol
-      ? (getWidth(lastDataCol.id) ?? lastDataCol.defaultWidth ?? lastDataCol.minWidth ?? 80)
-      : 80
-    const actionsWidth = canWrite || canDelete ? 80 : 0
-    return nonLastSum + lastColMin + actionsWidth
-  }, [visibleColumns, getWidth, canWrite, canDelete])
+  const totalTableMinWidth = useTableMinWidth(visibleColumns, getWidth, canWrite || canDelete)
 
   // --- Queries ---
 
@@ -451,14 +402,7 @@ function AnalysesPageContent() {
     setPage(1)
   }, [])
 
-  const handleSort = (column: string) => {
-    if (sortBy === column) {
-      setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))
-    } else {
-      setSortBy(column)
-      setSortOrder('desc')
-    }
-  }
+
 
   const handleRowClick = (analysis: AlarmAnalysis) => {
     // Toggle: re-clicking the active row closes the panel
@@ -648,37 +592,15 @@ function AnalysesPageContent() {
               className="w-full"
               style={{ tableLayout: 'fixed', minWidth: `${totalTableMinWidth}px` }}
             >
-              <TableHeader>
-                <TableRow className="bg-muted/30 hover:bg-muted/30 border-b">
-                  {visibleColumns.map((col, colIdx) => {
-                    const isLastDataCol = colIdx === visibleColumns.length - 1
-                    return (
-                      <ResizableTableHead
-                        key={col.id}
-                        // Last data column: no explicit width → fills remaining space.
-                        // Use stored/default width as minWidth so it doesn't collapse.
-                        width={isLastDataCol ? undefined : (getWidth(col.id) ?? col.defaultWidth)}
-                        minWidth={isLastDataCol ? (getWidth(col.id) ?? col.defaultWidth ?? col.minWidth) : col.minWidth}
-                        onResize={(w) => setWidth(col.id, w)}
-                        sortable={!!col.sortKey}
-                        sorted={col.sortKey && sortBy === col.sortKey ? sortOrder : false}
-                        onSort={col.sortKey ? () => handleSort(col.sortKey!) : undefined}
-                      >
-                        {col.label}
-                      </ResizableTableHead>
-                    )
-                  })}
-                  {(canWrite || canDelete) && (
-                    <ResizableTableHead
-                      width={80}
-                      minWidth={80}
-                      className="sticky right-0 z-10 border-l border-border/40 bg-muted text-right"
-                    >
-                      <span className="sr-only">Azioni</span>
-                    </ResizableTableHead>
-                  )}
-                </TableRow>
-              </TableHeader>
+              <DataTableHeader
+                columns={visibleColumns}
+                getWidth={getWidth}
+                setWidth={setWidth}
+                sortBy={sortBy}
+                sortOrder={sortOrder}
+                onSort={handleSort}
+                hasActions={canWrite || canDelete}
+              />
               <TableBody>
                 {analyses.map((analysis) => {
                   const isSelected = analysis.id === selectedAnalysis?.id && showDetailPanel
@@ -792,56 +714,14 @@ function AnalysesPageContent() {
       </Card>
 
       {/* Pagination */}
-      {pagination && pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Righe per pagina</span>
-            <Select
-              value={String(pageSize)}
-              onValueChange={(val) => {
-                setPageSize(Number(val) as AllowedPageSize)
-                setPage(1)
-              }}
-            >
-              <SelectTrigger className="h-7 w-[70px] text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="10">10</SelectItem>
-                <SelectItem value="20">20</SelectItem>
-                <SelectItem value="50">50</SelectItem>
-                <SelectItem value="100">100</SelectItem>
-                <SelectItem value="200">200</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <span className="text-xs tabular-nums text-muted-foreground">
-              {pagination.page} / {pagination.totalPages}
-            </span>
-            <div className="flex gap-0.5">
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-7 w-7"
-                disabled={!pagination.hasPreviousPage}
-                onClick={() => setPage((p) => p - 1)}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-7 w-7"
-                disabled={!pagination.hasNextPage}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
+      {pagination && (
+        <PaginationControls
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={(size) => { setPageSize(size as AllowedPageSize); setPage(1) }}
+        />
       )}
 
       {/* Detail Side Panel */}
@@ -903,31 +783,13 @@ function AnalysesPageContent() {
       />
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={!!deleteItem} onOpenChange={() => setDeleteItem(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Conferma eliminazione</AlertDialogTitle>
-            <AlertDialogDescription>
-              Sei sicuro di voler eliminare questa analisi del{' '}
-              {deleteItem && formatDate(deleteItem.analysisDate)} per l&apos;allarme &quot;{deleteItem?.alarm.name}&quot;?
-              Questa azione non può essere annullata.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deleteItem && deleteMutation.mutate({ productId: deleteItem.productId, id: deleteItem.id })}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={deleteMutation.isPending}
-            >
-              {deleteMutation.isPending && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              Elimina
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteConfirmDialog
+        open={!!deleteItem}
+        onOpenChange={() => setDeleteItem(null)}
+        description={`Sei sicuro di voler eliminare questa analisi del ${deleteItem ? formatDate(deleteItem.analysisDate) : ''} per l'allarme "${deleteItem?.alarm.name}"? Questa azione non può essere annullata.`}
+        onConfirm={() => deleteItem && deleteMutation.mutate({ productId: deleteItem.productId, id: deleteItem.id })}
+        isPending={deleteMutation.isPending}
+      />
     </div>
   )
 }

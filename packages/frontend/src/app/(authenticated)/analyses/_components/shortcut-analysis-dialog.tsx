@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { useForm, type Resolver } from 'react-hook-form'
+import { useForm, type Control, type FieldErrors, type FieldValues, type Resolver } from 'react-hook-form'
 import { useSession } from 'next-auth/react'
 import { useQuery } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -106,11 +106,15 @@ export function ShortcutAnalysisDialog({
     reset,
     control,
     watch,
-    formState: { errors },
+    formState: { errors: typedErrors },
   } = useForm<ShortcutInCorsoData>({
     resolver: zodResolver(shortcutInCorsoSchema) as Resolver<ShortcutInCorsoData>,
     defaultValues: DEFAULT_VALUES,
   })
+
+  // Widen types for polymorphic field components (react-hook-form Control is invariant)
+  const fvControl = control as unknown as Control<FieldValues>
+  const errors = typedErrors as FieldErrors<FieldValues>
 
   const watchedAlarmId = watch('alarmId')
   const watchedEnvironmentId = watch('environmentId')
@@ -184,7 +188,7 @@ export function ShortcutAnalysisDialog({
 
             <div className="grid gap-4 p-5 sm:grid-cols-2">
               <AlarmField
-                control={control}
+                control={fvControl}
                 errors={errors}
                 disabled={isPending}
                 alarms={alarms}
@@ -199,14 +203,14 @@ export function ShortcutAnalysisDialog({
               />
 
               <EnvironmentField
-                control={control}
+                control={fvControl}
                 errors={errors}
                 disabled={isPending}
                 environments={environments}
               />
 
               <FirstAlarmField
-                control={control}
+                control={fvControl}
                 errors={errors}
                 disabled={isPending}
                 showNow

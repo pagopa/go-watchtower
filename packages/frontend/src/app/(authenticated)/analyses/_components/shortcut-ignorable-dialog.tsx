@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useForm, Controller, type FieldValues } from 'react-hook-form'
+import { useForm, Controller, type Control, type FieldErrors, type FieldValues } from 'react-hook-form'
 import { useSession } from 'next-auth/react'
 import { useQuery } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -123,11 +123,15 @@ export function ShortcutIgnorableDialog({
     watch,
     setValue,
     getValues,
-    formState: { errors },
+    formState: { errors: typedErrors },
   } = useForm({
     resolver: zodResolver(shortcutIgnorableSchema),
     defaultValues: DEFAULT_VALUES,
   })
+
+  // Widen types for polymorphic field components (react-hook-form Control is invariant)
+  const fvControl = control as unknown as Control<FieldValues>
+  const errors = typedErrors as FieldErrors<FieldValues>
 
   const [selectedRunbookId, setSelectedRunbookId] = useState<string | null>(null)
   const lastAlarmAutoFilledRef = useRef(false)
@@ -214,7 +218,7 @@ export function ShortcutIgnorableDialog({
 
             <div className="grid gap-4 p-5 sm:grid-cols-2">
               <AlarmField
-                control={control}
+                control={fvControl}
                 errors={errors}
                 disabled={isPending}
                 alarms={alarms}
@@ -229,21 +233,21 @@ export function ShortcutIgnorableDialog({
               />
 
               <EnvironmentField
-                control={control}
+                control={fvControl}
                 errors={errors}
                 disabled={isPending}
                 environments={environments}
               />
 
               <FirstAlarmField
-                control={control}
+                control={fvControl}
                 errors={errors}
                 disabled={isPending}
                 onAutoFill={handleFirstAlarmChange}
               />
 
               <LastAlarmField
-                control={control}
+                control={fvControl}
                 errors={errors}
                 disabled={isPending}
                 dateError={dateValidation.lastAlarmError}
@@ -296,7 +300,7 @@ export function ShortcutIgnorableDialog({
               {selectedReason?.detailsSchema && (
                 <div className="sm:col-span-2">
                   <DynamicIgnoreDetailsForm
-                    control={control}
+                    control={fvControl}
                     schema={selectedReason.detailsSchema}
                     disabled={isPending}
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any

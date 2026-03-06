@@ -35,16 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+import { DeleteConfirmDialog } from '@/components/delete-confirm-dialog'
 import { DISPLAY_RESOURCES, RESOURCE_LABELS, PERMISSION_SCOPE_LABELS } from '@go-watchtower/shared'
 
 const SCOPE_BADGE_VARIANT: Record<PermissionScope, 'secondary' | 'default' | 'success'> = {
@@ -478,39 +469,21 @@ function RoleDetailPanel({
       </div>
 
       {/* Delete confirmation */}
-      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Conferma eliminazione</AlertDialogTitle>
-            <AlertDialogDescription>
-              Sei sicuro di voler eliminare il ruolo &quot;{role.name}&quot;?
-              {role._count.users > 0 && (
-                <>
-                  {' '}
-                  Ci sono ancora{' '}
-                  <span className="font-medium text-foreground">
-                    {role._count.users} {role._count.users === 1 ? 'utente' : 'utenti'}
-                  </span>{' '}
-                  assegnati a questo ruolo.
-                </>
-              )}
-              {' '}Questa azione non pu&ograve; essere annullata.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                setShowDeleteConfirm(false)
-                onDelete()
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Elimina
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteConfirmDialog
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        description={
+          `Sei sicuro di voler eliminare il ruolo "${role.name}"?` +
+          (role._count.users > 0
+            ? ` Ci sono ancora ${role._count.users} ${role._count.users === 1 ? 'utente' : 'utenti'} assegnati a questo ruolo.`
+            : '') +
+          ' Questa azione non può essere annullata.'
+        }
+        onConfirm={() => {
+          setShowDeleteConfirm(false)
+          onDelete()
+        }}
+      />
     </div>
   )
 }

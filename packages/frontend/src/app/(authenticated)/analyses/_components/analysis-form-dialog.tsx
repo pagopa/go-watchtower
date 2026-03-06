@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef } from 'react'
-import { useForm, Controller, useFieldArray, useWatch, type Resolver } from 'react-hook-form'
+import { useForm, Controller, useFieldArray, useWatch, type Control, type FieldErrors, type FieldValues, type Resolver, type UseFormRegister } from 'react-hook-form'
 import { useSession } from 'next-auth/react'
 import { useQuery } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -247,7 +247,7 @@ export function AnalysisFormDialog({
     watch,
     setValue,
     getValues,
-    formState: { errors },
+    formState: { errors: typedErrors },
   } = useForm<AnalysisFormData>({
     resolver: zodResolver(analysisFormSchema) as Resolver<AnalysisFormData>,
     defaultValues: {
@@ -273,6 +273,11 @@ export function AnalysisFormDialog({
       trackingIds: [],
     },
   })
+
+  // Widen types for polymorphic field components (react-hook-form Control is invariant)
+  const fvControl = control as unknown as Control<FieldValues>
+  const fvRegister = register as unknown as UseFormRegister<FieldValues>
+  const errors = typedErrors as FieldErrors<FieldValues>
 
   const { fields: linkFields, append: appendLink, remove: removeLink } = useFieldArray({
     control,
@@ -444,14 +449,14 @@ export function AnalysisFormDialog({
           <FormSection label="Informazioni Allarme" color="amber" icon={Bell}>
             <div className="grid gap-4 p-5 sm:grid-cols-2">
               <AnalysisDateField
-                control={control}
+                control={fvControl}
                 errors={errors}
                 disabled={isPending}
                 dateError={dateValidation.analysisDateError}
               />
 
               <OperatorField
-                control={control}
+                control={fvControl}
                 errors={errors}
                 disabled={isPending}
                 users={availableUsers}
@@ -459,7 +464,7 @@ export function AnalysisFormDialog({
               />
 
               <AlarmField
-                control={control}
+                control={fvControl}
                 errors={errors}
                 disabled={isPending}
                 alarms={alarms}
@@ -477,21 +482,21 @@ export function AnalysisFormDialog({
               />
 
               <EnvironmentField
-                control={control}
+                control={fvControl}
                 errors={errors}
                 disabled={isPending}
                 environments={environments}
               />
 
               <FirstAlarmField
-                control={control}
+                control={fvControl}
                 errors={errors}
                 disabled={isPending}
                 onAutoFill={handleFirstAlarmChange}
               />
 
               <LastAlarmField
-                control={control}
+                control={fvControl}
                 errors={errors}
                 disabled={isPending}
                 dateError={dateValidation.lastAlarmError}
@@ -565,7 +570,7 @@ export function AnalysisFormDialog({
               {watchedAnalysisType === 'IGNORABLE' && (
                 <>
                   <IgnoreReasonField
-                    control={control}
+                    control={fvControl}
                     disabled={isPending}
                     options={ignoreReasons?.map((r) => ({ value: r.code, label: r.label })) ?? []}
                   />
@@ -597,9 +602,9 @@ export function AnalysisFormDialog({
               {/* ID di Tracciamento (full width) */}
               <TrackingIdsField
                 fields={trackingFields}
-                append={appendTracking}
+                append={appendTracking as (value: FieldValues) => void}
                 remove={removeTracking}
-                register={register}
+                register={fvRegister}
                 errors={errors}
                 disabled={isPending}
               />
@@ -647,9 +652,9 @@ export function AnalysisFormDialog({
               {/* Link (full width) */}
               <LinksField
                 fields={linkFields}
-                append={appendLink}
+                append={appendLink as (value: FieldValues) => void}
                 remove={removeLink}
-                register={register}
+                register={fvRegister}
                 errors={errors}
                 linkUrlValues={watchedLinkUrls}
                 disabled={isPending}

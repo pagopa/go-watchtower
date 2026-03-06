@@ -1,7 +1,7 @@
 'use client'
 
 import { Package, Plus, Trash2 } from 'lucide-react'
-import { Controller, type Control, type FieldErrors, type UseFormRegister, type UseFormRegisterReturn } from 'react-hook-form'
+import { Controller, type Control, type FieldError, type FieldErrors, type FieldValues, type UseFormRegister, type UseFormRegisterReturn } from 'react-hook-form'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -22,6 +22,14 @@ import type { Alarm, Environment, Product, UserDetail } from '@/lib/api-client'
 import { romeLocalToISO, utcLocalToISO } from './analysis-form-schemas'
 import { formatDateTimeUTC, formatDateTimeRome } from '../_lib/constants'
 
+/** Type-safe access to nested field array errors (e.g. errors.trackingIds[0].traceId). */
+function getFieldError(errors: FieldErrors, arrayName: string, index: number, field: string): FieldError | undefined {
+  const arr = errors[arrayName]
+  if (!Array.isArray(arr)) return undefined
+  const entry = arr[index] as Record<string, FieldError> | undefined
+  return entry?.[field]
+}
+
 // --- TZ Companion ---
 // Shown below a date picker after the user enters a value.
 
@@ -39,10 +47,8 @@ function TzCompanion({ label, value }: { label: string; value: string }) {
 // --- AlarmField ---
 
 interface AlarmFieldProps {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  control: Control<any>
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  errors: FieldErrors<any>
+  control: Control<FieldValues>
+  errors: FieldErrors<FieldValues>
   disabled: boolean
   alarms: Alarm[] | undefined
   showOnCall?: boolean
@@ -116,10 +122,8 @@ export function AlarmField({ control, errors, disabled, alarms, showOnCall = tru
 // --- EnvironmentField ---
 
 interface EnvironmentFieldProps {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  control: Control<any>
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  errors: FieldErrors<any>
+  control: Control<FieldValues>
+  errors: FieldErrors<FieldValues>
   disabled: boolean
   environments: Environment[] | undefined
 }
@@ -161,8 +165,7 @@ export function EnvironmentField({ control, errors, disabled, environments }: En
 
 interface OccurrencesFieldProps {
   registration: UseFormRegisterReturn
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  errors: FieldErrors<any>
+  errors: FieldErrors<FieldValues>
   disabled: boolean
 }
 
@@ -188,10 +191,8 @@ export function OccurrencesField({ registration, errors, disabled }: Occurrences
 // --- FirstAlarmField ---
 
 interface FirstAlarmFieldProps {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  control: Control<any>
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  errors: FieldErrors<any>
+  control: Control<FieldValues>
+  errors: FieldErrors<FieldValues>
   disabled: boolean
   onAutoFill?: (value: string, fieldOnChange: (v: string) => void) => void
   showNow?: boolean
@@ -240,10 +241,8 @@ export function FirstAlarmField({ control, errors, disabled, onAutoFill, showNow
 // --- LastAlarmField ---
 
 interface LastAlarmFieldProps {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  control: Control<any>
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  errors: FieldErrors<any>
+  control: Control<FieldValues>
+  errors: FieldErrors<FieldValues>
   disabled: boolean
   dateError?: string
 }
@@ -290,10 +289,8 @@ export function LastAlarmField({ control, errors, disabled, dateError }: LastAla
 // --- AnalysisDateField ---
 
 interface AnalysisDateFieldProps {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  control: Control<any>
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  errors: FieldErrors<any>
+  control: Control<FieldValues>
+  errors: FieldErrors<FieldValues>
   disabled: boolean
   dateError?: string
 }
@@ -344,10 +341,8 @@ export function AnalysisDateField({ control, errors, disabled, dateError }: Anal
 // --- OperatorField ---
 
 interface OperatorFieldProps {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  control: Control<any>
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  errors: FieldErrors<any>
+  control: Control<FieldValues>
+  errors: FieldErrors<FieldValues>
   disabled: boolean
   users: UserDetail[]
   locked?: boolean
@@ -389,8 +384,7 @@ export function OperatorField({ control, errors, disabled, users, locked }: Oper
 // --- AnalysisTypeSelect ---
 
 interface AnalysisTypeSelectProps {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  control: Control<any>
+  control: Control<FieldValues>
   disabled: boolean
   options: { value: string; label: string }[]
 }
@@ -429,8 +423,7 @@ export function AnalysisTypeSelect({ control, disabled, options }: AnalysisTypeS
 
 interface HandlerFieldProps {
   registration: UseFormRegisterReturn
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  errors: FieldErrors<any>
+  errors: FieldErrors<FieldValues>
   disabled: boolean
 }
 
@@ -454,8 +447,7 @@ export function HandlerField({ registration, errors, disabled }: HandlerFieldPro
 // --- IgnoreReasonField ---
 
 interface IgnoreReasonFieldProps {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  control: Control<any>
+  control: Control<FieldValues>
   disabled: boolean
   options: { value: string; label: string }[]
 }
@@ -545,13 +537,10 @@ export function ProductSelectorCard({
 
 interface TrackingIdsFieldProps {
   fields: { id: string }[]
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  append: (value: any) => void
+  append: (value: FieldValues) => void
   remove: (index: number) => void
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  register: UseFormRegister<any>
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  errors: FieldErrors<any>
+  register: UseFormRegister<FieldValues>
+  errors: FieldErrors<FieldValues>
   disabled: boolean
 }
 
@@ -587,11 +576,9 @@ export function TrackingIdsField({ fields, append, remove, register, errors, dis
                 {...register(`trackingIds.${index}.traceId`)}
                 disabled={disabled}
               />
-              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-              {(errors.trackingIds as any)?.[index]?.traceId && (
+              {getFieldError(errors, 'trackingIds', index, 'traceId') && (
                 <p className="mt-1 text-xs text-destructive">
-                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                  {(errors.trackingIds as any)[index]?.traceId?.message}
+                  {getFieldError(errors, 'trackingIds', index, 'traceId')?.message}
                 </p>
               )}
             </div>
@@ -635,13 +622,10 @@ export function TrackingIdsField({ fields, append, remove, register, errors, dis
 
 interface LinksFieldProps {
   fields: { id: string }[]
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  append: (value: any) => void
+  append: (value: FieldValues) => void
   remove: (index: number) => void
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  register: UseFormRegister<any>
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  errors: FieldErrors<any>
+  register: UseFormRegister<FieldValues>
+  errors: FieldErrors<FieldValues>
   linkUrlValues: string[]
   disabled: boolean
 }
@@ -681,11 +665,9 @@ export function LinksField({ fields, append, remove, register, errors, linkUrlVa
                 {...register(`links.${index}.url`)}
                 disabled={disabled}
               />
-              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-              {(errors.links as any)?.[index]?.url && (
+              {getFieldError(errors, 'links', index, 'url') && (
                 <p className="text-xs text-destructive">
-                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                  {(errors.links as any)[index]?.url?.message}
+                  {getFieldError(errors, 'links', index, 'url')?.message}
                 </p>
               )}
               <Input

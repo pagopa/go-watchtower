@@ -8,7 +8,6 @@ import {
   ArrowLeft,
   Pencil,
   Trash2,
-  Loader2,
   Server,
   Box,
   BookOpen,
@@ -21,20 +20,12 @@ import {
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { api, type Product } from '@/lib/api-client'
+import { formatDateTime as formatDate } from '@/lib/format'
 import { usePermissions } from '@/hooks/use-permissions'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+import { DeleteConfirmDialog } from '@/components/delete-confirm-dialog'
 import { EnvironmentsTab } from './_components/environments-tab'
 import { MicroservicesTab } from './_components/microservices-tab'
 import { RunbooksTab } from './_components/runbooks-tab'
@@ -88,15 +79,6 @@ function ProductDetailContent() {
   const canReadDownstreams = permissionsLoading || can('DOWNSTREAM', 'read')
   const canReadFinalActions = permissionsLoading || can('FINAL_ACTION', 'read')
   const canReadIgnoredAlarms = permissionsLoading || can('IGNORED_ALARM', 'read')
-
-  const formatDate = (dateString: string) =>
-    new Date(dateString).toLocaleDateString('it-IT', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
 
   if (isLoading) {
     return (
@@ -421,30 +403,13 @@ function ProductDetailContent() {
       )}
 
       {/* Delete confirmation */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Conferma eliminazione</AlertDialogTitle>
-            <AlertDialogDescription>
-              Sei sicuro di voler eliminare il prodotto &quot;{product.name}&quot;?
-              Questa azione non può essere annullata.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deleteMutation.mutate()}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={deleteMutation.isPending}
-            >
-              {deleteMutation.isPending && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              Elimina
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteConfirmDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        description={`Sei sicuro di voler eliminare il prodotto "${product.name}"? Questa azione non può essere annullata.`}
+        onConfirm={() => deleteMutation.mutate()}
+        isPending={deleteMutation.isPending}
+      />
     </div>
   )
 }

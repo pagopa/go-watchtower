@@ -44,11 +44,10 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHeader,
   TableRow,
 } from '@/components/ui/table'
 import { DateTimePicker } from '@/components/ui/date-time-picker'
-import { ResizableTableHead } from '@/components/ui/resizable-table-head'
+import { DataTableHeader, useSort } from '@/components/data-table'
 import { ColumnConfigurator } from '@/components/ui/column-configurator'
 import { useColumnSettings } from '@/hooks/use-column-settings'
 import { usePermissions } from '@/hooks/use-permissions'
@@ -204,15 +203,34 @@ function getCategoryForAction(action: string): ActionCategory {
   return ACTION_TO_CATEGORY.get(action) ?? FALLBACK_CATEGORY
 }
 
+// ─── Metadata helpers ─────────────────────────────────────────────────────────
+
+/** Safely access a nested property from Record<string, unknown> metadata. */
+function metaGet(metadata: Record<string, unknown>, ...path: string[]): unknown {
+  let current: unknown = metadata
+  for (const key of path) {
+    if (current == null || typeof current !== 'object') return undefined
+    current = (current as Record<string, unknown>)[key]
+  }
+  return current
+}
+
+/** Extract productId from various metadata shapes (direct, created, diff, before/after). */
+function metaProductId(metadata: Record<string, unknown>): string | null {
+  const candidate =
+    metaGet(metadata, 'productId') ??
+    metaGet(metadata, 'created', 'productId') ??
+    metaGet(metadata, 'after', 'productId') ??
+    metaGet(metadata, 'before', 'productId') ??
+    null
+  return typeof candidate === 'string' ? candidate : null
+}
+
 // ─── Resource link resolver ───────────────────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function resolveResourceLink(event: SystemEvent): string | null {
   const { resource, resourceId, metadata } = event
   if (!resourceId) return null
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const meta = metadata as any
 
   switch (resource) {
     case SystemEventResources.USERS:
@@ -222,12 +240,7 @@ function resolveResourceLink(event: SystemEvent): string | null {
       return `/products/${resourceId}`
 
     case SystemEventResources.ALARM_ANALYSES: {
-      const productId =
-        meta?.productId ??
-        meta?.created?.productId ??
-        meta?.after?.productId ??
-        meta?.before?.productId ??
-        null
+      const productId = metaProductId(metadata)
       if (productId && resourceId) return `/analyses?productId=${productId}&analysisId=${resourceId}`
       return productId ? `/analyses?productId=${productId}` : '/analyses'
     }
@@ -239,12 +252,7 @@ function resolveResourceLink(event: SystemEvent): string | null {
     case SystemEventResources.FINAL_ACTIONS:
     case SystemEventResources.DOWNSTREAMS:
     case SystemEventResources.IGNORED_ALARMS: {
-      const productId =
-        meta?.productId ??
-        meta?.created?.productId ??
-        meta?.after?.productId ??
-        meta?.before?.productId ??
-        null
+      const productId = metaProductId(metadata)
       if (!productId) return null
       const tabMap: Record<string, string> = {
         [SystemEventResources.ENVIRONMENTS]: 'environments',
@@ -361,11 +369,10 @@ function SystemEventCell({ columnId, event }: { columnId: string; event: SystemE
 
 function MetadataPanel({ event }: { event: SystemEvent }) {
   const [jsonOpen, setJsonOpen] = useState(false)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const meta = event.metadata as any
-  const hasDiff = meta?.diff !== undefined
-  const hasBefore = meta?.before !== undefined
-  const hasAfter = meta?.after !== undefined
+  const meta = event.metadata
+  const hasDiff = metaGet(meta, 'diff') !== undefined
+  const hasBefore = metaGet(meta, 'before') !== undefined
+  const hasAfter = metaGet(meta, 'after') !== undefined
   const hasAnyMeta = Object.keys(meta).length > 0
 
   const link = resolveResourceLink(event)
@@ -415,13 +422,13 @@ function MetadataPanel({ event }: { event: SystemEvent }) {
             <div className="space-y-1">
               <p className="text-[10px] font-medium text-red-600 dark:text-red-400 uppercase tracking-wider">Prima</p>
               <pre className="rounded border border-red-200/60 bg-red-500/5 p-2.5 font-mono text-xs overflow-x-auto dark:border-red-800/40">
-                {JSON.stringify(hasDiff ? meta.diff.before : meta.before, null, 2)}
+                {JSON.stringify(hasDiff ? metaGet(meta, 'diff', 'before') : metaGet(meta, 'before'), null, 2)}
               </pre>
             </div>
             <div className="space-y-1">
               <p className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Dopo</p>
               <pre className="rounded border border-emerald-200/60 bg-emerald-500/5 p-2.5 font-mono text-xs overflow-x-auto dark:border-emerald-800/40">
-                {JSON.stringify(hasDiff ? meta.diff.after : meta.after, null, 2)}
+                {JSON.stringify(hasDiff ? metaGet(meta, 'diff', 'after') : metaGet(meta, 'after'), null, 2)}
               </pre>
             </div>
           </div>
@@ -642,21 +649,22 @@ export function SystemEventsPage() {
 
   const allResources = useMemo(() => Object.values(SystemEventResources), [])
 
-  const [filters, setFilters] = useState<SystemEventsFilters>({ page: 1, limit: 50 })
-  const [sortBy, setSortBy] = useState<string>('createdAt')
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+  const [filters, setFilters] = useState<Omit<SystemEventsFilters, 'page' | 'limit' | 'sortBy' | 'sortOrder'>>({})
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(50)
+  const { sortBy, sortOrder, handleSort } = useSort('createdAt')
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['system-events', filters, sortBy, sortOrder],
-    queryFn: () => api.getSystemEvents({ ...filters, sortBy, sortOrder }),
+    queryKey: ['system-events', filters, page, pageSize, sortBy, sortOrder],
+    queryFn: () => api.getSystemEvents({ ...filters, page, limit: pageSize, sortBy, sortOrder }),
     placeholderData: (prev) => prev,
     staleTime: 0,
   })
 
   const events = data?.data ?? []
   const total = data?.total ?? 0
-  const page = data?.page ?? 1
+  const currentPage = data?.page ?? 1
   const totalPages = data?.totalPages ?? 1
 
   // Min-width for horizontal scroll (same pattern as analyses page)
@@ -682,23 +690,18 @@ export function SystemEventsPage() {
     })
   }, [])
 
-  const updateFilters = (patch: Partial<SystemEventsFilters>) => {
-    setFilters((prev) => ({ ...prev, ...patch, page: patch.page ?? 1 }))
+  const updateFilters = (patch: Partial<Omit<SystemEventsFilters, 'page' | 'limit' | 'sortBy' | 'sortOrder'>>) => {
+    setFilters((prev) => ({ ...prev, ...patch }))
+    setPage(1)
   }
 
   const clearFilters = () => {
-    setFilters({ page: 1, limit: 50 })
+    setFilters({})
+    setPage(1)
+    setPageSize(50)
     setExpandedRows(new Set())
   }
 
-  const handleSort = (column: string) => {
-    if (sortBy === column) {
-      setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))
-    } else {
-      setSortBy(column)
-      setSortOrder('desc')
-    }
-  }
 
   const hasActiveFilters = Boolean(
     (filters.action && filters.action.length > 0) ||
@@ -899,30 +902,17 @@ export function SystemEventsPage() {
                 className="w-full"
                 style={{ tableLayout: 'fixed', minWidth: `${totalTableMinWidth}px` }}
               >
-                <TableHeader>
-                  <TableRow className="bg-muted/30 hover:bg-muted/30 border-b">
-                    {visibleColumns.map((col, colIdx) => {
-                      const isLastDataCol = colIdx === visibleColumns.length - 1
-                      return (
-                        <ResizableTableHead
-                          key={col.id}
-                          width={isLastDataCol ? undefined : (getWidth(col.id) ?? col.defaultWidth)}
-                          minWidth={isLastDataCol ? (getWidth(col.id) ?? col.defaultWidth ?? col.minWidth) : col.minWidth}
-                          onResize={(w) => setWidth(col.id, w)}
-                          sortable={!!col.sortKey}
-                          sorted={col.sortKey && sortBy === col.sortKey ? sortOrder : false}
-                          onSort={col.sortKey ? () => handleSort(col.sortKey!) : undefined}
-                        >
-                          {col.label}
-                        </ResizableTableHead>
-                      )
-                    })}
-                    {/* Expand toggle column — not managed */}
-                    <ResizableTableHead width={44} minWidth={44}>
-                      <span className="sr-only">Espandi</span>
-                    </ResizableTableHead>
-                  </TableRow>
-                </TableHeader>
+                <DataTableHeader
+                  columns={visibleColumns}
+                  getWidth={getWidth}
+                  setWidth={setWidth}
+                  sortBy={sortBy}
+                  sortOrder={sortOrder}
+                  onSort={handleSort}
+                  hasActions
+                  actionsWidth={44}
+                  actionsLabel="Espandi"
+                />
 
                 <TableBody>
                   {events.map((event) => {
@@ -972,13 +962,13 @@ export function SystemEventsPage() {
             <div className="flex items-center justify-between border-t px-4 py-3 bg-muted/10">
               <div className="flex items-center gap-3">
                 <p className="text-sm text-muted-foreground">
-                  Pagina <span className="font-medium text-foreground tabular-nums">{page}</span>
+                  Pagina <span className="font-medium text-foreground tabular-nums">{currentPage}</span>
                   {' '}di{' '}
                   <span className="font-medium text-foreground tabular-nums">{totalPages}</span>
                 </p>
                 <Select
-                  value={String(filters.limit ?? 50)}
-                  onValueChange={(v) => updateFilters({ limit: Number(v) })}
+                  value={String(pageSize)}
+                  onValueChange={(v) => { setPageSize(Number(v)); setPage(1) }}
                 >
                   <SelectTrigger className="h-8 w-28 text-sm">
                     <SelectValue />
@@ -996,8 +986,8 @@ export function SystemEventsPage() {
                   variant="outline"
                   size="icon"
                   className="h-8 w-8"
-                  disabled={page <= 1}
-                  onClick={() => setFilters((f) => ({ ...f, page: 1 }))}
+                  disabled={currentPage <= 1}
+                  onClick={() => setPage(1)}
                 >
                   <ChevronsLeft className="h-4 w-4" />
                 </Button>
@@ -1005,8 +995,8 @@ export function SystemEventsPage() {
                   variant="outline"
                   size="icon"
                   className="h-8 w-8"
-                  disabled={page <= 1}
-                  onClick={() => setFilters((f) => ({ ...f, page: (f.page ?? 1) - 1 }))}
+                  disabled={currentPage <= 1}
+                  onClick={() => setPage((p) => p - 1)}
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
@@ -1014,8 +1004,8 @@ export function SystemEventsPage() {
                   variant="outline"
                   size="icon"
                   className="h-8 w-8"
-                  disabled={page >= totalPages}
-                  onClick={() => setFilters((f) => ({ ...f, page: (f.page ?? 1) + 1 }))}
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setPage((p) => p + 1)}
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
@@ -1023,8 +1013,8 @@ export function SystemEventsPage() {
                   variant="outline"
                   size="icon"
                   className="h-8 w-8"
-                  disabled={page >= totalPages}
-                  onClick={() => setFilters((f) => ({ ...f, page: totalPages }))}
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setPage(totalPages)}
                 >
                   <ChevronsRight className="h-4 w-4" />
                 </Button>

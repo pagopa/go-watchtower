@@ -24,16 +24,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+import { DeleteConfirmDialog } from '@/components/delete-confirm-dialog'
 import {
   Table,
   TableBody,
@@ -537,29 +528,13 @@ export function IgnoreReasonsPage() {
       />
 
       {/* Delete confirmation */}
-      <AlertDialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Elimina motivo</AlertDialogTitle>
-            <AlertDialogDescription>
-              Stai per eliminare{' '}
-              <span className="font-semibold">{deleteTarget?.label}</span>{' '}
-              (<span className="font-mono text-xs">{deleteTarget?.code}</span>).
-              L&apos;operazione fallirà se il motivo è già usato in qualche analisi.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.code)}
-            >
-              {deleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Elimina
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(v) => !v && setDeleteTarget(null)}
+        description={`Stai per eliminare ${deleteTarget?.label} (${deleteTarget?.code}). L'operazione fallirà se il motivo è già usato in qualche analisi.`}
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.code)}
+        isPending={deleteMutation.isPending}
+      />
     </div>
   )
 }

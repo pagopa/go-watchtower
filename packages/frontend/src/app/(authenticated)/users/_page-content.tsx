@@ -4,24 +4,16 @@ import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import { Plus, Pencil, Trash2, Loader2, Search, ArrowUpDown, ArrowUp, ArrowDown, Users } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, ArrowUpDown, ArrowUp, ArrowDown, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import { api, type UserDetail } from '@/lib/api-client'
+import { getInitials } from '@/lib/format'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useSortable } from '@/hooks/use-sortable'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+import { DeleteConfirmDialog } from '@/components/delete-confirm-dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { AUTH_PROVIDER_LABELS } from '@go-watchtower/shared'
@@ -44,15 +36,6 @@ function avatarColor(name: string): string {
   let hash = 0
   for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
   return AVATAR_PALETTES[Math.abs(hash) % AVATAR_PALETTES.length]
-}
-
-function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0].toUpperCase())
-    .join('')
 }
 
 function UserAvatar({ name }: { name: string }) {
@@ -379,31 +362,13 @@ export function UsersPage() {
       </div>
 
       {/* ── Delete confirmation ── */}
-      <AlertDialog open={!!deleteUser} onOpenChange={() => setDeleteUser(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Conferma eliminazione</AlertDialogTitle>
-            <AlertDialogDescription>
-              Sei sicuro di voler eliminare l&apos;utente{' '}
-              <span className="font-medium text-foreground">&ldquo;{deleteUser?.name}&rdquo;</span>?
-              Questa azione non può essere annullata.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deleteUser && deleteMutation.mutate(deleteUser.id)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={deleteMutation.isPending}
-            >
-              {deleteMutation.isPending && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              Elimina
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteConfirmDialog
+        open={!!deleteUser}
+        onOpenChange={() => setDeleteUser(null)}
+        description={`Sei sicuro di voler eliminare l'utente "${deleteUser?.name}"? Questa azione non può essere annullata.`}
+        onConfirm={() => deleteUser && deleteMutation.mutate(deleteUser.id)}
+        isPending={deleteMutation.isPending}
+      />
     </div>
   )
 }

@@ -21,16 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+import { DeleteConfirmDialog } from '@/components/delete-confirm-dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 
 const SKELETON_ROWS = [0, 1, 2]
@@ -384,29 +375,13 @@ export function SimpleNamedResourceTab<TItem extends NamedEntity>({
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={!!deleteItem} onOpenChange={() => setDeleteItem(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Conferma eliminazione</AlertDialogTitle>
-            <AlertDialogDescription>
-              {labels.deleteDialogDescription(deleteItem)}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deleteItem && deleteMutation.mutate(deleteItem.id)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={deleteMutation.isPending}
-            >
-              {deleteMutation.isPending && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              Elimina
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteConfirmDialog
+        open={!!deleteItem}
+        onOpenChange={() => setDeleteItem(null)}
+        description={labels.deleteDialogDescription(deleteItem)}
+        onConfirm={() => deleteItem && deleteMutation.mutate(deleteItem.id)}
+        isPending={deleteMutation.isPending}
+      />
     </div>
   )
 }

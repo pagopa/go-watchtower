@@ -30,16 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+import { DeleteConfirmDialog } from '@/components/delete-confirm-dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 
 // ============================================================================
@@ -994,31 +985,13 @@ export function IgnoredAlarmsTab({ productId }: IgnoredAlarmsTabProps) {
       </Dialog>
 
       {/* Delete Dialog */}
-      <AlertDialog open={!!deleteItem} onOpenChange={() => setDeleteItem(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Conferma eliminazione</AlertDialogTitle>
-            <AlertDialogDescription>
-              Sei sicuro di voler eliminare la regola per l&apos;allarme &quot;{deleteItem?.alarm.name}&quot;
-              nell&apos;ambiente &quot;{deleteItem?.environment.name}&quot;?
-              Questa azione non può essere annullata.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deleteItem && deleteMutation.mutate(deleteItem.id)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={deleteMutation.isPending}
-            >
-              {deleteMutation.isPending && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              Elimina
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteConfirmDialog
+        open={!!deleteItem}
+        onOpenChange={() => setDeleteItem(null)}
+        description={`Sei sicuro di voler eliminare la regola per l'allarme "${deleteItem?.alarm.name}" nell'ambiente "${deleteItem?.environment.name}"? Questa azione non può essere annullata.`}
+        onConfirm={() => deleteItem && deleteMutation.mutate(deleteItem.id)}
+        isPending={deleteMutation.isPending}
+      />
     </div>
   )
 }

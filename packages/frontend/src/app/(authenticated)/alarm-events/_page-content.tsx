@@ -3,12 +3,13 @@
 import { Suspense, useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, Plus, Inbox, RefreshCw,
+  Pencil, Trash2, Plus, Inbox, RefreshCw,
   LayoutList, CalendarDays, PhoneCall, Layers,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   api,
+  ApiClientError,
   type Product,
   type AlarmEvent,
   type Environment,
@@ -19,6 +20,7 @@ import {
 import { AlarmDetailDialog, type AlarmDetailData } from '@/components/alarm-detail-dialog'
 import { usePermissions } from '@/hooks/use-permissions'
 import { usePreferences } from '@/hooks/use-preferences'
+import { useCollapsiblePreference } from '@/hooks/use-collapsible-preference'
 import { usePageSize, type AllowedPageSize } from '@/hooks/use-page-size'
 import { useColumnSettings } from '@/hooks/use-column-settings'
 import { COLUMN_REGISTRY } from '@/lib/column-registry'
@@ -26,30 +28,13 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
   Table,
   TableBody,
   TableCell,
-  TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { ResizableTableHead } from '@/components/ui/resizable-table-head'
+import { DeleteConfirmDialog } from '@/components/delete-confirm-dialog'
+import { DataTableHeader, PaginationControls, useTableMinWidth, useSort } from '@/components/data-table'
 import { ColumnConfigurator } from '@/components/ui/column-configurator'
 import dynamic from 'next/dynamic'
 import { isWorkingHoursSetting, isOnCallHoursSetting } from '@go-watchtower/shared'
@@ -111,8 +96,7 @@ function AlarmEventsPageContent() {
   const { pageSize, setPageSize } = usePageSize()
 
   // Sorting
-  const [sortBy, setSortBy] = useState<string>('firedAt')
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+  const { sortBy, sortOrder, handleSort } = useSort('firedAt')
 
   // UI state
   const [selectedEvent, setSelectedEvent] = useState<AlarmEvent | null>(null)
@@ -152,16 +136,7 @@ function AlarmEventsPageContent() {
   const [selectedDate, setSelectedDate] = useState<string>(() => todayUTC())
 
   // Filters collapsed
-  const [userCollapsedOverride, setUserCollapsedOverride] = useState<boolean | null>(null)
-  const filtersCollapsed = userCollapsedOverride !== null
-    ? userCollapsedOverride
-    : (preferences.alarmEventFiltersCollapsed ?? true)
-
-  const handleToggleFiltersCollapsed = useCallback(() => {
-    const next = !filtersCollapsed
-    setUserCollapsedOverride(next)
-    updatePreferences({ alarmEventFiltersCollapsed: next })
-  }, [filtersCollapsed, updatePreferences])
+  const { collapsed: filtersCollapsed, toggle: handleToggleFiltersCollapsed } = useCollapsiblePreference('alarmEventFiltersCollapsed')
 
   // Permissions
   const canWrite  = !permissionsLoading && can('ALARM_EVENT', 'write')
@@ -180,19 +155,7 @@ function AlarmEventsPageContent() {
     resetColumns,
   } = useColumnSettings('alarmEvents', ALARM_EVENT_COLUMNS)
 
-  const totalTableMinWidth = useMemo(() => {
-    if (visibleColumns.length === 0) return 0
-    const lastIdx = visibleColumns.length - 1
-    const nonLastSum = visibleColumns
-      .slice(0, lastIdx)
-      .reduce((sum, col) => sum + (getWidth(col.id) ?? col.defaultWidth ?? 150), 0)
-    const lastDataCol = visibleColumns[lastIdx]
-    const lastColMin = lastDataCol
-      ? (getWidth(lastDataCol.id) ?? lastDataCol.defaultWidth ?? lastDataCol.minWidth ?? 80)
-      : 80
-    const actionsWidth = canWrite || canDelete ? 80 : 0
-    return nonLastSum + lastColMin + actionsWidth
-  }, [visibleColumns, getWidth, canWrite, canDelete])
+  const totalTableMinWidth = useTableMinWidth(visibleColumns, getWidth, canWrite || canDelete)
 
   // --- Queries ---
 
@@ -267,27 +230,37 @@ function AlarmEventsPageContent() {
   const events     = eventsResponse?.data
   const pagination = eventsResponse?.pagination
 
-  // Working hours — fetched with fallback so non-admin users still get defaults
+  // Working hours — fetched with fallback so non-admin users still get defaults.
+  // 403 is expected for non-admin users; other errors are logged.
   const { data: workingHours } = useQuery({
     queryKey: ['working-hours'],
     queryFn:  async () => {
       try {
         const s = await api.getSetting('working_hours')
         if (isWorkingHoursSetting(s)) return s.value
-      } catch { /* non-admin: fallback */ }
+      } catch (err) {
+        if (!(err instanceof ApiClientError && err.status === 403)) {
+          console.error('[alarm-events] Failed to fetch working_hours setting:', err)
+        }
+      }
       return null
     },
     staleTime: 5 * 60 * 1000,
   })
 
-  // On-call hours — optional, shown only when configured
+  // On-call hours — optional, shown only when configured.
+  // 403 is expected for non-admin users; other errors are logged.
   const { data: onCallHours } = useQuery({
     queryKey: ['on-call-hours'],
     queryFn:  async () => {
       try {
         const s = await api.getSetting('on_call_hours')
         if (isOnCallHoursSetting(s)) return s.value
-      } catch { /* non-admin or not configured: skip */ }
+      } catch (err) {
+        if (!(err instanceof ApiClientError && err.status === 403)) {
+          console.error('[alarm-events] Failed to fetch on_call_hours setting:', err)
+        }
+      }
       return null
     },
     staleTime: 5 * 60 * 1000,
@@ -353,14 +326,7 @@ function AlarmEventsPageContent() {
     setPage(1)
   }, [])
 
-  const handleSort = (column: string) => {
-    if (sortBy === column) {
-      setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))
-    } else {
-      setSortBy(column)
-      setSortOrder('desc')
-    }
-  }
+
 
   const handleRowClick = (event: AlarmEvent) => {
     if (selectedEvent?.id === event.id && showDetailPanel) {
@@ -631,35 +597,15 @@ function AlarmEventsPageContent() {
               className="w-full"
               style={{ tableLayout: 'fixed', minWidth: `${totalTableMinWidth}px` }}
             >
-              <TableHeader>
-                <TableRow className="bg-muted/30 hover:bg-muted/30 border-b">
-                  {visibleColumns.map((col, colIdx) => {
-                    const isLastDataCol = colIdx === visibleColumns.length - 1
-                    return (
-                      <ResizableTableHead
-                        key={col.id}
-                        width={isLastDataCol ? undefined : (getWidth(col.id) ?? col.defaultWidth)}
-                        minWidth={isLastDataCol ? (getWidth(col.id) ?? col.defaultWidth ?? col.minWidth) : col.minWidth}
-                        onResize={(w) => setWidth(col.id, w)}
-                        sortable={!!col.sortKey}
-                        sorted={col.sortKey && sortBy === col.sortKey ? sortOrder : false}
-                        onSort={col.sortKey ? () => handleSort(col.sortKey!) : undefined}
-                      >
-                        {col.label}
-                      </ResizableTableHead>
-                    )
-                  })}
-                  {(canWrite || canDelete) && (
-                    <ResizableTableHead
-                      width={80}
-                      minWidth={80}
-                      className="sticky right-0 z-10 border-l border-border/40 bg-muted text-right"
-                    >
-                      <span className="sr-only">Azioni</span>
-                    </ResizableTableHead>
-                  )}
-                </TableRow>
-              </TableHeader>
+              <DataTableHeader
+                columns={visibleColumns}
+                getWidth={getWidth}
+                setWidth={setWidth}
+                sortBy={sortBy}
+                sortOrder={sortOrder}
+                onSort={handleSort}
+                hasActions={canWrite || canDelete}
+              />
               <TableBody>
                 {events.map((event) => {
                   const isSelected  = event.id === selectedEvent?.id && showDetailPanel
@@ -752,56 +698,14 @@ function AlarmEventsPageContent() {
       </Card>}
 
       {/* Pagination (list view only) */}
-      {viewMode === 'list' && pagination && pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Righe per pagina</span>
-            <Select
-              value={String(pageSize)}
-              onValueChange={(val) => {
-                setPageSize(Number(val) as AllowedPageSize)
-                setPage(1)
-              }}
-            >
-              <SelectTrigger className="h-7 w-[70px] text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="10">10</SelectItem>
-                <SelectItem value="20">20</SelectItem>
-                <SelectItem value="50">50</SelectItem>
-                <SelectItem value="100">100</SelectItem>
-                <SelectItem value="200">200</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <span className="text-xs tabular-nums text-muted-foreground">
-              {pagination.page} / {pagination.totalPages}
-            </span>
-            <div className="flex gap-0.5">
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-7 w-7"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => p - 1)}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-7 w-7"
-                disabled={page >= pagination.totalPages}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
+      {viewMode === 'list' && pagination && (
+        <PaginationControls
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={(size) => { setPageSize(size as AllowedPageSize); setPage(1) }}
+        />
       )}
 
       {/* Alarm detail dialog */}
@@ -834,30 +738,13 @@ function AlarmEventsPageContent() {
       />
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={!!deleteItem} onOpenChange={() => setDeleteItem(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Conferma eliminazione</AlertDialogTitle>
-            <AlertDialogDescription>
-              Sei sicuro di voler eliminare l&apos;allarme &quot;{deleteItem?.name}&quot;?
-              Questa azione non può essere annullata.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deleteItem && deleteMutation.mutate(deleteItem.id)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={deleteMutation.isPending}
-            >
-              {deleteMutation.isPending && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              Elimina
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteConfirmDialog
+        open={!!deleteItem}
+        onOpenChange={() => setDeleteItem(null)}
+        description={`Sei sicuro di voler eliminare l'allarme "${deleteItem?.name}"? Questa azione non può essere annullata.`}
+        onConfirm={() => deleteItem && deleteMutation.mutate(deleteItem.id)}
+        isPending={deleteMutation.isPending}
+      />
     </div>
   )
 }

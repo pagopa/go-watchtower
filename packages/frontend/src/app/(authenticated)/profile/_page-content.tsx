@@ -10,6 +10,7 @@ import {
   KeyRound, Globe, RotateCcw, Eye, EyeOff, Lock, ChevronDown, ChevronUp,
 } from 'lucide-react'
 import { api, type UserDetail, type ColumnSettings } from '@/lib/api-client'
+import { formatDateLong as formatDate, getInitials } from '@/lib/format'
 import { COLUMN_REGISTRY, LIST_LABELS, type ColumnDef } from '@/lib/column-registry'
 import { usePreferences } from '@/hooks/use-preferences'
 import { Button } from '@/components/ui/button'
@@ -23,23 +24,6 @@ import { AUTH_PROVIDER_LABELS } from '@go-watchtower/shared'
 import type { AuthProvider } from '@go-watchtower/shared'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function formatDate(isoStr: string): string {
-  return new Date(isoStr).toLocaleDateString('it-IT', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-  })
-}
-
-function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0].toUpperCase())
-    .join('')
-}
 
 const THEME_CONFIG = {
   light: { label: 'Chiaro', icon: Sun },
