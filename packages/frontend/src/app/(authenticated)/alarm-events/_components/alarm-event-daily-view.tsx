@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { useQuery } from '@tanstack/react-query'
 import {
   ChevronLeft, ChevronRight, ChevronDown,
@@ -239,6 +240,8 @@ export const BUCKETS: Record<BucketId, BucketCfg> = {
   },
 }
 
+const VIRTUALIZE_THRESHOLD = 100
+
 export function BucketSection({
   cfg, events, timeRange,
   visibleColumns, getWidth, totalMinWidth,
@@ -265,6 +268,119 @@ export function BucketSection({
 }) {
   const [collapsed, setCollapsed] = useState(events.length === 0)
   const { Icon } = cfg
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const shouldVirtualize = events.length > VIRTUALIZE_THRESHOLD
+
+  const virtualizer = useVirtualizer({
+    count: events.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 44,
+    overscan: 15,
+    enabled: shouldVirtualize && !collapsed,
+  })
+
+  const hasActions = canWrite || canDelete
+  const totalColSpan = visibleColumns.length + (hasActions ? 1 : 0)
+
+  const renderRow = (event: AlarmEvent, ref?: (el: HTMLTableRowElement | null) => void, dataIndex?: number) => {
+    const isSelected  = event.id === selectedEventId && showDetailPanel
+    const isLingering = event.id === lingeringId && !showDetailPanel
+    const isOnCall    = isOnCallEvent ? isOnCallEvent(event) : false
+    return (
+      <TableRow
+        key={event.id}
+        ref={ref}
+        data-index={dataIndex}
+        className={
+          'group cursor-pointer border-b border-border/50 ' +
+          (isSelected
+            ? 'analysis-row-selected hover:bg-primary/[0.09]'
+            : isLingering
+              ? 'analysis-row-lingering hover:bg-muted/30'
+              : isOnCall
+                ? 'bg-rose-500/[0.04] hover:bg-rose-500/[0.06] transition-colors border-l-[3px] border-l-rose-500/60'
+                : 'transition-colors hover:bg-muted/30')
+        }
+        onClick={(e) => {
+          if ((e.target as HTMLElement).closest('button')) return
+          onRowClick(event)
+        }}
+      >
+        {visibleColumns.map((col, idx) => {
+          const isLast = idx === visibleColumns.length - 1
+          return (
+            <TableCell
+              key={col.id}
+              className="overflow-hidden py-2.5"
+              style={(!isLast && getWidth(col.id))
+                ? { width: `${getWidth(col.id)}px` }
+                : undefined}
+            >
+              <AlarmEventCell columnId={col.id} event={event} isOnCall={isOnCall} onAlarmClick={onAlarmClick} />
+            </TableCell>
+          )
+        })}
+        {hasActions && (
+          <TableCell className={
+            'sticky right-0 z-10 border-l border-border/40 py-2 text-right ' +
+            (isSelected
+              ? 'bg-primary/[0.07] group-hover:bg-primary/[0.09]'
+              : 'bg-card group-hover:bg-muted')
+          }>
+            <div className="flex justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+              {canWrite && (
+                <Button
+                  variant="ghost" size="icon" className="h-7 w-7"
+                  onClick={() => onEdit(event)}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+              )}
+              {canDelete && (
+                <Button
+                  variant="ghost" size="icon"
+                  className="h-7 w-7 text-destructive hover:text-destructive"
+                  onClick={() => onDelete(event)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </div>
+          </TableCell>
+        )}
+      </TableRow>
+    )
+  }
+
+  const tableHeader = (
+    <TableHeader className={shouldVirtualize ? 'sticky top-0 z-20 bg-card' : ''}>
+      <TableRow className="bg-muted/20 hover:bg-muted/20 border-b">
+        {visibleColumns.map((col, idx) => {
+          const isLast = idx === visibleColumns.length - 1
+          return (
+            <ResizableTableHead
+              key={col.id}
+              width={isLast ? undefined : (getWidth(col.id) ?? col.defaultWidth)}
+              minWidth={isLast
+                ? (getWidth(col.id) ?? col.defaultWidth ?? col.minWidth)
+                : col.minWidth}
+            >
+              {col.label}
+            </ResizableTableHead>
+          )
+        })}
+        {hasActions && (
+          <ResizableTableHead
+            width={80}
+            minWidth={80}
+            className="sticky right-0 z-10 border-l border-border/40 bg-muted text-right"
+          >
+            <span className="sr-only">Azioni</span>
+          </ResizableTableHead>
+        )}
+      </TableRow>
+    </TableHeader>
+  )
 
   return (
     <div className={`overflow-hidden rounded-lg border ${cfg.borderCls}`}>
@@ -294,104 +410,36 @@ export function BucketSection({
             <Inbox className="h-4 w-4" />
             Nessun allarme in questa fascia oraria
           </div>
+        ) : shouldVirtualize ? (
+          <div
+            ref={scrollRef}
+            className="overflow-auto border-t"
+            style={{ maxHeight: '70vh' }}
+          >
+            <Table style={{ tableLayout: 'fixed', minWidth: `${totalMinWidth}px` }}>
+              {tableHeader}
+              <TableBody>
+                {virtualizer.getVirtualItems()[0]?.start > 0 && (
+                  <tr><td colSpan={totalColSpan} style={{ height: virtualizer.getVirtualItems()[0]!.start, padding: 0 }} /></tr>
+                )}
+                {virtualizer.getVirtualItems().map((vRow) =>
+                  renderRow(events[vRow.index]!, virtualizer.measureElement, vRow.index)
+                )}
+                {(() => {
+                  const items = virtualizer.getVirtualItems()
+                  const lastEnd = items.at(-1)?.end ?? 0
+                  const bottom = virtualizer.getTotalSize() - lastEnd
+                  return bottom > 0 ? <tr><td colSpan={totalColSpan} style={{ height: bottom, padding: 0 }} /></tr> : null
+                })()}
+              </TableBody>
+            </Table>
+          </div>
         ) : (
           <div className="overflow-x-auto border-t">
             <Table style={{ tableLayout: 'fixed', minWidth: `${totalMinWidth}px` }}>
-              <TableHeader>
-                <TableRow className="bg-muted/20 hover:bg-muted/20 border-b">
-                  {visibleColumns.map((col, idx) => {
-                    const isLast = idx === visibleColumns.length - 1
-                    return (
-                      <ResizableTableHead
-                        key={col.id}
-                        width={isLast ? undefined : (getWidth(col.id) ?? col.defaultWidth)}
-                        minWidth={isLast
-                          ? (getWidth(col.id) ?? col.defaultWidth ?? col.minWidth)
-                          : col.minWidth}
-                      >
-                        {col.label}
-                      </ResizableTableHead>
-                    )
-                  })}
-                  {(canWrite || canDelete) && (
-                    <ResizableTableHead
-                      width={80}
-                      minWidth={80}
-                      className="sticky right-0 z-10 border-l border-border/40 bg-muted text-right"
-                    >
-                      <span className="sr-only">Azioni</span>
-                    </ResizableTableHead>
-                  )}
-                </TableRow>
-              </TableHeader>
+              {tableHeader}
               <TableBody>
-                {events.map((event) => {
-                  const isSelected  = event.id === selectedEventId && showDetailPanel
-                  const isLingering = event.id === lingeringId && !showDetailPanel
-                  const isOnCall    = isOnCallEvent ? isOnCallEvent(event) : false
-                  return (
-                    <TableRow
-                      key={event.id}
-                      className={
-                        'group cursor-pointer border-b border-border/50 ' +
-                        (isSelected
-                          ? 'analysis-row-selected hover:bg-primary/[0.09]'
-                          : isLingering
-                            ? 'analysis-row-lingering hover:bg-muted/30'
-                            : isOnCall
-                              ? 'bg-rose-500/[0.04] hover:bg-rose-500/[0.06] transition-colors border-l-[3px] border-l-rose-500/60'
-                              : 'transition-colors hover:bg-muted/30')
-                      }
-                      onClick={(e) => {
-                        if ((e.target as HTMLElement).closest('button')) return
-                        onRowClick(event)
-                      }}
-                    >
-                      {visibleColumns.map((col, idx) => {
-                        const isLast = idx === visibleColumns.length - 1
-                        return (
-                          <TableCell
-                            key={col.id}
-                            className="overflow-hidden py-2.5"
-                            style={(!isLast && getWidth(col.id))
-                              ? { width: `${getWidth(col.id)}px` }
-                              : undefined}
-                          >
-                            <AlarmEventCell columnId={col.id} event={event} isOnCall={isOnCall} onAlarmClick={onAlarmClick} />
-                          </TableCell>
-                        )
-                      })}
-                      {(canWrite || canDelete) && (
-                        <TableCell className={
-                          'sticky right-0 z-10 border-l border-border/40 py-2 text-right ' +
-                          (isSelected
-                            ? 'bg-primary/[0.07] group-hover:bg-primary/[0.09]'
-                            : 'bg-card group-hover:bg-muted')
-                        }>
-                          <div className="flex justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                            {canWrite && (
-                              <Button
-                                variant="ghost" size="icon" className="h-7 w-7"
-                                onClick={() => onEdit(event)}
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                            )}
-                            {canDelete && (
-                              <Button
-                                variant="ghost" size="icon"
-                                className="h-7 w-7 text-destructive hover:text-destructive"
-                                onClick={() => onDelete(event)}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  )
-                })}
+                {events.map((event) => renderRow(event))}
               </TableBody>
             </Table>
           </div>

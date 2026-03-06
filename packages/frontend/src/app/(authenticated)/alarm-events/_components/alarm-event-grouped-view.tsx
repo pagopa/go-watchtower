@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, forwardRef } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { useQuery } from '@tanstack/react-query'
 import {
   ChevronDown, ChevronRight,
@@ -60,17 +61,18 @@ function groupByAlarmName(events: AlarmEvent[]): AlarmGroup[] {
 
 // ── Group row (collapsible header for 2+ events) ─────────────────────────────
 
-function GroupHeaderRow({
-  group, colSpan, expanded, onToggle, bucketCfg,
-}: {
+const GroupHeaderRow = forwardRef<HTMLTableRowElement, {
   group: AlarmGroup
   colSpan: number
   expanded: boolean
   onToggle: () => void
   bucketCfg: BucketCfg
-}) {
+  dataIndex?: number
+}>(function GroupHeaderRow({ group, colSpan, expanded, onToggle, bucketCfg, dataIndex }, ref) {
   return (
     <TableRow
+      ref={ref}
+      data-index={dataIndex}
       className="cursor-pointer border-b border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors"
       onClick={onToggle}
     >
@@ -90,16 +92,11 @@ function GroupHeaderRow({
       </TableCell>
     </TableRow>
   )
-}
+})
 
 // ── Event row (single event, optionally indented when inside a group) ────────
 
-function EventRow({
-  event, visibleColumns, getWidth, canWrite, canDelete,
-  selectedEventId, showDetailPanel, lingeringId,
-  onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
-  indented,
-}: {
+const EventRow = forwardRef<HTMLTableRowElement, {
   event: AlarmEvent
   visibleColumns: ColumnDef[]
   getWidth: (id: string) => number | undefined
@@ -114,13 +111,21 @@ function EventRow({
   isOnCallEvent?: (e: AlarmEvent) => boolean
   onAlarmClick?: (alarm: NonNullable<AlarmEvent['alarm']>, productId: string) => void
   indented?: boolean
-}) {
+  dataIndex?: number
+}>(function EventRow({
+  event, visibleColumns, getWidth, canWrite, canDelete,
+  selectedEventId, showDetailPanel, lingeringId,
+  onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
+  indented, dataIndex,
+}, ref) {
   const isSelected  = event.id === selectedEventId && showDetailPanel
   const isLingering = event.id === lingeringId && !showDetailPanel
   const isOnCall    = isOnCallEvent ? isOnCallEvent(event) : false
 
   return (
     <TableRow
+      ref={ref}
+      data-index={dataIndex}
       className={
         'group cursor-pointer border-b border-border/50 ' +
         (isSelected
@@ -180,7 +185,16 @@ function EventRow({
       )}
     </TableRow>
   )
-}
+})
+
+// ── Flat item types for virtualization ────────────────────────────────────────
+
+type FlatItem =
+  | { type: 'single'; event: AlarmEvent }
+  | { type: 'groupHeader'; group: AlarmGroup; expanded: boolean }
+  | { type: 'groupEvent'; event: AlarmEvent }
+
+const VIRTUALIZE_THRESHOLD = 100
 
 // ── Grouped bucket section ───────────────────────────────────────────────────
 
@@ -211,6 +225,7 @@ function GroupedBucketSection({
   const [collapsed, setCollapsed] = useState(events.length === 0)
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const { Icon } = cfg
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   const groups = useMemo(() => groupByAlarmName(events), [events])
 
@@ -223,13 +238,95 @@ function GroupedBucketSection({
     })
   }
 
-  const totalColSpan = visibleColumns.length + (canWrite || canDelete ? 1 : 0)
+  const hasActions = canWrite || canDelete
+  const totalColSpan = visibleColumns.length + (hasActions ? 1 : 0)
+
+  // Flatten groups into a virtual list
+  const flatItems = useMemo((): FlatItem[] => {
+    const items: FlatItem[] = []
+    for (const group of groups) {
+      if (group.events.length === 1) {
+        items.push({ type: 'single', event: group.events[0]! })
+      } else {
+        const expanded = expandedGroups.has(group.alarmName)
+        items.push({ type: 'groupHeader', group, expanded })
+        if (expanded) {
+          for (const event of group.events) {
+            items.push({ type: 'groupEvent', event })
+          }
+        }
+      }
+    }
+    return items
+  }, [groups, expandedGroups])
+
+  const shouldVirtualize = flatItems.length > VIRTUALIZE_THRESHOLD
+
+  const virtualizer = useVirtualizer({
+    count: flatItems.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 44,
+    overscan: 15,
+    enabled: shouldVirtualize && !collapsed,
+  })
 
   const rowProps = {
     visibleColumns, getWidth, canWrite, canDelete,
     selectedEventId, showDetailPanel, lingeringId,
     onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
   }
+
+  const renderFlatItem = (item: FlatItem, ref?: (el: HTMLTableRowElement | null) => void, dataIndex?: number) => {
+    switch (item.type) {
+      case 'single':
+        return <EventRow key={item.event.id} event={item.event} ref={ref} dataIndex={dataIndex} {...rowProps} />
+      case 'groupHeader':
+        return (
+          <GroupHeaderRow
+            key={`group-${item.group.alarmName}`}
+            group={item.group}
+            colSpan={totalColSpan}
+            expanded={item.expanded}
+            onToggle={() => toggleGroup(item.group.alarmName)}
+            bucketCfg={cfg}
+            ref={ref}
+            dataIndex={dataIndex}
+          />
+        )
+      case 'groupEvent':
+        return <EventRow key={item.event.id} event={item.event} indented ref={ref} dataIndex={dataIndex} {...rowProps} />
+    }
+  }
+
+  const tableHeader = (
+    <TableHeader className={shouldVirtualize ? 'sticky top-0 z-20 bg-card' : ''}>
+      <TableRow className="bg-muted/20 hover:bg-muted/20 border-b">
+        {visibleColumns.map((col, idx) => {
+          const isLast = idx === visibleColumns.length - 1
+          return (
+            <ResizableTableHead
+              key={col.id}
+              width={isLast ? undefined : (getWidth(col.id) ?? col.defaultWidth)}
+              minWidth={isLast
+                ? (getWidth(col.id) ?? col.defaultWidth ?? col.minWidth)
+                : col.minWidth}
+            >
+              {col.label}
+            </ResizableTableHead>
+          )
+        })}
+        {hasActions && (
+          <ResizableTableHead
+            width={80}
+            minWidth={80}
+            className="sticky right-0 z-10 border-l border-border/40 bg-muted text-right"
+          >
+            <span className="sr-only">Azioni</span>
+          </ResizableTableHead>
+        )}
+      </TableRow>
+    </TableHeader>
+  )
 
   return (
     <div className={`overflow-hidden rounded-lg border ${cfg.borderCls}`}>
@@ -259,115 +356,42 @@ function GroupedBucketSection({
             <Inbox className="h-4 w-4" />
             Nessun allarme in questa fascia oraria
           </div>
+        ) : shouldVirtualize ? (
+          <div
+            ref={scrollRef}
+            className="overflow-auto border-t"
+            style={{ maxHeight: '70vh' }}
+          >
+            <Table style={{ tableLayout: 'fixed', minWidth: `${totalMinWidth}px` }}>
+              {tableHeader}
+              <TableBody>
+                {virtualizer.getVirtualItems()[0]?.start > 0 && (
+                  <tr><td colSpan={totalColSpan} style={{ height: virtualizer.getVirtualItems()[0]!.start, padding: 0 }} /></tr>
+                )}
+                {virtualizer.getVirtualItems().map((vRow) =>
+                  renderFlatItem(flatItems[vRow.index]!, virtualizer.measureElement, vRow.index)
+                )}
+                {(() => {
+                  const items = virtualizer.getVirtualItems()
+                  const lastEnd = items.at(-1)?.end ?? 0
+                  const bottom = virtualizer.getTotalSize() - lastEnd
+                  return bottom > 0 ? <tr><td colSpan={totalColSpan} style={{ height: bottom, padding: 0 }} /></tr> : null
+                })()}
+              </TableBody>
+            </Table>
+          </div>
         ) : (
           <div className="overflow-x-auto border-t">
             <Table style={{ tableLayout: 'fixed', minWidth: `${totalMinWidth}px` }}>
-              <TableHeader>
-                <TableRow className="bg-muted/20 hover:bg-muted/20 border-b">
-                  {visibleColumns.map((col, idx) => {
-                    const isLast = idx === visibleColumns.length - 1
-                    return (
-                      <ResizableTableHead
-                        key={col.id}
-                        width={isLast ? undefined : (getWidth(col.id) ?? col.defaultWidth)}
-                        minWidth={isLast
-                          ? (getWidth(col.id) ?? col.defaultWidth ?? col.minWidth)
-                          : col.minWidth}
-                      >
-                        {col.label}
-                      </ResizableTableHead>
-                    )
-                  })}
-                  {(canWrite || canDelete) && (
-                    <ResizableTableHead
-                      width={80}
-                      minWidth={80}
-                      className="sticky right-0 z-10 border-l border-border/40 bg-muted text-right"
-                    >
-                      <span className="sr-only">Azioni</span>
-                    </ResizableTableHead>
-                  )}
-                </TableRow>
-              </TableHeader>
+              {tableHeader}
               <TableBody>
-                {groups.map((group) => {
-                  if (group.events.length === 1) {
-                    // Single event — render as normal row
-                    return (
-                      <EventRow
-                        key={group.events[0]!.id}
-                        event={group.events[0]!}
-                        {...rowProps}
-                      />
-                    )
-                  }
-
-                  // Multi-event group — collapsible
-                  const isExpanded = expandedGroups.has(group.alarmName)
-                  return (
-                    <GroupRows
-                      key={`group-${group.alarmName}`}
-                      group={group}
-                      expanded={isExpanded}
-                      onToggle={() => toggleGroup(group.alarmName)}
-                      colSpan={totalColSpan}
-                      bucketCfg={cfg}
-                      rowProps={rowProps}
-                    />
-                  )
-                })}
+                {flatItems.map((item) => renderFlatItem(item))}
               </TableBody>
             </Table>
           </div>
         )
       )}
     </div>
-  )
-}
-
-// ── Group rows (header + expanded children) ──────────────────────────────────
-
-function GroupRows({
-  group, expanded, onToggle, colSpan, bucketCfg, rowProps,
-}: {
-  group: AlarmGroup
-  expanded: boolean
-  onToggle: () => void
-  colSpan: number
-  bucketCfg: BucketCfg
-  rowProps: {
-    visibleColumns: ColumnDef[]
-    getWidth: (id: string) => number | undefined
-    canWrite: boolean
-    canDelete: boolean
-    selectedEventId: string | null
-    showDetailPanel: boolean
-    lingeringId: string | null
-    onRowClick: (e: AlarmEvent) => void
-    onEdit: (e: AlarmEvent) => void
-    onDelete: (e: AlarmEvent) => void
-    isOnCallEvent?: (e: AlarmEvent) => boolean
-    onAlarmClick?: (alarm: NonNullable<AlarmEvent['alarm']>, productId: string) => void
-  }
-}) {
-  return (
-    <>
-      <GroupHeaderRow
-        group={group}
-        colSpan={colSpan}
-        expanded={expanded}
-        onToggle={onToggle}
-        bucketCfg={bucketCfg}
-      />
-      {expanded && group.events.map((event) => (
-        <EventRow
-          key={event.id}
-          event={event}
-          indented
-          {...rowProps}
-        />
-      ))}
-    </>
   )
 }
 
