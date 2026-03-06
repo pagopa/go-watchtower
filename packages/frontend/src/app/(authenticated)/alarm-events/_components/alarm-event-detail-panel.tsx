@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import type { AlarmEvent } from '@/lib/api-client'
+import { sanitizeUrl } from '@/lib/sanitize-url'
 import { usePreferences } from '@/hooks/use-preferences'
 
 interface AlarmEventDetailPanelProps {
@@ -330,7 +331,7 @@ export function AlarmEventDetailPanel({
                         <div className="flex items-center gap-2 pt-0.5">
                           <BookOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
                           <a
-                            href={event.alarm.runbook.link}
+                            href={sanitizeUrl(event.alarm.runbook.link)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex min-w-0 items-center gap-1 text-xs text-primary hover:underline"

@@ -428,11 +428,13 @@ export function AlarmEventDailyView({
     dateTo,
   }), [selectedDate, filters.productId, filters.environmentId, filters.awsAccountId, filters.awsRegion, dateFrom, dateTo])
 
+  const isToday = selectedDate === todayUTC()
+
   const { data, isLoading, isFetching, refetch } = useQuery<PaginatedResponse<AlarmEvent>>({
     queryKey:             ['alarm-events-daily', queryParams],
     queryFn:              () => api.getAlarmEvents(queryParams),
-    refetchInterval:      30_000,
-    refetchOnWindowFocus: true,
+    refetchInterval:      isToday ? 30_000 : false,
+    refetchOnWindowFocus: isToday,
   })
 
   const allEvents  = data?.data ?? []

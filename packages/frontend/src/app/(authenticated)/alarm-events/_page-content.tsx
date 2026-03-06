@@ -221,11 +221,17 @@ function AlarmEventsPageContent() {
     staleTime: 5 * 60 * 1000,
   })
 
-  // Map environmentId → onCallAlarmPattern for on-call row highlighting
-  const onCallPatternMap = useMemo(() => {
+  // Map environmentId → compiled RegExp for on-call row highlighting
+  const onCallRegexMap = useMemo(() => {
     const src = filters.productId ? environments : allEnvironments
-    if (!src?.length) return new Map<string, string>()
-    return new Map(src.filter((e) => e.onCallAlarmPattern).map((e) => [e.id, e.onCallAlarmPattern!]))
+    if (!src?.length) return new Map<string, RegExp>()
+    const map = new Map<string, RegExp>()
+    for (const e of src) {
+      if (e.onCallAlarmPattern) {
+        try { map.set(e.id, new RegExp(e.onCallAlarmPattern)) } catch { /* invalid regex, skip */ }
+      }
+    }
+    return map
   }, [filters.productId, environments, allEnvironments])
 
   const queryParams = useMemo(() => ({
@@ -255,6 +261,7 @@ function AlarmEventsPageContent() {
     queryFn: () => api.getAlarmEvents(queryParams),
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
+    placeholderData: (prev) => prev,
   })
 
   const events     = eventsResponse?.data
@@ -414,10 +421,10 @@ function AlarmEventsPageContent() {
   }, [])
 
   const isOnCallEvent = useCallback((event: AlarmEvent): boolean => {
-    const pattern = onCallPatternMap.get(event.environment.id)
-    if (!pattern) return false
-    try { return new RegExp(pattern).test(event.name) } catch { return false }
-  }, [onCallPatternMap])
+    const regex = onCallRegexMap.get(event.environment.id)
+    if (!regex) return false
+    return regex.test(event.name)
+  }, [onCallRegexMap])
 
   // --- Main Render ---
 

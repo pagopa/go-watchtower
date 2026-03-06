@@ -26,7 +26,7 @@ export default function AuthenticatedError({
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            {error.message || 'Qualcosa è andato storto.'}
+            Qualcosa è andato storto.
           </p>
           <Button onClick={reset} className="w-full">
             Riprova

@@ -39,7 +39,9 @@ export function LoginForm() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false)
   const [showCredentials, setShowCredentials] = useState(false)
 
-  const callbackUrl = searchParams.get('callbackUrl') || '/dashboard'
+  const rawCallback = searchParams.get('callbackUrl') || '/dashboard'
+  // Prevent open redirect: only allow relative paths (no protocol-relative URLs)
+  const callbackUrl = rawCallback.startsWith('/') && !rawCallback.startsWith('//') ? rawCallback : '/dashboard'
   const error = searchParams.get('error')
 
   const {
@@ -55,7 +57,7 @@ export function LoginForm() {
   if (error && shownErrorRef.current !== error) {
     shownErrorRef.current = error
     const decoded = decodeURIComponent(error)
-    toast.error(AUTH_ERROR_MESSAGES[decoded] ?? decoded)
+    toast.error(AUTH_ERROR_MESSAGES[decoded] ?? 'Si è verificato un errore durante l\'autenticazione.')
   }
 
   const onSubmit = async (data: LoginFormData) => {

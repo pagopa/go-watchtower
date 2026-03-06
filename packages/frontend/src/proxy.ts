@@ -26,6 +26,17 @@ export default auth((req) => {
     return NextResponse.redirect(new URL(`/login?callbackUrl=${callbackUrl}`, req.url))
   }
 
+  // Server-side authorization: block GUEST users from admin-only routes.
+  // This is defense-in-depth — the backend also enforces permissions on every API call.
+  const roleName = token?.user?.roleName
+  const pathname = req.nextUrl.pathname
+  const adminOnlyRoutes = ['/settings/parameters', '/users/new']
+  const isAdminRoute = adminOnlyRoutes.some((r) => pathname.startsWith(r)) ||
+    /^\/users\/[^/]+\/edit$/.test(pathname)
+  if (isAdminRoute && roleName === 'GUEST') {
+    return NextResponse.redirect(new URL('/dashboard', req.url))
+  }
+
   return NextResponse.next()
 })
 

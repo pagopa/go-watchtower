@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAnalysisScores } from '@/hooks/use-analysis-scores'
 import type { AlarmAnalysis } from '@/lib/api-client'
+import { sanitizeUrl } from '@/lib/sanitize-url'
 import { usePreferences } from '@/hooks/use-preferences'
 import {
   ANALYSIS_TYPE_LABELS,
@@ -784,7 +785,7 @@ export function AnalysisDetailPanel({
                       {analysis.links!.map((link) => (
                         <a
                           key={link.url}
-                          href={link.url}
+                          href={sanitizeUrl(link.url)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="group flex items-center gap-2.5 rounded-lg border border-border bg-muted/30 px-3 py-2.5 text-sm transition-colors hover:border-primary/25 hover:bg-muted/60"
@@ -817,7 +818,7 @@ export function AnalysisDetailPanel({
                     <dd>
                       {analysis.runbook?.link ? (
                         <a
-                          href={analysis.runbook.link}
+                          href={sanitizeUrl(analysis.runbook.link)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="group inline-flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2.5 text-sm font-medium transition-colors hover:border-primary/25 hover:bg-muted/60 hover:text-primary"

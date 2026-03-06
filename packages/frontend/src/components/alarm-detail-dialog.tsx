@@ -1,6 +1,7 @@
 'use client'
 
 import { Bell, BookOpen, ExternalLink, Clock, Hash } from 'lucide-react'
+import { sanitizeUrl } from '@/lib/sanitize-url'
 import Link from 'next/link'
 import {
   Dialog,
@@ -94,7 +95,7 @@ export function AlarmDetailDialog({ open, onClose, alarm }: AlarmDetailDialogPro
                   </span>
                   {alarm.runbook.link && (
                     <a
-                      href={alarm.runbook.link}
+                      href={sanitizeUrl(alarm.runbook.link)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex shrink-0 items-center gap-1 text-xs text-primary hover:underline"

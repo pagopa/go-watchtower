@@ -9,6 +9,7 @@ import { Plus, Pencil, Trash2, Loader2, ExternalLink, BookOpen, ArrowUp, ArrowDo
 import { toast } from 'sonner'
 import { RunbookStatuses, RUNBOOK_STATUS_LABELS } from '@go-watchtower/shared'
 import { api, type Runbook } from '@/lib/api-client'
+import { sanitizeUrl } from '@/lib/sanitize-url'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useSortable } from '@/hooks/use-sortable'
 import { Badge } from '@/components/ui/badge'
@@ -259,7 +260,7 @@ export function RunbooksTab({ productId }: RunbooksTabProps) {
                   {RUNBOOK_STATUS_LABELS[rb.status]}
                 </Badge>
                 <a
-                  href={rb.link}
+                  href={sanitizeUrl(rb.link)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/50 px-2 py-1 text-xs text-muted-foreground hover:border-primary/30 hover:bg-primary/5 hover:text-primary transition-colors"

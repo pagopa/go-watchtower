@@ -82,7 +82,7 @@ const ShortcutIgnorableDialog = dynamic(
 )
 
 import { formatDate } from './_lib/constants'
-import { renderCell } from './_helpers/cell-renderers'
+import { AnalysisCell } from './_helpers/cell-renderers'
 
 const DEFAULT_FILTERS: AnalysisFiltersState = {
   search: '',
@@ -363,6 +363,7 @@ function AnalysesPageContent() {
   } = useQuery<PaginatedResponse<AlarmAnalysis>>({
     queryKey: ['analyses', analysisQueryParams],
     queryFn: () => api.getAllAnalyses(analysisQueryParams),
+    placeholderData: (prev) => prev,
   })
 
   const analyses = analysesResponse?.data
@@ -714,7 +715,7 @@ function AnalysesPageContent() {
                               onClick={() => setValidationPanelAnalysis(analysis)}
                             />
                           ) : col.id !== 'validation' ? (
-                            renderCell(col.id, analysis)
+                            <AnalysisCell columnId={col.id} analysis={analysis} />
                           ) : null}
                         </TableCell>
                       )

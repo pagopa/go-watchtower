@@ -125,10 +125,10 @@ async function doRefreshAccessToken(token: ExtendedJWT): Promise<ExtendedJWT | n
     clearTimeout(timeoutId)
     const errorCount = (token.networkErrorCount ?? 0) + 1
     if (errorCount > MAX_NETWORK_ERROR_RETRIES) {
-      console.error(`[auth] Backend unreachable after ${MAX_NETWORK_ERROR_RETRIES} retries, clearing session`, err)
+      console.error(`[auth] Backend unreachable after ${MAX_NETWORK_ERROR_RETRIES} retries, clearing session`)
       return null
     }
-    console.warn(`[auth] Backend unreachable during token refresh (attempt ${errorCount}/${MAX_NETWORK_ERROR_RETRIES}), retrying in ${NETWORK_ERROR_RETRY_MS / 1000}s`, err)
+    console.warn(`[auth] Backend unreachable during token refresh (attempt ${errorCount}/${MAX_NETWORK_ERROR_RETRIES}), retrying in ${NETWORK_ERROR_RETRY_MS / 1000}s`)
     return {
       ...token,
       accessTokenExpires: Date.now() + NETWORK_ERROR_RETRY_MS,
@@ -141,8 +141,7 @@ async function doRefreshAccessToken(token: ExtendedJWT): Promise<ExtendedJWT | n
   if (!response.ok) {
     // Auth error: the token is invalid or expired on the server side.
     // Clear the session so the user is redirected to login.
-    const body = await response.text().catch(() => '')
-    console.error(`[auth] Refresh token rejected by server: ${response.status} ${body}`)
+    console.error(`[auth] Refresh token rejected by server: ${response.status}`)
     return null
   }
 
@@ -335,7 +334,6 @@ export const authConfig: NextAuthConfig = {
             name: '',
             roleName: '',
             accessToken: '',
-            refreshToken: '',
           },
           expired: true,
         }
@@ -350,7 +348,6 @@ export const authConfig: NextAuthConfig = {
           name: extendedToken.name,
           roleName: extendedToken.roleName,
           accessToken: extendedToken.accessToken,
-          refreshToken: extendedToken.refreshToken,
         },
       }
     },

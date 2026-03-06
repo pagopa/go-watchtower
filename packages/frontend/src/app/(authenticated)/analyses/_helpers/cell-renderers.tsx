@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { memo } from 'react'
 import { Clock, Loader2, CheckCircle2, Search, Ban, type LucideIcon } from 'lucide-react'
 import type { AlarmAnalysis, AnalysisType, AnalysisStatus } from '@/lib/api-client'
 import {
@@ -19,10 +19,14 @@ export const TYPE_ICONS: Record<AnalysisType, { Icon: LucideIcon; className: str
   IGNORABLE:  { Icon: Ban,    className: 'text-amber-500/80 dark:text-amber-400/70' },
 }
 
-export function renderCell(columnId: string, analysis: AlarmAnalysis): ReactNode {
+interface AnalysisCellProps {
+  columnId: string
+  analysis: AlarmAnalysis
+}
+
+export const AnalysisCell = memo(function AnalysisCell({ columnId, analysis }: AnalysisCellProps) {
   switch (columnId) {
     case 'analysisDate':
-      // Stored as UTC, but entered as Rome local time — display in Rome TZ
       return <span className="font-mono text-xs tabular-nums">{formatDateTimeRome(analysis.analysisDate)}</span>
     case 'product':
       return (
@@ -71,7 +75,6 @@ export function renderCell(columnId: string, analysis: AlarmAnalysis): ReactNode
     case 'occurrences':
       return <span className="tabular-nums font-medium text-sm">{analysis.occurrences}</span>
     case 'firstAlarmAt':
-      // Alarm timestamps are UTC from monitoring systems — display as UTC in the table
       return <span className="font-mono text-xs tabular-nums text-muted-foreground">{formatDateTimeUTC(analysis.firstAlarmAt)}</span>
     case 'lastAlarmAt':
       return <span className="font-mono text-xs tabular-nums text-muted-foreground">{formatDateTimeUTC(analysis.lastAlarmAt)}</span>
@@ -109,8 +112,8 @@ export function renderCell(columnId: string, analysis: AlarmAnalysis): ReactNode
         </span>
       )
     }
-    // 'validation' is rendered inline in the table row (not via renderCell)
+    // 'validation' is rendered inline in the table row (not via AnalysisCell)
     default:
       return null
   }
-}
+})

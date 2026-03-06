@@ -9,7 +9,6 @@ declare module 'next-auth' {
       name: string
       roleName: string
       accessToken: string
-      refreshToken: string
     } & DefaultSession['user']
     /** Set to true when the refresh token has expired and the session is cleared */
     expired?: boolean

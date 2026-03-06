@@ -50,7 +50,7 @@ export function Header() {
   return (
     <header className="flex h-16 items-center justify-between border-b bg-background px-6">
       <div className="flex items-center gap-2.5">
-        <Image src="/logo1.png" alt="" width={28} height={28} quality={100} sizes="28px" className="drop-shadow-sm" />
+        <Image src="/logo1.png" alt="" width={28} height={28} quality={85} sizes="28px" className="drop-shadow-sm" />
         <h1 className="font-display text-xl font-bold tracking-wide">Watchtower</h1>
       </div>
 

@@ -15,7 +15,7 @@ import { ResizableTableHead } from '@/components/ui/resizable-table-head'
 import { AlarmEventCell } from '../_helpers/cell-renderers'
 import type { AlarmEventDailyViewProps } from './alarm-event-daily-view'
 import {
-  DayNavigation, partitionEvents, localDayBoundsUTC,
+  DayNavigation, partitionEvents, localDayBoundsUTC, todayUTC,
   BUCKETS, type BucketCfg,
 } from './alarm-event-daily-view'
 import { Button } from '@/components/ui/button'
@@ -398,11 +398,13 @@ export function AlarmEventGroupedView({
     dateTo,
   }), [selectedDate, filters.productId, filters.environmentId, filters.awsAccountId, filters.awsRegion, dateFrom, dateTo])
 
+  const isToday = selectedDate === todayUTC()
+
   const { data, isLoading, isFetching, refetch } = useQuery<PaginatedResponse<AlarmEvent>>({
     queryKey:             ['alarm-events-grouped', queryParams],
     queryFn:              () => api.getAlarmEvents(queryParams),
-    refetchInterval:      30_000,
-    refetchOnWindowFocus: true,
+    refetchInterval:      isToday ? 30_000 : false,
+    refetchOnWindowFocus: isToday,
   })
 
   const allEvents  = data?.data ?? []
