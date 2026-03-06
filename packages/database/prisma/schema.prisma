@@ -342,6 +342,7 @@ model AlarmAnalysis {
   microservices AnalysisMicroservice[]
   downstreams   AnalysisDownstream[]
   finalActions  AnalysisFinalAction[]
+  alarmEvents   AlarmEvent[]
 
   @@index([analysisDate])
   // @@index([productId]) — redundant: covered by @@index([productId, analysisDate])
@@ -425,20 +426,23 @@ model AlarmEvent {
   productId      String   @map("product_id") @db.Uuid
   environmentId  String   @map("environment_id") @db.Uuid
   alarmId        String?  @map("alarm_id") @db.Uuid
+  analysisId     String?  @map("analysis_id") @db.Uuid
   // Identificatore univoco del messaggio Slack sorgente — formato "{channelId}/{ts}".
   // Usato per prevenire duplicati quando lo script di ingestione rilegge messaggi già processati.
   slackMessageId String?  @unique @map("slack_message_id")
   createdAt      DateTime @default(now()) @map("created_at")
 
-  product     Product     @relation(fields: [productId], references: [id], onDelete: Restrict)
-  environment Environment @relation(fields: [environmentId], references: [id], onDelete: Restrict)
-  alarm       Alarm?      @relation(fields: [alarmId], references: [id], onDelete: SetNull)
+  product     Product        @relation(fields: [productId], references: [id], onDelete: Restrict)
+  environment Environment    @relation(fields: [environmentId], references: [id], onDelete: Restrict)
+  alarm       Alarm?         @relation(fields: [alarmId], references: [id], onDelete: SetNull)
+  analysis    AlarmAnalysis? @relation(fields: [analysisId], references: [id], onDelete: SetNull)
 
   @@index([firedAt])
   @@index([productId, firedAt])
   @@index([environmentId])
   @@index([awsAccountId])
   @@index([alarmId])
+  @@index([analysisId])
   @@map("alarm_events")
 }
 

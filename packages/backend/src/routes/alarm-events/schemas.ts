@@ -32,6 +32,7 @@ export const AlarmEventResponseSchema = Type.Object({
   environment:   RelatedEntitySchema,
   alarmId:       Type.Union([Type.String(), Type.Null()]),
   alarm:         Type.Union([EmbeddedAlarmSchema, Type.Null()]),
+  analysisId:    Type.Union([Type.String(), Type.Null()]),
   createdAt:     Type.String({ format: "date-time" }),
 });
 
@@ -93,6 +94,7 @@ export const UpdateAlarmEventBodySchema = Type.Object({
   description: Type.Optional(Type.Union([Type.String(), Type.Null()])),
   reason:      Type.Optional(Type.Union([Type.String(), Type.Null()])),
   alarmId:     Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  analysisId:  Type.Optional(Type.Union([Type.String(), Type.Null()])),
 });
 
 export type UpdateAlarmEventBody = Static<typeof UpdateAlarmEventBodySchema>;

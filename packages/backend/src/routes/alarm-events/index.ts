@@ -48,6 +48,7 @@ function formatResponse(event: {
   awsRegion: string;
   awsAccountId: string;
   alarmId: string | null;
+  analysisId: string | null;
   createdAt: Date;
   product: { id: string; name: string };
   environment: { id: string; name: string };
@@ -229,7 +230,7 @@ export async function alarmEventRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const existing = await prisma.alarmEvent.findUnique({
         where: { id: request.params.id },
-        select: { id: true, name: true, description: true, reason: true, alarmId: true },
+        select: { id: true, name: true, description: true, reason: true, alarmId: true, analysisId: true },
       });
 
       if (!existing) {
@@ -242,6 +243,7 @@ export async function alarmEventRoutes(app: FastifyInstance) {
           description: request.body.description,
           reason:      request.body.reason,
           alarmId:     request.body.alarmId,
+          analysisId:  request.body.analysisId,
         },
         include,
       });
@@ -251,7 +253,7 @@ export async function alarmEventRoutes(app: FastifyInstance) {
         resource:      SystemEventResources.ALARM_EVENTS,
         resourceId:    updated.id,
         resourceLabel: updated.name,
-        metadata:      { changes: buildDiff(existing, updated, ["description", "reason", "alarmId"]) },
+        metadata:      { changes: buildDiff(existing, updated, ["description", "reason", "alarmId", "analysisId"]) },
       });
 
       return reply.send(formatResponse(updated));

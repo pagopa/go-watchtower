@@ -256,6 +256,7 @@ CREATE TABLE "alarm_events" (
     "product_id"      UUID         NOT NULL,
     "environment_id"  UUID         NOT NULL,
     "alarm_id"        UUID,
+    "analysis_id"     UUID,
     -- Identificatore univoco del messaggio Slack sorgente ("{channelId}/{ts}").
     -- Garantisce idempotenza nello script di ingestione Slack.
     "slack_message_id" TEXT,
@@ -402,6 +403,7 @@ CREATE INDEX "alarm_events_product_id_fired_at_idx" ON "alarm_events"("product_i
 CREATE INDEX "alarm_events_environment_id_idx" ON "alarm_events"("environment_id");
 CREATE INDEX "alarm_events_aws_account_id_idx" ON "alarm_events"("aws_account_id");
 CREATE INDEX "alarm_events_alarm_id_idx" ON "alarm_events"("alarm_id");
+CREATE INDEX "alarm_events_analysis_id_idx" ON "alarm_events"("analysis_id");
 
 -- system_events
 CREATE INDEX "system_events_user_id_idx" ON "system_events"("user_id");
@@ -469,6 +471,7 @@ ALTER TABLE "analysis_final_actions" ADD CONSTRAINT "analysis_final_actions_fina
 ALTER TABLE "alarm_events" ADD CONSTRAINT "alarm_events_product_id_fkey" FOREIGN KEY ("product_id") REFERENCES "products"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "alarm_events" ADD CONSTRAINT "alarm_events_environment_id_fkey" FOREIGN KEY ("environment_id") REFERENCES "environments"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "alarm_events" ADD CONSTRAINT "alarm_events_alarm_id_fkey" FOREIGN KEY ("alarm_id") REFERENCES "alarms"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "alarm_events" ADD CONSTRAINT "alarm_events_analysis_id_fkey" FOREIGN KEY ("analysis_id") REFERENCES "alarm_analyses"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- System Settings & Event Log
 ALTER TABLE "system_settings" ADD CONSTRAINT "system_settings_updated_by_id_fkey" FOREIGN KEY ("updated_by_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
