@@ -27,8 +27,8 @@ import { matchIgnoredAlarm } from '@go-watchtower/shared'
 import { IgnoredAlarmWarningBanner } from './ignored-alarm-warning'
 import {
   shortcutInCorsoSchema,
-  fromDatetimeLocal,
-  toDatetimeLocal,
+  utcLocalToISO as fromDatetimeLocal,
+  isoToUTCLocal as toDatetimeLocal,
   type ShortcutInCorsoData,
   type AnalysisFormData,
 } from './analysis-form-schemas'

@@ -47,10 +47,6 @@ export const utcLocalToISO = (val: string): string => {
   return new Date(val + ':00.000Z').toISOString()
 }
 
-// Backward-compat aliases (used by shortcut dialogs which only deal with UTC alarm times).
-export const toDatetimeLocal = isoToUTCLocal
-export const fromDatetimeLocal = utcLocalToISO
-
 // ─── Full schema ───────────────────────────────────────────────────────────────
 
 export const analysisFormSchema = z.object({

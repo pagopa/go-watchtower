@@ -33,8 +33,8 @@ import {
 } from '@/lib/api-client'
 import {
   shortcutIgnorableSchema,
-  fromDatetimeLocal,
-  toDatetimeLocal,
+  utcLocalToISO as fromDatetimeLocal,
+  isoToUTCLocal as toDatetimeLocal,
   useDateValidation,
   type ShortcutIgnorableData,
   type AnalysisFormData,

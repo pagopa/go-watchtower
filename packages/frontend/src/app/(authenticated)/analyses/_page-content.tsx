@@ -624,7 +624,7 @@ function AnalysesPageContent() {
               </div>
               {[...Array(7)].map((_, i) => (
                 <div
-                  key={i}
+                  key={`skeleton-row-${i}`}
                   className="flex items-center gap-4 px-4 py-3"
                   style={{ animationDelay: `${i * 40}ms` }}
                 >

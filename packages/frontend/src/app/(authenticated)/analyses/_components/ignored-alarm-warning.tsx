@@ -36,9 +36,9 @@ function ConstraintCard({ c }: { c: TimeConstraint }) {
   const rows: React.ReactNode[] = []
 
   if (c.periods && c.periods.length > 0) {
-    c.periods.forEach((p, i) => (
+    c.periods.forEach((p) => (
       rows.push(
-        <div key={`p${i}`} className="flex items-start gap-2 text-sm">
+        <div key={`p-${p.start}-${p.end}`} className="flex items-start gap-2 text-sm">
           <CalendarDays className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
           <span className="tabular-nums text-foreground/80">
             {fmtUtcDateTime(p.start)}
@@ -73,9 +73,9 @@ function ConstraintCard({ c }: { c: TimeConstraint }) {
       <div key="hr" className="flex items-start gap-2 text-sm">
         <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
         <div className="flex flex-wrap gap-1.5">
-          {c.hours.map((h, i) => (
+          {c.hours.map((h) => (
             <span
-              key={i}
+              key={`${h.start}-${h.end}`}
               className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground/80"
             >
               {h.start}–{h.end}
@@ -134,7 +134,7 @@ function ConstraintSection({
         <div className="space-y-2">
           {constraints.map((c, i) => (
             <div
-              key={i}
+              key={`constraint-${i}`}
               className={cn(
                 'rounded-lg border px-3.5 py-3 space-y-2',
                 constraints.length > 1

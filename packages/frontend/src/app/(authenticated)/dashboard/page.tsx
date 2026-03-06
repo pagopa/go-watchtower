@@ -5,7 +5,6 @@ import { useSession } from 'next-auth/react'
 import { useQuery } from '@tanstack/react-query'
 import { startOfMonth, subMonths } from 'date-fns'
 import type { DateRange } from 'react-day-picker'
-import dynamic from 'next/dynamic'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Select,
@@ -18,28 +17,15 @@ import { Label } from '@/components/ui/label'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { usePermissions } from '@/hooks/use-permissions'
 import { api, type Product, type AnalysisStats } from '@/lib/api-client'
-import { TopAlarmsTable, KpiSummaryCards } from './_components/dashboard'
-
-const ByProductEnvironmentChart = dynamic(
-  () => import('./_components/dashboard/by-product-environment-chart').then(m => m.ByProductEnvironmentChart),
-  { ssr: false, loading: () => <Skeleton className="h-80" /> }
-)
-const ByOperatorChart = dynamic(
-  () => import('./_components/dashboard/by-operator-chart').then(m => m.ByOperatorChart),
-  { ssr: false, loading: () => <Skeleton className="h-80" /> }
-)
-const DailyByEnvironmentChart = dynamic(
-  () => import('./_components/dashboard/daily-by-environment-chart').then(m => m.DailyByEnvironmentChart),
-  { ssr: false, loading: () => <Skeleton className="h-80" /> }
-)
-const ByAnalysisTypeChart = dynamic(
-  () => import('./_components/dashboard/by-analysis-type-chart').then(m => m.ByAnalysisTypeChart),
-  { ssr: false, loading: () => <Skeleton className="h-80" /> }
-)
-const OnCallTrendChart = dynamic(
-  () => import('./_components/dashboard/on-call-trend-chart').then(m => m.OnCallTrendChart),
-  { ssr: false, loading: () => <Skeleton className="h-80" /> }
-)
+import {
+  ByProductEnvironmentChart,
+  ByOperatorChart,
+  DailyByEnvironmentChart,
+  ByAnalysisTypeChart,
+  OnCallTrendChart,
+  TopAlarmsTable,
+  KpiSummaryCards,
+} from './_components/dashboard'
 
 const ALL_VALUE = '__all__'
 

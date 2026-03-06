@@ -201,8 +201,8 @@ export function SimpleNamedResourceTab<TItem extends NamedEntity>({
           <Skeleton className="h-8 w-36 rounded-md" />
         </div>
         <div className="rounded-lg border border-border overflow-hidden divide-y divide-border">
-          {SKELETON_ROWS.map((i) => (
-            <div key={i} className="flex items-center gap-3 px-4 py-3">
+          {SKELETON_ROWS.map((n) => (
+            <div key={`skeleton-${n}`} className="flex items-center gap-3 px-4 py-3">
               <div className="flex-1 space-y-1.5">
                 <Skeleton className="h-4 w-1/3" />
                 <Skeleton className="h-3 w-2/3 opacity-60" />

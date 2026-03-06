@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useMemo, useRef, useCallback, useEffect, Fragment } from 'react'
-import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
 import { formatDistanceToNow, format } from 'date-fns'
@@ -337,9 +336,9 @@ function ResourceCell({ event }: { event: SystemEvent }) {
   )
 }
 
-// ─── Row cell renderer ────────────────────────────────────────────────────────
+// ─── Row cell component ──────────────────────────────────────────────────────
 
-function renderEventCell(columnId: string, event: SystemEvent): ReactNode {
+function SystemEventCell({ columnId, event }: { columnId: string; event: SystemEvent }) {
   switch (columnId) {
     case 'quando':
       return <RelativeTime dateStr={event.createdAt} />
@@ -534,7 +533,6 @@ function ActionMultiSelect({
             <div className="relative">
               <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
               <input
-                autoFocus
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Filtra azioni..."
@@ -943,7 +941,7 @@ export function SystemEventsPage() {
                         >
                           {visibleColumns.map((col) => (
                             <TableCell key={col.id} className="py-3 overflow-hidden">
-                              {renderEventCell(col.id, event)}
+                              <SystemEventCell columnId={col.id} event={event} />
                             </TableCell>
                           ))}
                           <TableCell className="py-3 w-11 text-center">

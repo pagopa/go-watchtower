@@ -104,7 +104,7 @@ function Calendar({
               </SelectTrigger>
               <SelectContent>
                 {MONTHS_IT.map((name, i) => (
-                  <SelectItem key={i} value={String(i)}>{name}</SelectItem>
+                  <SelectItem key={name} value={String(i)}>{name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

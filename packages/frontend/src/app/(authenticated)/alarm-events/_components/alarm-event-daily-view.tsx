@@ -15,7 +15,7 @@ import {
   Table, TableBody, TableCell, TableHeader, TableRow,
 } from '@/components/ui/table'
 import { ResizableTableHead } from '@/components/ui/resizable-table-head'
-import { renderCell } from '../_helpers/cell-renderers'
+import { AlarmEventCell } from '../_helpers/cell-renderers'
 
 import type { WorkingHours } from '@go-watchtower/shared'
 
@@ -357,7 +357,7 @@ export function BucketSection({
                               ? { width: `${getWidth(col.id)}px` }
                               : undefined}
                           >
-                            {renderCell(col.id, event, { isOnCall, onAlarmClick })}
+                            <AlarmEventCell columnId={col.id} event={event} isOnCall={isOnCall} onAlarmClick={onAlarmClick} />
                           </TableCell>
                         )
                       })}

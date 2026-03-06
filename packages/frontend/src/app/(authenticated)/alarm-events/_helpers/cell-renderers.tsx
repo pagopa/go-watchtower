@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { memo } from 'react'
 import Link from 'next/link'
 import { PhoneCall, BookOpen } from 'lucide-react'
 import type { AlarmEvent } from '@/lib/api-client'
@@ -17,11 +17,19 @@ function formatDateTimeUTC(iso: string): string {
   }
 }
 
-export function renderCell(
-  columnId: string,
-  event: AlarmEvent,
-  opts?: { isOnCall?: boolean; onAlarmClick?: (alarm: EmbeddedAlarm, productId: string) => void },
-): ReactNode {
+export interface AlarmEventCellProps {
+  columnId: string
+  event: AlarmEvent
+  isOnCall?: boolean
+  onAlarmClick?: (alarm: EmbeddedAlarm, productId: string) => void
+}
+
+export const AlarmEventCell = memo(function AlarmEventCell({
+  columnId,
+  event,
+  isOnCall,
+  onAlarmClick,
+}: AlarmEventCellProps) {
   switch (columnId) {
     case 'firedAt':
       return (
@@ -32,7 +40,7 @@ export function renderCell(
     case 'name':
       return <span className="truncate font-medium text-sm">{event.name}</span>
     case 'tipo':
-      return opts?.isOnCall
+      return isOnCall
         ? (
           <span className="inline-flex shrink-0 items-center gap-1 rounded bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
             <PhoneCall className="h-2.5 w-2.5" />
@@ -46,13 +54,13 @@ export function renderCell(
         )
     case 'link':
       if (!event.alarm) return <span className="text-muted-foreground/25 text-sm">—</span>
-      return opts?.onAlarmClick
+      return onAlarmClick
         ? (
           <button
             type="button"
             title={event.alarm.name}
             className="inline-flex items-center justify-center rounded-md border border-primary/20 bg-primary/5 p-1 text-primary hover:bg-primary/10 hover:border-primary/40 transition-colors"
-            onClick={(e) => { e.stopPropagation(); opts.onAlarmClick!(event.alarm!, event.product.id) }}
+            onClick={(e) => { e.stopPropagation(); onAlarmClick(event.alarm!, event.product.id) }}
           >
             <BookOpen className="h-3.5 w-3.5" />
           </button>
@@ -111,4 +119,4 @@ export function renderCell(
     default:
       return null
   }
-}
+})

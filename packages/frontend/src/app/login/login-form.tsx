@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { signIn } from 'next-auth/react'
@@ -50,12 +50,13 @@ export function LoginForm() {
     resolver: zodResolver(loginSchema),
   })
 
-  useEffect(() => {
-    if (error) {
-      const decoded = decodeURIComponent(error)
-      toast.error(AUTH_ERROR_MESSAGES[decoded] ?? decoded)
-    }
-  }, [error])
+  // Show auth error toast once when the page loads with an error query param
+  const shownErrorRef = useRef<string | null>(null)
+  if (error && shownErrorRef.current !== error) {
+    shownErrorRef.current = error
+    const decoded = decodeURIComponent(error)
+    toast.error(AUTH_ERROR_MESSAGES[decoded] ?? decoded)
+  }
 
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true)

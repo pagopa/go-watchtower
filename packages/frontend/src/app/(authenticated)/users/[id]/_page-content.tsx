@@ -169,12 +169,12 @@ export function UserDetailPage() {
             </div>
           </div>
           <div className="grid grid-cols-4 gap-4 border-t pt-4">
-            {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-10" />)}
+            {[...Array(4)].map((_, i) => <Skeleton key={`skeleton-meta-${i}`} className="h-10" />)}
           </div>
         </div>
         <div className="rounded-xl border p-6 space-y-3">
           <Skeleton className="h-5 w-32" />
-          {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}
+          {[...Array(5)].map((_, i) => <Skeleton key={`skeleton-perm-${i}`} className="h-14 w-full" />)}
         </div>
       </div>
     )
@@ -398,7 +398,7 @@ export function UserDetailPage() {
         {permLoading ? (
           <div className="divide-y">
             {[...Array(6)].map((_, i) => (
-              <div key={i} className="flex items-center gap-4 px-6 py-3">
+              <div key={`skeleton-row-${i}`} className="flex items-center gap-4 px-6 py-3">
                 <Skeleton className="h-4 w-32" />
                 <div className="flex flex-1 gap-6">
                   <Skeleton className="h-6 w-16" />

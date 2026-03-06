@@ -441,7 +441,7 @@ export function IgnoreReasonsPage() {
             </TableHeader>
             <TableBody>
               {[...Array(3)].map((_, i) => (
-                <TableRow key={i}>
+                <TableRow key={`skeleton-${i}`}>
                   <TableCell><Skeleton className="h-4 w-28" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-40" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-8" /></TableCell>

@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { useQuery } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
@@ -56,54 +55,39 @@ export function AlarmEventFormDialog({
 }: AlarmEventFormDialogProps) {
   const isEdit = !!editEvent
 
+  const defaultValues: AlarmEventFormData = editEvent
+    ? {
+        name:          editEvent.name,
+        firedAt:       editEvent.firedAt,
+        productId:     editEvent.product.id,
+        environmentId: editEvent.environment.id,
+        awsRegion:     editEvent.awsRegion,
+        awsAccountId:  editEvent.awsAccountId,
+        description:   editEvent.description ?? '',
+        reason:        editEvent.reason ?? '',
+      }
+    : {
+        name: '',
+        firedAt: '',
+        productId: '',
+        environmentId: '',
+        awsRegion: '',
+        awsAccountId: '',
+        description: '',
+        reason: '',
+      }
+
   const {
     register,
     handleSubmit,
     control,
     watch,
-    reset,
     formState: { errors },
   } = useForm<AlarmEventFormData>({
-    defaultValues: {
-      name: '',
-      firedAt: '',
-      productId: '',
-      environmentId: '',
-      awsRegion: '',
-      awsAccountId: '',
-      description: '',
-      reason: '',
-    },
+    defaultValues,
+    // Reset form values when the dialog opens/closes or editEvent changes
+    values: open ? defaultValues : undefined,
   })
-
-  // Populate form when editing
-  useEffect(() => {
-    if (open) {
-      if (editEvent) {
-        reset({
-          name:         editEvent.name,
-          firedAt:      editEvent.firedAt,
-          productId:    editEvent.product.id,
-          environmentId: editEvent.environment.id,
-          awsRegion:    editEvent.awsRegion,
-          awsAccountId: editEvent.awsAccountId,
-          description:  editEvent.description ?? '',
-          reason:       editEvent.reason ?? '',
-        })
-      } else {
-        reset({
-          name: '',
-          firedAt: '',
-          productId: '',
-          environmentId: '',
-          awsRegion: '',
-          awsAccountId: '',
-          description: '',
-          reason: '',
-        })
-      }
-    }
-  }, [open, editEvent, reset])
 
   const selectedProductId = watch('productId')
 

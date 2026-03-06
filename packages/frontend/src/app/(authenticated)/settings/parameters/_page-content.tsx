@@ -761,7 +761,7 @@ function LoadingSkeleton() {
   return (
     <div className="space-y-8">
       {[3, 1, 2].map((count, gi) => (
-        <div key={gi} className="space-y-3">
+        <div key={`skeleton-group-${gi}`} className="space-y-3">
           <div className="flex items-center gap-2.5 px-0.5">
             <Skeleton className="h-6 w-6 rounded-md" />
             <Skeleton className="h-3 w-24" />
@@ -769,7 +769,7 @@ function LoadingSkeleton() {
           </div>
           <div className="space-y-2">
             {[...Array(count)].map((_, i) => (
-              <div key={`${gi}-${i}`} className="flex items-start gap-0 overflow-hidden rounded-xl border bg-card">
+              <div key={`skeleton-${gi}-${i}`} className="flex items-start gap-0 overflow-hidden rounded-xl border bg-card">
                 <div className="w-[3px] self-stretch bg-muted" />
                 <div className="flex flex-1 items-start justify-between gap-4 px-5 py-4">
                   <div className="flex items-start gap-3 flex-1">

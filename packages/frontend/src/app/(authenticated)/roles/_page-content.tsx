@@ -71,7 +71,7 @@ function RoleListSkeleton() {
   return (
     <div className="space-y-1 p-3">
       {[...Array(4)].map((_, i) => (
-        <div key={i} className="rounded-lg p-3 space-y-2">
+        <div key={`skeleton-role-${i}`} className="rounded-lg p-3 space-y-2">
           <Skeleton className="h-4 w-28" />
           <Skeleton className="h-3 w-40" />
         </div>
@@ -89,7 +89,7 @@ function RoleDetailSkeleton() {
       </div>
       <div className="space-y-2">
         {[...Array(6)].map((_, i) => (
-          <Skeleton key={i} className="h-12 w-full" />
+          <Skeleton key={`skeleton-perm-${i}`} className="h-12 w-full" />
         ))}
       </div>
     </div>

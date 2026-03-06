@@ -168,7 +168,6 @@ export function ColumnConfigurator({
                   {isEditing ? (
                     <input
                       ref={inputRef}
-                      autoFocus
                       value={editingValue}
                       onChange={(e) => setEditingValue(e.target.value)}
                       onBlur={() => confirmEdit(col)}

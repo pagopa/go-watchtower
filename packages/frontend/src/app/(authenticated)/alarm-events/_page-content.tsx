@@ -61,7 +61,7 @@ const AlarmEventOnCallView = dynamic(
   () => import('./_components/alarm-event-oncall-view').then((m) => ({ default: m.AlarmEventOnCallView })),
   { ssr: false }
 )
-import { renderCell } from './_helpers/cell-renderers'
+import { AlarmEventCell } from './_helpers/cell-renderers'
 
 const AlarmEventFormDialog = dynamic(
   () => import('./_components/alarm-event-form-dialog').then((m) => ({ default: m.AlarmEventFormDialog })),
@@ -565,10 +565,10 @@ function AlarmEventsPageContent() {
             <div className="divide-y">
               <div className="flex items-center gap-4 bg-muted/30 px-4 py-2.5">
                 {[24, 20, 14, 14, 16].map((w, i) => (
-                  <Skeleton key={`hcol-${i}`} className={`h-3 w-${w} rounded`} />
+                  <Skeleton key={`hcol-${i}-w${w}`} className={`h-3 w-${w} rounded`} />
                 ))}
               </div>
-              {[...Array(8)].map((_, i) => (
+              {Array.from({ length: 8 }, (_, i) => (
                 <div key={`srow-${i}`} className="flex items-center gap-4 px-4 py-3" style={{ animationDelay: `${i * 40}ms` }}>
                   <Skeleton className="h-3.5 w-32 rounded" />
                   <Skeleton className="h-3.5 w-44 rounded" />
@@ -647,7 +647,7 @@ function AlarmEventsPageContent() {
                             className="overflow-hidden py-2.5"
                             style={(!isLastDataCol && getWidth(col.id)) ? { width: `${getWidth(col.id)}px` } : undefined}
                           >
-                            {renderCell(col.id, event, { isOnCall, onAlarmClick: handleAlarmClick })}
+                            <AlarmEventCell columnId={col.id} event={event} isOnCall={isOnCall} onAlarmClick={handleAlarmClick} />
                           </TableCell>
                         )
                       })}

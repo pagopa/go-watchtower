@@ -175,7 +175,7 @@ function WeekdayPills({ activeDays }: { activeDays: number[] }) {
         const isActive = activeDays.includes(idx)
         return (
           <span
-            key={idx}
+            key={WEEKDAY_LABELS[idx]}
             title={WEEKDAY_LABELS[idx]}
             className={`inline-flex h-6 w-6 items-center justify-center rounded text-[10px] font-semibold transition-colors select-none ${
               isActive
@@ -206,8 +206,8 @@ function ConstraintRuleDisplay({ constraint, index }: { constraint: TimeConstrai
 
       {hasPeriods && (
         <div className="space-y-1.5">
-          {constraint.periods!.map((p, i) => (
-            <div key={i} className="flex items-center gap-2 text-xs">
+          {constraint.periods!.map((p) => (
+            <div key={`${p.start}-${p.end}`} className="flex items-center gap-2 text-xs">
               <Calendar className="h-3 w-3 text-muted-foreground shrink-0" />
               <span className="font-medium tabular-nums">{formatPeriodDate(p.start)}</span>
               <span className="text-muted-foreground/50">→</span>
@@ -223,9 +223,9 @@ function ConstraintRuleDisplay({ constraint, index }: { constraint: TimeConstrai
 
       {hasHours && (
         <div className="flex flex-wrap gap-1">
-          {constraint.hours!.map((h, i) => (
+          {constraint.hours!.map((h) => (
             <span
-              key={i}
+              key={`${h.start}-${h.end}`}
               className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs font-mono text-muted-foreground"
             >
               <Clock className="h-2.5 w-2.5 shrink-0" />
@@ -264,7 +264,7 @@ function ConstraintSection({
       {hasContent ? (
         <div className="space-y-1.5">
           {constraints.map((c, i) => (
-            <ConstraintRuleDisplay key={i} constraint={c} index={i} />
+            <ConstraintRuleDisplay key={`rule-${i}`} constraint={c} index={i} />
           ))}
         </div>
       ) : (
@@ -638,8 +638,8 @@ export function IgnoredAlarmsTab({ productId }: IgnoredAlarmsTabProps) {
           <Skeleton className="h-8 w-24 rounded-md" />
         </div>
         <div className="space-y-3">
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="rounded-lg border border-border overflow-hidden">
+          {[0, 1, 2].map((n) => (
+            <div key={`skeleton-${n}`} className="rounded-lg border border-border overflow-hidden">
               <div className="flex items-center gap-3 px-4 py-3 border-b border-border/60">
                 <div className="flex-1 space-y-1.5">
                   <Skeleton className="h-4 w-1/3" />

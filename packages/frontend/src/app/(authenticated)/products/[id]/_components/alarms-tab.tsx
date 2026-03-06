@@ -188,8 +188,8 @@ export function AlarmsTab({ productId }: AlarmsTabProps) {
           <Skeleton className="h-8 w-36 rounded-md" />
         </div>
         <div className="rounded-lg border border-border overflow-hidden divide-y divide-border">
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="flex items-center gap-3 px-4 py-3">
+          {[0, 1, 2].map((n) => (
+            <div key={`skeleton-${n}`} className="flex items-center gap-3 px-4 py-3">
               <div className="flex-1 space-y-1.5">
                 <Skeleton className="h-4 w-1/3" />
                 <Skeleton className="h-3 w-2/3 opacity-60" />
@@ -252,7 +252,10 @@ export function AlarmsTab({ productId }: AlarmsTabProps) {
             <li
               key={alarm.id}
               className="group relative flex items-center gap-3 bg-card px-4 py-3 hover:bg-muted/40 transition-colors cursor-pointer"
+              role="button"
+              tabIndex={0}
               onClick={() => handleViewDetail(alarm)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleViewDetail(alarm) } }}
             >
               <span
                 className="pointer-events-none absolute inset-y-0 left-0 w-0.5 rounded-r-full bg-primary opacity-0 group-hover:opacity-100 transition-opacity duration-150"
@@ -273,8 +276,10 @@ export function AlarmsTab({ productId }: AlarmsTabProps) {
                 )}
                 {(canWrite || canDelete) && (
                   <div
+                    role="group"
                     className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150"
                     onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
                   >
                     {canWrite && (
                       <Button

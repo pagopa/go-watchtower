@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Search, X, ChevronDown, SlidersHorizontal, Settings2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -142,7 +142,7 @@ export function AnalysisFilters({
     )
   })
 
-  const basicFilterCount = useMemo(() => [
+  const basicFilterCount = [
     filters.search,
     filters.analysisType,
     filters.status,
@@ -153,15 +153,15 @@ export function AnalysisFilters({
     filters.isOnCall !== undefined ? 'on' : '',
     filters.dateFrom,
     filters.dateTo,
-  ].filter(Boolean).length, [filters])
+  ].filter(Boolean).length
 
-  const advancedFilterCount = useMemo(() => [
+  const advancedFilterCount = [
     filters.ignoreReasonCode,
     filters.runbookId,
     filters.microserviceId,
     filters.downstreamId,
     filters.traceId,
-  ].filter(Boolean).length, [filters])
+  ].filter(Boolean).length
 
   const activeFilterCount = basicFilterCount + advancedFilterCount
 

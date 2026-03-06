@@ -85,7 +85,7 @@ export function ProductsPage() {
           <CardContent className="p-0">
             <div className="space-y-4 p-6">
               {[...Array(5)].map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
+                <Skeleton key={`skeleton-${i}`} className="h-12 w-full" />
               ))}
             </div>
           </CardContent>
