@@ -151,6 +151,7 @@ interface AnalysisFormDialogProps {
   showProductSelector?: boolean
   selectedProductId?: string
   onProductChange?: (productId: string) => void
+  futureOffsetMinutes?: number | null
 }
 
 export function AnalysisFormDialog({
@@ -164,6 +165,7 @@ export function AnalysisFormDialog({
   showProductSelector,
   selectedProductId,
   onProductChange,
+  futureOffsetMinutes,
 }: AnalysisFormDialogProps) {
   const { data: session } = useSession()
   const { can } = usePermissions()
@@ -375,7 +377,7 @@ export function AnalysisFormDialog({
     return ignoredAlarms.find((ia) => ia.id === matched.id) ?? null
   }, [editItem, watchedAlarmId, watchedEnvironmentId, watchedFirstAlarm, ignoredAlarms])
 
-  const dateValidation = useDateValidation(watchedFirstAlarm, watchedLastAlarm, watchedAnalysisDate)
+  const dateValidation = useDateValidation(watchedFirstAlarm, watchedLastAlarm, watchedAnalysisDate, futureOffsetMinutes)
 
   const handleFirstAlarmChange = (value: string, fieldOnChange: (v: string) => void) => {
     fieldOnChange(value)
@@ -385,7 +387,10 @@ export function AnalysisFormDialog({
     }
   }
 
+  const hasDateErrors = dateValidation.analysisDateError !== '' || dateValidation.lastAlarmError !== ''
+
   const handleFormSubmit = (data: AnalysisFormData) => {
+    if (hasDateErrors) return
     onSubmit({
       ...data,
       // analysisDate is entered as Rome local time → convert to UTC ISO
@@ -724,7 +729,7 @@ export function AnalysisFormDialog({
             >
               Annulla
             </Button>
-            <Button type="submit" disabled={isPending}>
+            <Button type="submit" disabled={isPending || hasDateErrors}>
               {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {editItem ? 'Salva' : 'Crea'}
             </Button>

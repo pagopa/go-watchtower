@@ -205,6 +205,7 @@ function AnalysesPageContent() {
     enabled: !permissionsLoading,
   })
   const lockDays = analysisPolicy?.editLockDays ?? null
+  const futureOffsetMinutes = analysisPolicy?.analysisFutureOffsetMinutes ?? null
 
   // Returns true if the analysis is past the edit lock threshold for this user.
   // Only applies to users with OWN write scope (OPERATOR), for their own analyses.
@@ -874,6 +875,7 @@ function AnalysesPageContent() {
         showProductSelector={isAllView && !editItem}
         selectedProductId={formProductId}
         onProductChange={setFormProductId}
+        futureOffsetMinutes={futureOffsetMinutes}
       />
 
       {/* Shortcut Dialogs */}

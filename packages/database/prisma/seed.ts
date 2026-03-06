@@ -264,6 +264,15 @@ async function seedSystemSettings() {
       description: "Finestra oraria e giorni lavorativi usati per il calcolo delle KPI",
     },
     {
+      key:         "analysis_date_future_offset_minutes",
+      value:       15,
+      type:        "NUMBER",
+      format:      null,
+      category:    "ANALYSIS",
+      label:       "Offset massimo data analisi (minuti)",
+      description: "Numero di minuti di tolleranza oltre l'ora corrente per la data di analisi. Impedisce l'inserimento di date nel futuro.",
+    },
+    {
       key:         "on_call_hours",
       value:       {
         timezone:  "Europe/Rome",

@@ -369,6 +369,7 @@ export const AnalysisStatsResponseSchema = Type.Object({
 
 export const AnalysisPolicyResponseSchema = Type.Object({
   editLockDays: Type.Number({ description: "Days after which an operator cannot edit/delete their own analysis (0 = disabled)" }),
+  analysisFutureOffsetMinutes: Type.Number({ description: "Minutes of tolerance beyond current time for analysis date (prevents future dates)" }),
 });
 
 export type AnalysisPolicyResponse = Static<typeof AnalysisPolicyResponseSchema>;

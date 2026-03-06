@@ -917,7 +917,7 @@ export const api = {
       params: filters as Record<string, string | number | boolean | undefined>,
     }),
   getAnalysisAuthors: () => request<AnalysisAuthor[]>('/api/analyses/authors'),
-  getAnalysisPolicy: () => request<{ editLockDays: number }>('/api/analyses/policy'),
+  getAnalysisPolicy: () => request<{ editLockDays: number; analysisFutureOffsetMinutes: number }>('/api/analyses/policy'),
   getIgnoreReasons: () => request<IgnoreReason[]>('/api/ignore-reasons'),
   getIgnoreReason: (code: string) => request<IgnoreReason>(`/api/ignore-reasons/${code}`),
   createIgnoreReason: (data: CreateIgnoreReasonData) =>

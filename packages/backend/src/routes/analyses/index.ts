@@ -206,11 +206,13 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
       },
     },
     async (_request, reply) => {
-      const setting = await prisma.systemSetting.findUnique({
-        where: { key: "analysis_edit_lock_days" },
-      });
-      const editLockDays = typeof setting?.value === "number" ? setting.value : 7;
-      return reply.send({ editLockDays });
+      const [lockSetting, offsetSetting] = await Promise.all([
+        prisma.systemSetting.findUnique({ where: { key: "analysis_edit_lock_days" } }),
+        prisma.systemSetting.findUnique({ where: { key: "analysis_date_future_offset_minutes" } }),
+      ]);
+      const editLockDays = typeof lockSetting?.value === "number" ? lockSetting.value : 7;
+      const analysisFutureOffsetMinutes = typeof offsetSetting?.value === "number" ? offsetSetting.value : 15;
+      return reply.send({ editLockDays, analysisFutureOffsetMinutes });
     }
   );
 

@@ -186,7 +186,8 @@ export type ShortcutIgnorableData = z.infer<typeof shortcutIgnorableSchema>
 export function useDateValidation(
   firstAlarm: string,
   lastAlarm: string,
-  analysisDate: string
+  analysisDate: string,
+  futureOffsetMinutes?: number | null,
 ) {
   return useMemo(() => {
     const result = { lastAlarmError: '', analysisDateError: '' }
@@ -200,15 +201,26 @@ export function useDateValidation(
       }
     }
 
-    // analysisDate is Rome local, firstAlarmAt is UTC — convert properly before comparing.
-    if (analysisDate && firstAlarm) {
+    if (analysisDate) {
       const analysisUTC = fromZonedTime(new Date(analysisDate), ROME_TZ)
-      const firstAlarmUTC = new Date(firstAlarm + ':00.000Z')
-      if (analysisUTC < firstAlarmUTC) {
-        result.analysisDateError = 'La data analisi non può precedere il primo allarme'
+
+      // analysisDate is Rome local, firstAlarmAt is UTC — convert properly before comparing.
+      if (firstAlarm) {
+        const firstAlarmUTC = new Date(firstAlarm + ':00.000Z')
+        if (analysisUTC < firstAlarmUTC) {
+          result.analysisDateError = 'La data analisi non può precedere il primo allarme'
+        }
+      }
+
+      // Block analysis date in the future (beyond NOW + offset).
+      if (!result.analysisDateError && futureOffsetMinutes != null) {
+        const maxAllowed = new Date(Date.now() + futureOffsetMinutes * 60_000)
+        if (analysisUTC > maxAllowed) {
+          result.analysisDateError = 'La data analisi non può essere nel futuro'
+        }
       }
     }
 
     return result
-  }, [firstAlarm, lastAlarm, analysisDate])
+  }, [firstAlarm, lastAlarm, analysisDate, futureOffsetMinutes])
 }
