@@ -3,7 +3,8 @@
 import { useCallback, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { api, type UserPreferences } from '@/lib/api-client'
+import { api } from '@/lib/api-client'
+import type { UserPreferences } from '@go-watchtower/shared'
 
 export function usePreferences() {
   const { status } = useSession()

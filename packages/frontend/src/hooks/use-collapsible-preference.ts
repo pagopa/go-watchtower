@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { usePreferences } from './use-preferences'
-import type { UserPreferences } from '@/lib/api-client'
+import type { UserPreferences } from '@go-watchtower/shared'
 
 /**
  * Manages a collapsible state synced with user preferences.

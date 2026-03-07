@@ -1,14 +1,7 @@
 import { prisma, Resource, PermissionScope } from "@go-watchtower/database";
+import type { PermissionAction, UserPermissions } from "@go-watchtower/shared";
 
-export type PermissionAction = "read" | "write" | "delete";
-
-export interface UserPermissions {
-  [resource: string]: {
-    canRead: PermissionScope;
-    canWrite: PermissionScope;
-    canDelete: PermissionScope;
-  };
-}
+export type { PermissionAction, UserPermissions };
 
 // ── Permission cache (TTL-based, in-memory) ──────────────────────────────────
 const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes

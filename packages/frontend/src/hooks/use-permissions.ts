@@ -4,9 +4,7 @@ import { useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
 import { api, type UserPermissions, type PermissionScope } from '@/lib/api-client'
-import type { Resource } from '@go-watchtower/shared'
-
-type Action = 'read' | 'write' | 'delete'
+import type { Resource, PermissionAction } from '@go-watchtower/shared'
 
 export function usePermissions() {
   const { status } = useSession()
@@ -25,7 +23,7 @@ export function usePermissions() {
    * Get the raw PermissionScope for a resource/action.
    */
   const getScope = useCallback(
-    (resource: Resource, action: Action): PermissionScope => {
+    (resource: Resource, action: PermissionAction): PermissionScope => {
       if (!permissions) return 'NONE'
       const rp = permissions[resource]
       if (!rp) return 'NONE'
@@ -38,7 +36,7 @@ export function usePermissions() {
    * Backward-compatible boolean check: true if scope is not NONE.
    */
   const can = useCallback(
-    (resource: Resource, action: Action): boolean => {
+    (resource: Resource, action: PermissionAction): boolean => {
       return getScope(resource, action) !== 'NONE'
     },
     [getScope]
@@ -51,7 +49,7 @@ export function usePermissions() {
    * - NONE: always false
    */
   const canFor = useCallback(
-    (resource: Resource, action: Action, ownerId: string, currentUserId: string | undefined): boolean => {
+    (resource: Resource, action: PermissionAction, ownerId: string, currentUserId: string | undefined): boolean => {
       const scope = getScope(resource, action)
       switch (scope) {
         case 'ALL':

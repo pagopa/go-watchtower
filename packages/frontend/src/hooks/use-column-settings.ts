@@ -2,7 +2,7 @@
 
 import { useMemo, useCallback, useState, useRef, useEffect, useLayoutEffect } from 'react'
 import { usePreferences } from '@/hooks/use-preferences'
-import type { ColumnSettings } from '@/lib/api-client'
+import type { ColumnSettings } from '@go-watchtower/shared'
 
 export interface ColumnDef {
   id: string

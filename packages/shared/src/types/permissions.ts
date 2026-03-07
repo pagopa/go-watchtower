@@ -1,5 +1,7 @@
 import type { PermissionScope } from '../constants/permission-scopes.js';
 
+export type PermissionAction = 'read' | 'write' | 'delete';
+
 export interface ResourcePermission {
   canRead: PermissionScope;
   canWrite: PermissionScope;

@@ -9,7 +9,8 @@ import {
   Monitor, Sun, Moon, Rows3, PanelLeft, SlidersHorizontal,
   KeyRound, Globe, RotateCcw, Eye, EyeOff, Lock, ChevronDown, ChevronUp,
 } from 'lucide-react'
-import { api, type UserDetail, type ColumnSettings } from '@/lib/api-client'
+import { api, type UserDetail } from '@/lib/api-client'
+import type { ColumnSettings } from '@go-watchtower/shared'
 import { formatDateLong as formatDate, getInitials } from '@/lib/format'
 import { COLUMN_REGISTRY, LIST_LABELS, type ColumnDef } from '@/lib/column-registry'
 import { usePreferences } from '@/hooks/use-preferences'
