@@ -39,9 +39,7 @@ async function auditPlugin(app: FastifyInstance): Promise<void> {
 
   app.addHook(
     "onResponse",
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      // Only flush audit events for successful responses (2xx)
-      if (reply.statusCode < 200 || reply.statusCode >= 300) return;
+    async (request: FastifyRequest, _reply: FastifyReply) => {
       if (!request.auditEvents || request.auditEvents.length === 0) return;
 
       // Extract actor context from the request

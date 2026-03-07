@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import Fastify from "fastify";
 import type { FastifyServerOptions } from "fastify";
 import { registerCors } from "./plugins/cors.js";
@@ -38,6 +39,9 @@ export async function buildApp() {
   const app = Fastify({
     logger: getLoggerConfig(),
     trustProxy: true, // Required for rate limiting by IP behind proxy
+    genReqId: (req) =>
+      (req.headers["x-request-id"] as string) || crypto.randomUUID(),
+    requestIdHeader: "x-request-id",
   });
 
   // Register plugins
