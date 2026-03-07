@@ -312,6 +312,41 @@ export function Sidebar() {
             )
           })}
         </nav>
+
+        {/* Branding & version */}
+        <div className="border-t border-sidebar-foreground/10 px-3 py-3">
+          {collapsed ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex flex-col items-center gap-0.5 cursor-default">
+                  <span className="font-[family-name:var(--font-cinzel)] text-sm font-bold tracking-tight text-sidebar-foreground/50">
+                    W
+                  </span>
+                  <span className="text-[9px] font-mono text-sidebar-foreground/25">
+                    {process.env.NEXT_PUBLIC_APP_VERSION}
+                  </span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="space-y-0.5">
+                <p className="font-semibold">Watchtower</p>
+                <p className="text-xs text-muted-foreground">
+                  v{process.env.NEXT_PUBLIC_APP_VERSION} &middot; {process.env.NEXT_PUBLIC_BUILD_ID}
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            <div className="select-none">
+              <p className="font-[family-name:var(--font-cinzel)] text-[13px] font-bold tracking-wide text-sidebar-foreground/50">
+                Watchtower
+              </p>
+              <p className="mt-0.5 text-[11px] text-sidebar-foreground/30">
+                v{process.env.NEXT_PUBLIC_APP_VERSION}
+                <span className="mx-1 text-sidebar-foreground/15">&middot;</span>
+                <span className="font-mono text-[10px]">{process.env.NEXT_PUBLIC_BUILD_ID}</span>
+              </p>
+            </div>
+          )}
+        </div>
       </aside>
     </TooltipProvider>
   )

@@ -4,11 +4,12 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 # Install pnpm
-RUN npm install -g pnpm
+RUN npm install -g pnpm@latest
 
 # Copy workspace files
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/frontend/package.json ./packages/frontend/
+COPY packages/shared/package.json ./packages/shared/
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
@@ -17,15 +18,20 @@ RUN pnpm install --frozen-lockfile
 FROM node:25-alpine AS builder
 WORKDIR /app
 
-RUN npm install -g pnpm
+RUN npm install -g pnpm@latest
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/packages/frontend/node_modules ./packages/frontend/node_modules
 COPY . .
 
+# Build shared package (exports point to dist/, excluded by .dockerignore)
+RUN pnpm --filter @go-watchtower/shared build
+
 # Build arguments
 ARG NEXT_PUBLIC_API_URL
+ARG BUILD_ID
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV BUILD_ID=$BUILD_ID
 
 WORKDIR /app/packages/frontend
 RUN pnpm build

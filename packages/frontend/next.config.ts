@@ -1,8 +1,21 @@
 import path from 'node:path'
+import { execSync } from 'node:child_process'
 import type { NextConfig } from 'next'
+
+function getGitHash(): string {
+  try {
+    return execSync('git rev-parse --short HEAD', { encoding: 'utf-8' }).trim()
+  } catch {
+    return 'dev'
+  }
+}
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  env: {
+    NEXT_PUBLIC_APP_VERSION: process.env.npm_package_version ?? '0.0.0',
+    NEXT_PUBLIC_BUILD_ID: process.env.BUILD_ID ?? getGitHash(),
+  },
   reactStrictMode: process.env.NODE_ENV === 'production',
   transpilePackages: ['@go-watchtower/shared'],
   turbopack: {

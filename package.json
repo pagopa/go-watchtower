@@ -5,7 +5,10 @@
   "type": "module",
   "description": "Watchtower veglia sull'infrastruttura digitale di PagoPa 24 ore su 24. Un punto unico di osservazione per allarmi, incidenti e azioni — perché nessun problema passi inosservato.",
   "scripts": {
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "deploy:frontend": "bash scripts/deploy-frontend.sh",
+    "deploy:backend": "bash scripts/deploy-backend.sh",
+    "deploy:slack-ingestor": "bash scripts/deploy-slack-ingestor.sh"
   },
   "keywords": [],
   "author": "Team GO - Gestione Operativa",

@@ -6,6 +6,8 @@ node_modules
 dist
 **/dist
 **/*.tsbuildinfo
+.next
+**/.next
 
 # Development files
 .git
