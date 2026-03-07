@@ -32,12 +32,16 @@ import {
   type UpdateAlarmAnalysisBody,
 } from "./schemas.js";
 
+const SAFE_URL_PATTERN = /^https?:\/\//i;
+
 function processLinks(links?: Array<{ url: string; name?: string; type?: string }>): Array<{ url: string; name?: string; type: string }> {
   if (!links) return [];
-  return links.map((link) => ({
-    ...link,
-    type: link.type || inferLinkType(link.url),
-  }));
+  return links
+    .filter((link) => SAFE_URL_PATTERN.test(link.url))
+    .map((link) => ({
+      ...link,
+      type: link.type || inferLinkType(link.url),
+    }));
 }
 
 // Prisma include clause for all relations

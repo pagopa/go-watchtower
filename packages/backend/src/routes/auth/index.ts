@@ -305,27 +305,19 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         await revokeRefreshToken(refreshToken);
       }
 
-      // Try to identify the user: first from cookie, then from Bearer header
+      // Try to identify the user from a verified token (cookie or Bearer header).
+      // We use jwtVerify() instead of decode() to prevent forged token abuse.
       let logoutUserId: string | null = null;
       let logoutUserLabel: string | null = null;
       try {
-        const accessTokenCookie = request.cookies["accessToken"] as string | undefined;
-        const bearerHeader = request.headers["authorization"] as string | undefined;
-        const bearerToken = bearerHeader?.startsWith("Bearer ")
-          ? bearerHeader.slice(7)
-          : undefined;
-        const rawToken = accessTokenCookie ?? bearerToken;
-        if (rawToken) {
-          const decoded = app.jwt.decode<JwtPayload>(rawToken);
-          if (decoded) {
-            logoutUserId = decoded.userId;
-            logoutUserLabel = decoded.name
-              ? `${decoded.name} (${decoded.email})`
-              : decoded.email;
-          }
-        }
+        await request.jwtVerify();
+        const payload = request.user as JwtPayload;
+        logoutUserId = payload.userId;
+        logoutUserLabel = payload.name
+          ? `${payload.name} (${payload.email})`
+          : payload.email;
       } catch {
-        // token may be expired or malformed - that's fine
+        // token expired or missing — audit without user identity
       }
 
       // audit: unauthenticated endpoint -- direct call, request.user not available (token may be expired)
@@ -519,10 +511,8 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
           userAgent: request.headers["user-agent"] ?? null,
         });
 
-        // Redirect to frontend with tokens
-        reply.redirect(
-          `${env.FRONTEND_URL}/auth/callback?accessToken=${accessToken}&refreshToken=${refreshToken}`
-        );
+        // Redirect to frontend — tokens are in httpOnly cookies, not in URL
+        reply.redirect(`${env.FRONTEND_URL}/auth/callback`);
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Google authentication failed";

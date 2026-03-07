@@ -147,7 +147,7 @@ export const MicroservicesResponseSchema = Type.Array(MicroserviceResponseSchema
 export const CreateRunbookBodySchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 255 }),
   description: Type.Optional(Type.String()),
-  link: Type.String({ minLength: 1 }),
+  link: Type.String({ minLength: 1, pattern: "^https?://" }),
   status: Type.Optional(RunbookStatusSchema),
 });
 
@@ -156,7 +156,7 @@ export type CreateRunbookBody = Static<typeof CreateRunbookBodySchema>;
 export const UpdateRunbookBodySchema = Type.Object({
   name: Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
   description: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-  link: Type.Optional(Type.String({ minLength: 1 })),
+  link: Type.Optional(Type.String({ minLength: 1, pattern: "^https?://" })),
   status: Type.Optional(RunbookStatusSchema),
 });
 

@@ -64,3 +64,8 @@ import/
 temp/
 tmp/
 .pagopa/
+scripts/deploy-backend.sh
+.gitignore
+.gitignore
+scripts/deploy-frontend.sh
+scripts/deploy-slack-ingestor.sh
