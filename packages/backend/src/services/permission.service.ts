@@ -10,11 +10,38 @@ export interface UserPermissions {
   };
 }
 
+// ── Permission cache (TTL-based, in-memory) ──────────────────────────────────
+const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
+
+interface CacheEntry {
+  permissions: UserPermissions;
+  expiresAt: number;
+}
+
+const permissionCache = new Map<string, CacheEntry>();
+
+/** Invalidate cached permissions for a user (call after role/override changes). */
+export function invalidatePermissionCache(userId: string): void {
+  permissionCache.delete(userId);
+}
+
+/** Invalidate all cached permissions (call after bulk role changes). */
+export function invalidateAllPermissionCaches(): void {
+  permissionCache.clear();
+}
+
 /**
  * Get effective permissions for a user.
  * Combines role permissions with user-specific overrides.
+ * Results are cached for 2 minutes per user.
  */
 export async function getUserPermissions(userId: string): Promise<UserPermissions> {
+  const now = Date.now();
+  const cached = permissionCache.get(userId);
+  if (cached && cached.expiresAt > now) {
+    return cached.permissions;
+  }
+
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: {
@@ -65,6 +92,11 @@ export async function getUserPermissions(userId: string): Promise<UserPermission
       resourcePerm.canDelete = override.canDelete;
     }
   }
+
+  permissionCache.set(userId, {
+    permissions,
+    expiresAt: Date.now() + CACHE_TTL_MS,
+  });
 
   return permissions;
 }

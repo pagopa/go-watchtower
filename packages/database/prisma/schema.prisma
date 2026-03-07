@@ -149,7 +149,7 @@ model RefreshToken {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
+  @@index([userId, revokedAt])
   @@index([expiresAt])
   @@map("refresh_tokens")
 }
@@ -350,6 +350,7 @@ model AlarmAnalysis {
   @@index([operatorId])
   @@index([alarmId])
   @@index([productId, analysisDate])
+  @@index([productId, status])
   @@index([createdAt])
   // @@index([analysisType]) — low cardinality (2 values), never used as leading filter
   // @@index([status]) — low cardinality (3 values), never used as leading filter

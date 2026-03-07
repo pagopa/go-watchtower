@@ -22,6 +22,8 @@ import {
   updateRole,
   deleteRole,
   updateRolePermissions,
+  invalidatePermissionCache,
+  invalidateAllPermissionCaches,
 } from "../../services/permission.service.js";
 import { hashPassword } from "../../utils/password.js";
 import { buildDiff } from "../../services/system-event.service.js";
@@ -656,6 +658,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
           request.user.userId,
           request.body.reason
         );
+        invalidatePermissionCache(request.params.id);
 
         request.auditEvents.push({
           action: existingOverride
@@ -729,6 +732,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         if (!removed) {
           return reply.status(404).send({ error: "Permission override not found" });
         }
+        invalidatePermissionCache(request.params.id);
 
         request.auditEvents.push({
           action: SystemEventActions.PERMISSION_OVERRIDE_DELETED,
@@ -1037,6 +1041,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         }
 
         await deleteRole(request.params.id);
+        invalidateAllPermissionCaches();
 
         request.auditEvents.push({
           action: SystemEventActions.ROLE_DELETED,
@@ -1093,6 +1098,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
             canDelete: p.canDelete as PermissionScope,
           }))
         );
+        invalidateAllPermissionCaches();
 
         if (!role) {
           return reply.status(500).send({ error: "Failed to update role permissions" });
