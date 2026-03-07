@@ -3,7 +3,8 @@ import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import { prisma, Prisma, Resource, PermissionScope, type PrismaClient } from "@go-watchtower/database";
 
 type TransactionClient = Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends">;
-import { hasPermission, getPermissionScope } from "../../services/permission.service.js";
+import { getPermissionScope } from "../../services/permission.service.js";
+import { requirePermission } from "../../lib/require-permission.js";
 import { buildDiff } from "../../services/system-event.service.js";
 import { scoreAnalysis } from "../../services/analysis-scoring.service.js";
 import { SystemEventActions, SystemEventResources, inferLinkType } from "@go-watchtower/shared";
@@ -227,7 +228,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Params: ProductIdParams; Querystring: AlarmAnalysisQuery }>(
     "/products/:productId/analyses",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.ALARM_ANALYSIS, "read")],
       schema: {
         tags: ["analyses"],
         summary: "Get all analyses for a product with pagination and filtering",
@@ -244,15 +245,6 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canRead = await hasPermission(
-          request.user.userId,
-          Resource.ALARM_ANALYSIS,
-          "read"
-        );
-        if (!canRead) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         // Verify product exists
         const product = await prisma.product.findUnique({
           where: { id: request.params.productId },
@@ -313,7 +305,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Querystring: AllAnalysesQuery }>(
     "/analyses",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.ALARM_ANALYSIS, "read")],
       schema: {
         tags: ["analyses"],
         summary: "Get all analyses across products with pagination and filtering",
@@ -328,15 +320,6 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canRead = await hasPermission(
-          request.user.userId,
-          Resource.ALARM_ANALYSIS,
-          "read"
-        );
-        if (!canRead) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const {
           page = 1,
           pageSize = 20,
@@ -387,7 +370,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Params: AlarmAnalysisParams }>(
     "/products/:productId/analyses/:id",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.ALARM_ANALYSIS, "read")],
       schema: {
         tags: ["analyses"],
         summary: "Get an analysis by ID",
@@ -403,15 +386,6 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canRead = await hasPermission(
-          request.user.userId,
-          Resource.ALARM_ANALYSIS,
-          "read"
-        );
-        if (!canRead) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const analysis = await prisma.alarmAnalysis.findFirst({
           where: {
             id: request.params.id,
@@ -440,7 +414,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
   app.post<{ Params: ProductIdParams; Body: CreateAlarmAnalysisBody }>(
     "/products/:productId/analyses",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.ALARM_ANALYSIS, "write")],
       schema: {
         tags: ["analyses"],
         summary: "Create a new analysis",
@@ -458,15 +432,6 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canWrite = await hasPermission(
-          request.user.userId,
-          Resource.ALARM_ANALYSIS,
-          "write"
-        );
-        if (!canWrite) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const { productId } = request.params;
 
         // Verify product, operator, alarm, and environment in parallel
@@ -1008,7 +973,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
   app.get(
     "/analyses/authors",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.ALARM_ANALYSIS, "read")],
       schema: {
         tags: ["analyses"],
         summary: "Get distinct users who created at least one analysis",
@@ -1020,17 +985,8 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
         },
       },
     },
-    async (request, reply) => {
+    async (_request, reply) => {
       try {
-        const canRead = await hasPermission(
-          request.user.userId,
-          Resource.ALARM_ANALYSIS,
-          "read"
-        );
-        if (!canRead) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const authors = await prisma.user.findMany({
           where: {
             analyses: { some: {} },
@@ -1055,7 +1011,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Querystring: AnalysisStatsQuery }>(
     "/analyses/stats",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.ALARM_ANALYSIS, "read")],
       schema: {
         tags: ["analyses"],
         summary: "Get aggregated analysis statistics for dashboard",
@@ -1070,15 +1026,6 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canRead = await hasPermission(
-          request.user.userId,
-          Resource.ALARM_ANALYSIS,
-          "read"
-        );
-        if (!canRead) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const { productId, dateFrom, dateTo } = request.query;
 
         // Build base where clause

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import { prisma, Prisma, Resource } from "@go-watchtower/database";
-import { hasPermission } from "../../services/permission.service.js";
+import { requirePermission } from "../../lib/require-permission.js";
 import {
   ReportQuerySchema,
   OperatorWorkloadResponseSchema,
@@ -31,7 +31,7 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Querystring: ReportQuery }>(
     "/reports/operator-workload",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.ALARM_ANALYSIS, "read")],
       schema: {
         tags: ["reports"],
         summary: "Operator workload report with MTTA and environment breakdown",
@@ -46,15 +46,6 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canRead = await hasPermission(
-          request.user.userId,
-          Resource.ALARM_ANALYSIS,
-          "read"
-        );
-        if (!canRead) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const where = buildWhereClause(request.query);
 
         // Build SQL params for MTTA queries
@@ -223,7 +214,7 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Querystring: ReportQuery }>(
     "/reports/alarm-ranking",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.ALARM_ANALYSIS, "read")],
       schema: {
         tags: ["reports"],
         summary: "Alarm ranking by total occurrences",
@@ -238,15 +229,6 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canRead = await hasPermission(
-          request.user.userId,
-          Resource.ALARM_ANALYSIS,
-          "read"
-        );
-        if (!canRead) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const where = buildWhereClause(request.query);
 
         // 1. Group by alarmId: count + sum occurrences

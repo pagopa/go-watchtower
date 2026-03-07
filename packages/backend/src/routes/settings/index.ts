@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import { prisma, Prisma, Resource } from "@go-watchtower/database";
-import { hasPermission } from "../../services/permission.service.js";
+import { requirePermission } from "../../lib/require-permission.js";
 import { buildDiff } from "../../services/system-event.service.js";
 import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
 import {
@@ -121,7 +121,7 @@ export async function settingRoutes(app: FastifyInstance): Promise<void> {
   server.get(
     "/settings",
     {
-      onRequest: [server.authenticate],
+      onRequest: [server.authenticate, requirePermission(Resource.SYSTEM_SETTING, "read")],
       schema: {
         tags: ["Settings"],
         summary: "List all system settings",
@@ -132,16 +132,7 @@ export async function settingRoutes(app: FastifyInstance): Promise<void> {
         },
       },
     },
-    async (request, reply) => {
-      const canRead = await hasPermission(
-        request.user.userId,
-        Resource.SYSTEM_SETTING,
-        "read"
-      );
-      if (!canRead) {
-        return reply.status(403).send({ error: "Permission denied" });
-      }
-
+    async (_request, reply) => {
       const settings = await prisma.systemSetting.findMany({
         orderBy: [{ category: "asc" }, { key: "asc" }],
       });
@@ -155,7 +146,7 @@ export async function settingRoutes(app: FastifyInstance): Promise<void> {
   server.get<{ Params: SettingKeyParams }>(
     "/settings/:key",
     {
-      onRequest: [server.authenticate],
+      onRequest: [server.authenticate, requirePermission(Resource.SYSTEM_SETTING, "read")],
       schema: {
         tags: ["Settings"],
         summary: "Get a single setting by key",
@@ -169,15 +160,6 @@ export async function settingRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     async (request, reply) => {
-      const canRead = await hasPermission(
-        request.user.userId,
-        Resource.SYSTEM_SETTING,
-        "read"
-      );
-      if (!canRead) {
-        return reply.status(403).send({ error: "Permission denied" });
-      }
-
       const setting = await prisma.systemSetting.findUnique({
         where: { key: request.params.key },
       });
@@ -194,7 +176,7 @@ export async function settingRoutes(app: FastifyInstance): Promise<void> {
   server.patch<{ Params: SettingKeyParams; Body: UpdateSettingBody }>(
     "/settings/:key",
     {
-      onRequest: [server.authenticate],
+      onRequest: [server.authenticate, requirePermission(Resource.SYSTEM_SETTING, "write")],
       schema: {
         tags: ["Settings"],
         summary: "Update a setting value",
@@ -210,14 +192,6 @@ export async function settingRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     async (request, reply) => {
-      const canWrite = await hasPermission(
-        request.user.userId,
-        Resource.SYSTEM_SETTING,
-        "write"
-      );
-      if (!canWrite) {
-        return reply.status(403).send({ error: "Permission denied" });
-      }
 
       const existing = await prisma.systemSetting.findUnique({
         where: { key: request.params.key },

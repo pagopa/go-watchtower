@@ -12,7 +12,7 @@ import {
   type Downstream,
   type IgnoredAlarm,
 } from "@go-watchtower/database";
-import { hasPermission } from "../../services/permission.service.js";
+import { requirePermission } from "../../lib/require-permission.js";
 import { buildDiff } from "../../services/system-event.service.js";
 import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
 import {
@@ -98,7 +98,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.get(
     "/products",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.PRODUCT, "read")],
       schema: {
         tags: ["products"],
         summary: "Get all products",
@@ -110,13 +110,8 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         },
       },
     },
-    async (request, reply) => {
+    async (_request, reply) => {
       try {
-        const canRead = await hasPermission(request.user.userId, Resource.PRODUCT, "read");
-        if (!canRead) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const products = await prisma.product.findMany({
           orderBy: { name: "asc" },
         });
@@ -142,7 +137,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Params: ProductParams }>(
     "/products/:id",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.PRODUCT, "read")],
       schema: {
         tags: ["products"],
         summary: "Get product by ID",
@@ -158,11 +153,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canRead = await hasPermission(request.user.userId, Resource.PRODUCT, "read");
-        if (!canRead) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const product = await prisma.product.findUnique({
           where: { id: request.params.id },
         });
@@ -190,7 +180,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.post<{ Body: CreateProductBody }>(
     "/products",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.PRODUCT, "write")],
       schema: {
         tags: ["products"],
         summary: "Create a new product",
@@ -206,11 +196,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canWrite = await hasPermission(request.user.userId, Resource.PRODUCT, "write");
-        if (!canWrite) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const product = await prisma.product.create({
           data: {
             name: request.body.name,
@@ -246,7 +231,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.put<{ Params: ProductParams; Body: UpdateProductBody }>(
     "/products/:id",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.PRODUCT, "write")],
       schema: {
         tags: ["products"],
         summary: "Update a product",
@@ -264,11 +249,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canWrite = await hasPermission(request.user.userId, Resource.PRODUCT, "write");
-        if (!canWrite) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const existing = await prisma.product.findUnique({
           where: { id: request.params.id },
           select: { name: true, description: true, isActive: true },
@@ -318,7 +298,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.delete<{ Params: ProductParams }>(
     "/products/:id",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.PRODUCT, "delete")],
       schema: {
         tags: ["products"],
         summary: "Delete a product",
@@ -334,11 +314,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canDelete = await hasPermission(request.user.userId, Resource.PRODUCT, "delete");
-        if (!canDelete) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         // Fetch name before deletion for audit
         const productToDelete = await prisma.product.findUnique({
           where: { id: request.params.id },
@@ -375,7 +350,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Params: ProductIdParams }>(
     "/products/:productId/filter-options",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.ALARM_ANALYSIS, "read")],
       schema: {
         tags: ["analyses"],
         summary: "Get all filter options for a product",
@@ -391,11 +366,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canRead = await hasPermission(request.user.userId, Resource.ALARM_ANALYSIS, "read");
-        if (!canRead) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const { productId } = request.params;
 
         const product = await prisma.product.findUnique({
@@ -511,7 +481,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Params: ProductIdParams }>(
     "/products/:productId/environments",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.ENVIRONMENT, "read")],
       schema: {
         tags: ["environments"],
         summary: "Get all environments for a product",
@@ -527,11 +497,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canRead = await hasPermission(request.user.userId, Resource.ENVIRONMENT, "read");
-        if (!canRead) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         // Verify product exists
         const product = await prisma.product.findUnique({
           where: { id: request.params.productId },
@@ -573,7 +538,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.post<{ Params: ProductIdParams; Body: CreateEnvironmentBody }>(
     "/products/:productId/environments",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.ENVIRONMENT, "write")],
       schema: {
         tags: ["environments"],
         summary: "Create a new environment",
@@ -591,11 +556,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canWrite = await hasPermission(request.user.userId, Resource.ENVIRONMENT, "write");
-        if (!canWrite) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         // Verify product exists
         const product = await prisma.product.findUnique({
           where: { id: request.params.productId },
@@ -651,7 +611,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.put<{ Params: EnvironmentParams; Body: UpdateEnvironmentBody }>(
     "/products/:productId/environments/:id",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.ENVIRONMENT, "write")],
       schema: {
         tags: ["environments"],
         summary: "Update an environment",
@@ -669,11 +629,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canWrite = await hasPermission(request.user.userId, Resource.ENVIRONMENT, "write");
-        if (!canWrite) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const existingEnv = await prisma.environment.findUnique({
           where: { id: request.params.id },
           select: { name: true, description: true, order: true, slackChannelId: true, defaultAwsAccountId: true, defaultAwsRegion: true, onCallAlarmPattern: true },
@@ -736,7 +691,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.delete<{ Params: EnvironmentParams }>(
     "/products/:productId/environments/:id",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.ENVIRONMENT, "delete")],
       schema: {
         tags: ["environments"],
         summary: "Delete an environment",
@@ -752,11 +707,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canDelete = await hasPermission(request.user.userId, Resource.ENVIRONMENT, "delete");
-        if (!canDelete) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const envToDelete = await prisma.environment.findUnique({
           where: { id: request.params.id },
           select: { name: true },
@@ -796,7 +746,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Params: ProductIdParams }>(
     "/products/:productId/microservices",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.MICROSERVICE, "read")],
       schema: {
         tags: ["microservices"],
         summary: "Get all microservices for a product",
@@ -812,11 +762,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canRead = await hasPermission(request.user.userId, Resource.MICROSERVICE, "read");
-        if (!canRead) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         // Verify product exists
         const product = await prisma.product.findUnique({
           where: { id: request.params.productId },
@@ -853,7 +798,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.post<{ Params: ProductIdParams; Body: CreateMicroserviceBody }>(
     "/products/:productId/microservices",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.MICROSERVICE, "write")],
       schema: {
         tags: ["microservices"],
         summary: "Create a new microservice",
@@ -871,11 +816,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canWrite = await hasPermission(request.user.userId, Resource.MICROSERVICE, "write");
-        if (!canWrite) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         // Verify product exists
         const product = await prisma.product.findUnique({
           where: { id: request.params.productId },
@@ -921,7 +861,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.put<{ Params: MicroserviceParams; Body: UpdateMicroserviceBody }>(
     "/products/:productId/microservices/:id",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.MICROSERVICE, "write")],
       schema: {
         tags: ["microservices"],
         summary: "Update a microservice",
@@ -939,11 +879,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canWrite = await hasPermission(request.user.userId, Resource.MICROSERVICE, "write");
-        if (!canWrite) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const existingMs = await prisma.microservice.findUnique({
           where: { id: request.params.id },
           select: { name: true, description: true },
@@ -996,7 +931,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.delete<{ Params: MicroserviceParams }>(
     "/products/:productId/microservices/:id",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.MICROSERVICE, "delete")],
       schema: {
         tags: ["microservices"],
         summary: "Delete a microservice",
@@ -1012,11 +947,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canDelete = await hasPermission(request.user.userId, Resource.MICROSERVICE, "delete");
-        if (!canDelete) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const msToDelete = await prisma.microservice.findUnique({
           where: { id: request.params.id },
           select: { name: true },
@@ -1056,7 +986,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Params: ProductIdParams }>(
     "/products/:productId/runbooks",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.RUNBOOK, "read")],
       schema: {
         tags: ["runbooks"],
         summary: "Get all runbooks for a product",
@@ -1072,11 +1002,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canRead = await hasPermission(request.user.userId, Resource.RUNBOOK, "read");
-        if (!canRead) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         // Verify product exists
         const product = await prisma.product.findUnique({
           where: { id: request.params.productId },
@@ -1115,7 +1040,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.post<{ Params: ProductIdParams; Body: CreateRunbookBody }>(
     "/products/:productId/runbooks",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.RUNBOOK, "write")],
       schema: {
         tags: ["runbooks"],
         summary: "Create a new runbook",
@@ -1133,11 +1058,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canWrite = await hasPermission(request.user.userId, Resource.RUNBOOK, "write");
-        if (!canWrite) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         // Verify product exists
         const product = await prisma.product.findUnique({
           where: { id: request.params.productId },
@@ -1187,7 +1107,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.put<{ Params: RunbookParams; Body: UpdateRunbookBody }>(
     "/products/:productId/runbooks/:id",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.RUNBOOK, "write")],
       schema: {
         tags: ["runbooks"],
         summary: "Update a runbook",
@@ -1205,11 +1125,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canWrite = await hasPermission(request.user.userId, Resource.RUNBOOK, "write");
-        if (!canWrite) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const existingRunbook = await prisma.runbook.findUnique({
           where: { id: request.params.id },
           select: { name: true, description: true, link: true, status: true },
@@ -1266,7 +1181,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.delete<{ Params: RunbookParams }>(
     "/products/:productId/runbooks/:id",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.RUNBOOK, "delete")],
       schema: {
         tags: ["runbooks"],
         summary: "Delete a runbook",
@@ -1282,11 +1197,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canDelete = await hasPermission(request.user.userId, Resource.RUNBOOK, "delete");
-        if (!canDelete) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const runbookToDelete = await prisma.runbook.findUnique({
           where: { id: request.params.id },
           select: { name: true },
@@ -1326,7 +1236,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Params: ProductIdParams }>(
     "/products/:productId/final-actions",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.FINAL_ACTION, "read")],
       schema: {
         tags: ["final-actions"],
         summary: "Get all final actions for a product",
@@ -1342,11 +1252,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canRead = await hasPermission(request.user.userId, Resource.FINAL_ACTION, "read");
-        if (!canRead) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         // Verify product exists
         const product = await prisma.product.findUnique({
           where: { id: request.params.productId },
@@ -1385,7 +1290,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.post<{ Params: ProductIdParams; Body: CreateFinalActionBody }>(
     "/products/:productId/final-actions",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.FINAL_ACTION, "write")],
       schema: {
         tags: ["final-actions"],
         summary: "Create a new final action",
@@ -1403,11 +1308,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canWrite = await hasPermission(request.user.userId, Resource.FINAL_ACTION, "write");
-        if (!canWrite) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         // Verify product exists
         const product = await prisma.product.findUnique({
           where: { id: request.params.productId },
@@ -1457,7 +1357,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.put<{ Params: FinalActionParams; Body: UpdateFinalActionBody }>(
     "/products/:productId/final-actions/:id",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.FINAL_ACTION, "write")],
       schema: {
         tags: ["final-actions"],
         summary: "Update a final action",
@@ -1475,11 +1375,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canWrite = await hasPermission(request.user.userId, Resource.FINAL_ACTION, "write");
-        if (!canWrite) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const existingFa = await prisma.finalAction.findUnique({
           where: { id: request.params.id },
           select: { name: true, description: true, order: true, isOther: true },
@@ -1536,7 +1431,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.delete<{ Params: FinalActionParams }>(
     "/products/:productId/final-actions/:id",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.FINAL_ACTION, "delete")],
       schema: {
         tags: ["final-actions"],
         summary: "Delete a final action",
@@ -1552,11 +1447,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canDelete = await hasPermission(request.user.userId, Resource.FINAL_ACTION, "delete");
-        if (!canDelete) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const faToDelete = await prisma.finalAction.findUnique({
           where: { id: request.params.id },
           select: { name: true },
@@ -1596,7 +1486,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Params: ProductIdParams }>(
     "/products/:productId/alarms",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.ALARM, "read")],
       schema: {
         tags: ["alarms"],
         summary: "Get all alarms for a product",
@@ -1612,11 +1502,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canRead = await hasPermission(request.user.userId, Resource.ALARM, "read");
-        if (!canRead) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         // Verify product exists
         const product = await prisma.product.findUnique({
           where: { id: request.params.productId },
@@ -1656,7 +1541,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.post<{ Params: ProductIdParams; Body: CreateAlarmBody }>(
     "/products/:productId/alarms",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.ALARM, "write")],
       schema: {
         tags: ["alarms"],
         summary: "Create a new alarm",
@@ -1674,11 +1559,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canWrite = await hasPermission(request.user.userId, Resource.ALARM, "write");
-        if (!canWrite) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         // Verify product exists
         const product = await prisma.product.findUnique({
           where: { id: request.params.productId },
@@ -1728,7 +1608,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.put<{ Params: AlarmParams; Body: UpdateAlarmBody }>(
     "/products/:productId/alarms/:id",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.ALARM, "write")],
       schema: {
         tags: ["alarms"],
         summary: "Update an alarm",
@@ -1746,11 +1626,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canWrite = await hasPermission(request.user.userId, Resource.ALARM, "write");
-        if (!canWrite) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const existingAlarm = await prisma.alarm.findUnique({
           where: {
             id: request.params.id,
@@ -1812,7 +1687,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.delete<{ Params: AlarmParams }>(
     "/products/:productId/alarms/:id",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.ALARM, "delete")],
       schema: {
         tags: ["alarms"],
         summary: "Delete an alarm",
@@ -1828,11 +1703,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canDelete = await hasPermission(request.user.userId, Resource.ALARM, "delete");
-        if (!canDelete) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         // Fetch name before deletion for audit
         const alarmToDelete = await prisma.alarm.findUnique({
           where: { id: request.params.id },
@@ -1873,7 +1743,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Params: ProductIdParams }>(
     "/products/:productId/downstreams",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.DOWNSTREAM, "read")],
       schema: {
         tags: ["downstreams"],
         summary: "Get all downstreams for a product",
@@ -1889,11 +1759,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canRead = await hasPermission(request.user.userId, Resource.DOWNSTREAM, "read");
-        if (!canRead) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         // Verify product exists
         const product = await prisma.product.findUnique({
           where: { id: request.params.productId },
@@ -1930,7 +1795,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.post<{ Params: ProductIdParams; Body: CreateDownstreamBody }>(
     "/products/:productId/downstreams",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.DOWNSTREAM, "write")],
       schema: {
         tags: ["downstreams"],
         summary: "Create a new downstream",
@@ -1948,11 +1813,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canWrite = await hasPermission(request.user.userId, Resource.DOWNSTREAM, "write");
-        if (!canWrite) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         // Verify product exists
         const product = await prisma.product.findUnique({
           where: { id: request.params.productId },
@@ -1998,7 +1858,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.put<{ Params: DownstreamParams; Body: UpdateDownstreamBody }>(
     "/products/:productId/downstreams/:id",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.DOWNSTREAM, "write")],
       schema: {
         tags: ["downstreams"],
         summary: "Update a downstream",
@@ -2016,11 +1876,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canWrite = await hasPermission(request.user.userId, Resource.DOWNSTREAM, "write");
-        if (!canWrite) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const existingDs = await prisma.downstream.findUnique({
           where: { id: request.params.id },
           select: { name: true, description: true },
@@ -2073,7 +1928,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.delete<{ Params: DownstreamParams }>(
     "/products/:productId/downstreams/:id",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.DOWNSTREAM, "delete")],
       schema: {
         tags: ["downstreams"],
         summary: "Delete a downstream",
@@ -2089,11 +1944,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canDelete = await hasPermission(request.user.userId, Resource.DOWNSTREAM, "delete");
-        if (!canDelete) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const dsToDelete = await prisma.downstream.findUnique({
           where: { id: request.params.id },
           select: { name: true },
@@ -2148,7 +1998,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Params: ProductIdParams }>(
     "/products/:productId/ignored-alarms",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.IGNORED_ALARM, "read")],
       schema: {
         tags: ["ignored-alarms"],
         summary: "Get all ignored alarms for a product",
@@ -2164,11 +2014,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canRead = await hasPermission(request.user.userId, Resource.IGNORED_ALARM, "read");
-        if (!canRead) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const product = await prisma.product.findUnique({
           where: { id: request.params.productId },
           select: { id: true },
@@ -2199,7 +2044,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Params: IgnoredAlarmParams }>(
     "/products/:productId/ignored-alarms/:id",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.IGNORED_ALARM, "read")],
       schema: {
         tags: ["ignored-alarms"],
         summary: "Get an ignored alarm by ID",
@@ -2215,11 +2060,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canRead = await hasPermission(request.user.userId, Resource.IGNORED_ALARM, "read");
-        if (!canRead) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const ignoredAlarm = await prisma.ignoredAlarm.findFirst({
           where: {
             id: request.params.id,
@@ -2247,7 +2087,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.post<{ Params: ProductIdParams; Body: CreateIgnoredAlarmBody }>(
     "/products/:productId/ignored-alarms",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.IGNORED_ALARM, "write")],
       schema: {
         tags: ["ignored-alarms"],
         summary: "Create a new ignored alarm",
@@ -2265,11 +2105,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canWrite = await hasPermission(request.user.userId, Resource.IGNORED_ALARM, "write");
-        if (!canWrite) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const product = await prisma.product.findUnique({
           where: { id: request.params.productId },
           select: { id: true },
@@ -2318,7 +2153,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.put<{ Params: IgnoredAlarmParams; Body: UpdateIgnoredAlarmBody }>(
     "/products/:productId/ignored-alarms/:id",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.IGNORED_ALARM, "write")],
       schema: {
         tags: ["ignored-alarms"],
         summary: "Update an ignored alarm",
@@ -2336,11 +2171,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canWrite = await hasPermission(request.user.userId, Resource.IGNORED_ALARM, "write");
-        if (!canWrite) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const existingIgnoredAlarm = await prisma.ignoredAlarm.findUnique({
           where: {
             id: request.params.id,
@@ -2414,7 +2244,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.delete<{ Params: IgnoredAlarmParams }>(
     "/products/:productId/ignored-alarms/:id",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.IGNORED_ALARM, "delete")],
       schema: {
         tags: ["ignored-alarms"],
         summary: "Delete an ignored alarm",
@@ -2430,11 +2260,6 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canDelete = await hasPermission(request.user.userId, Resource.IGNORED_ALARM, "delete");
-        if (!canDelete) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         // Fetch name before deletion for audit
         const ignoredAlarmToDelete = await prisma.ignoredAlarm.findUnique({
           where: { id: request.params.id },

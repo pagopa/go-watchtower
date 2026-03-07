@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import { prisma, Resource } from "@go-watchtower/database";
-import { hasPermission } from "../../services/permission.service.js";
+import { requirePermission } from "../../lib/require-permission.js";
 import {
   SystemEventsQuerySchema,
   SystemEventsResponseSchema,
@@ -15,7 +15,7 @@ export async function systemEventRoutes(fastify: FastifyInstance): Promise<void>
   server.get<{ Querystring: SystemEventsQuery }>(
     "/system-events",
     {
-      onRequest: [server.authenticate],
+      onRequest: [server.authenticate, requirePermission(Resource.SYSTEM_SETTING, "read")],
       schema: {
         tags: ["system-events"],
         summary: "List system events (audit log)",
@@ -30,15 +30,6 @@ export async function systemEventRoutes(fastify: FastifyInstance): Promise<void>
     },
     async (request, reply) => {
       try {
-        const canRead = await hasPermission(
-          request.user.userId,
-          Resource.SYSTEM_SETTING,
-          "read"
-        );
-        if (!canRead) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const {
           action,
           resource,

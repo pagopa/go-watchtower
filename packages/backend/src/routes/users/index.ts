@@ -11,7 +11,6 @@ import {
   type UserPermissionOverride,
 } from "@go-watchtower/database";
 import {
-  hasPermission,
   getUserPermissions,
   getUserPermissionOverrides,
   setUserPermissionOverride,
@@ -25,6 +24,7 @@ import {
   invalidatePermissionCache,
   invalidateAllPermissionCaches,
 } from "../../services/permission.service.js";
+import { requirePermission } from "../../lib/require-permission.js";
 import { hashPassword } from "../../utils/password.js";
 import { buildDiff } from "../../services/system-event.service.js";
 import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
@@ -71,7 +71,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
   app.get(
     "/users",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.USER, "read")],
       schema: {
         tags: ["users"],
         summary: "Get all users",
@@ -83,13 +83,8 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         },
       },
     },
-    async (request, reply) => {
+    async (_request, reply) => {
       try {
-        const canRead = await hasPermission(request.user.userId, Resource.USER, "read");
-        if (!canRead) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const users = await prisma.user.findMany({
           include: { role: true },
           orderBy: { name: "asc" },
@@ -223,7 +218,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Params: UserIdParams }>(
     "/users/:id",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.USER, "read")],
       schema: {
         tags: ["users"],
         summary: "Get user by ID with permission overrides",
@@ -239,11 +234,6 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canRead = await hasPermission(request.user.userId, Resource.USER, "read");
-        if (!canRead) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const user = await prisma.user.findUnique({
           where: { id: request.params.id },
           include: {
@@ -291,7 +281,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
   app.post<{ Body: CreateUserBody }>(
     "/users",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.USER, "write")],
       schema: {
         tags: ["users"],
         summary: "Create a new user",
@@ -307,11 +297,6 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canWrite = await hasPermission(request.user.userId, Resource.USER, "write");
-        if (!canWrite) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const existingUser = await prisma.user.findUnique({
           where: { email: request.body.email },
         });
@@ -374,7 +359,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
   app.put<{ Params: UserIdParams; Body: UpdateUserBody }>(
     "/users/:id",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.USER, "write")],
       schema: {
         tags: ["users"],
         summary: "Update a user",
@@ -392,11 +377,6 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canWrite = await hasPermission(request.user.userId, Resource.USER, "write");
-        if (!canWrite) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         // Read existing user before update for diffing
         const existing = await prisma.user.findUnique({
           where: { id: request.params.id },
@@ -480,7 +460,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
   app.delete<{ Params: UserIdParams }>(
     "/users/:id",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.USER, "delete")],
       schema: {
         tags: ["users"],
         summary: "Delete a user",
@@ -496,11 +476,6 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canDelete = await hasPermission(request.user.userId, Resource.USER, "delete");
-        if (!canDelete) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         // Prevent self-deletion
         if (request.params.id === request.user.userId) {
           return reply.status(400).send({ error: "Cannot delete your own account" });
@@ -542,7 +517,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Params: UserIdParams }>(
     "/users/:id/permissions",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.USER, "read")],
       schema: {
         tags: ["users"],
         summary: "Get user effective permissions, role permissions, and overrides",
@@ -558,11 +533,6 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canRead = await hasPermission(request.user.userId, Resource.USER, "read");
-        if (!canRead) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const user = await prisma.user.findUnique({
           where: { id: request.params.id },
           include: {
@@ -607,7 +577,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
   app.put<{ Params: UserIdParams; Body: SetPermissionOverrideBody }>(
     "/users/:id/permissions",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.USER, "write")],
       schema: {
         tags: ["users"],
         summary: "Set a permission override for a user",
@@ -624,11 +594,6 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canWrite = await hasPermission(request.user.userId, Resource.USER, "write");
-        if (!canWrite) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const user = await prisma.user.findUnique({
           where: { id: request.params.id },
         });
@@ -695,7 +660,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
   app.delete<{ Params: UserPermissionResourceParams }>(
     "/users/:id/permissions/:resource",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.USER, "write")],
       schema: {
         tags: ["users"],
         summary: "Remove a permission override for a user",
@@ -711,11 +676,6 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canWrite = await hasPermission(request.user.userId, Resource.USER, "write");
-        if (!canWrite) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const user = await prisma.user.findUnique({
           where: { id: request.params.id },
         });
@@ -758,7 +718,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
   app.get(
     "/roles",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.USER, "read")],
       schema: {
         tags: ["roles"],
         summary: "Get all roles with permissions",
@@ -770,13 +730,8 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         },
       },
     },
-    async (request, reply) => {
+    async (_request, reply) => {
       try {
-        const canRead = await hasPermission(request.user.userId, Resource.USER, "read");
-        if (!canRead) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const roles = await getAllRoles();
 
         reply.send(
@@ -805,7 +760,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Params: RoleIdParams }>(
     "/roles/:id",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.USER, "read")],
       schema: {
         tags: ["roles"],
         summary: "Get role by ID with permissions",
@@ -821,11 +776,6 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canRead = await hasPermission(request.user.userId, Resource.USER, "read");
-        if (!canRead) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const role = await getRoleById(request.params.id);
 
         if (!role) {
@@ -856,7 +806,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
   app.post<{ Body: CreateRoleBody }>(
     "/roles",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.USER, "write")],
       schema: {
         tags: ["roles"],
         summary: "Create a new role",
@@ -872,11 +822,6 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canWrite = await hasPermission(request.user.userId, Resource.USER, "write");
-        if (!canWrite) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         // Check for duplicate name
         const existing = await prisma.role.findUnique({
           where: { name: request.body.name },
@@ -919,7 +864,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
   app.put<{ Params: RoleIdParams; Body: UpdateRoleBody }>(
     "/roles/:id",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.USER, "write")],
       schema: {
         tags: ["roles"],
         summary: "Update a role",
@@ -937,11 +882,6 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canWrite = await hasPermission(request.user.userId, Resource.USER, "write");
-        if (!canWrite) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const existing = await getRoleById(request.params.id);
         if (!existing) {
           return reply.status(404).send({ error: "Role not found" });
@@ -1003,7 +943,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
   app.delete<{ Params: RoleIdParams }>(
     "/roles/:id",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.USER, "delete")],
       schema: {
         tags: ["roles"],
         summary: "Delete a role",
@@ -1020,11 +960,6 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canDel = await hasPermission(request.user.userId, Resource.USER, "delete");
-        if (!canDel) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const existing = await getRoleById(request.params.id);
         if (!existing) {
           return reply.status(404).send({ error: "Role not found" });
@@ -1062,7 +997,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
   app.put<{ Params: RoleIdParams; Body: UpdateRolePermissionsBody }>(
     "/roles/:id/permissions",
     {
-      onRequest: [app.authenticate],
+      onRequest: [app.authenticate, requirePermission(Resource.USER, "write")],
       schema: {
         tags: ["roles"],
         summary: "Update permissions for a role",
@@ -1079,11 +1014,6 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const canWrite = await hasPermission(request.user.userId, Resource.USER, "write");
-        if (!canWrite) {
-          return reply.status(403).send({ error: "Permission denied" });
-        }
-
         const existing = await getRoleById(request.params.id);
         if (!existing) {
           return reply.status(404).send({ error: "Role not found" });
