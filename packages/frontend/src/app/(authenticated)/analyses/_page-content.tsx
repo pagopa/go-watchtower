@@ -24,6 +24,7 @@ import {
 } from '@/lib/api-client'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useCollapsiblePreference } from '@/hooks/use-collapsible-preference'
+import { usePreferences } from '@/hooks/use-preferences'
 import { usePageSize, type AllowedPageSize } from '@/hooks/use-page-size'
 import { useColumnSettings } from '@/hooks/use-column-settings'
 import { COLUMN_REGISTRY } from '@/lib/column-registry'
@@ -116,8 +117,70 @@ function AnalysesPageContent() {
   // The effective productId for data queries (from URL or form selection)
   const effectiveProductId = productIdFromUrl
 
-  // Filters
+  // Filters — per-product, persisted in user preferences
+  const { preferences, isLoading: prefsLoading, updatePreferences } = usePreferences()
   const [filters, setFilters] = useState<AnalysisFiltersState>(DEFAULT_FILTERS)
+
+  const filterKey = `analyses:${effectiveProductId || '__all__'}`
+  const filtersRef = useRef(filters)
+  filtersRef.current = filters
+  const filterKeyRef = useRef(filterKey)
+  filterKeyRef.current = filterKey
+  const updatePrefsRef = useRef(updatePreferences)
+  updatePrefsRef.current = updatePreferences
+  const savedFiltersRef = useRef(preferences.savedFilters)
+  savedFiltersRef.current = preferences.savedFilters
+  const activeKeyRef = useRef<string | null>(null)
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Helper: persist a single product's filters while keeping all other entries.
+  // Spreads the full savedFilters map so the optimistic update (shallow merge)
+  // doesn't discard sibling product keys.
+  const persistFilters = useCallback(
+    (key: string, value: Record<string, unknown> | null) => {
+      updatePreferences({
+        savedFilters: { ...savedFiltersRef.current, [key]: value } as Record<string, Record<string, unknown>>,
+      })
+    },
+    [updatePreferences],
+  )
+  const persistFiltersRef = useRef(persistFilters)
+  persistFiltersRef.current = persistFilters
+
+  // Load/swap filters when product changes or preferences become available
+  useEffect(() => {
+    if (prefsLoading) return
+    if (activeKeyRef.current === filterKey) return
+
+    // Save current product's filters before switching (skip on first init)
+    if (activeKeyRef.current !== null) {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current)
+        saveTimerRef.current = null
+      }
+      persistFilters(activeKeyRef.current, filtersRef.current as unknown as Record<string, unknown>)
+    }
+
+    // Load saved filters for the new product
+    const saved = preferences.savedFilters?.[filterKey]
+    if (saved && typeof saved === 'object') {
+      setFilters({ ...DEFAULT_FILTERS, ...saved } as AnalysisFiltersState)
+    } else {
+      setFilters({ ...DEFAULT_FILTERS })
+    }
+    if (activeKeyRef.current !== null) setPage(1)
+
+    activeKeyRef.current = filterKey
+  }, [filterKey, prefsLoading, preferences.savedFilters, persistFilters])
+
+  // Flush pending filter save on unmount
+  useEffect(() => () => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current)
+      saveTimerRef.current = null
+      persistFiltersRef.current(filterKeyRef.current, filtersRef.current as unknown as Record<string, unknown>)
+    }
+  }, [])
 
   // Pagination
   const [page, setPage] = useState(1)
@@ -396,12 +459,19 @@ function AnalysesPageContent() {
   const handleFilterChange = useCallback((newFilters: AnalysisFiltersState) => {
     setFilters(newFilters)
     setPage(1)
-  }, [])
+    // Debounce save to preferences (1s)
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => {
+      persistFilters(filterKey, newFilters as unknown as Record<string, unknown>)
+    }, 1000)
+  }, [filterKey, persistFilters])
 
   const handleResetFilters = useCallback(() => {
     setFilters(DEFAULT_FILTERS)
     setPage(1)
-  }, [])
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    persistFilters(filterKey, null)
+  }, [filterKey, persistFilters])
 
 
 

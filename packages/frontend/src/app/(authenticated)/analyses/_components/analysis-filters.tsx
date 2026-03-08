@@ -101,6 +101,17 @@ export function AnalysisFilters({
     }
   }, [])
 
+  // Sync local debounced values when parent swaps filters (product switch)
+  useEffect(() => {
+    setSearchLocal(filters.search)
+    if (searchTimer.current) { clearTimeout(searchTimer.current); searchTimer.current = null }
+  }, [filters.search])
+
+  useEffect(() => {
+    setTraceIdLocal(filters.traceId)
+    if (traceIdTimer.current) { clearTimeout(traceIdTimer.current); traceIdTimer.current = null }
+  }, [filters.traceId])
+
   const handleSearchChange = (value: string) => {
     setSearchLocal(value)
     if (searchTimer.current) clearTimeout(searchTimer.current)
@@ -141,6 +152,13 @@ export function AnalysisFilters({
       filters.traceId
     )
   })
+
+  // Auto-open advanced section when restored filters have advanced values
+  useEffect(() => {
+    if (filters.ignoreReasonCode || filters.runbookId || filters.microserviceId || filters.downstreamId || filters.traceId) {
+      setAdvancedOpen(true)
+    }
+  }, [filters.ignoreReasonCode, filters.runbookId, filters.microserviceId, filters.downstreamId, filters.traceId])
 
   const basicFilterCount = [
     filters.search,
