@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -225,7 +225,7 @@ function ReasonDialog({
     defaultValues: { code: '', label: '', description: '', sortOrder: 0, detailsSchema: '' },
   })
 
-  useState(() => {
+  useEffect(() => {
     if (open) {
       reset({
         code:          editItem?.code ?? '',
@@ -237,7 +237,7 @@ function ReasonDialog({
           : '',
       })
     }
-  })
+  }, [open, editItem, reset])
 
   const schemaText = watch('detailsSchema') ?? ''
 
