@@ -8,6 +8,7 @@ export interface ColumnSettings {
 }
 
 export interface UserPreferences {
+  [key: string]: unknown;
   theme?: Theme;
   lastRoute?: string;
   columnSettings?: Record<string, ColumnSettings>;

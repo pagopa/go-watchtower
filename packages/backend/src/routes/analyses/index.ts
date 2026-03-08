@@ -8,7 +8,9 @@ import { requirePermission } from "../../lib/require-permission.js";
 import { buildDiff } from "../../services/system-event.service.js";
 import { scoreAnalysis } from "../../services/analysis-scoring.service.js";
 import { SystemEventActions, SystemEventResources, inferLinkType } from "@go-watchtower/shared";
+import type { AnalysisLink, TrackingEntry, IgnoreReasonDetailsSchema } from "@go-watchtower/shared";
 import { HttpError } from "../../utils/http-errors.js";
+import { toJsonInput, fromJson, fromJsonOr } from "../../utils/json-cast.js";
 import {
   ProductIdParamsSchema,
   AlarmAnalysisParamsSchema,
@@ -85,7 +87,7 @@ function formatAnalysisResponse(analysis: AnalysisWithRelations) {
     errorDetails: analysis.errorDetails,
     conclusionNotes: analysis.conclusionNotes,
     ignoreReasonCode: analysis.ignoreReasonCode,
-    ignoreDetails: analysis.ignoreDetails as Record<string, unknown> | null,
+    ignoreDetails: fromJson<Record<string, unknown>>(analysis.ignoreDetails),
     ignoreReason: analysis.ignoreReason ?? null,
     operatorId: analysis.operatorId,
     productId: analysis.productId,
@@ -111,8 +113,8 @@ function formatAnalysisResponse(analysis: AnalysisWithRelations) {
     downstreams: analysis.downstreams.map(
       (d: { downstream: { id: string; name: string } }) => d.downstream
     ),
-    links: Array.isArray(analysis.links) ? analysis.links : [],
-    trackingIds: Array.isArray(analysis.trackingIds) ? analysis.trackingIds : [],
+    links: fromJsonOr<AnalysisLink[]>(analysis.links, []),
+    trackingIds: fromJsonOr<TrackingEntry[]>(analysis.trackingIds, []),
     validationScore: analysis.validationScore ?? null,
     qualityScore:    analysis.qualityScore ?? null,
     scoredAt:        analysis.scoredAt ? analysis.scoredAt.toISOString() : null,
@@ -186,7 +188,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
       reply.send(
         ignoreReasons.map((r) => ({
           ...r,
-          detailsSchema: r.detailsSchema as Record<string, unknown> | null,
+          detailsSchema: fromJson<IgnoreReasonDetailsSchema>(r.detailsSchema),
         }))
       );
     }
@@ -529,7 +531,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
               conclusionNotes: request.body.conclusionNotes || null,
               ignoreReasonCode: resolvedAnalysisType === "IGNORABLE" ? ignoreReasonCode ?? null : null,
               ignoreDetails: resolvedAnalysisType === "IGNORABLE"
-                ? (ignoreDetails != null ? ignoreDetails as unknown as Prisma.InputJsonValue : Prisma.DbNull)
+                ? (ignoreDetails != null ? toJsonInput(ignoreDetails) : Prisma.DbNull)
                 : Prisma.DbNull,
               operatorId: request.body.operatorId,
               productId,
@@ -838,7 +840,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
             }
             if (request.body.ignoreDetails !== undefined) {
               updateData.ignoreDetails = request.body.ignoreDetails != null
-                ? request.body.ignoreDetails as unknown as Prisma.InputJsonValue
+                ? toJsonInput(request.body.ignoreDetails)
                 : Prisma.DbNull;
             }
           }

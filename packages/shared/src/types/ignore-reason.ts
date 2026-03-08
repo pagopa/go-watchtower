@@ -8,6 +8,7 @@ export interface IgnoreReasonFieldDef {
 }
 
 export interface IgnoreReasonDetailsSchema {
+  [key: string]: unknown;
   type: 'object';
   properties?: Record<string, IgnoreReasonFieldDef>;
   required?: string[];

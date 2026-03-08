@@ -5,6 +5,7 @@ import { requirePermission } from "../../lib/require-permission.js";
 import { buildDiff } from "../../services/system-event.service.js";
 import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
 import { HttpError } from "../../utils/http-errors.js";
+import { toJsonInput } from "../../utils/json-cast.js";
 import {
   SystemSettingsResponseSchema,
   SystemSettingSchema,
@@ -223,7 +224,7 @@ export async function settingRoutes(app: FastifyInstance): Promise<void> {
       const updated = await prisma.systemSetting.update({
         where: { key: request.params.key },
         data: {
-          value:       request.body.value as unknown as Prisma.InputJsonValue,
+          value:       toJsonInput(request.body.value),
           updatedById: request.user.userId,
         },
       });

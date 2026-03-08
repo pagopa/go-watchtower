@@ -29,6 +29,8 @@ import { hashPassword } from "../../utils/password.js";
 import { buildDiff } from "../../services/system-event.service.js";
 import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
 import { HttpError } from "../../utils/http-errors.js";
+import { fromJsonOr } from "../../utils/json-cast.js";
+import type { UserPreferences } from "@go-watchtower/shared";
 import {
   UserResponseSchema,
   UserDetailResponseSchema,
@@ -141,7 +143,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
           return HttpError.notFound(reply, "User");
         }
 
-        reply.send(user.preferences as Record<string, unknown>);
+        reply.send(fromJsonOr<UserPreferences>(user.preferences, {}));
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to fetch preferences";
         HttpError.internal(reply, message);
@@ -177,7 +179,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
           return HttpError.notFound(reply, "User");
         }
 
-        const current = (user.preferences ?? {}) as Record<string, unknown>;
+        const current = fromJsonOr<UserPreferences>(user.preferences, {});
         const incoming = request.body as Record<string, unknown>;
 
         // Deep merge: top-level keys are merged, nested objects are merged one level deep
@@ -203,7 +205,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
           select: { preferences: true },
         });
 
-        reply.send(updated.preferences as Record<string, unknown>);
+        reply.send(fromJsonOr<UserPreferences>(updated.preferences, {}));
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to update preferences";
         HttpError.internal(reply, message);

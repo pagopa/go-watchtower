@@ -3,7 +3,9 @@ import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import { prisma, Prisma, Resource } from "@go-watchtower/database";
 import { buildDiff } from "../../services/system-event.service.js";
 import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
+import type { IgnoreReasonDetailsSchema } from "@go-watchtower/shared";
 import { HttpError } from "../../utils/http-errors.js";
+import { toJsonInput, fromJson } from "../../utils/json-cast.js";
 import { requirePermission } from "../../lib/require-permission.js";
 import {
   IgnoreReasonResponseSchema,
@@ -42,7 +44,7 @@ export async function ignoreReasonRoutes(app: FastifyInstance) {
       return reply.send(
         reasons.map((r) => ({
           ...r,
-          detailsSchema: r.detailsSchema as Record<string, unknown> | null,
+          detailsSchema: fromJson<IgnoreReasonDetailsSchema>(r.detailsSchema),
         }))
       );
     }
@@ -76,7 +78,7 @@ export async function ignoreReasonRoutes(app: FastifyInstance) {
 
       return reply.send({
         ...reason,
-        detailsSchema: reason.detailsSchema as Record<string, unknown> | null,
+        detailsSchema: fromJson<IgnoreReasonDetailsSchema>(reason.detailsSchema),
       });
     }
   );
@@ -115,7 +117,7 @@ export async function ignoreReasonRoutes(app: FastifyInstance) {
           description:   request.body.description ?? null,
           sortOrder:     request.body.sortOrder ?? 0,
           detailsSchema: request.body.detailsSchema != null
-            ? request.body.detailsSchema as unknown as Prisma.InputJsonValue
+            ? toJsonInput(request.body.detailsSchema)
             : Prisma.DbNull,
         },
       });
@@ -130,7 +132,7 @@ export async function ignoreReasonRoutes(app: FastifyInstance) {
 
       return reply.status(201).send({
         ...reason,
-        detailsSchema: reason.detailsSchema as Record<string, unknown> | null,
+        detailsSchema: fromJson<IgnoreReasonDetailsSchema>(reason.detailsSchema),
       });
     }
   );
@@ -170,7 +172,7 @@ export async function ignoreReasonRoutes(app: FastifyInstance) {
           sortOrder:     request.body.sortOrder,
           detailsSchema: request.body.detailsSchema !== undefined
             ? (request.body.detailsSchema != null
-                ? request.body.detailsSchema as unknown as Prisma.InputJsonValue
+                ? toJsonInput(request.body.detailsSchema)
                 : Prisma.DbNull)
             : undefined,
         },
@@ -188,7 +190,7 @@ export async function ignoreReasonRoutes(app: FastifyInstance) {
 
       return reply.send({
         ...updated,
-        detailsSchema: updated.detailsSchema as Record<string, unknown> | null,
+        detailsSchema: fromJson<IgnoreReasonDetailsSchema>(updated.detailsSchema),
       });
     }
   );
