@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import { prisma, Prisma, Resource } from "@go-watchtower/database";
 import { requirePermission } from "../../lib/require-permission.js";
+import { HttpError } from "../../utils/http-errors.js";
 import {
   ReportQuerySchema,
   OperatorWorkloadResponseSchema,
@@ -202,7 +203,7 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Failed to generate operator workload report";
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -274,7 +275,7 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Failed to generate alarm ranking report";
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );

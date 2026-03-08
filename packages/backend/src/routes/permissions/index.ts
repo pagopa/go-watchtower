@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import { getUserPermissions } from "../../services/permission.service.js";
+import { HttpError } from "../../utils/http-errors.js";
 import {
   PermissionsResponseSchema,
   ErrorResponseSchema,
@@ -33,7 +34,7 @@ export async function permissionRoutes(fastify: FastifyInstance): Promise<void> 
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Failed to fetch permissions";
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );

@@ -3,6 +3,7 @@ import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import { prisma, Resource } from "@go-watchtower/database";
 import { buildDiff } from "../../services/system-event.service.js";
 import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
+import { HttpError } from "../../utils/http-errors.js";
 import { requirePermission } from "../../lib/require-permission.js";
 import {
   AlarmEventResponseSchema,
@@ -143,7 +144,7 @@ export async function alarmEventRoutes(app: FastifyInstance) {
       });
 
       if (!event) {
-        return reply.status(404).send({ error: "Alarm event not found" });
+        return HttpError.notFound(reply, "Alarm event");
       }
 
       return reply.send(formatResponse(event));
@@ -177,10 +178,10 @@ export async function alarmEventRoutes(app: FastifyInstance) {
       ]);
 
       if (!product) {
-        return reply.status(404).send({ error: "Product not found" });
+        return HttpError.notFound(reply, "Product");
       }
       if (!environment) {
-        return reply.status(404).send({ error: "Environment not found" });
+        return HttpError.notFound(reply, "Environment");
       }
 
       const event = await prisma.alarmEvent.create({
@@ -235,7 +236,7 @@ export async function alarmEventRoutes(app: FastifyInstance) {
       });
 
       if (!existing) {
-        return reply.status(404).send({ error: "Alarm event not found" });
+        return HttpError.notFound(reply, "Alarm event");
       }
 
       // Only include fields that were explicitly sent in the body.
@@ -289,7 +290,7 @@ export async function alarmEventRoutes(app: FastifyInstance) {
       });
 
       if (!existing) {
-        return reply.status(404).send({ error: "Alarm event not found" });
+        return HttpError.notFound(reply, "Alarm event");
       }
 
       await prisma.alarmEvent.delete({ where: { id: request.params.id } });

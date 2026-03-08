@@ -28,6 +28,7 @@ import { requirePermission } from "../../lib/require-permission.js";
 import { hashPassword } from "../../utils/password.js";
 import { buildDiff } from "../../services/system-event.service.js";
 import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
+import { HttpError } from "../../utils/http-errors.js";
 import {
   UserResponseSchema,
   UserDetailResponseSchema,
@@ -104,7 +105,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         );
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to fetch users";
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -137,13 +138,13 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         if (!user) {
-          return reply.status(404).send({ error: "User not found" });
+          return HttpError.notFound(reply, "User");
         }
 
         reply.send(user.preferences as Record<string, unknown>);
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to fetch preferences";
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -173,7 +174,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         if (!user) {
-          return reply.status(404).send({ error: "User not found" });
+          return HttpError.notFound(reply, "User");
         }
 
         const current = (user.preferences ?? {}) as Record<string, unknown>;
@@ -205,7 +206,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         reply.send(updated.preferences as Record<string, unknown>);
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to update preferences";
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -249,7 +250,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         if (!user) {
-          return reply.status(404).send({ error: "User not found" });
+          return HttpError.notFound(reply, "User");
         }
 
         reply.send({
@@ -272,7 +273,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to fetch user";
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -302,7 +303,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         if (existingUser) {
-          return reply.status(400).send({ error: "User with this email already exists" });
+          return HttpError.badRequest(reply, "User with this email already exists");
         }
 
         // If no roleId, use default role
@@ -312,7 +313,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
             where: { isDefault: true },
           });
           if (!defaultRole) {
-            return reply.status(500).send({ error: "Default role not configured" });
+            return HttpError.internal(reply, "Default role not configured");
           }
           roleId = defaultRole.id;
         }
@@ -350,7 +351,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to create user";
-        reply.status(400).send({ error: message });
+        HttpError.badRequest(reply, message);
       }
     }
   );
@@ -384,7 +385,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         if (!existing) {
-          return reply.status(404).send({ error: "User not found" });
+          return HttpError.notFound(reply, "User");
         }
 
         const user = await prisma.user.update({
@@ -449,9 +450,9 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to update user";
         if (message.includes("Record to update not found")) {
-          return reply.status(404).send({ error: "User not found" });
+          return HttpError.notFound(reply, "User");
         }
-        reply.status(400).send({ error: message });
+        HttpError.badRequest(reply, message);
       }
     }
   );
@@ -478,7 +479,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
       try {
         // Prevent self-deletion
         if (request.params.id === request.user.userId) {
-          return reply.status(400).send({ error: "Cannot delete your own account" });
+          return HttpError.badRequest(reply, "Cannot delete your own account");
         }
 
         // Fetch user info before deletion for audit purposes
@@ -502,9 +503,9 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to delete user";
         if (message.includes("Record to delete does not exist")) {
-          return reply.status(404).send({ error: "User not found" });
+          return HttpError.notFound(reply, "User");
         }
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -543,7 +544,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         if (!user) {
-          return reply.status(404).send({ error: "User not found" });
+          return HttpError.notFound(reply, "User");
         }
 
         const permissions = await getUserPermissions(request.params.id);
@@ -568,7 +569,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to fetch permissions";
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -599,7 +600,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         if (!user) {
-          return reply.status(404).send({ error: "User not found" });
+          return HttpError.notFound(reply, "User");
         }
 
         // Check if an override already exists to determine create vs update
@@ -651,7 +652,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         reply.send({ message: "Permission override set successfully" });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to set permission override";
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -681,7 +682,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         if (!user) {
-          return reply.status(404).send({ error: "User not found" });
+          return HttpError.notFound(reply, "User");
         }
 
         const removed = await removeUserPermissionOverride(
@@ -690,7 +691,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         );
 
         if (!removed) {
-          return reply.status(404).send({ error: "Permission override not found" });
+          return HttpError.notFound(reply, "Permission override");
         }
         invalidatePermissionCache(request.params.id);
 
@@ -705,7 +706,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         reply.send({ message: "Permission override removed successfully" });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to remove permission override";
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -751,7 +752,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         );
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to fetch roles";
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -779,7 +780,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         const role = await getRoleById(request.params.id);
 
         if (!role) {
-          return reply.status(404).send({ error: "Role not found" });
+          return HttpError.notFound(reply, "Role");
         }
 
         reply.send({
@@ -797,7 +798,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to fetch role";
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -827,7 +828,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
           where: { name: request.body.name },
         });
         if (existing) {
-          return reply.status(409).send({ error: "A role with this name already exists" });
+          return HttpError.conflict(reply, "A role with this name already exists");
         }
 
         const role = await createRole(request.body.name, request.body.description);
@@ -855,7 +856,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to create role";
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -884,11 +885,11 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
       try {
         const existing = await getRoleById(request.params.id);
         if (!existing) {
-          return reply.status(404).send({ error: "Role not found" });
+          return HttpError.notFound(reply, "Role");
         }
 
         if (existing.isDefault) {
-          return reply.status(403).send({ error: "Cannot modify a default role" });
+          return HttpError.forbidden(reply, "Cannot modify a default role");
         }
 
         // Check for duplicate name if name is being changed
@@ -897,7 +898,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
             where: { name: request.body.name },
           });
           if (duplicate) {
-            return reply.status(409).send({ error: "A role with this name already exists" });
+            return HttpError.conflict(reply, "A role with this name already exists");
           }
         }
 
@@ -934,7 +935,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to update role";
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -962,17 +963,15 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
       try {
         const existing = await getRoleById(request.params.id);
         if (!existing) {
-          return reply.status(404).send({ error: "Role not found" });
+          return HttpError.notFound(reply, "Role");
         }
 
         if (existing.isDefault) {
-          return reply.status(403).send({ error: "Cannot delete a default role" });
+          return HttpError.forbidden(reply, "Cannot delete a default role");
         }
 
         if (existing._count.users > 0) {
-          return reply.status(409).send({
-            error: "Cannot delete a role that has users assigned to it",
-          });
+          return HttpError.conflict(reply, "Cannot delete a role that has users assigned to it");
         }
 
         await deleteRole(request.params.id);
@@ -988,7 +987,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.send({ message: "Role deleted successfully" });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to delete role";
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -1016,7 +1015,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
       try {
         const existing = await getRoleById(request.params.id);
         if (!existing) {
-          return reply.status(404).send({ error: "Role not found" });
+          return HttpError.notFound(reply, "Role");
         }
 
         const role = await updateRolePermissions(
@@ -1031,7 +1030,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         invalidateAllPermissionCaches();
 
         if (!role) {
-          return reply.status(500).send({ error: "Failed to update role permissions" });
+          return HttpError.internal(reply, "Failed to update role permissions");
         }
 
         request.auditEvents.push({
@@ -1059,7 +1058,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to update role permissions";
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );

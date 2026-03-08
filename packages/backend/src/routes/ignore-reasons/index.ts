@@ -3,6 +3,7 @@ import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import { prisma, Prisma, Resource } from "@go-watchtower/database";
 import { buildDiff } from "../../services/system-event.service.js";
 import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
+import { HttpError } from "../../utils/http-errors.js";
 import { requirePermission } from "../../lib/require-permission.js";
 import {
   IgnoreReasonResponseSchema,
@@ -70,7 +71,7 @@ export async function ignoreReasonRoutes(app: FastifyInstance) {
       });
 
       if (!reason) {
-        return reply.status(404).send({ error: "Ignore reason not found" });
+        return HttpError.notFound(reply, "Ignore reason");
       }
 
       return reply.send({
@@ -104,7 +105,7 @@ export async function ignoreReasonRoutes(app: FastifyInstance) {
         where: { code: request.body.code },
       });
       if (existing) {
-        return reply.status(409).send({ error: `Ignore reason '${request.body.code}' already exists` });
+        return HttpError.conflict(reply, `Ignore reason '${request.body.code}' already exists`);
       }
 
       const reason = await prisma.ignoreReason.create({
@@ -158,7 +159,7 @@ export async function ignoreReasonRoutes(app: FastifyInstance) {
         where: { code: request.params.code },
       });
       if (!existing) {
-        return reply.status(404).send({ error: "Ignore reason not found" });
+        return HttpError.notFound(reply, "Ignore reason");
       }
 
       const updated = await prisma.ignoreReason.update({
@@ -217,13 +218,11 @@ export async function ignoreReasonRoutes(app: FastifyInstance) {
         include: { _count: { select: { analyses: true } } },
       });
       if (!existing) {
-        return reply.status(404).send({ error: "Ignore reason not found" });
+        return HttpError.notFound(reply, "Ignore reason");
       }
 
       if (existing._count.analyses > 0) {
-        return reply.status(400).send({
-          error: `Cannot delete: ${existing._count.analyses} analisi usano questo motivo`,
-        });
+        return HttpError.conflict(reply, `Cannot delete: ${existing._count.analyses} analisi usano questo motivo`);
       }
 
       await prisma.ignoreReason.delete({ where: { code: request.params.code } });

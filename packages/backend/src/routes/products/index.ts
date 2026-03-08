@@ -15,6 +15,7 @@ import {
 import { requirePermission } from "../../lib/require-permission.js";
 import { buildDiff } from "../../services/system-event.service.js";
 import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
+import { HttpError } from "../../utils/http-errors.js";
 import {
   CreateProductBodySchema,
   UpdateProductBodySchema,
@@ -128,7 +129,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         );
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to fetch products";
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -158,7 +159,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         if (!product) {
-          return reply.status(404).send({ error: "Product not found" });
+          return HttpError.notFound(reply, "Product");
         }
 
         reply.send({
@@ -171,7 +172,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to fetch product";
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -222,7 +223,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to create product";
-        reply.status(400).send({ error: message });
+        HttpError.badRequest(reply, message);
       }
     }
   );
@@ -287,9 +288,9 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to update product";
         if (message.includes("Record to update not found")) {
-          return reply.status(404).send({ error: "Product not found" });
+          return HttpError.notFound(reply, "Product");
         }
-        reply.status(400).send({ error: message });
+        HttpError.badRequest(reply, message);
       }
     }
   );
@@ -335,9 +336,9 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to delete product";
         if (message.includes("Record to delete does not exist")) {
-          return reply.status(404).send({ error: "Product not found" });
+          return HttpError.notFound(reply, "Product");
         }
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -373,7 +374,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         if (!product) {
-          return reply.status(404).send({ error: "Product not found" });
+          return HttpError.notFound(reply, "Product");
         }
 
         const [environments, alarms, finalActions, microservices, downstreams, runbooks] =
@@ -468,7 +469,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to fetch filter options";
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -504,7 +505,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         if (!product) {
-          return reply.status(404).send({ error: "Product not found" });
+          return HttpError.notFound(reply, "Product");
         }
 
         const environments = await prisma.environment.findMany({
@@ -529,7 +530,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         );
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to fetch environments";
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -563,7 +564,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         if (!product) {
-          return reply.status(404).send({ error: "Product not found" });
+          return HttpError.notFound(reply, "Product");
         }
 
         const environment = await prisma.environment.create({
@@ -602,7 +603,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to create environment";
-        reply.status(400).send({ error: message });
+        HttpError.badRequest(reply, message);
       }
     }
   );
@@ -680,9 +681,9 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to update environment";
         if (message.includes("Record to update not found")) {
-          return reply.status(404).send({ error: "Environment not found" });
+          return HttpError.notFound(reply, "Environment");
         }
-        reply.status(400).send({ error: message });
+        HttpError.badRequest(reply, message);
       }
     }
   );
@@ -731,9 +732,9 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to delete environment";
         if (message.includes("Record to delete does not exist")) {
-          return reply.status(404).send({ error: "Environment not found" });
+          return HttpError.notFound(reply, "Environment");
         }
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -769,7 +770,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         if (!product) {
-          return reply.status(404).send({ error: "Product not found" });
+          return HttpError.notFound(reply, "Product");
         }
 
         const microservices = await prisma.microservice.findMany({
@@ -789,7 +790,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         );
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to fetch microservices";
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -823,7 +824,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         if (!product) {
-          return reply.status(404).send({ error: "Product not found" });
+          return HttpError.notFound(reply, "Product");
         }
 
         const microservice = await prisma.microservice.create({
@@ -852,7 +853,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to create microservice";
-        reply.status(400).send({ error: message });
+        HttpError.badRequest(reply, message);
       }
     }
   );
@@ -920,9 +921,9 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to update microservice";
         if (message.includes("Record to update not found")) {
-          return reply.status(404).send({ error: "Microservice not found" });
+          return HttpError.notFound(reply, "Microservice");
         }
-        reply.status(400).send({ error: message });
+        HttpError.badRequest(reply, message);
       }
     }
   );
@@ -971,9 +972,9 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to delete microservice";
         if (message.includes("Record to delete does not exist")) {
-          return reply.status(404).send({ error: "Microservice not found" });
+          return HttpError.notFound(reply, "Microservice");
         }
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -1009,7 +1010,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         if (!product) {
-          return reply.status(404).send({ error: "Product not found" });
+          return HttpError.notFound(reply, "Product");
         }
 
         const runbooks = await prisma.runbook.findMany({
@@ -1031,7 +1032,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         );
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to fetch runbooks";
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -1065,7 +1066,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         if (!product) {
-          return reply.status(404).send({ error: "Product not found" });
+          return HttpError.notFound(reply, "Product");
         }
 
         const runbook = await prisma.runbook.create({
@@ -1098,7 +1099,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to create runbook";
-        reply.status(400).send({ error: message });
+        HttpError.badRequest(reply, message);
       }
     }
   );
@@ -1170,9 +1171,9 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to update runbook";
         if (message.includes("Record to update not found")) {
-          return reply.status(404).send({ error: "Runbook not found" });
+          return HttpError.notFound(reply, "Runbook");
         }
-        reply.status(400).send({ error: message });
+        HttpError.badRequest(reply, message);
       }
     }
   );
@@ -1221,9 +1222,9 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to delete runbook";
         if (message.includes("Record to delete does not exist")) {
-          return reply.status(404).send({ error: "Runbook not found" });
+          return HttpError.notFound(reply, "Runbook");
         }
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -1259,7 +1260,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         if (!product) {
-          return reply.status(404).send({ error: "Product not found" });
+          return HttpError.notFound(reply, "Product");
         }
 
         const finalActions = await prisma.finalAction.findMany({
@@ -1281,7 +1282,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         );
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to fetch final actions";
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -1315,7 +1316,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         if (!product) {
-          return reply.status(404).send({ error: "Product not found" });
+          return HttpError.notFound(reply, "Product");
         }
 
         const finalAction = await prisma.finalAction.create({
@@ -1348,7 +1349,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to create final action";
-        reply.status(400).send({ error: message });
+        HttpError.badRequest(reply, message);
       }
     }
   );
@@ -1420,9 +1421,9 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to update final action";
         if (message.includes("Record to update not found")) {
-          return reply.status(404).send({ error: "Final action not found" });
+          return HttpError.notFound(reply, "Final action");
         }
-        reply.status(400).send({ error: message });
+        HttpError.badRequest(reply, message);
       }
     }
   );
@@ -1471,9 +1472,9 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to delete final action";
         if (message.includes("Record to delete does not exist")) {
-          return reply.status(404).send({ error: "Final action not found" });
+          return HttpError.notFound(reply, "Final action");
         }
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -1509,7 +1510,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         if (!product) {
-          return reply.status(404).send({ error: "Product not found" });
+          return HttpError.notFound(reply, "Product");
         }
 
         const alarms = await prisma.alarm.findMany({
@@ -1532,7 +1533,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         );
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to fetch alarms";
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -1566,7 +1567,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         if (!product) {
-          return reply.status(404).send({ error: "Product not found" });
+          return HttpError.notFound(reply, "Product");
         }
 
         const alarm = await prisma.alarm.create({
@@ -1599,7 +1600,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to create alarm";
-        reply.status(400).send({ error: message });
+        HttpError.badRequest(reply, message);
       }
     }
   );
@@ -1676,9 +1677,9 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to update alarm";
         if (message.includes("Record to update not found")) {
-          return reply.status(404).send({ error: "Alarm not found" });
+          return HttpError.notFound(reply, "Alarm");
         }
-        reply.status(400).send({ error: message });
+        HttpError.badRequest(reply, message);
       }
     }
   );
@@ -1728,9 +1729,9 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to delete alarm";
         if (message.includes("Record to delete does not exist")) {
-          return reply.status(404).send({ error: "Alarm not found" });
+          return HttpError.notFound(reply, "Alarm");
         }
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -1766,7 +1767,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         if (!product) {
-          return reply.status(404).send({ error: "Product not found" });
+          return HttpError.notFound(reply, "Product");
         }
 
         const downstreams = await prisma.downstream.findMany({
@@ -1786,7 +1787,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         );
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to fetch downstreams";
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -1820,7 +1821,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         if (!product) {
-          return reply.status(404).send({ error: "Product not found" });
+          return HttpError.notFound(reply, "Product");
         }
 
         const downstream = await prisma.downstream.create({
@@ -1849,7 +1850,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to create downstream";
-        reply.status(400).send({ error: message });
+        HttpError.badRequest(reply, message);
       }
     }
   );
@@ -1917,9 +1918,9 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to update downstream";
         if (message.includes("Record to update not found")) {
-          return reply.status(404).send({ error: "Downstream not found" });
+          return HttpError.notFound(reply, "Downstream");
         }
-        reply.status(400).send({ error: message });
+        HttpError.badRequest(reply, message);
       }
     }
   );
@@ -1968,9 +1969,9 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to delete downstream";
         if (message.includes("Record to delete does not exist")) {
-          return reply.status(404).send({ error: "Downstream not found" });
+          return HttpError.notFound(reply, "Downstream");
         }
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -2020,7 +2021,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         if (!product) {
-          return reply.status(404).send({ error: "Product not found" });
+          return HttpError.notFound(reply, "Product");
         }
 
         const ignoredAlarms = await prisma.ignoredAlarm.findMany({
@@ -2035,7 +2036,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         reply.send(ignoredAlarms.map(formatIgnoredAlarm));
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to fetch ignored alarms";
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -2072,13 +2073,13 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         if (!ignoredAlarm) {
-          return reply.status(404).send({ error: "Ignored alarm not found" });
+          return HttpError.notFound(reply, "Ignored alarm");
         }
 
         reply.send(formatIgnoredAlarm(ignoredAlarm));
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to fetch ignored alarm";
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -2111,7 +2112,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         if (!product) {
-          return reply.status(404).send({ error: "Product not found" });
+          return HttpError.notFound(reply, "Product");
         }
 
         const ignoredAlarm = await prisma.ignoredAlarm.create({
@@ -2142,9 +2143,9 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to create ignored alarm";
         if (message.includes("Unique constraint")) {
-          return reply.status(400).send({ error: "This alarm is already ignored for this environment" });
+          return HttpError.badRequest(reply, "This alarm is already ignored for this environment");
         }
-        reply.status(400).send({ error: message });
+        HttpError.badRequest(reply, message);
       }
     }
   );
@@ -2230,12 +2231,12 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to update ignored alarm";
         if (message.includes("Record to update not found")) {
-          return reply.status(404).send({ error: "Ignored alarm not found" });
+          return HttpError.notFound(reply, "Ignored alarm");
         }
         if (message.includes("Unique constraint")) {
-          return reply.status(400).send({ error: "This alarm is already ignored for this environment" });
+          return HttpError.badRequest(reply, "This alarm is already ignored for this environment");
         }
-        reply.status(400).send({ error: message });
+        HttpError.badRequest(reply, message);
       }
     }
   );
@@ -2285,9 +2286,9 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to delete ignored alarm";
         if (message.includes("Record to delete does not exist")) {
-          return reply.status(404).send({ error: "Ignored alarm not found" });
+          return HttpError.notFound(reply, "Ignored alarm");
         }
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );

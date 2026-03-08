@@ -4,6 +4,7 @@ import { prisma, Prisma, Resource } from "@go-watchtower/database";
 import { requirePermission } from "../../lib/require-permission.js";
 import { buildDiff } from "../../services/system-event.service.js";
 import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
+import { HttpError } from "../../utils/http-errors.js";
 import {
   SystemSettingsResponseSchema,
   SystemSettingSchema,
@@ -164,7 +165,7 @@ export async function settingRoutes(app: FastifyInstance): Promise<void> {
         where: { key: request.params.key },
       });
       if (!setting) {
-        return reply.status(404).send({ error: "Setting not found" });
+        return HttpError.notFound(reply, "Setting");
       }
 
       return reply.send(formatSetting(setting));
@@ -197,7 +198,7 @@ export async function settingRoutes(app: FastifyInstance): Promise<void> {
         where: { key: request.params.key },
       });
       if (!existing) {
-        return reply.status(404).send({ error: "Setting not found" });
+        return HttpError.notFound(reply, "Setting");
       }
 
       // Basic type validation
@@ -205,18 +206,18 @@ export async function settingRoutes(app: FastifyInstance): Promise<void> {
       const { type } = existing;
 
       if (type === "NUMBER" && typeof value !== "number") {
-        return reply.status(400).send({ error: `Value must be a number for setting '${existing.key}'` });
+        return HttpError.badRequest(reply, `Value must be a number for setting '${existing.key}'`);
       }
       if (type === "BOOLEAN" && typeof value !== "boolean") {
-        return reply.status(400).send({ error: `Value must be a boolean for setting '${existing.key}'` });
+        return HttpError.badRequest(reply, `Value must be a boolean for setting '${existing.key}'`);
       }
       if (type === "STRING" && typeof value !== "string") {
-        return reply.status(400).send({ error: `Value must be a string for setting '${existing.key}'` });
+        return HttpError.badRequest(reply, `Value must be a string for setting '${existing.key}'`);
       }
 
       if (existing.format) {
         const formatError = await (FORMAT_VALIDATORS[existing.format]?.(value) ?? null);
-        if (formatError) return reply.status(400).send({ error: formatError });
+        if (formatError) return HttpError.badRequest(reply, formatError);
       }
 
       const updated = await prisma.systemSetting.update({

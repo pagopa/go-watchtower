@@ -40,6 +40,7 @@ import { authRateLimitConfig } from "../../plugins/rate-limit.js";
 import { env } from "../../config/env.js";
 import { logEvent } from "../../services/system-event.service.js";
 import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
+import { HttpError } from "../../utils/http-errors.js";
 import type { JwtPayload } from "../../plugins/jwt.js";
 
 // Access token expires in 15 minutes (in seconds)
@@ -141,7 +142,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Registration failed";
-        reply.status(400).send({ error: message });
+        HttpError.badRequest(reply, message);
       }
     }
   );
@@ -211,7 +212,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
           userAgent: request.headers["user-agent"] ?? null,
         });
 
-        reply.status(401).send({ error: message });
+        HttpError.unauthorized(reply, message);
       }
     }
   );
@@ -237,21 +238,21 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         refreshToken || (request.cookies["refreshToken"] as string);
 
       if (!tokenToUse) {
-        reply.status(401).send({ error: "Refresh token required" });
+        HttpError.unauthorized(reply, "Refresh token required");
         return;
       }
 
       const validation = await validateRefreshToken(tokenToUse);
       if (!validation) {
         clearTokenCookies(reply);
-        reply.status(401).send({ error: "Invalid or expired refresh token" });
+        HttpError.unauthorized(reply, "Invalid or expired refresh token");
         return;
       }
 
       const user = await getUserById(validation.userId);
       if (!user) {
         clearTokenCookies(reply);
-        reply.status(401).send({ error: "User not found" });
+        HttpError.unauthorized(reply, "User not found");
         return;
       }
 
@@ -265,7 +266,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
 
       if (!newRefreshToken) {
         clearTokenCookies(reply);
-        reply.status(401).send({ error: "Token rotation failed" });
+        HttpError.unauthorized(reply, "Token rotation failed");
         return;
       }
 
@@ -375,7 +376,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const user = await getUserById(request.user.userId);
       if (!user) {
-        reply.status(401).send({ error: "User not found" });
+        HttpError.unauthorized(reply, "User not found");
         return;
       }
 
@@ -438,7 +439,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       );
 
       if (!success) {
-        reply.status(404).send({ error: "Session not found" });
+        HttpError.notFound(reply, "Session");
         return;
       }
 
@@ -542,7 +543,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         const { idToken, accessToken: googleAccessToken } = request.body;
 
         if (!idToken && !googleAccessToken) {
-          reply.status(401).send({ error: "idToken or accessToken required" });
+          HttpError.unauthorized(reply, "idToken or accessToken required");
           return;
         }
 
@@ -625,7 +626,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Google authentication failed";
-        reply.status(401).send({ error: message });
+        HttpError.unauthorized(reply, message);
       }
     }
   );

@@ -8,6 +8,7 @@ import { requirePermission } from "../../lib/require-permission.js";
 import { buildDiff } from "../../services/system-event.service.js";
 import { scoreAnalysis } from "../../services/analysis-scoring.service.js";
 import { SystemEventActions, SystemEventResources, inferLinkType } from "@go-watchtower/shared";
+import { HttpError } from "../../utils/http-errors.js";
 import {
   ProductIdParamsSchema,
   AlarmAnalysisParamsSchema,
@@ -252,7 +253,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         if (!product) {
-          return reply.status(404).send({ error: "Product not found" });
+          return HttpError.notFound(reply, "Product");
         }
 
         const {
@@ -293,7 +294,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Failed to fetch analyses";
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -358,7 +359,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Failed to fetch analyses";
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -395,14 +396,14 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         if (!analysis) {
-          return reply.status(404).send({ error: "Analysis not found" });
+          return HttpError.notFound(reply, "Analysis");
         }
 
         reply.send(formatAnalysisResponse(analysis));
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Failed to fetch analysis";
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -443,11 +444,11 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
         ]);
 
         if (!product) {
-          return reply.status(404).send({ error: "Product not found" });
+          return HttpError.notFound(reply, "Product");
         }
 
         if (!operator) {
-          return reply.status(400).send({ error: "Operator not found" });
+          return HttpError.badRequest(reply, "Operator not found");
         }
 
         if (!alarm) {
@@ -510,7 +511,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
         const resolvedAnalysisType = request.body.analysisType ?? "ANALYZABLE";
 
         if (resolvedAnalysisType === "IGNORABLE" && !ignoreReasonCode) {
-          return reply.status(400).send({ error: "ignoreReasonCode is required when analysisType is IGNORABLE" });
+          return HttpError.badRequest(reply, "ignoreReasonCode is required when analysisType is IGNORABLE");
         }
 
         const analysis = await prisma.$transaction(async (tx: TransactionClient) => {
@@ -590,7 +591,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Failed to create analysis";
-        reply.status(400).send({ error: message });
+        HttpError.badRequest(reply, message);
       }
     }
   );
@@ -634,7 +635,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         if (!existing) {
-          return reply.status(404).send({ error: "Analysis not found" });
+          return HttpError.notFound(reply, "Analysis");
         }
 
         // Scope-aware ownership check: ALL can edit any, OWN only own, NONE denied.
@@ -648,7 +649,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
           writeScope === PermissionScope.ALL ||
           (writeScope === PermissionScope.OWN && existing.createdById === request.user.userId);
         if (!canWriteForThis) {
-          return reply.status(403).send({ error: "Permission denied" });
+          return HttpError.forbidden(reply);
         }
 
         // Lock check: users with OWN write scope cannot edit analyses older than the configured threshold.
@@ -657,9 +658,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
           const lockDays = typeof lockSetting?.value === "number" ? lockSetting.value : 7;
           const daysSince = Math.floor((Date.now() - existing.createdAt.getTime()) / 86_400_000);
           if (daysSince >= lockDays) {
-            return reply.status(403).send({
-              error: `L'analisi non può più essere modificata (blocco dopo ${lockDays} giorni dalla creazione)`,
-            });
+            return HttpError.forbidden(reply, `L'analisi non può più essere modificata (blocco dopo ${lockDays} giorni dalla creazione)`);
           }
         }
 
@@ -677,7 +676,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
         ]);
 
         if (request.body.operatorId && !operator) {
-          return reply.status(400).send({ error: "Operator not found" });
+          return HttpError.badRequest(reply, "Operator not found");
         }
 
         if (request.body.alarmId && !alarm) {
@@ -742,7 +741,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
           ? request.body.ignoreReasonCode
           : (existing as Record<string, unknown>).ignoreReasonCode as string | null | undefined;
         if (resolvedAnalysisType === "IGNORABLE" && !resolvedIgnoreReasonCode) {
-          return reply.status(400).send({ error: "ignoreReasonCode is required when analysisType is IGNORABLE" });
+          return HttpError.badRequest(reply, "ignoreReasonCode is required when analysisType is IGNORABLE");
         }
 
         const analysis = await prisma.$transaction(async (tx: TransactionClient) => {
@@ -959,9 +958,9 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
         const message =
           error instanceof Error ? error.message : "Failed to update analysis";
         if (message.includes("Record to update not found")) {
-          return reply.status(404).send({ error: "Analysis not found" });
+          return HttpError.notFound(reply, "Analysis");
         }
-        reply.status(400).send({ error: message });
+        HttpError.badRequest(reply, message);
       }
     }
   );
@@ -999,7 +998,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Failed to fetch authors";
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -1255,7 +1254,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Failed to fetch analysis stats";
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
@@ -1292,7 +1291,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         if (!existing) {
-          return reply.status(404).send({ error: "Analysis not found" });
+          return HttpError.notFound(reply, "Analysis");
         }
 
         // Scope-aware ownership check for delete.
@@ -1305,7 +1304,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
           deleteScope === PermissionScope.ALL ||
           (deleteScope === PermissionScope.OWN && existing.createdById === request.user.userId);
         if (!canDeleteThis) {
-          return reply.status(403).send({ error: "Permission denied" });
+          return HttpError.forbidden(reply);
         }
 
         // Lock check: users with OWN delete scope cannot delete analyses older than the configured threshold.
@@ -1336,9 +1335,9 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
         const message =
           error instanceof Error ? error.message : "Failed to delete analysis";
         if (message.includes("Record to delete does not exist")) {
-          return reply.status(404).send({ error: "Analysis not found" });
+          return HttpError.notFound(reply, "Analysis");
         }
-        reply.status(500).send({ error: message });
+        HttpError.internal(reply, message);
       }
     }
   );
