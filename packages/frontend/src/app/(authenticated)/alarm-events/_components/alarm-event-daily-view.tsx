@@ -70,13 +70,13 @@ export function formatDateLong(dateStr: string): string {
 
 // ─── Event partitioning ───────────────────────────────────────────────────────
 
-function toMinutes(hhmm: string): number {
+export function toMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(':').map(Number)
   return (h ?? 0) * 60 + (m ?? 0)
 }
 
 /** Minuto del giorno (0–1439) dell'istante ISO nella timezone indicata. */
-function minuteOfDayInTz(isoString: string, tz: string): number {
+export function minuteOfDayInTz(isoString: string, tz: string): number {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: tz, hour: 'numeric', minute: 'numeric', hour12: false,
   }).formatToParts(new Date(isoString))
@@ -86,7 +86,7 @@ function minuteOfDayInTz(isoString: string, tz: string): number {
 }
 
 /** ISO weekday (1=Lun…7=Dom) del giorno locale dell'istante nella timezone indicata. */
-function isoWeekdayInTz(isoString: string, tz: string): number {
+export function isoWeekdayInTz(isoString: string, tz: string): number {
   const localDate = new Intl.DateTimeFormat('en-CA', {
     timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
   }).format(new Date(isoString)) // "YYYY-MM-DD"

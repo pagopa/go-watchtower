@@ -134,6 +134,11 @@ export const UserPreferencesSchema = Type.Object({
   locale: Type.Optional(Type.String()),
   sidebarCollapsed: Type.Optional(Type.Boolean()),
   analysisFiltersCollapsed: Type.Optional(Type.Boolean()),
+  analysisViewMode: Type.Optional(Type.Union([
+    Type.Literal('list'),
+    Type.Literal('daily'),
+    Type.Literal('oncall'),
+  ])),
 });
 
 export type UserPreferencesBody = Static<typeof UserPreferencesSchema>;

@@ -19,5 +19,6 @@ export interface UserPreferences {
   analysisFiltersCollapsed?: boolean;
   alarmEventFiltersCollapsed?: boolean;
   alarmEventViewMode?: 'list' | 'daily' | 'oncall' | 'grouped';
+  analysisViewMode?: 'list' | 'daily' | 'oncall';
   detailPanelWidth?: number;
 }

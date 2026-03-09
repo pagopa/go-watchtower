@@ -3,7 +3,7 @@
 import { Suspense, useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Plus, Inbox, RefreshCw,
+  Plus, Inbox, RefreshCw, ChevronDown,
   LayoutList, CalendarDays, PhoneCall, Layers,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -39,6 +39,12 @@ import {
 import { DeleteConfirmDialog } from '@/components/delete-confirm-dialog'
 import { DataTableHeader, PaginationControls, useTableMinWidth, useSort } from '@/components/data-table'
 import { ColumnConfigurator } from '@/components/ui/column-configurator'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu'
 import dynamic from 'next/dynamic'
 import { isWorkingHoursSetting, isOnCallHoursSetting } from '@go-watchtower/shared'
 import { AlarmEventFilters, type AlarmEventFiltersState } from './_components/alarm-event-filters'
@@ -505,74 +511,56 @@ function AlarmEventsPageContent() {
 
       {/* Results Bar */}
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {viewMode === 'list' && pagination ? (
-            <>
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          {viewMode === 'list' && pagination && (
+            <p>
               <span className="font-medium tabular-nums text-foreground">{pagination.totalItems}</span>
               {' '}allarmi trovati
-              {eventsUpdatedAt > 0 && (
-                <span className="ml-2 text-xs text-muted-foreground/50">
-                  · aggiornato alle{' '}
-                  {new Date(eventsUpdatedAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              )}
-            </>
-          ) : eventsLoading && viewMode === 'list' ? '' : ''}
-        </p>
-        <div className="flex items-center gap-2">
-          {/* View mode toggle */}
-          <div className="flex items-center gap-0.5 rounded-md border bg-card p-0.5">
-            <Button
-              variant={viewMode === 'list' ? 'secondary' : 'ghost'}
-              size="sm"
-              className="h-6 gap-1.5 px-2 text-xs"
-              onClick={() => handleSetViewMode('list')}
-            >
-              <LayoutList className="h-3 w-3" />
-              Lista
-            </Button>
-            <Button
-              variant={viewMode === 'daily' ? 'secondary' : 'ghost'}
-              size="sm"
-              className="h-6 gap-1.5 px-2 text-xs"
-              onClick={() => handleSetViewMode('daily')}
-            >
-              <CalendarDays className="h-3 w-3" />
-              Giornaliero
-            </Button>
-            <Button
-              variant={viewMode === 'grouped' ? 'secondary' : 'ghost'}
-              size="sm"
-              className="h-6 gap-1.5 px-2 text-xs"
-              onClick={() => handleSetViewMode('grouped')}
-            >
-              <Layers className="h-3 w-3" />
-              Raggruppato
-            </Button>
-            <Button
-              variant={viewMode === 'oncall' ? 'secondary' : 'ghost'}
-              size="sm"
-              className="h-6 gap-1.5 px-2 text-xs"
-              onClick={() => handleSetViewMode('oncall')}
-            >
-              <PhoneCall className="h-3 w-3" />
-              Reperibilità
-            </Button>
-          </div>
-
-          {viewMode === 'list' && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 gap-1.5"
-              onClick={() => refetchEvents()}
-              disabled={eventsFetching}
-              title="Aggiorna"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${eventsFetching ? 'animate-spin' : ''}`} />
-              <span className="text-xs">Aggiorna</span>
-            </Button>
+            </p>
           )}
+          {eventsUpdatedAt > 0 && (
+            <span className="text-xs text-muted-foreground/60">
+              agg. {new Date(eventsUpdatedAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </span>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0"
+            onClick={() => refetchEvents()}
+            disabled={eventsFetching}
+            title="Aggiorna dati"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${eventsFetching ? 'animate-spin' : ''}`} />
+          </Button>
+        </div>
+        <div className="flex items-center gap-2">
+          {/* View mode dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5">
+                {viewMode === 'list' && <LayoutList className="h-4 w-4" />}
+                {viewMode === 'daily' && <CalendarDays className="h-4 w-4" />}
+                {viewMode === 'grouped' && <Layers className="h-4 w-4" />}
+                {viewMode === 'oncall' && <PhoneCall className="h-4 w-4" />}
+                <ChevronDown className="h-3 w-3 opacity-50" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem className={viewMode === 'list' ? 'bg-accent' : ''} onClick={() => handleSetViewMode('list')}>
+                <LayoutList className="mr-2 h-4 w-4" /> Lista
+              </DropdownMenuItem>
+              <DropdownMenuItem className={viewMode === 'daily' ? 'bg-accent' : ''} onClick={() => handleSetViewMode('daily')}>
+                <CalendarDays className="mr-2 h-4 w-4" /> Giornaliero
+              </DropdownMenuItem>
+              <DropdownMenuItem className={viewMode === 'grouped' ? 'bg-accent' : ''} onClick={() => handleSetViewMode('grouped')}>
+                <Layers className="mr-2 h-4 w-4" /> Raggruppato
+              </DropdownMenuItem>
+              <DropdownMenuItem className={viewMode === 'oncall' ? 'bg-accent' : ''} onClick={() => handleSetViewMode('oncall')}>
+                <PhoneCall className="mr-2 h-4 w-4" /> Reperibilità
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <ColumnConfigurator
             allColumns={allColumns}
             isVisible={isVisible}

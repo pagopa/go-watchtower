@@ -64,7 +64,7 @@ export type AlarmAnalysisParams = Static<typeof AlarmAnalysisParamsSchema>;
 
 export const AllAnalysesQuerySchema = Type.Object({
   page: Type.Optional(Type.Integer({ minimum: 1, default: 1 })),
-  pageSize: Type.Optional(Type.Integer({ minimum: 1, maximum: 200, default: 20 })),
+  pageSize: Type.Optional(Type.Integer({ minimum: 1, maximum: 1000, default: 20 })),
   sortBy: Type.Optional(Type.Union([
     Type.Literal(AnalysisSortFields.ANALYSIS_DATE),
     Type.Literal(AnalysisSortFields.FIRST_ALARM_AT),
@@ -100,7 +100,7 @@ export type AllAnalysesQuery = Static<typeof AllAnalysesQuerySchema>;
 
 export const AlarmAnalysisQuerySchema = Type.Object({
   page: Type.Optional(Type.Integer({ minimum: 1, default: 1 })),
-  pageSize: Type.Optional(Type.Integer({ minimum: 1, maximum: 200, default: 20 })),
+  pageSize: Type.Optional(Type.Integer({ minimum: 1, maximum: 1000, default: 20 })),
   sortBy: Type.Optional(Type.Union([
     Type.Literal(AnalysisSortFields.ANALYSIS_DATE),
     Type.Literal(AnalysisSortFields.FIRST_ALARM_AT),

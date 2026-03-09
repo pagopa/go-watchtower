@@ -5,7 +5,8 @@ import { useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Pencil, Trash2, Plus, Inbox, Lock,
+  Pencil, Trash2, Plus, Inbox, Lock, RefreshCw, ChevronDown,
+  LayoutList, CalendarDays, PhoneCall,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -40,16 +41,24 @@ import {
 import { DeleteConfirmDialog } from '@/components/delete-confirm-dialog'
 import { DataTableHeader, PaginationControls, useTableMinWidth, useSort } from '@/components/data-table'
 import { ColumnConfigurator } from '@/components/ui/column-configurator'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import dynamic from 'next/dynamic'
 import { validateAnalysis, assessQuality, type ValidationResult, type QualityResult } from '@/lib/analysis-validation'
 import { ValidationScoreBadge } from '@/components/analysis/validation-score-badge'
 import { ValidationDetailPanel } from '@/components/analysis/validation-detail-panel'
 import { fromZonedTime } from 'date-fns-tz'
+import { isWorkingHoursSetting, isOnCallHoursSetting } from '@go-watchtower/shared'
 import { AnalysisFilters, type AnalysisFiltersState } from './_components/analysis-filters'
 import type { AnalysisFormData } from './_components/analysis-form-dialog'
 import { AnalysisDetailPanel } from './_components/analysis-detail-panel'
 import { CreateAnalysisDropdown, type ShortcutType } from './_components/create-analysis-dropdown'
+import { todayUTC } from '../alarm-events/_components/alarm-event-daily-view'
 
 const AnalysisFormDialog = dynamic(
   () => import('./_components/analysis-form-dialog').then((m) => ({ default: m.AnalysisFormDialog })),
@@ -63,6 +72,16 @@ const ShortcutInCorsoDialog = dynamic(
 
 const ShortcutIgnorableDialog = dynamic(
   () => import('./_components/shortcut-ignorable-dialog').then((m) => ({ default: m.ShortcutIgnorableDialog })),
+  { ssr: false }
+)
+
+const AnalysisDailyView = dynamic(
+  () => import('./_components/analysis-daily-view').then((m) => ({ default: m.AnalysisDailyView })),
+  { ssr: false }
+)
+
+const AnalysisOnCallView = dynamic(
+  () => import('./_components/analysis-oncall-view').then((m) => ({ default: m.AnalysisOnCallView })),
   { ssr: false }
 )
 
@@ -181,6 +200,24 @@ function AnalysesPageContent() {
       persistFiltersRef.current(filterKeyRef.current, filtersRef.current as unknown as Record<string, unknown>)
     }
   }, [])
+
+  // View mode — persisted in user preferences
+  const [viewMode, setViewMode] = useState<'list' | 'daily' | 'oncall'>('list')
+  const viewModeInitialized = useRef(false)
+  useEffect(() => {
+    if (!viewModeInitialized.current && preferences.analysisViewMode) {
+      viewModeInitialized.current = true
+      setViewMode(preferences.analysisViewMode)
+    }
+  }, [preferences.analysisViewMode])
+
+  const handleSetViewMode = useCallback((mode: 'list' | 'daily' | 'oncall') => {
+    viewModeInitialized.current = true
+    setViewMode(mode)
+    updatePreferences({ analysisViewMode: mode })
+  }, [updatePreferences])
+
+  const [selectedDate, setSelectedDate] = useState<string>(() => todayUTC())
 
   // Pagination
   const [page, setPage] = useState(1)
@@ -334,6 +371,29 @@ function AnalysesPageContent() {
     enabled: can('ALARM_ANALYSIS', 'read'),
   })
 
+  // Working hours & on-call hours for daily/oncall views
+  const { data: workingHours } = useQuery({
+    queryKey: ['working-hours'],
+    queryFn: async () => {
+      const s = await api.getSetting('working_hours')
+      if (isWorkingHoursSetting(s)) return s.value
+      return null
+    },
+    staleTime: 5 * 60 * 1000,
+    enabled: viewMode !== 'list',
+  })
+
+  const { data: onCallHours } = useQuery({
+    queryKey: ['on-call-hours'],
+    queryFn: async () => {
+      const s = await api.getSetting('on_call_hours')
+      if (isOnCallHoursSetting(s)) return s.value
+      return null
+    },
+    staleTime: 5 * 60 * 1000,
+    enabled: viewMode === 'oncall',
+  })
+
   // Form-specific data (runbooks, microservices, downstreams, plus product-
   // specific environments/alarms/finalActions when editing a cross-product
   // analysis) is fetched inside AnalysisFormDialog to avoid loading it on
@@ -374,10 +434,15 @@ function AnalysesPageContent() {
   const {
     data: analysesResponse,
     isLoading: analysesLoading,
+    isFetching: analysesFetching,
     error: analysesError,
+    refetch: refetchAnalyses,
+    dataUpdatedAt: analysesUpdatedAt,
   } = useQuery<PaginatedResponse<AlarmAnalysis>>({
     queryKey: ['analyses', analysisQueryParams],
     queryFn: () => api.getAllAnalyses(analysisQueryParams),
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
     placeholderData: (prev) => prev,
   })
 
@@ -604,15 +669,52 @@ function AnalysesPageContent() {
 
       {/* Results Bar */}
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {pagination ? (
-            <>
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          {viewMode === 'list' && pagination && (
+            <p>
               <span className="font-medium tabular-nums text-foreground">{pagination.totalItems}</span>
               {' '}analisi trovate
-            </>
-          ) : analysesLoading ? '' : ''}
-        </p>
+            </p>
+          )}
+          {analysesUpdatedAt > 0 && (
+            <span className="text-xs text-muted-foreground/60">
+              agg. {new Date(analysesUpdatedAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </span>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0"
+            onClick={() => refetchAnalyses()}
+            disabled={analysesFetching}
+            title="Aggiorna dati"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${analysesFetching ? 'animate-spin' : ''}`} />
+          </Button>
+        </div>
         <div className="flex items-center gap-2">
+          {/* View mode dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5">
+                {viewMode === 'list' && <LayoutList className="h-4 w-4" />}
+                {viewMode === 'daily' && <CalendarDays className="h-4 w-4" />}
+                {viewMode === 'oncall' && <PhoneCall className="h-4 w-4" />}
+                <ChevronDown className="h-3 w-3 opacity-50" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem className={viewMode === 'list' ? 'bg-accent' : ''} onClick={() => handleSetViewMode('list')}>
+                <LayoutList className="mr-2 h-4 w-4" /> Lista
+              </DropdownMenuItem>
+              <DropdownMenuItem className={viewMode === 'daily' ? 'bg-accent' : ''} onClick={() => handleSetViewMode('daily')}>
+                <CalendarDays className="mr-2 h-4 w-4" /> Giornaliero
+              </DropdownMenuItem>
+              <DropdownMenuItem className={viewMode === 'oncall' ? 'bg-accent' : ''} onClick={() => handleSetViewMode('oncall')}>
+                <PhoneCall className="mr-2 h-4 w-4" /> Reperibilità
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <ColumnConfigurator
             allColumns={allColumns}
             isVisible={isVisible}
@@ -627,8 +729,61 @@ function AnalysesPageContent() {
         </div>
       </div>
 
-      {/* Table */}
-      <Card className="overflow-hidden">
+      {/* Daily view */}
+      {viewMode === 'daily' && (
+        <AnalysisDailyView
+          selectedDate={selectedDate}
+          onDateChange={setSelectedDate}
+          workingHours={workingHours ?? null}
+          filters={filters}
+          productId={effectiveProductId}
+          visibleColumns={visibleColumns}
+          getWidth={getWidth}
+          totalMinWidth={totalTableMinWidth}
+          canWrite={canWrite}
+          canDelete={canDelete}
+          selectedAnalysisId={selectedAnalysis?.id ?? null}
+          showDetailPanel={showDetailPanel}
+          lingeringId={lingeringId}
+          onRowClick={handleRowClick}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          canEditAnalysis={canEditAnalysis}
+          canDeleteAnalysis={canDeleteAnalysis}
+          isAnalysisLocked={isAnalysisLocked}
+          lockDays={lockDays}
+          onValidationClick={setValidationPanelAnalysis}
+        />
+      )}
+
+      {/* On-call view */}
+      {viewMode === 'oncall' && (
+        <AnalysisOnCallView
+          workingHours={workingHours ?? null}
+          onCallHours={onCallHours ?? null}
+          filters={filters}
+          productId={effectiveProductId}
+          visibleColumns={visibleColumns}
+          getWidth={getWidth}
+          totalMinWidth={totalTableMinWidth}
+          canWrite={canWrite}
+          canDelete={canDelete}
+          selectedAnalysisId={selectedAnalysis?.id ?? null}
+          showDetailPanel={showDetailPanel}
+          lingeringId={lingeringId}
+          onRowClick={handleRowClick}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          canEditAnalysis={canEditAnalysis}
+          canDeleteAnalysis={canDeleteAnalysis}
+          isAnalysisLocked={isAnalysisLocked}
+          lockDays={lockDays}
+          onValidationClick={setValidationPanelAnalysis}
+        />
+      )}
+
+      {/* Table (list view) */}
+      {viewMode === 'list' && <Card className="overflow-hidden">
         <CardContent className="p-0">
           {analysesLoading ? (
             <div className="divide-y">
@@ -782,10 +937,10 @@ function AnalysesPageContent() {
             </div>
           )}
         </CardContent>
-      </Card>
+      </Card>}
 
-      {/* Pagination */}
-      {pagination && (
+      {/* Pagination (list view only) */}
+      {viewMode === 'list' && pagination && (
         <PaginationControls
           page={pagination.page}
           totalPages={pagination.totalPages}
