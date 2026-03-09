@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useForm, type Control, type FieldErrors, type FieldValues, type Resolver } from 'react-hook-form'
 import { useSession } from 'next-auth/react'
 import { useQuery } from '@tanstack/react-query'
@@ -140,6 +140,14 @@ export function ShortcutAnalysisDialog({
     }
     onOpenChange(newOpen)
   }, [reset, onOpenChange])
+
+  // Reset form when the parent closes the dialog (e.g. after successful creation)
+  useEffect(() => {
+    if (!open) {
+      reset(DEFAULT_VALUES)
+      setSelectedRunbookId(null)
+    }
+  }, [open, reset])
 
   const handleFormSubmit = useCallback((data: ShortcutInCorsoData) => {
     const now = toDatetimeLocal(new Date().toISOString())

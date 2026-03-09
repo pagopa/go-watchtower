@@ -466,14 +466,20 @@ function AnalysesPageContent() {
 
   // --- Mutations ---
 
+  const invalidateAnalyses = useCallback(() => {
+    queryClient.invalidateQueries({
+      predicate: (q) => typeof q.queryKey[0] === 'string' && q.queryKey[0].startsWith('analyses'),
+    })
+    queryClient.invalidateQueries({ queryKey: ['analysis-authors'] })
+  }, [queryClient])
+
   const createMutation = useMutation({
     mutationFn: (data: CreateAlarmAnalysisData & { productId: string }) => {
       const { productId, ...payload } = data
       return api.createAnalysis(productId, payload)
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['analyses'] })
-      queryClient.invalidateQueries({ queryKey: ['analysis-authors'] })
+      invalidateAnalyses()
       setPage(1)
       toast.success('Analisi creata con successo')
       setActiveShortcut(null)
@@ -489,8 +495,7 @@ function AnalysesPageContent() {
     mutationFn: ({ productId, id, data }: { productId: string; id: string; data: UpdateAlarmAnalysisData }) =>
       api.updateAnalysis(productId, id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['analyses'] })
-      queryClient.invalidateQueries({ queryKey: ['analysis-authors'] })
+      invalidateAnalyses()
       toast.success('Analisi aggiornata con successo')
       setActiveShortcut(null)
       setEditItem(null)
@@ -506,7 +511,7 @@ function AnalysesPageContent() {
     mutationFn: ({ productId, id }: { productId: string; id: string }) =>
       api.deleteAnalysis(productId, id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['analyses'] })
+      invalidateAnalyses()
       toast.success('Analisi eliminata con successo')
       setDeleteItem(null)
       setShowDetailPanel(false)

@@ -145,6 +145,15 @@ export function ShortcutIgnorableDialog({
     onOpenChange(newOpen)
   }, [reset, onOpenChange])
 
+  // Reset form when the parent closes the dialog (e.g. after successful creation)
+  useEffect(() => {
+    if (!open) {
+      reset(DEFAULT_VALUES)
+      setSelectedRunbookId(null)
+      lastAlarmAutoFilledRef.current = false
+    }
+  }, [open, reset])
+
   const watchedIgnoreReasonCode = watch('ignoreReasonCode') as string
   const watchedFirstAlarm = watch('firstAlarmAt') as string
   const watchedLastAlarm = watch('lastAlarmAt') as string

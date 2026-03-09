@@ -86,7 +86,7 @@ function LinkedAlarmEvents({ analysis }: { analysis: AlarmAnalysis }) {
         analysis={analysis}
         onCompleted={() => {
           queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string).startsWith('alarm-events') })
-          queryClient.invalidateQueries({ queryKey: ['analyses'] })
+          queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === 'string' && q.queryKey[0].startsWith('analyses') })
           setUnlinkEvent(null)
         }}
       />
