@@ -123,7 +123,7 @@ export function ShortcutIgnorableDialog({
     watch,
     setValue,
     getValues,
-    formState: { errors: typedErrors },
+    formState: { errors: typedErrors, isDirty },
   } = useForm({
     resolver: zodResolver(shortcutIgnorableSchema),
     defaultValues: DEFAULT_VALUES,
@@ -188,8 +188,8 @@ export function ShortcutIgnorableDialog({
   }, [onSubmit, session?.user?.id, selectedRunbookId])
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={(v) => { if (!isDirty || v) handleOpenChange(v) }}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" isDirty={isDirty} onDirtyClose={() => handleOpenChange(false)}>
         <DialogHeader>
           <DialogTitle>Nuova Analisi — Da ignorare</DialogTitle>
           <DialogDescription>

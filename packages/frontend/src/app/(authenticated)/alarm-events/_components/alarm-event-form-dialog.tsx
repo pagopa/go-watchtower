@@ -82,7 +82,7 @@ export function AlarmEventFormDialog({
     handleSubmit,
     control,
     watch,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<AlarmEventFormData>({
     defaultValues,
     // Reset form values when the dialog opens/closes or editEvent changes
@@ -129,8 +129,8 @@ export function AlarmEventFormDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose() }}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+    <Dialog open={open} onOpenChange={(v) => { if (!v && !isDirty) onClose() }}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg" isDirty={isDirty} onDirtyClose={onClose}>
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Modifica allarme scattato' : 'Nuovo allarme scattato'}</DialogTitle>
           <DialogDescription>

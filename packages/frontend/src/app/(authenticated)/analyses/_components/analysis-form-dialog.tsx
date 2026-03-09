@@ -250,7 +250,7 @@ export function AnalysisFormDialog({
     watch,
     setValue,
     getValues,
-    formState: { errors: typedErrors },
+    formState: { errors: typedErrors, isDirty },
   } = useForm<AnalysisFormData>({
     resolver: zodResolver(analysisFormSchema) as Resolver<AnalysisFormData>,
     defaultValues: {
@@ -425,8 +425,8 @@ export function AnalysisFormDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={(v) => { if (!isDirty || v) onOpenChange(v) }}>
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto" isDirty={isDirty} onDirtyClose={() => onOpenChange(false)}>
         <DialogHeader>
           <DialogTitle>
             {editItem ? 'Modifica Analisi' : 'Nuova Analisi'}
