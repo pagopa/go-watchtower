@@ -16,6 +16,7 @@ export const SystemEventResources = {
   FINAL_ACTIONS:             'final_actions',
   DOWNSTREAMS:               'downstreams',
   IGNORE_REASONS:            'ignore_reasons',
+  RESOURCE_TYPES:            'resource_types',
   ROLES:                     'roles',
 } as const;
 

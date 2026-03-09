@@ -18,6 +18,7 @@ import {
   SlidersHorizontal,
   BanIcon,
   BellRing,
+  Layers,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -119,6 +120,13 @@ const navGroups: NavGroup[] = [
         title: 'Motivi esclusione',
         href: '/settings/ignore-reasons',
         icon: BanIcon,
+        resource: 'SYSTEM_SETTING',
+        action: 'write',
+      },
+      {
+        title: 'Tipi risorsa',
+        href: '/settings/resource-types',
+        icon: Layers,
         resource: 'SYSTEM_SETTING',
         action: 'write',
       },

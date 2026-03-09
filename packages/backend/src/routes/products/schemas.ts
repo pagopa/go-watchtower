@@ -111,6 +111,7 @@ export const EnvironmentsResponseSchema = Type.Array(EnvironmentResponseSchema);
 export const CreateResourceBodySchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 255 }),
   description: Type.Optional(Type.String()),
+  typeId: Type.String({ format: "uuid" }),
 });
 
 export type CreateResourceBody = Static<typeof CreateResourceBodySchema>;
@@ -118,6 +119,7 @@ export type CreateResourceBody = Static<typeof CreateResourceBodySchema>;
 export const UpdateResourceBodySchema = Type.Object({
   name: Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
   description: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  typeId: Type.Optional(Type.String({ format: "uuid" })),
 });
 
 export type UpdateResourceBody = Static<typeof UpdateResourceBodySchema>;
@@ -133,6 +135,11 @@ export const ResourceResponseSchema = Type.Object({
   id: Type.String(),
   name: Type.String(),
   description: Type.Union([Type.String(), Type.Null()]),
+  typeId: Type.String(),
+  type: Type.Object({
+    id: Type.String(),
+    name: Type.String(),
+  }),
   productId: Type.String(),
   createdAt: Type.String(),
   updatedAt: Type.String(),

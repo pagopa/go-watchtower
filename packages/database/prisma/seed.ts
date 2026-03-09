@@ -207,6 +207,33 @@ async function seedIgnoreReasons() {
   }
 }
 
+const RESOURCE_TYPE_IDS = {
+  SERVICE:     "d0000000-0000-0000-0000-000000000001",
+  DEVELOPMENT: "d0000000-0000-0000-0000-000000000002",
+  LAMBDA:      "d0000000-0000-0000-0000-000000000003",
+  CRONJOB:     "d0000000-0000-0000-0000-000000000004",
+} as const;
+
+async function seedResourceTypes() {
+  console.log("\n📦 Seeding resource types...");
+
+  const types = [
+    { id: RESOURCE_TYPE_IDS.SERVICE,     name: "Service",     sortOrder: 1 },
+    { id: RESOURCE_TYPE_IDS.DEVELOPMENT, name: "Development", sortOrder: 2 },
+    { id: RESOURCE_TYPE_IDS.LAMBDA,      name: "Lambda",      sortOrder: 3 },
+    { id: RESOURCE_TYPE_IDS.CRONJOB,     name: "Cronjob",     sortOrder: 4 },
+  ];
+
+  for (const rt of types) {
+    await prisma.resourceType.upsert({
+      where:  { id: rt.id },
+      update: { name: rt.name, sortOrder: rt.sortOrder },
+      create: rt,
+    });
+    console.log(`  ✅ ${rt.name}`);
+  }
+}
+
 async function seedAdmin() {
   console.log("\n👤 Seeding default admin user...");
 
@@ -304,6 +331,7 @@ async function main() {
   await seedRoles();
   await seedPermissions();
   await seedIgnoreReasons();
+  await seedResourceTypes();
   await seedAdmin();
   await seedSystemSettings();
   console.log("\n✨ Done.");

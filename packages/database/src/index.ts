@@ -20,6 +20,7 @@ export {
   type Product,
   type Environment,
   type Resource,
+  type ResourceType,
   type Alarm,
   type IgnoredAlarm,
   type Runbook,

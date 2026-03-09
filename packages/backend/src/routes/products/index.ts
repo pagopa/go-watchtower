@@ -5,7 +5,6 @@ import {
   SystemComponent,
   type Product,
   type Environment,
-  type Resource as PrismaResource,
   type Runbook,
   type FinalAction,
   type Alarm,
@@ -394,6 +393,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
             }),
             prisma.resource.findMany({
               where: { productId },
+              include: { type: { select: { id: true, name: true } } },
               orderBy: { name: "asc" },
             }),
             prisma.downstream.findMany({
@@ -440,10 +440,12 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
             createdAt: fa.createdAt.toISOString(),
             updatedAt: fa.updatedAt.toISOString(),
           })),
-          resources: resources.map((r: PrismaResource) => ({
+          resources: resources.map((r) => ({
             id: r.id,
             name: r.name,
             description: r.description,
+            typeId: r.typeId,
+            type: r.type,
             productId: r.productId,
             createdAt: r.createdAt.toISOString(),
             updatedAt: r.updatedAt.toISOString(),
@@ -775,14 +777,17 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
 
         const resources = await prisma.resource.findMany({
           where: { productId: request.params.productId },
+          include: { type: { select: { id: true, name: true } } },
           orderBy: { name: "asc" },
         });
 
         reply.send(
-          resources.map((r: PrismaResource) => ({
+          resources.map((r) => ({
             id: r.id,
             name: r.name,
             description: r.description,
+            typeId: r.typeId,
+            type: r.type,
             productId: r.productId,
             createdAt: r.createdAt.toISOString(),
             updatedAt: r.updatedAt.toISOString(),
@@ -831,8 +836,10 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           data: {
             name: request.body.name,
             description: request.body.description,
+            typeId: request.body.typeId,
             productId: request.params.productId,
           },
+          include: { type: { select: { id: true, name: true } } },
         });
 
         request.auditEvents.push({
@@ -847,6 +854,8 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           id: resource.id,
           name: resource.name,
           description: resource.description,
+          typeId: resource.typeId,
+          type: resource.type,
           productId: resource.productId,
           createdAt: resource.createdAt.toISOString(),
           updatedAt: resource.updatedAt.toISOString(),
@@ -882,7 +891,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
       try {
         const existingRes = await prisma.resource.findUnique({
           where: { id: request.params.id },
-          select: { name: true, description: true },
+          select: { name: true, description: true, typeId: true },
         });
 
         const resource = await prisma.resource.update({
@@ -893,7 +902,9 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           data: {
             ...(request.body.name !== undefined && { name: request.body.name }),
             ...(request.body.description !== undefined && { description: request.body.description }),
+            ...(request.body.typeId !== undefined && { typeId: request.body.typeId }),
           },
+          include: { type: { select: { id: true, name: true } } },
         });
 
         request.auditEvents.push({
@@ -904,8 +915,8 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           metadata: {
             productId: request.params.productId,
             changes: buildDiff(
-              { name: existingRes?.name, description: existingRes?.description },
-              { name: resource.name, description: resource.description },
+              { name: existingRes?.name, description: existingRes?.description, typeId: existingRes?.typeId },
+              { name: resource.name, description: resource.description, typeId: resource.typeId },
             ),
           },
         });
@@ -914,6 +925,8 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           id: resource.id,
           name: resource.name,
           description: resource.description,
+          typeId: resource.typeId,
+          type: resource.type,
           productId: resource.productId,
           createdAt: resource.createdAt.toISOString(),
           updatedAt: resource.updatedAt.toISOString(),

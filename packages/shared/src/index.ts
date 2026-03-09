@@ -55,6 +55,7 @@ export type { ErrorResponse, MessageResponse } from './types/api-responses.js';
 
 export type { AnalysisLink, TrackingEntry } from './types/analysis.js';
 export type { IgnoreReasonFieldDef, IgnoreReasonDetailsSchema, IgnoreReason } from './types/ignore-reason.js';
+export type { ResourceType } from './types/resource-type.js';
 export type { TimeConstraintPeriod, TimeConstraintHours, TimeConstraint } from './types/time-constraint.js';
 export type { PermissionAction, ResourcePermission, RolePermission, UserPermissions } from './types/permissions.js';
 export type { UserPreferences, ColumnSettings } from './types/user-preferences.js';

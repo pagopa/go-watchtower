@@ -197,17 +197,32 @@ model Environment {
   @@map("environments")
 }
 
+model ResourceType {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  name      String   @unique
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  resources Resource[]
+
+  @@map("resource_types")
+}
+
 model Resource {
   id          String           @id @default(uuid(7)) @db.Uuid
   name        String
   description String?
+  typeId      String           @map("type_id") @db.Uuid
   productId   String           @map("product_id") @db.Uuid
   createdAt   DateTime         @default(now()) @map("created_at")
   updatedAt   DateTime         @updatedAt @map("updated_at")
+  type        ResourceType     @relation(fields: [typeId], references: [id])
   product     Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
   analyses    AnalysisResource[]
 
   @@unique([productId, name])
+  @@index([typeId])
   @@map("resources")
 }
 

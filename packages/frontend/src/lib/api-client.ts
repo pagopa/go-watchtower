@@ -23,6 +23,7 @@ import type {
   SystemSetting,
   SystemEvent,
   SystemEventsResponse,
+  ResourceType,
 } from '@go-watchtower/shared'
 
 export type {
@@ -49,6 +50,7 @@ export type {
   SystemSetting,
   SystemEvent,
   SystemEventsResponse,
+  ResourceType,
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || ''
@@ -267,6 +269,8 @@ export interface ProductResource {
   id: string
   name: string
   description: string | null
+  typeId: string
+  type: { id: string; name: string }
   productId: string
   createdAt: string
   updatedAt: string
@@ -275,11 +279,23 @@ export interface ProductResource {
 export interface CreateProductResourceData {
   name: string
   description?: string
+  typeId: string
 }
 
 export interface UpdateProductResourceData {
   name?: string
   description?: string | null
+  typeId?: string
+}
+
+export interface CreateResourceTypeData {
+  name: string
+  sortOrder?: number
+}
+
+export interface UpdateResourceTypeData {
+  name?: string
+  sortOrder?: number
 }
 
 export interface Runbook {
@@ -910,6 +926,16 @@ export const api = {
     request<IgnoreReason>(`/api/ignore-reasons/${code}`, { method: 'PATCH', body: data }),
   deleteIgnoreReason: (code: string) =>
     request<{ message: string }>(`/api/ignore-reasons/${code}`, { method: 'DELETE' }),
+
+  // Resource Types
+  getResourceTypes: () => request<ResourceType[]>('/api/resource-types'),
+  getResourceType: (id: string) => request<ResourceType>(`/api/resource-types/${id}`),
+  createResourceType: (data: CreateResourceTypeData) =>
+    request<ResourceType>('/api/resource-types', { method: 'POST', body: data }),
+  updateResourceType: (id: string, data: UpdateResourceTypeData) =>
+    request<ResourceType>(`/api/resource-types/${id}`, { method: 'PATCH', body: data }),
+  deleteResourceType: (id: string) =>
+    request<{ message: string }>(`/api/resource-types/${id}`, { method: 'DELETE' }),
 
   // Reports
   getOperatorWorkload: (filters?: ReportFilters) =>

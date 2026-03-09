@@ -19,6 +19,7 @@ export const SYSTEM_EVENT_RESOURCE_LABELS: Record<SystemEventResource, string> =
   [SystemEventResources.FINAL_ACTIONS]:             'Azioni Finali',
   [SystemEventResources.DOWNSTREAMS]:               'Downstream',
   [SystemEventResources.IGNORE_REASONS]:            'Motivi Ignoramento',
+  [SystemEventResources.RESOURCE_TYPES]:            'Tipi Risorsa',
   [SystemEventResources.ROLES]:                     'Ruoli',
 };
 
@@ -73,6 +74,9 @@ export const SYSTEM_EVENT_ACTION_LABELS: Partial<Record<SystemEventAction, strin
   [SystemEventActions.IGNORE_REASON_CREATED]:       'Motivo Ignoramento Creato',
   [SystemEventActions.IGNORE_REASON_UPDATED]:       'Motivo Ignoramento Aggiornato',
   [SystemEventActions.IGNORE_REASON_DELETED]:       'Motivo Ignoramento Eliminato',
+  [SystemEventActions.RESOURCE_TYPE_CREATED]:       'Tipo Risorsa Creato',
+  [SystemEventActions.RESOURCE_TYPE_UPDATED]:       'Tipo Risorsa Aggiornato',
+  [SystemEventActions.RESOURCE_TYPE_DELETED]:       'Tipo Risorsa Eliminato',
   [SystemEventActions.ROLE_CREATED]:                'Ruolo Creato',
   [SystemEventActions.ROLE_UPDATED]:                'Ruolo Aggiornato',
   [SystemEventActions.ROLE_DELETED]:                'Ruolo Eliminato',
