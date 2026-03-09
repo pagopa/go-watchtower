@@ -51,12 +51,17 @@ export function Header() {
     <header className="flex h-16 items-center justify-between border-b bg-background px-6">
       <div className="flex items-center gap-2.5">
         <Image src="/logo1.png" alt="" width={28} height={28} quality={85} sizes="28px" className="drop-shadow-sm" />
-        <h1 className="font-display text-xl font-bold tracking-wide">Watchtower</h1>
-        {process.env.NEXT_PUBLIC_APP_ENV && (
-          <span className="rounded bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold uppercase leading-none text-white tracking-wider">
-            {process.env.NEXT_PUBLIC_APP_ENV}
-          </span>
-        )}
+        <div className="flex flex-col">
+          <div className="flex items-center gap-2">
+            <h1 className="font-display text-xl font-bold tracking-wide leading-none">Watchtower</h1>
+            {process.env.NEXT_PUBLIC_APP_ENV && (
+              <span className="rounded bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold uppercase leading-none text-white tracking-wider">
+                {process.env.NEXT_PUBLIC_APP_ENV}
+              </span>
+            )}
+          </div>
+          <span className="mt-1 text-xs text-muted-foreground/60 leading-none">TS640 - Service Line QA&amp;Ops</span>
+        </div>
       </div>
 
       <div className="flex items-center gap-2">
