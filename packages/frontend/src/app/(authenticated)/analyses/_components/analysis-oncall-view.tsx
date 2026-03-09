@@ -65,7 +65,7 @@ export function AnalysisOnCallView({
     page:      1,
     pageSize:  1000,
     sortBy:    'analysisDate' as const,
-    sortOrder: 'asc' as const,
+    sortOrder: 'desc' as const,
     dateFrom,
     dateTo,
     ...(productId                       && { productId }),
