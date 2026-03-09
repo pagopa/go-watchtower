@@ -77,7 +77,7 @@ export function FinalActionsTab({ productId }: FinalActionsTabProps) {
     reset,
     watch,
     setValue,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<FinalActionFormData>({
     resolver: zodResolver(finalActionSchema) as Resolver<FinalActionFormData>,
     defaultValues: { name: '', description: '', order: 0, isOther: false },
@@ -304,8 +304,8 @@ export function FinalActionsTab({ productId }: FinalActionsTabProps) {
         </div>
       )}
 
-      <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
-        <DialogContent className="sm:max-w-md">
+      <Dialog open={isDialogOpen} onOpenChange={(v) => { if (!isDirty || v) handleDialogClose(v) }}>
+        <DialogContent className="sm:max-w-md" isDirty={isDirty} onDirtyClose={() => handleDialogClose(false)}>
           <DialogHeader>
             <div className="flex items-center gap-3 mb-1">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted shrink-0">

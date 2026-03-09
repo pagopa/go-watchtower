@@ -74,7 +74,7 @@ export function AlarmsTab({ productId }: AlarmsTabProps) {
     handleSubmit,
     reset,
     control,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<AlarmFormData>({
     resolver: zodResolver(alarmSchema),
     defaultValues: { name: '', description: '', runbookId: undefined },
@@ -327,8 +327,8 @@ export function AlarmsTab({ productId }: AlarmsTabProps) {
         alarm={detailData}
       />
 
-      <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
-        <DialogContent className="sm:max-w-md">
+      <Dialog open={isDialogOpen} onOpenChange={(v) => { if (!isDirty || v) handleDialogClose(v) }}>
+        <DialogContent className="sm:max-w-md" isDirty={isDirty} onDirtyClose={() => handleDialogClose(false)}>
           <DialogHeader>
             <div className="flex items-center gap-3 mb-1">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted shrink-0">

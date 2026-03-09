@@ -555,7 +555,7 @@ export function IgnoredAlarmsTab({ productId }: IgnoredAlarmsTabProps) {
     defaultValues: EMPTY_DEFAULTS,
   })
 
-  const { register, handleSubmit, reset, control, formState: { errors } } = form
+  const { register, handleSubmit, reset, control, formState: { errors, isDirty } } = form
 
   const handleEdit = (item: IgnoredAlarm) => {
     reset(formDataFromIgnoredAlarm(item))
@@ -824,8 +824,8 @@ export function IgnoredAlarmsTab({ productId }: IgnoredAlarmsTabProps) {
       )}
 
       {/* Create/Edit Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <Dialog open={isDialogOpen} onOpenChange={(v) => { if (!isDirty || v) handleDialogClose(v) }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" isDirty={isDirty} onDirtyClose={() => handleDialogClose(false)}>
           <DialogHeader>
             <div className="flex items-center gap-3 mb-1">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted shrink-0">

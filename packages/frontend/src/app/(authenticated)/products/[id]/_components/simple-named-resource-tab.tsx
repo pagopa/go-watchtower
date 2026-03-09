@@ -115,7 +115,7 @@ export function SimpleNamedResourceTab<TItem extends NamedEntity>({
     register,
     handleSubmit,
     reset,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<EntityFormData>({
     resolver: zodResolver(entitySchema),
     defaultValues: { name: '', description: '' },
@@ -314,8 +314,8 @@ export function SimpleNamedResourceTab<TItem extends NamedEntity>({
         </div>
       )}
 
-      <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
-        <DialogContent className="sm:max-w-md">
+      <Dialog open={isDialogOpen} onOpenChange={(v) => { if (!isDirty || v) handleDialogClose(v) }}>
+        <DialogContent className="sm:max-w-md" isDirty={isDirty} onDirtyClose={() => handleDialogClose(false)}>
           <DialogHeader>
             <div className="flex items-center gap-3 mb-1">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted shrink-0">
