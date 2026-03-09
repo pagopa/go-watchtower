@@ -4,7 +4,9 @@ export interface IgnoreReasonFieldDef {
   description?: string;
   minLength?: number;
   minimum?: number;
+  enum?: string[];
   'x-ui'?: 'textarea';
+  'x-enumLabels'?: string[];
 }
 
 export interface IgnoreReasonDetailsSchema {

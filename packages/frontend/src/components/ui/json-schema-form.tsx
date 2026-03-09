@@ -12,6 +12,13 @@ import { Controller, type Control } from 'react-hook-form'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import type { IgnoreReasonDetailsSchema, IgnoreReasonFieldDef } from '@/lib/api-client'
 
 interface DynamicIgnoreDetailsFormProps {
@@ -76,6 +83,27 @@ function DynamicField({
                 onChange={(e) => field.onChange(e.target.valueAsNumber)}
                 disabled={disabled}
               />
+            )
+          }
+          if (def.enum && def.enum.length > 0) {
+            const labels = def['x-enumLabels'] ?? def.enum
+            return (
+              <Select
+                value={field.value ?? ''}
+                onValueChange={field.onChange}
+                disabled={disabled}
+              >
+                <SelectTrigger id={fieldPath}>
+                  <SelectValue placeholder={def.description ?? 'Seleziona...'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {def.enum.map((val, i) => (
+                    <SelectItem key={val} value={val}>
+                      {labels[i] ?? val}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )
           }
           // default: string input
