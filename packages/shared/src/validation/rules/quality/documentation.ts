@@ -28,9 +28,11 @@ export const documentationRules: QualityRule[] = [
     id: 'QUALITY_ERROR_DETAILS',
     weight: 1.5,
     label: 'Dettagli errore',
-    hint: "Aggiungi i dettagli dell'errore per facilitare future analisi simili",
+    hint: "Aggiungi i dettagli dell'errore nel campo dedicato o nella descrizione di un ID tracciamento",
     appliesTo: (a) => a.analysisType === 'ANALYZABLE',
-    assess: (a) => a.errorDetails != null && a.errorDetails.trim() !== '',
+    assess: (a) =>
+      (a.errorDetails != null && a.errorDetails.trim() !== '') ||
+      a.trackingIds.some((t) => t.errorDetail != null && t.errorDetail.trim() !== ''),
   },
   {
     id: 'QUALITY_DOWNSTREAMS',
