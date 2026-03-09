@@ -52,6 +52,11 @@ export function Header() {
       <div className="flex items-center gap-2.5">
         <Image src="/logo1.png" alt="" width={28} height={28} quality={85} sizes="28px" className="drop-shadow-sm" />
         <h1 className="font-display text-xl font-bold tracking-wide">Watchtower</h1>
+        {process.env.NEXT_PUBLIC_APP_ENV && (
+          <span className="rounded bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold uppercase leading-none text-white tracking-wider">
+            {process.env.NEXT_PUBLIC_APP_ENV}
+          </span>
+        )}
       </div>
 
       <div className="flex items-center gap-2">

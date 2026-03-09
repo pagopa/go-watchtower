@@ -20,10 +20,13 @@ const cinzel = Cinzel({
   weight: ['400', '700', '900'],
 })
 
+const appEnv = process.env.NEXT_PUBLIC_APP_ENV
+const appName = appEnv ? `Watchtower [${appEnv.toUpperCase()}]` : 'Watchtower'
+
 export const metadata: Metadata = {
   title: {
-    template: '%s | Watchtower',
-    default: 'Watchtower',
+    template: `%s | ${appName}`,
+    default: appName,
   },
   description: "Watchtower veglia sull'infrastruttura digitale di PagoPa 24 ore su 24. Un punto unico di osservazione per allarmi, incidenti e azioni — perché nessun problema passi inosservato.",
 }
