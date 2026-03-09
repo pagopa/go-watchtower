@@ -821,9 +821,10 @@ export function AnalysisDetailPanel({
                       {analysis.resources.map((ms) => (
                         <span
                           key={ms.id}
-                          className="inline-flex items-center rounded-md border border-border bg-muted/50 px-2.5 py-1 text-sm font-medium"
+                          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/50 px-2.5 py-1 text-sm font-medium"
                         >
                           {ms.name}
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{ms.type.name}</span>
                         </span>
                       ))}
                     </dd>

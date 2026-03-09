@@ -255,7 +255,11 @@ export const AlarmAnalysisResponseSchema = Type.Object({
   runbook: Type.Union([RunbookResponseSchema, Type.Null()]),
   createdBy: RelatedUserSchema,
   updatedBy: Type.Union([RelatedUserSchema, Type.Null()]),
-  resources: Type.Array(RelatedEntitySchema),
+  resources: Type.Array(Type.Object({
+    id: Type.String(),
+    name: Type.String(),
+    type: Type.Object({ id: Type.String(), name: Type.String() }),
+  })),
   downstreams: Type.Array(RelatedEntitySchema),
   ignoreReason: Type.Union([IgnoreReasonResponseSchema, Type.Null()]),
   links: Type.Array(LinkSchema),

@@ -621,7 +621,7 @@ export function AnalysisFormDialog({
                   control={control}
                   render={({ field }) => (
                     <MultiSelectCombobox
-                      options={resources?.map((ms) => ({ value: ms.id, label: ms.name })) ?? []}
+                      options={resources?.map((ms) => ({ value: ms.id, label: `${ms.name} (${ms.type.name})` })) ?? []}
                       value={field.value || []}
                       onValueChange={field.onChange}
                       placeholder="Nessuna risorsa disponibile"

@@ -444,7 +444,7 @@ export interface AlarmAnalysis {
   runbook: (RelatedEntity & { link?: string; status?: 'DRAFT' | 'COMPLETE' }) | null
   createdBy: RelatedUser
   updatedBy: RelatedUser | null
-  resources: RelatedEntity[]
+  resources: Array<RelatedEntity & { type: { id: string; name: string } }>
   downstreams: RelatedEntity[]
   ignoreReason: IgnoreReason | null
   links: Array<{ url: string; name?: string; type?: string }>

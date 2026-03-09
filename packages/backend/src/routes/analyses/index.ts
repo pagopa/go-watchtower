@@ -61,7 +61,7 @@ const analysisInclude = {
   createdBy: { select: { id: true, name: true, email: true } },
   updatedBy: { select: { id: true, name: true, email: true } },
   resources: {
-    include: { resource: { select: { id: true, name: true } } },
+    include: { resource: { select: { id: true, name: true, type: { select: { id: true, name: true } } } } },
   },
   downstreams: {
     include: { downstream: { select: { id: true, name: true } } },
@@ -108,7 +108,11 @@ function formatAnalysisResponse(analysis: AnalysisWithRelations) {
     createdBy: analysis.createdBy,
     updatedBy: analysis.updatedBy,
     resources: analysis.resources.map(
-      (r: { resource: { id: string; name: string } }) => r.resource
+      (r: { resource: { id: string; name: string; type: { id: string; name: string } } }) => ({
+        id: r.resource.id,
+        name: r.resource.name,
+        type: r.resource.type,
+      })
     ),
     downstreams: analysis.downstreams.map(
       (d: { downstream: { id: string; name: string } }) => d.downstream

@@ -87,13 +87,13 @@ export const AnalysisCell = memo(function AnalysisCell({ columnId, analysis }: A
         ? <span className="block truncate text-sm">{analysis.runbook.name}</span>
         : <span className="text-muted-foreground/40 text-sm">—</span>
     case 'resources': {
-      const names = analysis.resources.map(m => m.name)
-      if (!names.length) return <span className="text-muted-foreground/40 text-sm">—</span>
+      if (!analysis.resources.length) return <span className="text-muted-foreground/40 text-sm">—</span>
       return (
         <span className="flex flex-wrap gap-1">
-          {names.map(name => (
-            <span key={name} className="inline-flex items-center rounded border px-1.5 py-0.5 text-xs font-medium text-foreground/75">
-              {name}
+          {analysis.resources.map(r => (
+            <span key={r.id} className="inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-xs font-medium text-foreground/75">
+              {r.name}
+              <span className="rounded bg-muted px-1 py-px text-[10px] text-muted-foreground">{r.type.name}</span>
             </span>
           ))}
         </span>
