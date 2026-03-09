@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
-import { prisma, Resource } from "@go-watchtower/database";
+import { prisma, SystemComponent } from "@go-watchtower/database";
 import { buildDiff } from "../../services/system-event.service.js";
 import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
 import { HttpError } from "../../utils/http-errors.js";
@@ -156,7 +156,7 @@ export async function alarmEventRoutes(app: FastifyInstance) {
   server.post<{ Body: CreateAlarmEventBody }>(
     "/alarm-events",
     {
-      onRequest: [server.authenticate, requirePermission(Resource.ALARM_EVENT, "write")],
+      onRequest: [server.authenticate, requirePermission(SystemComponent.ALARM_EVENT, "write")],
       schema: {
         tags: ["Alarm Events"],
         summary: "Create an alarm event",
@@ -215,7 +215,7 @@ export async function alarmEventRoutes(app: FastifyInstance) {
   server.patch<{ Params: AlarmEventParams; Body: UpdateAlarmEventBody }>(
     "/alarm-events/:id",
     {
-      onRequest: [server.authenticate, requirePermission(Resource.ALARM_EVENT, "write")],
+      onRequest: [server.authenticate, requirePermission(SystemComponent.ALARM_EVENT, "write")],
       schema: {
         tags: ["Alarm Events"],
         summary: "Update an alarm event",
@@ -270,7 +270,7 @@ export async function alarmEventRoutes(app: FastifyInstance) {
   server.delete<{ Params: AlarmEventParams }>(
     "/alarm-events/:id",
     {
-      onRequest: [server.authenticate, requirePermission(Resource.ALARM_EVENT, "delete")],
+      onRequest: [server.authenticate, requirePermission(SystemComponent.ALARM_EVENT, "delete")],
       schema: {
         tags: ["Alarm Events"],
         summary: "Delete an alarm event",

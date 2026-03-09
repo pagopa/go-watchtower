@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
-import { prisma, Prisma, Resource, PermissionScope, type PrismaClient } from "@go-watchtower/database";
+import { prisma, Prisma, SystemComponent, PermissionScope, type PrismaClient } from "@go-watchtower/database";
 
 type TransactionClient = Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends">;
 import { getPermissionScope } from "../../services/permission.service.js";
@@ -60,8 +60,8 @@ const analysisInclude = {
   runbook: { select: { id: true, name: true, link: true, status: true } },
   createdBy: { select: { id: true, name: true, email: true } },
   updatedBy: { select: { id: true, name: true, email: true } },
-  microservices: {
-    include: { microservice: { select: { id: true, name: true } } },
+  resources: {
+    include: { resource: { select: { id: true, name: true } } },
   },
   downstreams: {
     include: { downstream: { select: { id: true, name: true } } },
@@ -107,8 +107,8 @@ function formatAnalysisResponse(analysis: AnalysisWithRelations) {
     runbook: analysis.runbook,
     createdBy: analysis.createdBy,
     updatedBy: analysis.updatedBy,
-    microservices: analysis.microservices.map(
-      (m: { microservice: { id: string; name: string } }) => m.microservice
+    resources: analysis.resources.map(
+      (r: { resource: { id: string; name: string } }) => r.resource
     ),
     downstreams: analysis.downstreams.map(
       (d: { downstream: { id: string; name: string } }) => d.downstream
@@ -144,7 +144,7 @@ function buildAnalysisWhereClause(
   }
   if (query.ignoreReasonCode) where.ignoreReasonCode = query.ignoreReasonCode;
   if (query.runbookId) where.runbookId = query.runbookId;
-  if (query.microserviceId) where.microservices = { some: { microserviceId: query.microserviceId } };
+  if (query.resourceId) where.resources = { some: { resourceId: query.resourceId } };
   if (query.downstreamId) where.downstreams = { some: { downstreamId: query.downstreamId } };
   if (query.traceId) {
     // PostgreSQL JSONB @> containment: check if trackingIds array contains
@@ -231,7 +231,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Params: ProductIdParams; Querystring: AlarmAnalysisQuery }>(
     "/products/:productId/analyses",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.ALARM_ANALYSIS, "read")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.ALARM_ANALYSIS, "read")],
       schema: {
         tags: ["analyses"],
         summary: "Get all analyses for a product with pagination and filtering",
@@ -308,7 +308,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Querystring: AllAnalysesQuery }>(
     "/analyses",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.ALARM_ANALYSIS, "read")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.ALARM_ANALYSIS, "read")],
       schema: {
         tags: ["analyses"],
         summary: "Get all analyses across products with pagination and filtering",
@@ -373,7 +373,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Params: AlarmAnalysisParams }>(
     "/products/:productId/analyses/:id",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.ALARM_ANALYSIS, "read")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.ALARM_ANALYSIS, "read")],
       schema: {
         tags: ["analyses"],
         summary: "Get an analysis by ID",
@@ -417,7 +417,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
   app.post<{ Params: ProductIdParams; Body: CreateAlarmAnalysisBody }>(
     "/products/:productId/analyses",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.ALARM_ANALYSIS, "write")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.ALARM_ANALYSIS, "write")],
       schema: {
         tags: ["analyses"],
         summary: "Create a new analysis",
@@ -467,18 +467,18 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
 
         // Verify optional related entities in parallel
         const finalActionIds = request.body.finalActionIds ?? [];
-        const microserviceIds = request.body.microserviceIds ?? [];
+        const resourceIds = request.body.resourceIds ?? [];
         const downstreamIds = request.body.downstreamIds ?? [];
 
-        const [finalActionCount, runbook, microserviceCount, downstreamCount] = await Promise.all([
+        const [finalActionCount, runbook, resourceCount, downstreamCount] = await Promise.all([
           finalActionIds.length > 0
             ? prisma.finalAction.count({ where: { id: { in: finalActionIds }, productId } })
             : Promise.resolve(0),
           request.body.runbookId
             ? prisma.runbook.findFirst({ where: { id: request.body.runbookId, productId } })
             : Promise.resolve(null),
-          microserviceIds.length > 0
-            ? prisma.microservice.count({ where: { id: { in: microserviceIds }, productId } })
+          resourceIds.length > 0
+            ? prisma.resource.count({ where: { id: { in: resourceIds }, productId } })
             : Promise.resolve(0),
           downstreamIds.length > 0
             ? prisma.downstream.count({ where: { id: { in: downstreamIds }, productId } })
@@ -497,10 +497,10 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
             .send({ error: "Runbook not found or does not belong to this product" });
         }
 
-        if (microserviceIds.length > 0 && microserviceCount !== microserviceIds.length) {
+        if (resourceIds.length > 0 && resourceCount !== resourceIds.length) {
           return reply
             .status(400)
-            .send({ error: "One or more microservices not found or do not belong to this product" });
+            .send({ error: "One or more resources not found or do not belong to this product" });
         }
 
         if (downstreamIds.length > 0 && downstreamCount !== downstreamIds.length) {
@@ -550,12 +550,12 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
                       },
                     }
                   : undefined,
-              microservices:
-                request.body.microserviceIds && request.body.microserviceIds.length > 0
+              resources:
+                request.body.resourceIds && request.body.resourceIds.length > 0
                   ? {
                       createMany: {
-                        data: request.body.microserviceIds.map((microserviceId) => ({
-                          microserviceId,
+                        data: request.body.resourceIds.map((resourceId) => ({
+                          resourceId,
                         })),
                       },
                     }
@@ -630,9 +630,9 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
         const existing = await prisma.alarmAnalysis.findFirst({
           where: { id, productId },
           include: {
-            microservices: { select: { microserviceId: true } },
-            downstreams:   { select: { downstreamId: true } },
-            finalActions:  { select: { finalActionId: true } },
+            resources:    { select: { resourceId: true } },
+            downstreams:  { select: { downstreamId: true } },
+            finalActions: { select: { finalActionId: true } },
           },
         });
 
@@ -644,7 +644,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
         // Resolved once to avoid a second DB round-trip for the lock check below.
         const writeScope = await getPermissionScope(
           request.user.userId,
-          Resource.ALARM_ANALYSIS,
+          SystemComponent.ALARM_ANALYSIS,
           "write"
         );
         const canWriteForThis =
@@ -695,18 +695,18 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
 
         // Verify optional related entities in parallel
         const updateFinalActionIds = request.body.finalActionIds ?? [];
-        const updateMicroserviceIds = request.body.microserviceIds ?? [];
+        const updateResourceIds = request.body.resourceIds ?? [];
         const updateDownstreamIds = request.body.downstreamIds ?? [];
 
-        const [updateFinalActionCount, updateRunbook, updateMicroserviceCount, updateDownstreamCount] = await Promise.all([
+        const [updateFinalActionCount, updateRunbook, updateResourceCount, updateDownstreamCount] = await Promise.all([
           updateFinalActionIds.length > 0
             ? prisma.finalAction.count({ where: { id: { in: updateFinalActionIds }, productId } })
             : Promise.resolve(0),
           request.body.runbookId
             ? prisma.runbook.findFirst({ where: { id: request.body.runbookId, productId } })
             : Promise.resolve(null),
-          updateMicroserviceIds.length > 0
-            ? prisma.microservice.count({ where: { id: { in: updateMicroserviceIds }, productId } })
+          updateResourceIds.length > 0
+            ? prisma.resource.count({ where: { id: { in: updateResourceIds }, productId } })
             : Promise.resolve(0),
           updateDownstreamIds.length > 0
             ? prisma.downstream.count({ where: { id: { in: updateDownstreamIds }, productId } })
@@ -725,10 +725,10 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
             .send({ error: "Runbook not found or does not belong to this product" });
         }
 
-        if (updateMicroserviceIds.length > 0 && updateMicroserviceCount !== updateMicroserviceIds.length) {
+        if (updateResourceIds.length > 0 && updateResourceCount !== updateResourceIds.length) {
           return reply
             .status(400)
-            .send({ error: "One or more microservices not found or do not belong to this product" });
+            .send({ error: "One or more resources not found or do not belong to this product" });
         }
 
         if (updateDownstreamIds.length > 0 && updateDownstreamCount !== updateDownstreamIds.length) {
@@ -747,17 +747,17 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
         }
 
         const analysis = await prisma.$transaction(async (tx: TransactionClient) => {
-          // Handle microservices replacement
-          if (request.body.microserviceIds !== undefined) {
-            await tx.analysisMicroservice.deleteMany({
+          // Handle resources replacement
+          if (request.body.resourceIds !== undefined) {
+            await tx.analysisResource.deleteMany({
               where: { analysisId: id },
             });
 
-            if (request.body.microserviceIds.length > 0) {
-              await tx.analysisMicroservice.createMany({
-                data: request.body.microserviceIds.map((microserviceId) => ({
+            if (request.body.resourceIds.length > 0) {
+              await tx.analysisResource.createMany({
+                data: request.body.resourceIds.map((resourceId) => ({
                   analysisId: id,
-                  microserviceId,
+                  resourceId,
                 })),
               });
             }
@@ -876,8 +876,8 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
         } as const;
 
         // Build before/after snapshots for relational fields
-        const beforeMicroserviceIds = existing.microservices.map(m => m.microserviceId).sort();
-        const afterMicroserviceIds  = analysis.microservices.map((m: { microservice: { id: string } }) => m.microservice.id).sort();
+        const beforeResourceIds = existing.resources.map(r => r.resourceId).sort();
+        const afterResourceIds  = analysis.resources.map((r: { resource: { id: string } }) => r.resource.id).sort();
 
         const beforeDownstreamIds = existing.downstreams.map(d => d.downstreamId).sort();
         const afterDownstreamIds  = analysis.downstreams.map((d: { downstream: { id: string } }) => d.downstream.id).sort();
@@ -910,8 +910,8 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
                 ignoreReasonCode: (existing as Record<string, unknown>).ignoreReasonCode,
                 errorDetails:    existing.errorDetails,
                 conclusionNotes: existing.conclusionNotes,
-                microserviceIds: beforeMicroserviceIds,
-                downstreamIds:   beforeDownstreamIds,
+                resourceIds:    beforeResourceIds,
+                downstreamIds:  beforeDownstreamIds,
                 finalActionIds:  beforeFinalActionIds,
                 links:           beforeLinks,
                 trackingIds:     beforeTrackingIds,
@@ -929,8 +929,8 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
                 ignoreReasonCode: (analysis as Record<string, unknown>).ignoreReasonCode,
                 errorDetails:    analysis.errorDetails,
                 conclusionNotes: analysis.conclusionNotes,
-                microserviceIds: afterMicroserviceIds,
-                downstreamIds:   afterDownstreamIds,
+                resourceIds:    afterResourceIds,
+                downstreamIds:  afterDownstreamIds,
                 finalActionIds:  afterFinalActionIds,
                 links:           afterLinks,
                 trackingIds:     afterTrackingIds,
@@ -974,7 +974,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
   app.get(
     "/analyses/authors",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.ALARM_ANALYSIS, "read")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.ALARM_ANALYSIS, "read")],
       schema: {
         tags: ["analyses"],
         summary: "Get distinct users who created at least one analysis",
@@ -1012,7 +1012,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Querystring: AnalysisStatsQuery }>(
     "/analyses/stats",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.ALARM_ANALYSIS, "read")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.ALARM_ANALYSIS, "read")],
       schema: {
         tags: ["analyses"],
         summary: "Get aggregated analysis statistics for dashboard",
@@ -1299,7 +1299,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
         // Scope-aware ownership check for delete.
         const deleteScope = await getPermissionScope(
           request.user.userId,
-          Resource.ALARM_ANALYSIS,
+          SystemComponent.ALARM_ANALYSIS,
           "delete"
         );
         const canDeleteThis =

@@ -27,7 +27,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { DeleteConfirmDialog } from '@/components/delete-confirm-dialog'
 import { EnvironmentsTab } from './_components/environments-tab'
-import { MicroservicesTab } from './_components/microservices-tab'
+import { ResourcesTab } from './_components/resources-tab'
 import { RunbooksTab } from './_components/runbooks-tab'
 import { AlarmsTab } from './_components/alarms-tab'
 import { DownstreamsTab } from './_components/downstreams-tab'
@@ -73,7 +73,7 @@ function ProductDetailContent() {
   const canWrite = !permissionsLoading && can('PRODUCT', 'write')
   const canDelete = !permissionsLoading && can('PRODUCT', 'delete')
   const canReadEnvironments = permissionsLoading || can('ENVIRONMENT', 'read')
-  const canReadMicroservices = permissionsLoading || can('MICROSERVICE', 'read')
+  const canReadResources = permissionsLoading || can('RESOURCE', 'read')
   const canReadRunbooks = permissionsLoading || can('RUNBOOK', 'read')
   const canReadAlarms = permissionsLoading || can('ALARM', 'read')
   const canReadDownstreams = permissionsLoading || can('DOWNSTREAM', 'read')
@@ -120,7 +120,7 @@ function ProductDetailContent() {
 
   const hasAnyTab =
     canReadEnvironments ||
-    canReadMicroservices ||
+    canReadResources ||
     canReadRunbooks ||
     canReadAlarms ||
     canReadDownstreams ||
@@ -129,8 +129,8 @@ function ProductDetailContent() {
 
   const firstTab = canReadEnvironments
     ? 'environments'
-    : canReadMicroservices
-      ? 'microservices'
+    : canReadResources
+      ? 'resources'
       : canReadRunbooks
         ? 'runbooks'
         : canReadAlarms
@@ -252,10 +252,10 @@ function ProductDetailContent() {
                   Ambienti
                 </TabsTrigger>
               )}
-              {canReadMicroservices && (
-                <TabsTrigger value="microservices" className={TAB_TRIGGER_CLASS}>
+              {canReadResources && (
+                <TabsTrigger value="resources" className={TAB_TRIGGER_CLASS}>
                   <Box className="h-4 w-4 shrink-0" />
-                  Microservizi
+                  Risorse
                 </TabsTrigger>
               )}
               {canReadRunbooks && (
@@ -307,17 +307,17 @@ function ProductDetailContent() {
                   </div>
                 </TabsContent>
               )}
-              {canReadMicroservices && (
-                <TabsContent value="microservices" className="mt-0">
+              {canReadResources && (
+                <TabsContent value="resources" className="mt-0">
                   <div className="rounded-xl border bg-card">
                     <div className="border-b px-6 py-4">
-                      <h2 className="font-semibold">Microservizi</h2>
+                      <h2 className="font-semibold">Risorse</h2>
                       <p className="mt-0.5 text-sm text-muted-foreground">
-                        Microservizi associati a questo prodotto
+                        Risorse associate a questo prodotto
                       </p>
                     </div>
                     <div className="p-6">
-                      <MicroservicesTab productId={productId} />
+                      <ResourcesTab productId={productId} />
                     </div>
                   </div>
                 </TabsContent>

@@ -11,7 +11,7 @@ export const SystemEventResources = {
   IGNORED_ALARMS:            'ignored_alarms',
   USER_PERMISSION_OVERRIDES: 'user_permission_overrides',
   ENVIRONMENTS:              'environments',
-  MICROSERVICES:             'microservices',
+  RESOURCES:                 'resources',
   RUNBOOKS:                  'runbooks',
   FINAL_ACTIONS:             'final_actions',
   DOWNSTREAMS:               'downstreams',

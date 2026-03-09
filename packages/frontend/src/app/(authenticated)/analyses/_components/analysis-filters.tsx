@@ -23,7 +23,7 @@ import type {
   AnalysisType,
   AnalysisStatus,
   IgnoreReason,
-  Microservice,
+  ProductResource,
   Downstream,
   Runbook,
 } from '@/lib/api-client'
@@ -46,7 +46,7 @@ export interface AnalysisFiltersState {
   // Advanced filters
   ignoreReasonCode: string
   runbookId: string
-  microserviceId: string
+  resourceId: string
   downstreamId: string
   traceId: string
 }
@@ -60,7 +60,7 @@ interface AnalysisFiltersProps {
   finalActions: FinalAction[] | undefined
   users: AnalysisAuthor[] | undefined
   ignoreReasons: IgnoreReason[] | undefined
-  microservices: Microservice[] | undefined
+  resources: ProductResource[] | undefined
   downstreams: Downstream[] | undefined
   runbooks: Runbook[] | undefined
   collapsed?: boolean
@@ -76,7 +76,7 @@ export function AnalysisFilters({
   finalActions,
   users,
   ignoreReasons,
-  microservices,
+  resources,
   downstreams,
   runbooks,
   collapsed = false,
@@ -147,7 +147,7 @@ export function AnalysisFilters({
     return !!(
       filters.ignoreReasonCode ||
       filters.runbookId ||
-      filters.microserviceId ||
+      filters.resourceId ||
       filters.downstreamId ||
       filters.traceId
     )
@@ -155,10 +155,10 @@ export function AnalysisFilters({
 
   // Auto-open advanced section when restored filters have advanced values
   useEffect(() => {
-    if (filters.ignoreReasonCode || filters.runbookId || filters.microserviceId || filters.downstreamId || filters.traceId) {
+    if (filters.ignoreReasonCode || filters.runbookId || filters.resourceId || filters.downstreamId || filters.traceId) {
       setAdvancedOpen(true)
     }
-  }, [filters.ignoreReasonCode, filters.runbookId, filters.microserviceId, filters.downstreamId, filters.traceId])
+  }, [filters.ignoreReasonCode, filters.runbookId, filters.resourceId, filters.downstreamId, filters.traceId])
 
   const basicFilterCount = [
     filters.search,
@@ -176,7 +176,7 @@ export function AnalysisFilters({
   const advancedFilterCount = [
     filters.ignoreReasonCode,
     filters.runbookId,
-    filters.microserviceId,
+    filters.resourceId,
     filters.downstreamId,
     filters.traceId,
   ].filter(Boolean).length
@@ -184,7 +184,7 @@ export function AnalysisFilters({
   const activeFilterCount = basicFilterCount + advancedFilterCount
 
   // Whether any product-scoped advanced filters are available
-  const hasProductScopedAdvanced = !!(microservices || downstreams || runbooks)
+  const hasProductScopedAdvanced = !!(resources || downstreams || runbooks)
 
   return (
     <div className="rounded-lg border">
@@ -469,20 +469,20 @@ export function AnalysisFilters({
                   </div>
                 )}
 
-                {/* Microservice (only when product is selected) */}
-                {microservices && (
+                {/* Resource (only when product is selected) */}
+                {resources && (
                   <div className="space-y-2">
-                    <Label>Microservizio</Label>
+                    <Label>Risorsa</Label>
                     <Combobox
                       options={[
                         { value: ALL_VALUE, label: 'Tutti' },
-                        ...microservices.map((m) => ({ value: m.id, label: m.name })),
+                        ...resources.map((m) => ({ value: m.id, label: m.name })),
                       ]}
-                      value={filters.microserviceId || ALL_VALUE}
-                      onValueChange={(val) => updateFilter('microserviceId', val === ALL_VALUE || val === '' ? '' : val)}
+                      value={filters.resourceId || ALL_VALUE}
+                      onValueChange={(val) => updateFilter('resourceId', val === ALL_VALUE || val === '' ? '' : val)}
                       placeholder="Tutti"
-                      searchPlaceholder="Cerca microservizio..."
-                      emptyMessage="Nessun microservizio trovato."
+                      searchPlaceholder="Cerca risorsa..."
+                      emptyMessage="Nessuna risorsa trovata."
                     />
                   </div>
                 )}
@@ -508,7 +508,7 @@ export function AnalysisFilters({
                 {/* Placeholder when no product is selected */}
                 {!hasProductScopedAdvanced && (
                   <p className="col-span-full text-xs text-muted-foreground/60">
-                    Seleziona un prodotto per filtrare per microservizio, downstream e runbook.
+                    Seleziona un prodotto per filtrare per risorsa, downstream e runbook.
                   </p>
                 )}
 

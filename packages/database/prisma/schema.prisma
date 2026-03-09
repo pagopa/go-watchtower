@@ -23,10 +23,10 @@ enum AnalysisStatus {
   COMPLETED
 }
 
-enum Resource {
+enum SystemComponent {
   PRODUCT
   ENVIRONMENT
-  MICROSERVICE
+  RESOURCE
   IGNORED_ALARM
   RUNBOOK
   FINAL_ACTION
@@ -70,7 +70,7 @@ model Role {
 model RolePermission {
   id        String          @id @default(uuid(7)) @db.Uuid
   roleId    String          @map("role_id") @db.Uuid
-  resource  Resource
+  resource  SystemComponent
   canRead   PermissionScope @default(NONE) @map("can_read")
   canWrite  PermissionScope @default(NONE) @map("can_write")
   canDelete PermissionScope @default(NONE) @map("can_delete")
@@ -87,7 +87,7 @@ model RolePermission {
 model UserPermissionOverride {
   id        String           @id @default(uuid(7)) @db.Uuid
   userId    String           @map("user_id") @db.Uuid
-  resource  Resource
+  resource  SystemComponent
   canRead   PermissionScope? @map("can_read")
   canWrite  PermissionScope? @map("can_write")
   canDelete PermissionScope? @map("can_delete")
@@ -162,9 +162,9 @@ model Product {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  environments  Environment[]
-  microservices Microservice[]
-  finalActions  FinalAction[]
+  environments Environment[]
+  resources    Resource[]
+  finalActions FinalAction[]
   ignoredAlarms IgnoredAlarm[]
   runbooks      Runbook[]
   alarms        Alarm[]
@@ -197,18 +197,18 @@ model Environment {
   @@map("environments")
 }
 
-model Microservice {
-  id          String                 @id @default(uuid(7)) @db.Uuid
+model Resource {
+  id          String           @id @default(uuid(7)) @db.Uuid
   name        String
   description String?
-  productId   String                 @map("product_id") @db.Uuid
-  createdAt DateTime               @default(now()) @map("created_at")
-  updatedAt DateTime               @updatedAt @map("updated_at")
-  product   Product                @relation(fields: [productId], references: [id], onDelete: Cascade)
-  analyses  AnalysisMicroservice[]
+  productId   String           @map("product_id") @db.Uuid
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  product     Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  analyses    AnalysisResource[]
 
   @@unique([productId, name])
-  @@map("microservices")
+  @@map("resources")
 }
 
 model IgnoredAlarm {
@@ -339,8 +339,8 @@ model AlarmAnalysis {
   updatedBy    User?        @relation("UpdatedByUser", fields: [updatedById], references: [id], onDelete: Restrict)
   ignoreReason IgnoreReason? @relation(fields: [ignoreReasonCode], references: [code])
 
-  microservices AnalysisMicroservice[]
-  downstreams   AnalysisDownstream[]
+  resources    AnalysisResource[]
+  downstreams  AnalysisDownstream[]
   finalActions  AnalysisFinalAction[]
   alarmEvents   AlarmEvent[]
 
@@ -361,16 +361,16 @@ model AlarmAnalysis {
   @@map("alarm_analyses")
 }
 
-model AnalysisMicroservice {
-  analysisId     String @map("analysis_id") @db.Uuid
-  microserviceId String @map("microservice_id") @db.Uuid
+model AnalysisResource {
+  analysisId String @map("analysis_id") @db.Uuid
+  resourceId String @map("resource_id") @db.Uuid
 
-  analysis     AlarmAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
-  microservice Microservice  @relation(fields: [microserviceId], references: [id], onDelete: Cascade)
+  analysis AlarmAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  resource Resource      @relation(fields: [resourceId], references: [id], onDelete: Cascade)
 
-  @@id([analysisId, microserviceId])
-  @@index([microserviceId])
-  @@map("analysis_microservices")
+  @@id([analysisId, resourceId])
+  @@index([resourceId])
+  @@map("analysis_resources")
 }
 
 model Downstream {

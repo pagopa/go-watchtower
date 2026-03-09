@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import {
   prisma,
-  Resource,
+  SystemComponent,
   PermissionScope,
   AuthProvider,
   type User,
@@ -74,7 +74,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
   app.get(
     "/users",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.USER, "read")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.USER, "read")],
       schema: {
         tags: ["users"],
         summary: "Get all users",
@@ -221,7 +221,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Params: UserIdParams }>(
     "/users/:id",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.USER, "read")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.USER, "read")],
       schema: {
         tags: ["users"],
         summary: "Get user by ID with permission overrides",
@@ -284,7 +284,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
   app.post<{ Body: CreateUserBody }>(
     "/users",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.USER, "write")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.USER, "write")],
       schema: {
         tags: ["users"],
         summary: "Create a new user",
@@ -362,7 +362,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
   app.put<{ Params: UserIdParams; Body: UpdateUserBody }>(
     "/users/:id",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.USER, "write")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.USER, "write")],
       schema: {
         tags: ["users"],
         summary: "Update a user",
@@ -463,7 +463,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
   app.delete<{ Params: UserIdParams }>(
     "/users/:id",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.USER, "delete")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.USER, "delete")],
       schema: {
         tags: ["users"],
         summary: "Delete a user",
@@ -520,7 +520,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Params: UserIdParams }>(
     "/users/:id/permissions",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.USER, "read")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.USER, "read")],
       schema: {
         tags: ["users"],
         summary: "Get user effective permissions, role permissions, and overrides",
@@ -580,7 +580,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
   app.put<{ Params: UserIdParams; Body: SetPermissionOverrideBody }>(
     "/users/:id/permissions",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.USER, "write")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.USER, "write")],
       schema: {
         tags: ["users"],
         summary: "Set a permission override for a user",
@@ -663,7 +663,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
   app.delete<{ Params: UserPermissionResourceParams }>(
     "/users/:id/permissions/:resource",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.USER, "write")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.USER, "write")],
       schema: {
         tags: ["users"],
         summary: "Remove a permission override for a user",
@@ -689,7 +689,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
 
         const removed = await removeUserPermissionOverride(
           request.params.id,
-          request.params.resource as Resource
+          request.params.resource as SystemComponent
         );
 
         if (!removed) {
@@ -721,7 +721,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
   app.get(
     "/roles",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.USER, "read")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.USER, "read")],
       schema: {
         tags: ["roles"],
         summary: "Get all roles with permissions",
@@ -763,7 +763,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Params: RoleIdParams }>(
     "/roles/:id",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.USER, "read")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.USER, "read")],
       schema: {
         tags: ["roles"],
         summary: "Get role by ID with permissions",
@@ -809,7 +809,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
   app.post<{ Body: CreateRoleBody }>(
     "/roles",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.USER, "write")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.USER, "write")],
       schema: {
         tags: ["roles"],
         summary: "Create a new role",
@@ -867,7 +867,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
   app.put<{ Params: RoleIdParams; Body: UpdateRoleBody }>(
     "/roles/:id",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.USER, "write")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.USER, "write")],
       schema: {
         tags: ["roles"],
         summary: "Update a role",
@@ -946,7 +946,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
   app.delete<{ Params: RoleIdParams }>(
     "/roles/:id",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.USER, "delete")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.USER, "delete")],
       schema: {
         tags: ["roles"],
         summary: "Delete a role",
@@ -998,7 +998,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
   app.put<{ Params: RoleIdParams; Body: UpdateRolePermissionsBody }>(
     "/roles/:id/permissions",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.USER, "write")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.USER, "write")],
       schema: {
         tags: ["roles"],
         summary: "Update permissions for a role",
@@ -1023,7 +1023,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         const role = await updateRolePermissions(
           request.params.id,
           request.body.permissions.map((p) => ({
-            resource: p.resource as Resource,
+            resource: p.resource as SystemComponent,
             canRead: p.canRead as PermissionScope,
             canWrite: p.canWrite as PermissionScope,
             canDelete: p.canDelete as PermissionScope,

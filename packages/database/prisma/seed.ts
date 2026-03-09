@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient, Resource, PermissionScope } from "../generated/prisma/client.js";
+import { PrismaClient, SystemComponent, PermissionScope } from "../generated/prisma/client.js";
 import bcrypt from "bcrypt";
 import pg from "pg";
 
@@ -27,11 +27,11 @@ const ADMIN_USER_ID = "00000000-0000-0000-0000-000000000001";
 const { NONE, OWN, ALL } = PermissionScope;
 type Tuple = [PermissionScope, PermissionScope, PermissionScope];
 
-const PERMISSIONS: Record<keyof typeof ROLE_IDS, Record<Resource, Tuple>> = {
+const PERMISSIONS: Record<keyof typeof ROLE_IDS, Record<SystemComponent, Tuple>> = {
   GUEST: {
     PRODUCT:        [ALL,  NONE, NONE],
     ENVIRONMENT:    [ALL,  NONE, NONE],
-    MICROSERVICE:   [ALL,  NONE, NONE],
+    RESOURCE:       [ALL,  NONE, NONE],
     IGNORED_ALARM:  [ALL,  NONE, NONE],
     RUNBOOK:        [ALL,  NONE, NONE],
     FINAL_ACTION:   [ALL,  NONE, NONE],
@@ -45,7 +45,7 @@ const PERMISSIONS: Record<keyof typeof ROLE_IDS, Record<Resource, Tuple>> = {
   OPERATOR: {
     PRODUCT:        [ALL,  NONE, NONE],
     ENVIRONMENT:    [ALL,  NONE, NONE],
-    MICROSERVICE:   [ALL,  NONE, NONE],
+    RESOURCE:       [ALL,  NONE, NONE],
     IGNORED_ALARM:  [ALL,  NONE, NONE],
     RUNBOOK:        [ALL,  NONE, NONE],
     FINAL_ACTION:   [ALL,  NONE, NONE],
@@ -59,7 +59,7 @@ const PERMISSIONS: Record<keyof typeof ROLE_IDS, Record<Resource, Tuple>> = {
   TEAM_LEAD: {
     PRODUCT:        [ALL,  NONE, NONE],
     ENVIRONMENT:    [ALL,  NONE, NONE],
-    MICROSERVICE:   [ALL,  NONE, NONE],
+    RESOURCE:       [ALL,  NONE, NONE],
     IGNORED_ALARM:  [ALL,  ALL,  NONE],
     RUNBOOK:        [ALL,  ALL,  NONE],
     FINAL_ACTION:   [ALL,  ALL,  NONE],
@@ -73,7 +73,7 @@ const PERMISSIONS: Record<keyof typeof ROLE_IDS, Record<Resource, Tuple>> = {
   ADMIN: {
     PRODUCT:        [ALL, ALL, ALL],
     ENVIRONMENT:    [ALL, ALL, ALL],
-    MICROSERVICE:   [ALL, ALL, ALL],
+    RESOURCE:       [ALL, ALL, ALL],
     IGNORED_ALARM:  [ALL, ALL, ALL],
     RUNBOOK:        [ALL, ALL, ALL],
     FINAL_ACTION:   [ALL, ALL, ALL],
@@ -111,9 +111,9 @@ async function seedRoles() {
 async function seedPermissions() {
   console.log("\n🛡️  Seeding permissions...");
 
-  for (const [roleName, matrix] of Object.entries(PERMISSIONS) as [keyof typeof ROLE_IDS, Record<Resource, Tuple>][]) {
+  for (const [roleName, matrix] of Object.entries(PERMISSIONS) as [keyof typeof ROLE_IDS, Record<SystemComponent, Tuple>][]) {
     const roleId = ROLE_IDS[roleName];
-    for (const [resource, [canRead, canWrite, canDelete]] of Object.entries(matrix) as [Resource, Tuple][]) {
+    for (const [resource, [canRead, canWrite, canDelete]] of Object.entries(matrix) as [SystemComponent, Tuple][]) {
       await prisma.rolePermission.upsert({
         where: { roleId_resource: { roleId, resource } },
         update: { canRead, canWrite, canDelete },

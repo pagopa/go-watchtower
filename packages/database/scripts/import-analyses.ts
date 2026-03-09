@@ -518,16 +518,16 @@ async function loadEntities(
 ): Promise<{
   environments: EntityCache;
   alarms: EntityCache;
-  microservices: EntityCache;
+  resources: EntityCache;
   downstreams: EntityCache;
   finalActions: EntityCache;
   runbooks: EntityCache;
 }> {
-  const [environments, alarms, microservices, downstreams, finalActions, runbooks] =
+  const [environments, alarms, resources, downstreams, finalActions, runbooks] =
     await Promise.all([
       prisma.environment.findMany({ where: { productId } }),
       prisma.alarm.findMany({ where: { productId } }),
-      prisma.microservice.findMany({ where: { productId } }),
+      prisma.resource.findMany({ where: { productId } }),
       prisma.downstream.findMany({ where: { productId } }),
       prisma.finalAction.findMany({ where: { productId } }),
       prisma.runbook.findMany({ where: { productId } }),
@@ -544,7 +544,7 @@ async function loadEntities(
   return {
     environments: new Map(environments.map((e) => [e.name.toLowerCase(), e.id])),
     alarms: new Map(alarms.map((a) => [a.name.toLowerCase(), a.id])),
-    microservices: new Map(microservices.map((m) => [m.name.toLowerCase(), m.id])),
+    resources: new Map(resources.map((m) => [m.name.toLowerCase(), m.id])),
     downstreams: new Map(downstreams.map((d) => [d.name.toLowerCase(), d.id])),
     finalActions: new Map(finalActions.map((f) => [f.name.toLowerCase(), f.id])),
     runbooks: new Map(runbooks.map((r) => [r.name.toLowerCase(), r.id])),
@@ -611,7 +611,7 @@ async function getOrCreateAlarm(
   return alarm.id;
 }
 
-async function getOrCreateMicroservice(
+async function getOrCreateResource(
   name: string,
   productId: string,
   cache: EntityCache
@@ -620,7 +620,7 @@ async function getOrCreateMicroservice(
   const cached = cache.get(key);
   if (cached) return cached;
 
-  const ms = await prisma.microservice.upsert({
+  const ms = await prisma.resource.upsert({
     where: { productId_name: { productId, name } },
     update: {},
     create: { name, productId },
@@ -896,12 +896,12 @@ function parseNames(raw: string): string[] {
 }
 
 /**
- * Normalize microservice name: extract base name before parenthetical alias.
+ * Normalize resource name: extract base name before parenthetical alias.
  * e.g. "pn-ec (pn-external-channel)" → "pn-ec"
  *      "pn-ss (safestorage)" → "pn-ss"
  *      "pn-delivery" → "pn-delivery" (unchanged)
  */
-function normalizeMicroserviceName(raw: string): string {
+function normalizeResourceName(raw: string): string {
   const match = raw.match(/^([^\s(]+)\s*\(/);
   return match ? match[1]!.trim() : raw.trim();
 }
@@ -996,7 +996,7 @@ interface AnalysisRecord {
   operatorSurname: string;
   links: AnalysisLink[];
   trackingIds: TrackingEntry[];
-  microserviceNames: string[];
+  resourceNames: string[];
   downstreamNames: string[];
   conclusionNotes: string | null;
   finalActionNames: string[];
@@ -1080,9 +1080,9 @@ function csvRowToRecords(row: CsvRow, rowIndex: number): AnalysisRecord[] {
   // errorDetails at analysis level: only if errors couldn't be assigned to tracking IDs
   const errorDetails = trackingErrorDetails;
 
-  // Microservices — normalize names like "pn-ec (pn-external-channel)" → "pn-ec"
-  const microserviceNames = parseNames(row.serviziImpattati).map(
-    normalizeMicroserviceName
+  // Resources — normalize names like "pn-ec (pn-external-channel)" → "pn-ec"
+  const resourceNames = parseNames(row.serviziImpattati).map(
+    normalizeResourceName
   );
 
   // Downstreams — merge both columns
@@ -1149,7 +1149,7 @@ function csvRowToRecords(row: CsvRow, rowIndex: number): AnalysisRecord[] {
           operatorSurname: row.responder.toLowerCase(),
           links,
           trackingIds,
-          microserviceNames,
+          resourceNames,
           downstreamNames,
           conclusionNotes,
           finalActionNames,
@@ -1178,7 +1178,7 @@ function csvRowToRecords(row: CsvRow, rowIndex: number): AnalysisRecord[] {
         operatorSurname: row.responder.toLowerCase(),
         links,
         trackingIds,
-        microserviceNames,
+        resourceNames,
         downstreamNames,
         conclusionNotes,
         finalActionNames,
@@ -1206,7 +1206,7 @@ function csvRowToRecords(row: CsvRow, rowIndex: number): AnalysisRecord[] {
     operatorSurname: row.responder.toLowerCase(),
     links,
     trackingIds,
-    microserviceNames,
+    resourceNames,
     downstreamNames,
     conclusionNotes,
     finalActionNames,
@@ -1237,7 +1237,7 @@ async function importAnalyses() {
   console.log(`   Users: ${users.size / 2} found`); // /2 because both surname and full name
   console.log(`   Environments: ${entities.environments.size}`);
   console.log(`   Alarms: ${entities.alarms.size}`);
-  console.log(`   Microservices: ${entities.microservices.size}`);
+  console.log(`   Resources: ${entities.resources.size}`);
   console.log(`   Downstreams: ${entities.downstreams.size}`);
   console.log(`   Final Actions: ${entities.finalActions.size}`);
   console.log(`   Runbooks: ${entities.runbooks.size}\n`);
@@ -1264,7 +1264,7 @@ async function importAnalyses() {
   const createdEntities = {
     environments: 0,
     alarms: 0,
-    microservices: 0,
+    resources: 0,
     downstreams: 0,
     finalActions: 0,
     runbooks: 0,
@@ -1275,7 +1275,7 @@ async function importAnalyses() {
   const initialCounts = {
     environments: countUniqueIds(entities.environments),
     alarms: countUniqueIds(entities.alarms),
-    microservices: countUniqueIds(entities.microservices),
+    resources: countUniqueIds(entities.resources),
     downstreams: countUniqueIds(entities.downstreams),
     finalActions: countUniqueIds(entities.finalActions),
     runbooks: countUniqueIds(entities.runbooks),
@@ -1315,15 +1315,15 @@ async function importAnalyses() {
           entities.alarms
         );
 
-        // Resolve microservices (auto-create)
-        const microserviceIds: string[] = [];
-        for (const msName of record.microserviceNames) {
-          const msId = await getOrCreateMicroservice(
+        // Resolve resources (auto-create)
+        const resourceIds: string[] = [];
+        for (const msName of record.resourceNames) {
+          const msId = await getOrCreateResource(
             msName,
             productId,
-            entities.microservices
+            entities.resources
           );
-          microserviceIds.push(msId);
+          resourceIds.push(msId);
         }
 
         // Resolve downstreams (auto-create)
@@ -1371,7 +1371,7 @@ async function importAnalyses() {
           conclusionNotes:  record.conclusionNotes,
           runbook:          runbookId ? { id: runbookId } : null,
           finalActions:     finalActionIds.map((id, i) => ({ id, name: record.finalActionNames[i] ?? '' })),
-          microservices:    microserviceIds.map((id) => ({ id })),
+          resources:        resourceIds.map((id) => ({ id })),
           downstreams:      downstreamIds.map((id) => ({ id })),
           links:            record.links,
           trackingIds:      record.trackingIds,
@@ -1408,9 +1408,9 @@ async function importAnalyses() {
                 finalActionId: id,
               })),
             },
-            microservices: {
-              create: microserviceIds.map((id) => ({
-                microserviceId: id,
+            resources: {
+              create: resourceIds.map((id) => ({
+                resourceId: id,
               })),
             },
             downstreams: {
@@ -1438,8 +1438,8 @@ async function importAnalyses() {
   createdEntities.environments =
     countUniqueIds(entities.environments) - initialCounts.environments;
   createdEntities.alarms = countUniqueIds(entities.alarms) - initialCounts.alarms;
-  createdEntities.microservices =
-    countUniqueIds(entities.microservices) - initialCounts.microservices;
+  createdEntities.resources =
+    countUniqueIds(entities.resources) - initialCounts.resources;
   createdEntities.downstreams =
     countUniqueIds(entities.downstreams) - initialCounts.downstreams;
   createdEntities.finalActions =
@@ -1455,7 +1455,7 @@ async function importAnalyses() {
   console.log("🆕 Entità create automaticamente:");
   console.log(`   Ambienti:      ${createdEntities.environments}`);
   console.log(`   Allarmi:       ${createdEntities.alarms}`);
-  console.log(`   Microservizi:  ${createdEntities.microservices}`);
+  console.log(`   Risorse:       ${createdEntities.resources}`);
   console.log(`   Downstream:    ${createdEntities.downstreams}`);
   console.log(`   Azioni Finali: ${createdEntities.finalActions}`);
   console.log(`   Runbook:       ${createdEntities.runbooks}`);

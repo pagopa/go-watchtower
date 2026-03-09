@@ -86,8 +86,8 @@ export const AnalysisCell = memo(function AnalysisCell({ columnId, analysis }: A
       return analysis.runbook
         ? <span className="block truncate text-sm">{analysis.runbook.name}</span>
         : <span className="text-muted-foreground/40 text-sm">—</span>
-    case 'microservices': {
-      const names = analysis.microservices.map(m => m.name)
+    case 'resources': {
+      const names = analysis.resources.map(m => m.name)
       if (!names.length) return <span className="text-muted-foreground/40 text-sm">—</span>
       return (
         <span className="flex flex-wrap gap-1">

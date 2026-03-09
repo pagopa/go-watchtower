@@ -368,7 +368,7 @@ export function AnalysisDailyView({
     ...(filters.isOnCall !== undefined  && { isOnCall: filters.isOnCall }),
     ...(filters.ignoreReasonCode        && { ignoreReasonCode: filters.ignoreReasonCode }),
     ...(filters.runbookId               && { runbookId: filters.runbookId }),
-    ...(filters.microserviceId          && { microserviceId: filters.microserviceId }),
+    ...(filters.resourceId          && { resourceId: filters.resourceId }),
     ...(filters.downstreamId            && { downstreamId: filters.downstreamId }),
     ...(filters.traceId                 && { traceId: filters.traceId }),
   }), [
@@ -376,7 +376,7 @@ export function AnalysisDailyView({
     filters.search, filters.analysisType, filters.status,
     filters.environmentId, filters.operatorId, filters.alarmId,
     filters.finalActionId, filters.isOnCall, filters.ignoreReasonCode,
-    filters.runbookId, filters.microserviceId, filters.downstreamId, filters.traceId,
+    filters.runbookId, filters.resourceId, filters.downstreamId, filters.traceId,
   ])
 
   const isToday = selectedDate === new Date().toISOString().slice(0, 10)

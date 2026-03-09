@@ -58,7 +58,7 @@ export const COLUMN_REGISTRY: Record<string, ColumnDef[]> = {
     { id: 'ignoreReason',    label: 'Motivazione',    defaultVisible: false, defaultWidth: 160, minWidth: 100 },
     { id: 'finalAction',     label: 'Azione Finale',  defaultVisible: false, defaultWidth: 160, minWidth: 100 },
     { id: 'runbook',         label: 'Runbook',        defaultVisible: false, defaultWidth: 160, minWidth: 100 },
-    { id: 'microservices',   label: 'Microservizi',   defaultVisible: false, defaultWidth: 160, minWidth: 100 },
+    { id: 'resources',       label: 'Risorse',         defaultVisible: false, defaultWidth: 160, minWidth: 100 },
     { id: 'downstreams',     label: 'Downstream',     defaultVisible: false, defaultWidth: 160, minWidth: 100 },
     { id: 'isOnCall',        label: 'On-Call',        defaultVisible: false, defaultWidth: 80,  minWidth: 60 },
     { id: 'firstAlarmAt',    label: 'Primo allarme',  defaultVisible: false, defaultWidth: 120, minWidth: 100, sortKey: 'firstAlarmAt' },

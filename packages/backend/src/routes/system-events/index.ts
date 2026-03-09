@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
-import { prisma, Resource } from "@go-watchtower/database";
+import { prisma, SystemComponent } from "@go-watchtower/database";
 import { requirePermission } from "../../lib/require-permission.js";
 import { HttpError } from "../../utils/http-errors.js";
 import {
@@ -16,7 +16,7 @@ export async function systemEventRoutes(fastify: FastifyInstance): Promise<void>
   server.get<{ Querystring: SystemEventsQuery }>(
     "/system-events",
     {
-      onRequest: [server.authenticate, requirePermission(Resource.SYSTEM_SETTING, "read")],
+      onRequest: [server.authenticate, requirePermission(SystemComponent.SYSTEM_SETTING, "read")],
       schema: {
         tags: ["system-events"],
         summary: "List system events (audit log)",

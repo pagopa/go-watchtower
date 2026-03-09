@@ -30,7 +30,7 @@ export interface AnalysisSubject {
   // Relazioni (solo i campi necessari per le regole)
   runbook: { id: string } | null
   finalActions: NamedEntity[]
-  microservices: { id: string }[]
+  resources: { id: string }[]
   downstreams: { id: string }[]
   links: AnalysisLink[]
   trackingIds: TrackingEntry[]

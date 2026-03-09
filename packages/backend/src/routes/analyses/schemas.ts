@@ -91,7 +91,7 @@ export const AllAnalysesQuerySchema = Type.Object({
   // Advanced filters
   ignoreReasonCode: Type.Optional(Type.String()),
   runbookId: Type.Optional(Type.String()),
-  microserviceId: Type.Optional(Type.String()),
+  resourceId: Type.Optional(Type.String()),
   downstreamId: Type.Optional(Type.String()),
   traceId: Type.Optional(Type.String()),
 });
@@ -126,7 +126,7 @@ export const AlarmAnalysisQuerySchema = Type.Object({
   // Advanced filters
   ignoreReasonCode: Type.Optional(Type.String()),
   runbookId: Type.Optional(Type.String()),
-  microserviceId: Type.Optional(Type.String()),
+  resourceId: Type.Optional(Type.String()),
   downstreamId: Type.Optional(Type.String()),
   traceId: Type.Optional(Type.String()),
 });
@@ -175,7 +175,7 @@ export const CreateAlarmAnalysisBodySchema = Type.Object({
   environmentId: Type.String(),
   finalActionIds: Type.Optional(Type.Array(Type.String())),
   runbookId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-  microserviceIds: Type.Optional(Type.Array(Type.String())),
+  resourceIds: Type.Optional(Type.Array(Type.String())),
   downstreamIds: Type.Optional(Type.Array(Type.String())),
   links: Type.Optional(Type.Array(LinkSchema)),
   trackingIds: Type.Optional(Type.Array(TrackingEntrySchema)),
@@ -200,7 +200,7 @@ export const UpdateAlarmAnalysisBodySchema = Type.Object({
   environmentId: Type.Optional(Type.String()),
   finalActionIds: Type.Optional(Type.Array(Type.String())),
   runbookId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-  microserviceIds: Type.Optional(Type.Array(Type.String())),
+  resourceIds: Type.Optional(Type.Array(Type.String())),
   downstreamIds: Type.Optional(Type.Array(Type.String())),
   links: Type.Optional(Type.Array(LinkSchema)),
   trackingIds: Type.Optional(Type.Array(TrackingEntrySchema)),
@@ -255,7 +255,7 @@ export const AlarmAnalysisResponseSchema = Type.Object({
   runbook: Type.Union([RunbookResponseSchema, Type.Null()]),
   createdBy: RelatedUserSchema,
   updatedBy: Type.Union([RelatedUserSchema, Type.Null()]),
-  microservices: Type.Array(RelatedEntitySchema),
+  resources: Type.Array(RelatedEntitySchema),
   downstreams: Type.Array(RelatedEntitySchema),
   ignoreReason: Type.Union([IgnoreReasonResponseSchema, Type.Null()]),
   links: Type.Array(LinkSchema),

@@ -38,7 +38,7 @@ import {
   type Alarm,
   type FinalAction,
   type Runbook,
-  type Microservice,
+  type ProductResource,
   type Downstream,
   type Product,
   type UserDetail,
@@ -199,9 +199,9 @@ export function AnalysisFormDialog({
     enabled: open && !!productId,
   })
 
-  const { data: microservices } = useQuery<Microservice[]>({
-    queryKey: ['products', productId, 'microservices'],
-    queryFn: () => api.getMicroservices(productId),
+  const { data: resources } = useQuery<ProductResource[]>({
+    queryKey: ['products', productId, 'resources'],
+    queryFn: () => api.getResources(productId),
     enabled: open && !!productId,
   })
 
@@ -270,7 +270,7 @@ export function AnalysisFormDialog({
       ignoreReasonCode: undefined,
       ignoreDetails: undefined,
       runbookId: undefined,
-      microserviceIds: [],
+      resourceIds: [],
       downstreamIds: [],
       links: [],
       trackingIds: [],
@@ -314,7 +314,7 @@ export function AnalysisFormDialog({
         ignoreReasonCode: editItem.ignoreReasonCode || undefined,
         ignoreDetails: (editItem.ignoreDetails as Record<string, unknown>) || undefined,
         runbookId: editItem.runbookId || undefined,
-        microserviceIds: editItem.microservices.map((ms) => ms.id),
+        resourceIds: editItem.resources.map((ms) => ms.id),
         downstreamIds: editItem.downstreams.map((ds) => ds.id),
         links: editItem.links?.map((l) => ({ url: l.url, name: l.name || '', type: l.type || '' })) || [],
         trackingIds: editItem.trackingIds?.map((t) => ({
@@ -342,7 +342,7 @@ export function AnalysisFormDialog({
         ignoreReasonCode: undefined,
         ignoreDetails: undefined,
         runbookId: undefined,
-        microserviceIds: [],
+        resourceIds: [],
         downstreamIds: [],
         links: [],
         trackingIds: [],
@@ -613,20 +613,20 @@ export function AnalysisFormDialog({
                 disabled={isPending}
               />
 
-              {/* Microservizi (full width) */}
+              {/* Risorse (full width) */}
               <div className="space-y-2 sm:col-span-2">
-                <Label>Microservizi</Label>
+                <Label>Risorse</Label>
                 <Controller
-                  name="microserviceIds"
+                  name="resourceIds"
                   control={control}
                   render={({ field }) => (
                     <MultiSelectCombobox
-                      options={microservices?.map((ms) => ({ value: ms.id, label: ms.name })) ?? []}
+                      options={resources?.map((ms) => ({ value: ms.id, label: ms.name })) ?? []}
                       value={field.value || []}
                       onValueChange={field.onChange}
-                      placeholder="Nessun microservizio disponibile"
-                      searchPlaceholder="Cerca microservizio..."
-                      emptyMessage="Nessun microservizio trovato."
+                      placeholder="Nessuna risorsa disponibile"
+                      searchPlaceholder="Cerca risorsa..."
+                      emptyMessage="Nessuna risorsa trovata."
                       disabled={isPending}
                     />
                   )}

@@ -39,10 +39,10 @@ export const SystemEventActions = {
   ENVIRONMENT_UPDATED:         'ENVIRONMENT_UPDATED',
   ENVIRONMENT_DELETED:         'ENVIRONMENT_DELETED',
 
-  // Configurazione — Microservizi
-  MICROSERVICE_CREATED:        'MICROSERVICE_CREATED',
-  MICROSERVICE_UPDATED:        'MICROSERVICE_UPDATED',
-  MICROSERVICE_DELETED:        'MICROSERVICE_DELETED',
+  // Configurazione — Risorse
+  RESOURCE_CREATED:            'RESOURCE_CREATED',
+  RESOURCE_UPDATED:            'RESOURCE_UPDATED',
+  RESOURCE_DELETED:            'RESOURCE_DELETED',
 
   // Configurazione — Runbook
   RUNBOOK_CREATED:             'RUNBOOK_CREATED',

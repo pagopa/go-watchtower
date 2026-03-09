@@ -412,7 +412,7 @@ export function AnalysisDetailPanel({
     analysis?.ignoreReason ||
     analysis?.errorDetails ||
     (analysis?.trackingIds?.length ?? 0) > 0 ||
-    (analysis?.microservices.length ?? 0) > 0 ||
+    (analysis?.resources.length ?? 0) > 0 ||
     (analysis?.downstreams.length ?? 0) > 0 ||
     (analysis?.links?.length ?? 0) > 0
   )
@@ -812,13 +812,13 @@ export function AnalysisDetailPanel({
                   </div>
                 )}
 
-                {analysis.microservices.length > 0 && (
+                {analysis.resources.length > 0 && (
                   <div>
                     <dt className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground/60">
-                      Microservizi
+                      Risorse
                     </dt>
                     <dd className="flex flex-wrap gap-1.5">
-                      {analysis.microservices.map((ms) => (
+                      {analysis.resources.map((ms) => (
                         <span
                           key={ms.id}
                           className="inline-flex items-center rounded-md border border-border bg-muted/50 px-2.5 py-1 text-sm font-medium"

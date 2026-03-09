@@ -105,31 +105,31 @@ export const EnvironmentResponseSchema = Type.Object({
 export const EnvironmentsResponseSchema = Type.Array(EnvironmentResponseSchema);
 
 // ============================================================================
-// Microservice Schemas
+// Resource Schemas
 // ============================================================================
 
-export const CreateMicroserviceBodySchema = Type.Object({
+export const CreateResourceBodySchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 255 }),
   description: Type.Optional(Type.String()),
 });
 
-export type CreateMicroserviceBody = Static<typeof CreateMicroserviceBodySchema>;
+export type CreateResourceBody = Static<typeof CreateResourceBodySchema>;
 
-export const UpdateMicroserviceBodySchema = Type.Object({
+export const UpdateResourceBodySchema = Type.Object({
   name: Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
   description: Type.Optional(Type.Union([Type.String(), Type.Null()])),
 });
 
-export type UpdateMicroserviceBody = Static<typeof UpdateMicroserviceBodySchema>;
+export type UpdateResourceBody = Static<typeof UpdateResourceBodySchema>;
 
-export const MicroserviceParamsSchema = Type.Object({
+export const ResourceParamsSchema = Type.Object({
   productId: Type.String(),
   id: Type.String(),
 });
 
-export type MicroserviceParams = Static<typeof MicroserviceParamsSchema>;
+export type ResourceParams = Static<typeof ResourceParamsSchema>;
 
-export const MicroserviceResponseSchema = Type.Object({
+export const ResourceResponseSchema = Type.Object({
   id: Type.String(),
   name: Type.String(),
   description: Type.Union([Type.String(), Type.Null()]),
@@ -138,7 +138,7 @@ export const MicroserviceResponseSchema = Type.Object({
   updatedAt: Type.String(),
 });
 
-export const MicroservicesResponseSchema = Type.Array(MicroserviceResponseSchema);
+export const ResourcesResponseSchema = Type.Array(ResourceResponseSchema);
 
 // ============================================================================
 // Runbook Schemas
@@ -380,7 +380,7 @@ export const FilterOptionsResponseSchema = Type.Object({
   environments: EnvironmentsResponseSchema,
   alarms: AlarmsResponseSchema,
   finalActions: FinalActionsResponseSchema,
-  microservices: MicroservicesResponseSchema,
+  resources: ResourcesResponseSchema,
   downstreams: DownstreamsResponseSchema,
   runbooks: RunbooksResponseSchema,
 });

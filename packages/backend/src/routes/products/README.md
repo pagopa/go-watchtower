@@ -32,14 +32,14 @@ Base path: `/api/products/:productId/environments`
 - `PUT /api/products/:productId/environments/:id` - Update environment (requires: ENVIRONMENT write)
 - `DELETE /api/products/:productId/environments/:id` - Delete environment (requires: ENVIRONMENT delete)
 
-### Microservices
+### Resources
 
-Base path: `/api/products/:productId/microservices`
+Base path: `/api/products/:productId/resources`
 
-- `GET /api/products/:productId/microservices` - List microservices (requires: MICROSERVICE read)
-- `POST /api/products/:productId/microservices` - Create microservice (requires: MICROSERVICE write)
-- `PUT /api/products/:productId/microservices/:id` - Update microservice (requires: MICROSERVICE write)
-- `DELETE /api/products/:productId/microservices/:id` - Delete microservice (requires: MICROSERVICE delete)
+- `GET /api/products/:productId/resources` - List resources (requires: RESOURCE read)
+- `POST /api/products/:productId/resources` - Create resource (requires: RESOURCE write)
+- `PUT /api/products/:productId/resources/:id` - Update resource (requires: RESOURCE write)
+- `DELETE /api/products/:productId/resources/:id` - Delete resource (requires: RESOURCE delete)
 
 ### Runbooks
 

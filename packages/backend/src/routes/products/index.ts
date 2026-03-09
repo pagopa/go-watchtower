@@ -2,10 +2,10 @@ import type { FastifyInstance } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import {
   prisma,
-  Resource,
+  SystemComponent,
   type Product,
   type Environment,
-  type Microservice,
+  type Resource as PrismaResource,
   type Runbook,
   type FinalAction,
   type Alarm,
@@ -28,11 +28,11 @@ import {
   ProductIdParamsSchema,
   EnvironmentResponseSchema,
   EnvironmentsResponseSchema,
-  CreateMicroserviceBodySchema,
-  UpdateMicroserviceBodySchema,
-  MicroserviceParamsSchema,
-  MicroserviceResponseSchema,
-  MicroservicesResponseSchema,
+  CreateResourceBodySchema,
+  UpdateResourceBodySchema,
+  ResourceParamsSchema,
+  ResourceResponseSchema,
+  ResourcesResponseSchema,
   CreateRunbookBodySchema,
   UpdateRunbookBodySchema,
   RunbookParamsSchema,
@@ -68,9 +68,9 @@ import {
   type UpdateEnvironmentBody,
   type EnvironmentParams,
   type ProductIdParams,
-  type CreateMicroserviceBody,
-  type UpdateMicroserviceBody,
-  type MicroserviceParams,
+  type CreateResourceBody,
+  type UpdateResourceBody,
+  type ResourceParams,
   type CreateRunbookBody,
   type UpdateRunbookBody,
   type RunbookParams,
@@ -99,7 +99,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.get(
     "/products",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.PRODUCT, "read")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.PRODUCT,"read")],
       schema: {
         tags: ["products"],
         summary: "Get all products",
@@ -138,7 +138,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Params: ProductParams }>(
     "/products/:id",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.PRODUCT, "read")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.PRODUCT,"read")],
       schema: {
         tags: ["products"],
         summary: "Get product by ID",
@@ -181,7 +181,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.post<{ Body: CreateProductBody }>(
     "/products",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.PRODUCT, "write")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.PRODUCT,"write")],
       schema: {
         tags: ["products"],
         summary: "Create a new product",
@@ -232,7 +232,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.put<{ Params: ProductParams; Body: UpdateProductBody }>(
     "/products/:id",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.PRODUCT, "write")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.PRODUCT,"write")],
       schema: {
         tags: ["products"],
         summary: "Update a product",
@@ -299,7 +299,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.delete<{ Params: ProductParams }>(
     "/products/:id",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.PRODUCT, "delete")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.PRODUCT,"delete")],
       schema: {
         tags: ["products"],
         summary: "Delete a product",
@@ -351,7 +351,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Params: ProductIdParams }>(
     "/products/:productId/filter-options",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.ALARM_ANALYSIS, "read")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.ALARM_ANALYSIS,"read")],
       schema: {
         tags: ["analyses"],
         summary: "Get all filter options for a product",
@@ -377,7 +377,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           return HttpError.notFound(reply, "Product");
         }
 
-        const [environments, alarms, finalActions, microservices, downstreams, runbooks] =
+        const [environments, alarms, finalActions, resources, downstreams, runbooks] =
           await Promise.all([
             prisma.environment.findMany({
               where: { productId },
@@ -392,7 +392,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
               where: { productId },
               orderBy: [{ order: "asc" }, { name: "asc" }],
             }),
-            prisma.microservice.findMany({
+            prisma.resource.findMany({
               where: { productId },
               orderBy: { name: "asc" },
             }),
@@ -440,13 +440,13 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
             createdAt: fa.createdAt.toISOString(),
             updatedAt: fa.updatedAt.toISOString(),
           })),
-          microservices: microservices.map((m: Microservice) => ({
-            id: m.id,
-            name: m.name,
-            description: m.description,
-            productId: m.productId,
-            createdAt: m.createdAt.toISOString(),
-            updatedAt: m.updatedAt.toISOString(),
+          resources: resources.map((r: PrismaResource) => ({
+            id: r.id,
+            name: r.name,
+            description: r.description,
+            productId: r.productId,
+            createdAt: r.createdAt.toISOString(),
+            updatedAt: r.updatedAt.toISOString(),
           })),
           downstreams: downstreams.map((d: Downstream) => ({
             id: d.id,
@@ -482,7 +482,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Params: ProductIdParams }>(
     "/products/:productId/environments",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.ENVIRONMENT, "read")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.ENVIRONMENT,"read")],
       schema: {
         tags: ["environments"],
         summary: "Get all environments for a product",
@@ -539,7 +539,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.post<{ Params: ProductIdParams; Body: CreateEnvironmentBody }>(
     "/products/:productId/environments",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.ENVIRONMENT, "write")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.ENVIRONMENT,"write")],
       schema: {
         tags: ["environments"],
         summary: "Create a new environment",
@@ -612,7 +612,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.put<{ Params: EnvironmentParams; Body: UpdateEnvironmentBody }>(
     "/products/:productId/environments/:id",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.ENVIRONMENT, "write")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.ENVIRONMENT,"write")],
       schema: {
         tags: ["environments"],
         summary: "Update an environment",
@@ -692,7 +692,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.delete<{ Params: EnvironmentParams }>(
     "/products/:productId/environments/:id",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.ENVIRONMENT, "delete")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.ENVIRONMENT,"delete")],
       schema: {
         tags: ["environments"],
         summary: "Delete an environment",
@@ -740,21 +740,21 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   );
 
   // ============================================================================
-  // MICROSERVICES
+  // RESOURCES
   // ============================================================================
 
-  // List microservices for a product
+  // List resources for a product
   app.get<{ Params: ProductIdParams }>(
-    "/products/:productId/microservices",
+    "/products/:productId/resources",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.MICROSERVICE, "read")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.RESOURCE, "read")],
       schema: {
-        tags: ["microservices"],
-        summary: "Get all microservices for a product",
+        tags: ["resources"],
+        summary: "Get all resources for a product",
         security: [{ bearerAuth: [] }],
         params: ProductIdParamsSchema,
         response: {
-          200: MicroservicesResponseSchema,
+          200: ResourcesResponseSchema,
           403: ErrorResponseSchema,
           404: ErrorResponseSchema,
           500: ErrorResponseSchema,
@@ -773,41 +773,41 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           return HttpError.notFound(reply, "Product");
         }
 
-        const microservices = await prisma.microservice.findMany({
+        const resources = await prisma.resource.findMany({
           where: { productId: request.params.productId },
           orderBy: { name: "asc" },
         });
 
         reply.send(
-          microservices.map((m: Microservice) => ({
-            id: m.id,
-            name: m.name,
-            description: m.description,
-            productId: m.productId,
-            createdAt: m.createdAt.toISOString(),
-            updatedAt: m.updatedAt.toISOString(),
+          resources.map((r: PrismaResource) => ({
+            id: r.id,
+            name: r.name,
+            description: r.description,
+            productId: r.productId,
+            createdAt: r.createdAt.toISOString(),
+            updatedAt: r.updatedAt.toISOString(),
           }))
         );
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Failed to fetch microservices";
+        const message = error instanceof Error ? error.message : "Failed to fetch resources";
         HttpError.internal(reply, message);
       }
     }
   );
 
-  // Create microservice
-  app.post<{ Params: ProductIdParams; Body: CreateMicroserviceBody }>(
-    "/products/:productId/microservices",
+  // Create resource
+  app.post<{ Params: ProductIdParams; Body: CreateResourceBody }>(
+    "/products/:productId/resources",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.MICROSERVICE, "write")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.RESOURCE, "write")],
       schema: {
-        tags: ["microservices"],
-        summary: "Create a new microservice",
+        tags: ["resources"],
+        summary: "Create a new resource",
         security: [{ bearerAuth: [] }],
         params: ProductIdParamsSchema,
-        body: CreateMicroserviceBodySchema,
+        body: CreateResourceBodySchema,
         response: {
-          201: MicroserviceResponseSchema,
+          201: ResourceResponseSchema,
           400: ErrorResponseSchema,
           403: ErrorResponseSchema,
           404: ErrorResponseSchema,
@@ -827,7 +827,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           return HttpError.notFound(reply, "Product");
         }
 
-        const microservice = await prisma.microservice.create({
+        const resource = await prisma.resource.create({
           data: {
             name: request.body.name,
             description: request.body.description,
@@ -836,41 +836,41 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         request.auditEvents.push({
-          action: SystemEventActions.MICROSERVICE_CREATED,
-          resource: SystemEventResources.MICROSERVICES,
-          resourceId: microservice.id,
-          resourceLabel: microservice.name,
-          metadata: { created: microservice },
+          action: SystemEventActions.RESOURCE_CREATED,
+          resource: SystemEventResources.RESOURCES,
+          resourceId: resource.id,
+          resourceLabel: resource.name,
+          metadata: { created: resource },
         });
 
         reply.status(201).send({
-          id: microservice.id,
-          name: microservice.name,
-          description: microservice.description,
-          productId: microservice.productId,
-          createdAt: microservice.createdAt.toISOString(),
-          updatedAt: microservice.updatedAt.toISOString(),
+          id: resource.id,
+          name: resource.name,
+          description: resource.description,
+          productId: resource.productId,
+          createdAt: resource.createdAt.toISOString(),
+          updatedAt: resource.updatedAt.toISOString(),
         });
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Failed to create microservice";
+        const message = error instanceof Error ? error.message : "Failed to create resource";
         HttpError.badRequest(reply, message);
       }
     }
   );
 
-  // Update microservice
-  app.put<{ Params: MicroserviceParams; Body: UpdateMicroserviceBody }>(
-    "/products/:productId/microservices/:id",
+  // Update resource
+  app.put<{ Params: ResourceParams; Body: UpdateResourceBody }>(
+    "/products/:productId/resources/:id",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.MICROSERVICE, "write")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.RESOURCE, "write")],
       schema: {
-        tags: ["microservices"],
-        summary: "Update a microservice",
+        tags: ["resources"],
+        summary: "Update a resource",
         security: [{ bearerAuth: [] }],
-        params: MicroserviceParamsSchema,
-        body: UpdateMicroserviceBodySchema,
+        params: ResourceParamsSchema,
+        body: UpdateResourceBodySchema,
         response: {
-          200: MicroserviceResponseSchema,
+          200: ResourceResponseSchema,
           400: ErrorResponseSchema,
           403: ErrorResponseSchema,
           404: ErrorResponseSchema,
@@ -880,12 +880,12 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const existingMs = await prisma.microservice.findUnique({
+        const existingRes = await prisma.resource.findUnique({
           where: { id: request.params.id },
           select: { name: true, description: true },
         });
 
-        const microservice = await prisma.microservice.update({
+        const resource = await prisma.resource.update({
           where: {
             id: request.params.id,
             productId: request.params.productId,
@@ -897,47 +897,47 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         request.auditEvents.push({
-          action: SystemEventActions.MICROSERVICE_UPDATED,
-          resource: SystemEventResources.MICROSERVICES,
-          resourceId: microservice.id,
-          resourceLabel: microservice.name,
+          action: SystemEventActions.RESOURCE_UPDATED,
+          resource: SystemEventResources.RESOURCES,
+          resourceId: resource.id,
+          resourceLabel: resource.name,
           metadata: {
             productId: request.params.productId,
             changes: buildDiff(
-              { name: existingMs?.name, description: existingMs?.description },
-              { name: microservice.name, description: microservice.description },
+              { name: existingRes?.name, description: existingRes?.description },
+              { name: resource.name, description: resource.description },
             ),
           },
         });
 
         reply.send({
-          id: microservice.id,
-          name: microservice.name,
-          description: microservice.description,
-          productId: microservice.productId,
-          createdAt: microservice.createdAt.toISOString(),
-          updatedAt: microservice.updatedAt.toISOString(),
+          id: resource.id,
+          name: resource.name,
+          description: resource.description,
+          productId: resource.productId,
+          createdAt: resource.createdAt.toISOString(),
+          updatedAt: resource.updatedAt.toISOString(),
         });
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Failed to update microservice";
+        const message = error instanceof Error ? error.message : "Failed to update resource";
         if (message.includes("Record to update not found")) {
-          return HttpError.notFound(reply, "Microservice");
+          return HttpError.notFound(reply, "Resource");
         }
         HttpError.badRequest(reply, message);
       }
     }
   );
 
-  // Delete microservice
-  app.delete<{ Params: MicroserviceParams }>(
-    "/products/:productId/microservices/:id",
+  // Delete resource
+  app.delete<{ Params: ResourceParams }>(
+    "/products/:productId/resources/:id",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.MICROSERVICE, "delete")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.RESOURCE, "delete")],
       schema: {
-        tags: ["microservices"],
-        summary: "Delete a microservice",
+        tags: ["resources"],
+        summary: "Delete a resource",
         security: [{ bearerAuth: [] }],
-        params: MicroserviceParamsSchema,
+        params: ResourceParamsSchema,
         response: {
           200: MessageResponseSchema,
           403: ErrorResponseSchema,
@@ -948,12 +948,12 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const msToDelete = await prisma.microservice.findUnique({
+        const resToDelete = await prisma.resource.findUnique({
           where: { id: request.params.id },
           select: { name: true },
         });
 
-        await prisma.microservice.delete({
+        await prisma.resource.delete({
           where: {
             id: request.params.id,
             productId: request.params.productId,
@@ -961,18 +961,18 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
         });
 
         request.auditEvents.push({
-          action: SystemEventActions.MICROSERVICE_DELETED,
-          resource: SystemEventResources.MICROSERVICES,
+          action: SystemEventActions.RESOURCE_DELETED,
+          resource: SystemEventResources.RESOURCES,
           resourceId: request.params.id,
-          resourceLabel: msToDelete?.name ?? null,
+          resourceLabel: resToDelete?.name ?? null,
           metadata: { productId: request.params.productId },
         });
 
-        reply.send({ message: "Microservice deleted successfully" });
+        reply.send({ message: "Resource deleted successfully" });
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Failed to delete microservice";
+        const message = error instanceof Error ? error.message : "Failed to delete resource";
         if (message.includes("Record to delete does not exist")) {
-          return HttpError.notFound(reply, "Microservice");
+          return HttpError.notFound(reply, "Resource");
         }
         HttpError.internal(reply, message);
       }
@@ -987,7 +987,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Params: ProductIdParams }>(
     "/products/:productId/runbooks",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.RUNBOOK, "read")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.RUNBOOK, "read")],
       schema: {
         tags: ["runbooks"],
         summary: "Get all runbooks for a product",
@@ -1041,7 +1041,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.post<{ Params: ProductIdParams; Body: CreateRunbookBody }>(
     "/products/:productId/runbooks",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.RUNBOOK, "write")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.RUNBOOK, "write")],
       schema: {
         tags: ["runbooks"],
         summary: "Create a new runbook",
@@ -1108,7 +1108,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.put<{ Params: RunbookParams; Body: UpdateRunbookBody }>(
     "/products/:productId/runbooks/:id",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.RUNBOOK, "write")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.RUNBOOK, "write")],
       schema: {
         tags: ["runbooks"],
         summary: "Update a runbook",
@@ -1182,7 +1182,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.delete<{ Params: RunbookParams }>(
     "/products/:productId/runbooks/:id",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.RUNBOOK, "delete")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.RUNBOOK, "delete")],
       schema: {
         tags: ["runbooks"],
         summary: "Delete a runbook",
@@ -1237,7 +1237,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Params: ProductIdParams }>(
     "/products/:productId/final-actions",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.FINAL_ACTION, "read")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.FINAL_ACTION, "read")],
       schema: {
         tags: ["final-actions"],
         summary: "Get all final actions for a product",
@@ -1291,7 +1291,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.post<{ Params: ProductIdParams; Body: CreateFinalActionBody }>(
     "/products/:productId/final-actions",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.FINAL_ACTION, "write")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.FINAL_ACTION, "write")],
       schema: {
         tags: ["final-actions"],
         summary: "Create a new final action",
@@ -1358,7 +1358,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.put<{ Params: FinalActionParams; Body: UpdateFinalActionBody }>(
     "/products/:productId/final-actions/:id",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.FINAL_ACTION, "write")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.FINAL_ACTION, "write")],
       schema: {
         tags: ["final-actions"],
         summary: "Update a final action",
@@ -1432,7 +1432,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.delete<{ Params: FinalActionParams }>(
     "/products/:productId/final-actions/:id",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.FINAL_ACTION, "delete")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.FINAL_ACTION, "delete")],
       schema: {
         tags: ["final-actions"],
         summary: "Delete a final action",
@@ -1487,7 +1487,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Params: ProductIdParams }>(
     "/products/:productId/alarms",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.ALARM, "read")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.ALARM, "read")],
       schema: {
         tags: ["alarms"],
         summary: "Get all alarms for a product",
@@ -1542,7 +1542,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.post<{ Params: ProductIdParams; Body: CreateAlarmBody }>(
     "/products/:productId/alarms",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.ALARM, "write")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.ALARM, "write")],
       schema: {
         tags: ["alarms"],
         summary: "Create a new alarm",
@@ -1609,7 +1609,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.put<{ Params: AlarmParams; Body: UpdateAlarmBody }>(
     "/products/:productId/alarms/:id",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.ALARM, "write")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.ALARM, "write")],
       schema: {
         tags: ["alarms"],
         summary: "Update an alarm",
@@ -1688,7 +1688,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.delete<{ Params: AlarmParams }>(
     "/products/:productId/alarms/:id",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.ALARM, "delete")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.ALARM, "delete")],
       schema: {
         tags: ["alarms"],
         summary: "Delete an alarm",
@@ -1744,7 +1744,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Params: ProductIdParams }>(
     "/products/:productId/downstreams",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.DOWNSTREAM, "read")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.DOWNSTREAM, "read")],
       schema: {
         tags: ["downstreams"],
         summary: "Get all downstreams for a product",
@@ -1796,7 +1796,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.post<{ Params: ProductIdParams; Body: CreateDownstreamBody }>(
     "/products/:productId/downstreams",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.DOWNSTREAM, "write")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.DOWNSTREAM, "write")],
       schema: {
         tags: ["downstreams"],
         summary: "Create a new downstream",
@@ -1859,7 +1859,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.put<{ Params: DownstreamParams; Body: UpdateDownstreamBody }>(
     "/products/:productId/downstreams/:id",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.DOWNSTREAM, "write")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.DOWNSTREAM, "write")],
       schema: {
         tags: ["downstreams"],
         summary: "Update a downstream",
@@ -1929,7 +1929,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.delete<{ Params: DownstreamParams }>(
     "/products/:productId/downstreams/:id",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.DOWNSTREAM, "delete")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.DOWNSTREAM, "delete")],
       schema: {
         tags: ["downstreams"],
         summary: "Delete a downstream",
@@ -1999,7 +1999,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Params: ProductIdParams }>(
     "/products/:productId/ignored-alarms",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.IGNORED_ALARM, "read")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.IGNORED_ALARM, "read")],
       schema: {
         tags: ["ignored-alarms"],
         summary: "Get all ignored alarms for a product",
@@ -2045,7 +2045,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Params: IgnoredAlarmParams }>(
     "/products/:productId/ignored-alarms/:id",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.IGNORED_ALARM, "read")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.IGNORED_ALARM, "read")],
       schema: {
         tags: ["ignored-alarms"],
         summary: "Get an ignored alarm by ID",
@@ -2088,7 +2088,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.post<{ Params: ProductIdParams; Body: CreateIgnoredAlarmBody }>(
     "/products/:productId/ignored-alarms",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.IGNORED_ALARM, "write")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.IGNORED_ALARM, "write")],
       schema: {
         tags: ["ignored-alarms"],
         summary: "Create a new ignored alarm",
@@ -2154,7 +2154,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.put<{ Params: IgnoredAlarmParams; Body: UpdateIgnoredAlarmBody }>(
     "/products/:productId/ignored-alarms/:id",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.IGNORED_ALARM, "write")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.IGNORED_ALARM, "write")],
       schema: {
         tags: ["ignored-alarms"],
         summary: "Update an ignored alarm",
@@ -2245,7 +2245,7 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   app.delete<{ Params: IgnoredAlarmParams }>(
     "/products/:productId/ignored-alarms/:id",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.IGNORED_ALARM, "delete")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.IGNORED_ALARM, "delete")],
       schema: {
         tags: ["ignored-alarms"],
         summary: "Delete an ignored alarm",

@@ -36,7 +36,7 @@ type EntityFormData = z.infer<typeof entitySchema>
 type CrudPermission =
   | 'PRODUCT'
   | 'ENVIRONMENT'
-  | 'MICROSERVICE'
+  | 'RESOURCE'
   | 'IGNORED_ALARM'
   | 'RUNBOOK'
   | 'FINAL_ACTION'

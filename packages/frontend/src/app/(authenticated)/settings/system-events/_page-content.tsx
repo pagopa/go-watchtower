@@ -142,9 +142,9 @@ const ACTION_CATEGORIES: ActionCategory[] = [
       SystemEventActions.ENVIRONMENT_CREATED,
       SystemEventActions.ENVIRONMENT_UPDATED,
       SystemEventActions.ENVIRONMENT_DELETED,
-      SystemEventActions.MICROSERVICE_CREATED,
-      SystemEventActions.MICROSERVICE_UPDATED,
-      SystemEventActions.MICROSERVICE_DELETED,
+      SystemEventActions.RESOURCE_CREATED,
+      SystemEventActions.RESOURCE_UPDATED,
+      SystemEventActions.RESOURCE_DELETED,
       SystemEventActions.RUNBOOK_CREATED,
       SystemEventActions.RUNBOOK_UPDATED,
       SystemEventActions.RUNBOOK_DELETED,
@@ -247,7 +247,7 @@ function resolveResourceLink(event: SystemEvent): string | null {
 
     case SystemEventResources.ENVIRONMENTS:
     case SystemEventResources.ALARMS:
-    case SystemEventResources.MICROSERVICES:
+    case SystemEventResources.RESOURCES:
     case SystemEventResources.RUNBOOKS:
     case SystemEventResources.FINAL_ACTIONS:
     case SystemEventResources.DOWNSTREAMS:
@@ -256,7 +256,7 @@ function resolveResourceLink(event: SystemEvent): string | null {
       if (!productId) return null
       const tabMap: Record<string, string> = {
         [SystemEventResources.ENVIRONMENTS]: 'environments',
-        [SystemEventResources.MICROSERVICES]: 'microservices',
+        [SystemEventResources.RESOURCES]: 'resources',
         [SystemEventResources.RUNBOOKS]: 'runbooks',
         [SystemEventResources.ALARMS]: 'alarms',
         [SystemEventResources.DOWNSTREAMS]: 'downstreams',

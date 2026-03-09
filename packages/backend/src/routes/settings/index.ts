@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
-import { prisma, Prisma, Resource } from "@go-watchtower/database";
+import { prisma, Prisma, SystemComponent } from "@go-watchtower/database";
 import { requirePermission } from "../../lib/require-permission.js";
 import { buildDiff } from "../../services/system-event.service.js";
 import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
@@ -123,7 +123,7 @@ export async function settingRoutes(app: FastifyInstance): Promise<void> {
   server.get(
     "/settings",
     {
-      onRequest: [server.authenticate, requirePermission(Resource.SYSTEM_SETTING, "read")],
+      onRequest: [server.authenticate, requirePermission(SystemComponent.SYSTEM_SETTING, "read")],
       schema: {
         tags: ["Settings"],
         summary: "List all system settings",
@@ -148,7 +148,7 @@ export async function settingRoutes(app: FastifyInstance): Promise<void> {
   server.get<{ Params: SettingKeyParams }>(
     "/settings/:key",
     {
-      onRequest: [server.authenticate, requirePermission(Resource.SYSTEM_SETTING, "read")],
+      onRequest: [server.authenticate, requirePermission(SystemComponent.SYSTEM_SETTING, "read")],
       schema: {
         tags: ["Settings"],
         summary: "Get a single setting by key",
@@ -178,7 +178,7 @@ export async function settingRoutes(app: FastifyInstance): Promise<void> {
   server.patch<{ Params: SettingKeyParams; Body: UpdateSettingBody }>(
     "/settings/:key",
     {
-      onRequest: [server.authenticate, requirePermission(Resource.SYSTEM_SETTING, "write")],
+      onRequest: [server.authenticate, requirePermission(SystemComponent.SYSTEM_SETTING, "write")],
       schema: {
         tags: ["Settings"],
         summary: "Update a setting value",

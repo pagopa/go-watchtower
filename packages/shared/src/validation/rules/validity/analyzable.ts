@@ -10,12 +10,12 @@ export const analyzableRules: ValidationRule[] = [
     validate: (a) => a.finalActions.length > 0,
   },
   {
-    id: 'ANALYZABLE_REQUIRES_MICROSERVICE',
+    id: 'ANALYZABLE_REQUIRES_RESOURCE',
     severity: 'error',
     weight: 2,
-    message: "Un'analisi di tipo Analizzabile deve avere almeno un microservizio",
+    message: "Un'analisi di tipo Analizzabile deve avere almeno una risorsa",
     appliesTo: (a) => a.analysisType === 'ANALYZABLE',
-    validate: (a) => a.microservices.length > 0,
+    validate: (a) => a.resources.length > 0,
   },
   {
     id: 'IGNORABLE_REQUIRES_REASON',

@@ -1,7 +1,7 @@
 export const Resources = {
   PRODUCT:         'PRODUCT',
   ENVIRONMENT:     'ENVIRONMENT',
-  MICROSERVICE:    'MICROSERVICE',
+  RESOURCE:        'RESOURCE',
   IGNORED_ALARM:   'IGNORED_ALARM',
   RUNBOOK:         'RUNBOOK',
   FINAL_ACTION:    'FINAL_ACTION',

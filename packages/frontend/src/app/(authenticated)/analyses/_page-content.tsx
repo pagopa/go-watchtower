@@ -101,7 +101,7 @@ const DEFAULT_FILTERS: AnalysisFiltersState = {
   dateTo: '',
   ignoreReasonCode: '',
   runbookId: '',
-  microserviceId: '',
+  resourceId: '',
   downstreamId: '',
   traceId: '',
 }
@@ -360,7 +360,7 @@ function AnalysesPageContent() {
   const environments  = filterOptions?.environments
   const alarms        = filterOptions?.alarms
   const finalActions  = filterOptions?.finalActions
-  const microservices = filterOptions?.microservices
+  const resources     = filterOptions?.resources
   const downstreams   = filterOptions?.downstreams
   const runbooks      = filterOptions?.runbooks
 
@@ -394,7 +394,7 @@ function AnalysesPageContent() {
     enabled: viewMode === 'oncall',
   })
 
-  // Form-specific data (runbooks, microservices, downstreams, plus product-
+  // Form-specific data (runbooks, resources, downstreams, plus product-
   // specific environments/alarms/finalActions when editing a cross-product
   // analysis) is fetched inside AnalysisFormDialog to avoid loading it on
   // every page visit.
@@ -419,7 +419,7 @@ function AnalysesPageContent() {
     ...(filters.dateTo && { dateTo: fromZonedTime(filters.dateTo + 'T23:59:59', 'Europe/Rome').toISOString() }),
     ...(filters.ignoreReasonCode && { ignoreReasonCode: filters.ignoreReasonCode }),
     ...(filters.runbookId && { runbookId: filters.runbookId }),
-    ...(filters.microserviceId && { microserviceId: filters.microserviceId }),
+    ...(filters.resourceId && { resourceId: filters.resourceId }),
     ...(filters.downstreamId && { downstreamId: filters.downstreamId }),
     ...(filters.traceId && { traceId: filters.traceId }),
   }), [
@@ -427,7 +427,7 @@ function AnalysesPageContent() {
     filters.search, filters.analysisType, filters.status,
     filters.environmentId, filters.operatorId, filters.alarmId,
     filters.finalActionId, filters.isOnCall, filters.dateFrom, filters.dateTo,
-    filters.ignoreReasonCode, filters.runbookId, filters.microserviceId,
+    filters.ignoreReasonCode, filters.runbookId, filters.resourceId,
     filters.downstreamId, filters.traceId,
   ])
 
@@ -612,7 +612,7 @@ function AnalysesPageContent() {
       ignoreReasonCode: data.ignoreReasonCode || null,
       ignoreDetails: data.ignoreDetails || null,
       runbookId: data.runbookId || null,
-      microserviceIds: data.microserviceIds || [],
+      resourceIds: data.resourceIds || [],
       downstreamIds: data.downstreamIds || [],
       links: data.links?.filter((l) => l.url) || [],
       trackingIds: data.trackingIds?.filter((t) => t.traceId) || [],
@@ -665,7 +665,7 @@ function AnalysesPageContent() {
         finalActions={!isAllView ? finalActions : undefined}
         users={analysisAuthors}
         ignoreReasons={ignoreReasons}
-        microservices={!isAllView ? microservices : undefined}
+        resources={!isAllView ? resources : undefined}
         downstreams={!isAllView ? downstreams : undefined}
         runbooks={!isAllView ? runbooks : undefined}
         collapsed={filtersCollapsed}

@@ -4,7 +4,7 @@ import type { Resource } from '../constants/resources.js';
 export const RESOURCE_LABELS: Record<Resource, string> = {
   PRODUCT:        'Prodotti',
   ENVIRONMENT:    'Ambienti',
-  MICROSERVICE:   'Microservizi',
+  RESOURCE:       'Risorse',
   IGNORED_ALARM:  'Allarmi ignorati',
   RUNBOOK:        'Runbook',
   FINAL_ACTION:   'Azioni finali',

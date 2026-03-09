@@ -1,4 +1,4 @@
-import { prisma, Resource, PermissionScope } from "@go-watchtower/database";
+import { prisma, SystemComponent, PermissionScope } from "@go-watchtower/database";
 import type { PermissionAction, UserPermissions } from "@go-watchtower/shared";
 
 export type { PermissionAction, UserPermissions };
@@ -99,7 +99,7 @@ export async function getUserPermissions(userId: string): Promise<UserPermission
  */
 export async function getPermissionScope(
   userId: string,
-  resource: Resource,
+  resource: SystemComponent,
   action: PermissionAction
 ): Promise<PermissionScope> {
   const permissions = await getUserPermissions(userId);
@@ -127,7 +127,7 @@ export async function getPermissionScope(
  */
 export async function hasPermission(
   userId: string,
-  resource: Resource,
+  resource: SystemComponent,
   action: PermissionAction
 ): Promise<boolean> {
   const scope = await getPermissionScope(userId, resource, action);
@@ -144,7 +144,7 @@ export async function hasPermission(
  */
 export async function hasPermissionForResource(
   userId: string,
-  resource: Resource,
+  resource: SystemComponent,
   action: PermissionAction,
   ownerId: string
 ): Promise<boolean> {
@@ -168,7 +168,7 @@ export async function hasPermissionForResource(
  */
 export async function setUserPermissionOverride(
   userId: string,
-  resource: Resource,
+  resource: SystemComponent,
   permissions: {
     canRead?: PermissionScope | null;
     canWrite?: PermissionScope | null;
@@ -209,7 +209,7 @@ export async function setUserPermissionOverride(
  */
 export async function removeUserPermissionOverride(
   userId: string,
-  resource: Resource
+  resource: SystemComponent
 ): Promise<boolean> {
   try {
     await prisma.userPermissionOverride.delete({
@@ -273,7 +273,7 @@ export async function getRoleById(id: string) {
  * Create a new role with NONE permissions for all resources.
  */
 export async function createRole(name: string, description?: string) {
-  const resources = Object.values(Resource);
+  const resources = Object.values(SystemComponent);
   return prisma.role.create({
     data: {
       name,
@@ -319,7 +319,7 @@ export async function deleteRole(id: string) {
 export async function updateRolePermissions(
   roleId: string,
   permissions: Array<{
-    resource: Resource;
+    resource: SystemComponent;
     canRead: PermissionScope;
     canWrite: PermissionScope;
     canDelete: PermissionScope;

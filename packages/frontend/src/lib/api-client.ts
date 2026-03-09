@@ -263,7 +263,7 @@ export interface UpdateEnvironmentData {
   onCallAlarmPattern?: string | null
 }
 
-export interface Microservice {
+export interface ProductResource {
   id: string
   name: string
   description: string | null
@@ -272,12 +272,12 @@ export interface Microservice {
   updatedAt: string
 }
 
-export interface CreateMicroserviceData {
+export interface CreateProductResourceData {
   name: string
   description?: string
 }
 
-export interface UpdateMicroserviceData {
+export interface UpdateProductResourceData {
   name?: string
   description?: string | null
 }
@@ -428,7 +428,7 @@ export interface AlarmAnalysis {
   runbook: (RelatedEntity & { link?: string; status?: 'DRAFT' | 'COMPLETE' }) | null
   createdBy: RelatedUser
   updatedBy: RelatedUser | null
-  microservices: RelatedEntity[]
+  resources: RelatedEntity[]
   downstreams: RelatedEntity[]
   ignoreReason: IgnoreReason | null
   links: Array<{ url: string; name?: string; type?: string }>
@@ -457,7 +457,7 @@ export interface AlarmAnalysisFilters {
   // Advanced filters
   ignoreReasonCode?: string
   runbookId?: string
-  microserviceId?: string
+  resourceId?: string
   downstreamId?: string
   traceId?: string
 }
@@ -479,7 +479,7 @@ export interface CreateAlarmAnalysisData {
   environmentId: string
   finalActionIds?: string[]
   runbookId?: string | null
-  microserviceIds?: string[]
+  resourceIds?: string[]
   downstreamIds?: string[]
   links?: Array<{ url: string; name?: string; type?: string }>
   trackingIds?: TrackingEntry[]
@@ -502,7 +502,7 @@ export interface UpdateAlarmAnalysisData {
   environmentId?: string
   finalActionIds?: string[]
   runbookId?: string | null
-  microserviceIds?: string[]
+  resourceIds?: string[]
   downstreamIds?: string[]
   links?: Array<{ url: string; name?: string; type?: string }>
   trackingIds?: TrackingEntry[]
@@ -539,7 +539,7 @@ export interface ProductFilterOptions {
   environments: Environment[]
   alarms: Alarm[]
   finalActions: FinalAction[]
-  microservices: Microservice[]
+  resources: ProductResource[]
   downstreams: Downstream[]
   runbooks: Runbook[]
 }
@@ -813,15 +813,15 @@ export const api = {
   deleteEnvironment: (productId: string, id: string) =>
     request<{ message: string }>(`/api/products/${productId}/environments/${id}`, { method: 'DELETE' }),
 
-  // Microservices
-  getMicroservices: (productId: string) =>
-    request<Microservice[]>(`/api/products/${productId}/microservices`),
-  createMicroservice: (productId: string, data: CreateMicroserviceData) =>
-    request<Microservice>(`/api/products/${productId}/microservices`, { method: 'POST', body: data }),
-  updateMicroservice: (productId: string, id: string, data: UpdateMicroserviceData) =>
-    request<Microservice>(`/api/products/${productId}/microservices/${id}`, { method: 'PUT', body: data }),
-  deleteMicroservice: (productId: string, id: string) =>
-    request<{ message: string }>(`/api/products/${productId}/microservices/${id}`, { method: 'DELETE' }),
+  // Resources
+  getResources: (productId: string) =>
+    request<ProductResource[]>(`/api/products/${productId}/resources`),
+  createResource: (productId: string, data: CreateProductResourceData) =>
+    request<ProductResource>(`/api/products/${productId}/resources`, { method: 'POST', body: data }),
+  updateResource: (productId: string, id: string, data: UpdateProductResourceData) =>
+    request<ProductResource>(`/api/products/${productId}/resources/${id}`, { method: 'PUT', body: data }),
+  deleteResource: (productId: string, id: string) =>
+    request<{ message: string }>(`/api/products/${productId}/resources/${id}`, { method: 'DELETE' }),
 
   // Runbooks
   getRunbooks: (productId: string) =>

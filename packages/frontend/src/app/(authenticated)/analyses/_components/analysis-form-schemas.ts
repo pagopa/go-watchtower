@@ -66,7 +66,7 @@ export const analysisFormSchema = z.object({
   ignoreReasonCode: z.string().optional(),
   ignoreDetails: z.record(z.string(), z.unknown()).optional(),
   runbookId: z.string().optional(),
-  microserviceIds: z.array(z.string()).optional(),
+  resourceIds: z.array(z.string()).optional(),
   downstreamIds: z.array(z.string()).optional(),
   links: z.array(z.object({
     url: z.string().min(1, 'URL obbligatorio'),

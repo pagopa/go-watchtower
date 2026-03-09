@@ -1,6 +1,6 @@
 import { Type, type Static } from "@sinclair/typebox";
 import { ValidationConstraints, Themes } from "@go-watchtower/shared";
-import { Resource } from "@go-watchtower/database";
+import { SystemComponent } from "@go-watchtower/database";
 import { ErrorResponseSchema, MessageResponseSchema, PermissionScopeSchema } from "../../schemas/common.js";
 
 export { ErrorResponseSchema, MessageResponseSchema, PermissionScopeSchema };
@@ -89,7 +89,7 @@ export const UpdateUserBodySchema = Type.Object({
 export type UpdateUserBody = Static<typeof UpdateUserBodySchema>;
 
 export const SetPermissionOverrideBodySchema = Type.Object({
-  resource: Type.Enum(Resource),
+  resource: Type.Enum(SystemComponent),
   canRead: Type.Optional(Type.Union([PermissionScopeSchema, Type.Null()])),
   canWrite: Type.Optional(Type.Union([PermissionScopeSchema, Type.Null()])),
   canDelete: Type.Optional(Type.Union([PermissionScopeSchema, Type.Null()])),

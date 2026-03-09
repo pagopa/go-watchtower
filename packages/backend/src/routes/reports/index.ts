@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
-import { prisma, Prisma, Resource } from "@go-watchtower/database";
+import { prisma, Prisma, SystemComponent } from "@go-watchtower/database";
 import { requirePermission } from "../../lib/require-permission.js";
 import { HttpError } from "../../utils/http-errors.js";
 import {
@@ -32,7 +32,7 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Querystring: ReportQuery }>(
     "/reports/operator-workload",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.ALARM_ANALYSIS, "read")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.ALARM_ANALYSIS, "read")],
       schema: {
         tags: ["reports"],
         summary: "Operator workload report with MTTA and environment breakdown",
@@ -215,7 +215,7 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
   app.get<{ Querystring: ReportQuery }>(
     "/reports/alarm-ranking",
     {
-      onRequest: [app.authenticate, requirePermission(Resource.ALARM_ANALYSIS, "read")],
+      onRequest: [app.authenticate, requirePermission(SystemComponent.ALARM_ANALYSIS, "read")],
       schema: {
         tags: ["reports"],
         summary: "Alarm ranking by total occurrences",
