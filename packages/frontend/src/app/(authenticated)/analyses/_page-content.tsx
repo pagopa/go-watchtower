@@ -814,7 +814,7 @@ function AnalysesPageContent() {
                 </div>
               ))}
             </div>
-          ) : analysesError ? (
+          ) : analysesError && !analyses ? (
             <div className="flex flex-col items-center gap-2 py-12 text-center">
               <p className="text-sm text-destructive">Errore durante il caricamento delle analisi.</p>
             </div>

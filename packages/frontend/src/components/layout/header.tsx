@@ -50,7 +50,7 @@ export function Header() {
   return (
     <header className="flex h-16 items-center justify-between border-b bg-background px-6">
       <div className="flex items-center gap-2.5">
-        <Image src="/logo1.png" alt="" width={28} height={28} quality={85} sizes="28px" className="drop-shadow-sm" />
+        <Image src="/logo1.png" alt="" width={36} height={36} quality={85} sizes="36px" className="drop-shadow-sm" />
         <div className="flex flex-col">
           <div className="flex items-center gap-2">
             <h1 className="font-display text-xl font-bold tracking-wide leading-none">Watchtower</h1>
@@ -60,7 +60,7 @@ export function Header() {
               </span>
             )}
           </div>
-          <span className="mt-1 text-xs text-muted-foreground/60 leading-none">TS640 - Service Line QA&amp;Ops</span>
+          <span className="mt-1 text-sm font-semibold leading-none text-blue-500 dark:text-blue-400">TS640 - Service Line QA&amp;Ops</span>
         </div>
       </div>
 
