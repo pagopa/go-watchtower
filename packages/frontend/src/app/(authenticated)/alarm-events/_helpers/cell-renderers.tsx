@@ -5,13 +5,15 @@ import type { AlarmEvent } from '@/lib/api-client'
 
 type EmbeddedAlarm = NonNullable<AlarmEvent['alarm']>
 
+const UTC_DATE_FORMATTER = new Intl.DateTimeFormat('it-IT', {
+  timeZone: 'UTC',
+  year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit',
+})
+
 function formatDateTimeUTC(iso: string): string {
   try {
-    return new Intl.DateTimeFormat('it-IT', {
-      timeZone: 'UTC',
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit',
-    }).format(new Date(iso)) + ' UTC'
+    return UTC_DATE_FORMATTER.format(new Date(iso)) + ' UTC'
   } catch {
     return iso
   }

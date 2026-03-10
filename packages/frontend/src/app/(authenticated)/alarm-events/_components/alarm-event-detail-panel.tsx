@@ -41,11 +41,7 @@ function LinkedAnalysisSection({ analysisId, productId, eventId, eventName }: {
 
   if (!analysis) return null
 
-  const romeDate = new Intl.DateTimeFormat('it-IT', {
-    timeZone: 'Europe/Rome',
-    day: '2-digit', month: '2-digit', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  }).format(new Date(analysis.analysisDate))
+  const romeDate = ROME_FULL_FORMATTER.format(new Date(analysis.analysisDate))
 
   return (
     <div className="space-y-4">
@@ -169,16 +165,23 @@ function CopyButton({ value, title = 'Copia' }: { value: string; title?: string 
 
 // ─── Timestamp field with UTC + Rome local time ──────────────────────────────
 
+const UTC_FULL_FORMATTER = new Intl.DateTimeFormat('it-IT', {
+  timeZone: 'UTC',
+  year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit', second: '2-digit',
+})
+
+const ROME_FULL_FORMATTER = new Intl.DateTimeFormat('it-IT', {
+  timeZone: 'Europe/Rome',
+  year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit', second: '2-digit',
+})
+
 function UtcTimestamp({ isoStr }: { isoStr: string }) {
   const date = new Date(isoStr)
-  const fmt = (tz: string) => new Intl.DateTimeFormat('it-IT', {
-    timeZone: tz,
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-  }).format(date)
 
-  const utcFormatted   = fmt('UTC')
-  const romeFormatted  = fmt('Europe/Rome')
+  const utcFormatted   = UTC_FULL_FORMATTER.format(date)
+  const romeFormatted  = ROME_FULL_FORMATTER.format(date)
 
   return (
     <span className="inline-flex flex-col gap-0.5">

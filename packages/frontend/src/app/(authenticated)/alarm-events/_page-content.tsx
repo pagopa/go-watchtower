@@ -1,10 +1,10 @@
 'use client'
 
-import { Suspense, useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { Suspense, useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Plus, Inbox, RefreshCw, ChevronDown,
-  LayoutList, CalendarDays, PhoneCall, Layers,
+  LayoutList, CalendarDays, PhoneCall, Layers, Ban,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -25,6 +25,7 @@ import { usePermissions } from '@/hooks/use-permissions'
 import { usePreferences } from '@/hooks/use-preferences'
 import { useCollapsiblePreference } from '@/hooks/use-collapsible-preference'
 import { usePageSize, type AllowedPageSize } from '@/hooks/use-page-size'
+import { useRowSelection } from '@/hooks/use-row-selection'
 import { useColumnSettings } from '@/hooks/use-column-settings'
 import { COLUMN_REGISTRY } from '@/lib/column-registry'
 import { Button } from '@/components/ui/button'
@@ -33,8 +34,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
   TableBody,
-  TableCell,
-  TableRow,
+  TableHead,
 } from '@/components/ui/table'
 import { DeleteConfirmDialog } from '@/components/delete-confirm-dialog'
 import { DataTableHeader, PaginationControls, useTableMinWidth, useSort } from '@/components/data-table'
@@ -60,7 +60,7 @@ const AlarmEventGroupedView = dynamic(
   () => import('./_components/alarm-event-grouped-view').then((m) => ({ default: m.AlarmEventGroupedView })),
   { ssr: false }
 )
-import { AlarmEventCell } from './_helpers/cell-renderers'
+import { AlarmEventTableRow } from './_components/alarm-event-table-row'
 
 const AlarmEventFormDialog = dynamic(
   () => import('./_components/alarm-event-form-dialog').then((m) => ({ default: m.AlarmEventFormDialog })),
@@ -77,8 +77,8 @@ const AnalysisFormDialog = dynamic(
   { ssr: false }
 )
 
-import { AlarmEventRowActions } from './_components/alarm-event-row-actions'
 import { UnlinkAlarmEventDialog } from './_components/unlink-alarm-event-dialog'
+import { BulkIgnoreDialog } from './_components/bulk-ignore-dialog'
 import type { AnalysisFormData } from '../analyses/_components/analysis-form-dialog'
 import { isoToRomeLocal, isoToUTCLocal } from '../analyses/_components/analysis-form-schemas'
 
@@ -148,6 +148,9 @@ function AlarmEventsPageContent() {
   const [associateDialogOpen, setAssociateDialogOpen] = useState(false)
   const [associateEvent, setAssociateEvent] = useState<AlarmEvent | null>(null)
   const [unlinkEvent, setUnlinkEvent] = useState<AlarmEvent | null>(null)
+
+  // Multi-select (hook called after events query below)
+  const [bulkIgnoreOpen, setBulkIgnoreOpen] = useState(false)
 
   // View mode — persisted in user preferences.
   // Initialized to 'list'; synced once preferences load from the server
@@ -270,6 +273,12 @@ function AlarmEventsPageContent() {
   const events     = eventsResponse?.data
   const pagination = eventsResponse?.pagination
 
+  // Multi-select
+  const {
+    selectedIds, selectedItems: selectedEvents, isAllSelected, isIndeterminate,
+    toggleOne: toggleSelectEvent, toggleAll: toggleSelectAll, clearSelection,
+  } = useRowSelection(events)
+
   // Working hours — fetched with fallback so non-admin users still get defaults.
   // 403 is expected for non-admin users; other errors are logged.
   const { data: workingHours } = useQuery({
@@ -359,12 +368,14 @@ function AlarmEventsPageContent() {
   const handleFilterChange = useCallback((newFilters: AlarmEventFiltersState) => {
     setFilters(newFilters)
     setPage(1)
-  }, [])
+    clearSelection()
+  }, [clearSelection])
 
   const handleResetFilters = useCallback(() => {
     setFilters(DEFAULT_FILTERS)
     setPage(1)
-  }, [])
+    clearSelection()
+  }, [clearSelection])
 
 
 
@@ -674,83 +685,88 @@ function AlarmEventsPageContent() {
                 </div>
               ))}
             </div>
-          ) : eventsError ? (
+          ) : eventsError && !events ? (
             <div className="flex flex-col items-center gap-2 py-12 text-center">
               <p className="text-sm text-destructive">Errore durante il caricamento degli allarmi.</p>
             </div>
           ) : events && events.length > 0 ? (
-            <Table
-              className="w-full"
-              style={{ tableLayout: 'fixed', minWidth: `${totalTableMinWidth}px` }}
-            >
-              <DataTableHeader
-                columns={visibleColumns}
-                getWidth={getWidth}
-                setWidth={setWidth}
-                sortBy={sortBy}
-                sortOrder={sortOrder}
-                onSort={handleSort}
-                hasActions={canWrite || canDelete}
-              />
-              <TableBody>
-                {events.map((event) => {
-                  const isSelected  = event.id === selectedEvent?.id && showDetailPanel
-                  const isLingering = event.id === lingeringId && !showDetailPanel
-                  const isOnCall    = isOnCallEvent(event)
-                  return (
-                    <TableRow
+            <>
+              {/* Barra selezione multipla */}
+              {selectedIds.size > 0 && (
+                <div className="flex items-center gap-3 border-b bg-primary/5 px-4 py-2">
+                  <span className="text-sm font-medium">
+                    <span className="tabular-nums">{selectedIds.size}</span> selezionati
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs gap-1.5"
+                    onClick={() => setBulkIgnoreOpen(true)}
+                  >
+                    <Ban className="h-3.5 w-3.5" />
+                    Crea analisi da ignorare
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 text-xs"
+                    onClick={clearSelection}
+                  >
+                    Deseleziona
+                  </Button>
+                </div>
+              )}
+              <Table
+                className="w-full"
+                style={{ tableLayout: 'fixed', minWidth: `${totalTableMinWidth}px` }}
+              >
+                <DataTableHeader
+                  columns={visibleColumns}
+                  getWidth={getWidth}
+                  setWidth={setWidth}
+                  sortBy={sortBy}
+                  sortOrder={sortOrder}
+                  onSort={handleSort}
+                  hasActions={canWrite || canDelete}
+                  prependContent={
+                    <TableHead className="w-10 px-2">
+                      <input
+                        type="checkbox"
+                        aria-label="Seleziona tutti gli allarmi"
+                        className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
+                        checked={isAllSelected}
+                        ref={(el) => { if (el) el.indeterminate = isIndeterminate }}
+                        onChange={toggleSelectAll}
+                      />
+                    </TableHead>
+                  }
+                />
+                <TableBody>
+                  {events.map((event) => (
+                    <AlarmEventTableRow
                       key={event.id}
-                      className={
-                        'group cursor-pointer border-b border-border/50 ' +
-                        (isSelected
-                          ? 'analysis-row-selected hover:bg-primary/[0.09]'
-                          : isLingering
-                            ? 'analysis-row-lingering hover:bg-muted/30'
-                            : isOnCall
-                              ? 'bg-rose-500/[0.04] hover:bg-rose-500/[0.06] transition-colors border-l-[3px] border-l-rose-500/60'
-                              : 'transition-colors hover:bg-muted/30')
-                      }
-                      onClick={(e) => {
-                        if ((e.target as HTMLElement).closest('button')) return
-                        handleRowClick(event)
-                      }}
-                    >
-                      {visibleColumns.map((col, colIdx) => {
-                        const isLastDataCol = colIdx === visibleColumns.length - 1
-                        return (
-                          <TableCell
-                            key={col.id}
-                            className="overflow-hidden py-2.5"
-                            style={(!isLastDataCol && getWidth(col.id)) ? { width: `${getWidth(col.id)}px` } : undefined}
-                          >
-                            <AlarmEventCell columnId={col.id} event={event} isOnCall={isOnCall} onAlarmClick={handleAlarmClick} />
-                          </TableCell>
-                        )
-                      })}
-                      {(canWrite || canDelete) && (
-                        <TableCell className={
-                          'sticky right-0 z-10 border-l border-border/40 py-2 text-right ' +
-                          (isSelected
-                            ? 'bg-primary/[0.07] group-hover:bg-primary/[0.09]'
-                            : 'bg-card group-hover:bg-muted')
-                        }>
-                          <AlarmEventRowActions
-                            event={event}
-                            canWrite={canWrite}
-                            canDelete={canDelete}
-                            onEdit={handleEdit}
-                            onDelete={handleDelete}
-                            onCreateAnalysis={handleCreateAnalysisFromEvent}
-                            onAssociateAnalysis={handleAssociateAnalysis}
-                            onUnlinkAnalysis={handleUnlinkAnalysis}
-                          />
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
+                      event={event}
+                      isChecked={selectedIds.has(event.id)}
+                      isDetailSelected={event.id === selectedEvent?.id && showDetailPanel}
+                      isLingering={event.id === lingeringId && !showDetailPanel}
+                      isOnCall={isOnCallEvent(event)}
+                      visibleColumns={visibleColumns}
+                      getWidth={getWidth}
+                      canWrite={canWrite}
+                      canDelete={canDelete}
+                      onRowClick={handleRowClick}
+                      onToggleSelect={toggleSelectEvent}
+                      onEdit={handleEdit}
+                      onDelete={handleDelete}
+                      onAlarmClick={handleAlarmClick}
+                      onCreateAnalysis={handleCreateAnalysisFromEvent}
+                      onAssociateAnalysis={handleAssociateAnalysis}
+                      onUnlinkAnalysis={handleUnlinkAnalysis}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            </>
           ) : (
             <div className="flex flex-col items-center gap-4 py-16 text-center">
               <div className="rounded-2xl bg-muted/60 p-4">
@@ -777,8 +793,8 @@ function AlarmEventsPageContent() {
           page={pagination.page}
           totalPages={pagination.totalPages}
           pageSize={pageSize}
-          onPageChange={setPage}
-          onPageSizeChange={(size) => { setPageSize(size as AllowedPageSize); setPage(1) }}
+          onPageChange={(p) => { setPage(p); clearSelection() }}
+          onPageSizeChange={(size) => { setPageSize(size as AllowedPageSize); setPage(1); clearSelection() }}
         />
       )}
 
@@ -854,6 +870,14 @@ function AlarmEventsPageContent() {
       <UnlinkAlarmEventFromRow
         unlinkEvent={unlinkEvent}
         onClose={() => setUnlinkEvent(null)}
+      />
+
+      {/* Bulk Ignore Dialog */}
+      <BulkIgnoreDialog
+        open={bulkIgnoreOpen}
+        onOpenChange={setBulkIgnoreOpen}
+        selectedEvents={selectedEvents}
+        onCompleted={clearSelection}
       />
     </div>
   )

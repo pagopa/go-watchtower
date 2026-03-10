@@ -15,14 +15,16 @@ interface DataTableHeaderProps {
   actionsWidth?: number
   actionsLabel?: string
   className?: string
+  prependContent?: React.ReactNode
 }
 
 export function DataTableHeader({
-  columns, getWidth, setWidth, sortBy, sortOrder, onSort, hasActions, actionsWidth = 80, actionsLabel = 'Azioni', className,
+  columns, getWidth, setWidth, sortBy, sortOrder, onSort, hasActions, actionsWidth = 80, actionsLabel = 'Azioni', className, prependContent,
 }: DataTableHeaderProps) {
   return (
     <TableHeader className={className}>
       <TableRow className="bg-muted/30 hover:bg-muted/30 border-b">
+        {prependContent}
         {columns.map((col, idx) => {
           const isLast = idx === columns.length - 1
           return (

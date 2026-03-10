@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import { MoreHorizontal, Plus, Link2, Unlink, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -23,7 +24,7 @@ export interface AlarmEventRowActionsProps {
   onUnlinkAnalysis?: (e: AlarmEvent) => void
 }
 
-export function AlarmEventRowActions({
+export const AlarmEventRowActions = memo(function AlarmEventRowActions({
   event, canWrite, canDelete, onEdit, onDelete,
   onCreateAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
 }: AlarmEventRowActionsProps) {
@@ -91,4 +92,4 @@ export function AlarmEventRowActions({
       </DropdownMenu>
     </div>
   )
-}
+})
