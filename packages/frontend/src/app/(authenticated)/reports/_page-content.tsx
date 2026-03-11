@@ -31,13 +31,18 @@ const AlarmRankingTab = dynamic(
   { ssr: false, loading: () => <Skeleton className="h-64 w-full" /> }
 )
 
+const MonthlyKpiTab = dynamic(
+  () => import('./_components/monthly-kpi-tab').then(m => m.MonthlyKpiTab),
+  { ssr: false, loading: () => <Skeleton className="h-64 w-full" /> }
+)
+
 const ALL_VALUE = '__all__'
 
 export function ReportsPageContent() {
   const { can, isLoading: permissionsLoading } = usePermissions()
   const canReadAnalyses = permissionsLoading || can('ALARM_ANALYSIS', 'read')
 
-  const [activeTab, setActiveTab] = useState<'operators' | 'alarms'>('operators')
+  const [activeTab, setActiveTab] = useState<'operators' | 'alarms' | 'monthly-kpi'>('operators')
   const [selectedProductId, setSelectedProductId] = useState<string>('')
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: startOfMonth(new Date()),
@@ -119,16 +124,20 @@ export function ReportsPageContent() {
       </div>
 
       {canReadAnalyses && (
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'operators' | 'alarms')} className="w-full">
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'operators' | 'alarms' | 'monthly-kpi')} className="w-full">
           <TabsList>
             <TabsTrigger value="operators">Operatori</TabsTrigger>
             <TabsTrigger value="alarms">Allarmi</TabsTrigger>
+            <TabsTrigger value="monthly-kpi">KPI Mensili</TabsTrigger>
           </TabsList>
           <TabsContent value="operators">
             <OperatorWorkloadTab data={operatorData} isLoading={operatorLoading} />
           </TabsContent>
           <TabsContent value="alarms">
             <AlarmRankingTab data={alarmData} isLoading={alarmLoading} />
+          </TabsContent>
+          <TabsContent value="monthly-kpi">
+            <MonthlyKpiTab products={products} />
           </TabsContent>
         </Tabs>
       )}

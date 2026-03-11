@@ -52,3 +52,33 @@ const AlarmRankingItemSchema = Type.Object({
 
 export const AlarmRankingResponseSchema = Type.Array(AlarmRankingItemSchema);
 
+// ============================================================================
+// Monthly KPI Query & Response
+// ============================================================================
+
+export const MonthlyKpiQuerySchema = Type.Object({
+  productId: Type.String(),
+  year: Type.Integer({ minimum: 2020, maximum: 2100 }),
+  month: Type.Integer({ minimum: 1, maximum: 12 }),
+});
+
+export type MonthlyKpiQuery = Static<typeof MonthlyKpiQuerySchema>;
+
+/** Day number (1-31) → count */
+const DayCountsSchema = Type.Record(Type.String(), Type.Integer());
+
+const MonthlyKpiEnvironmentSchema = Type.Object({
+  environmentId: Type.String(),
+  environmentName: Type.String(),
+  alarmEvents: DayCountsSchema,
+  completedAnalyses: DayCountsSchema,
+  ignoredAnalyses: DayCountsSchema,
+});
+
+export const MonthlyKpiResponseSchema = Type.Object({
+  year: Type.Integer(),
+  month: Type.Integer(),
+  daysInMonth: Type.Integer(),
+  environments: Type.Array(MonthlyKpiEnvironmentSchema),
+});
+

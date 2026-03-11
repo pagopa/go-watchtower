@@ -711,6 +711,27 @@ export interface OperatorWorkloadItem {
   }>
 }
 
+export interface MonthlyKpiFilters {
+  productId: string
+  year: number
+  month: number
+}
+
+export interface MonthlyKpiEnvironment {
+  environmentId: string
+  environmentName: string
+  alarmEvents: Record<string, number>
+  completedAnalyses: Record<string, number>
+  ignoredAnalyses: Record<string, number>
+}
+
+export interface MonthlyKpiData {
+  year: number
+  month: number
+  daysInMonth: number
+  environments: MonthlyKpiEnvironment[]
+}
+
 export interface AlarmRankingItem {
   alarmId: string
   alarmName: string
@@ -945,6 +966,10 @@ export const api = {
   getAlarmRanking: (filters?: ReportFilters) =>
     request<AlarmRankingItem[]>('/api/reports/alarm-ranking', {
       params: filters as Record<string, string | number | boolean | undefined>,
+    }),
+  getMonthlyKpi: (filters: MonthlyKpiFilters) =>
+    request<MonthlyKpiData>('/api/reports/monthly-kpi', {
+      params: filters as unknown as Record<string, string | number | boolean | undefined>,
     }),
 
   // Users

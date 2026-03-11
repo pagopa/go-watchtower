@@ -7,8 +7,11 @@ import {
   ReportQuerySchema,
   OperatorWorkloadResponseSchema,
   AlarmRankingResponseSchema,
+  MonthlyKpiQuerySchema,
+  MonthlyKpiResponseSchema,
   ErrorResponseSchema,
   type ReportQuery,
+  type MonthlyKpiQuery,
 } from "./schemas.js";
 
 function buildWhereClause(query: ReportQuery): Prisma.AlarmAnalysisWhereInput {
@@ -275,6 +278,112 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Failed to generate alarm ranking report";
+        HttpError.internal(reply, message);
+      }
+    }
+  );
+
+  // ============================================================================
+  // MONTHLY KPI REPORT
+  // ============================================================================
+
+  app.get<{ Querystring: MonthlyKpiQuery }>(
+    "/reports/monthly-kpi",
+    {
+      onRequest: [app.authenticate, requirePermission(SystemComponent.ALARM_ANALYSIS, "read")],
+      schema: {
+        tags: ["reports"],
+        summary: "Monthly KPI report — daily alarm events, completed and ignored analyses per environment",
+        security: [{ bearerAuth: [] }],
+        querystring: MonthlyKpiQuerySchema,
+        response: {
+          200: MonthlyKpiResponseSchema,
+          403: ErrorResponseSchema,
+          500: ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const { productId, year, month } = request.query;
+
+        // Build date range for the requested month (UTC)
+        const dateFrom = new Date(Date.UTC(year, month - 1, 1));
+        const dateTo = new Date(Date.UTC(year, month, 1)); // exclusive upper bound
+        const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+
+        // 3 queries in parallel:
+        // 1. Alarm events grouped by environment + day
+        // 2. Completed analyses (ANALYZABLE + COMPLETED) grouped by environment + day
+        // 3. Ignored analyses (IGNORABLE) grouped by environment + day
+        const [alarmEventsRaw, completedRaw, ignoredRaw, environments] = await Promise.all([
+          prisma.$queryRaw<Array<{ environment_id: string; day: number; count: bigint }>>`
+            SELECT environment_id, EXTRACT(DAY FROM fired_at AT TIME ZONE 'UTC')::int AS day, COUNT(*)::bigint AS count
+            FROM alarm_events
+            WHERE product_id = ${productId}
+              AND fired_at >= ${dateFrom} AND fired_at < ${dateTo}
+            GROUP BY environment_id, day
+          `,
+          prisma.$queryRaw<Array<{ environment_id: string; day: number; count: bigint }>>`
+            SELECT environment_id, EXTRACT(DAY FROM analysis_date AT TIME ZONE 'UTC')::int AS day, COUNT(*)::bigint AS count
+            FROM alarm_analyses
+            WHERE product_id = ${productId}
+              AND analysis_date >= ${dateFrom} AND analysis_date < ${dateTo}
+              AND status = 'COMPLETED'
+              AND analysis_type = 'ANALYZABLE'
+            GROUP BY environment_id, day
+          `,
+          prisma.$queryRaw<Array<{ environment_id: string; day: number; count: bigint }>>`
+            SELECT environment_id, EXTRACT(DAY FROM analysis_date AT TIME ZONE 'UTC')::int AS day, COUNT(*)::bigint AS count
+            FROM alarm_analyses
+            WHERE product_id = ${productId}
+              AND analysis_date >= ${dateFrom} AND analysis_date < ${dateTo}
+              AND analysis_type = 'IGNORABLE'
+            GROUP BY environment_id, day
+          `,
+          prisma.environment.findMany({
+            where: { productId },
+            select: { id: true, name: true },
+            orderBy: { name: "asc" },
+          }),
+        ]);
+
+        // Build lookup: envId → { alarmEvents: {day: count}, completed: {}, ignored: {} }
+        type DayCounts = Record<string, number>;
+        const envData = new Map<string, { alarmEvents: DayCounts; completedAnalyses: DayCounts; ignoredAnalyses: DayCounts }>();
+
+        const ensure = (envId: string) => {
+          if (!envData.has(envId)) {
+            envData.set(envId, { alarmEvents: {}, completedAnalyses: {}, ignoredAnalyses: {} });
+          }
+          return envData.get(envId)!;
+        };
+
+        for (const r of alarmEventsRaw) {
+          ensure(r.environment_id).alarmEvents[String(r.day)] = Number(r.count);
+        }
+        for (const r of completedRaw) {
+          ensure(r.environment_id).completedAnalyses[String(r.day)] = Number(r.count);
+        }
+        for (const r of ignoredRaw) {
+          ensure(r.environment_id).ignoredAnalyses[String(r.day)] = Number(r.count);
+        }
+
+        const result = environments.map((env: { id: string; name: string }) => {
+          const data = envData.get(env.id) ?? { alarmEvents: {}, completedAnalyses: {}, ignoredAnalyses: {} };
+          return {
+            environmentId: env.id,
+            environmentName: env.name,
+            alarmEvents: data.alarmEvents,
+            completedAnalyses: data.completedAnalyses,
+            ignoredAnalyses: data.ignoredAnalyses,
+          };
+        });
+
+        reply.send({ year, month, daysInMonth, environments: result });
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Failed to generate monthly KPI report";
         HttpError.internal(reply, message);
       }
     }
