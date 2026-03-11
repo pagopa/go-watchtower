@@ -1,6 +1,6 @@
 'use client'
 
-import { Package, Plus, Trash2 } from 'lucide-react'
+import { Info, Package, Plus, Trash2 } from 'lucide-react'
 import { Controller, type Control, type FieldError, type FieldErrors, type FieldValues, type UseFormRegister, type UseFormRegisterReturn } from 'react-hook-form'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/select'
 import { Combobox } from '@/components/ui/combobox'
 import { DateTimePicker } from '@/components/ui/date-time-picker'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import type { Alarm, Environment, Product, UserDetail } from '@/lib/api-client'
 import { romeLocalToISO, utcLocalToISO } from './analysis-form-schemas'
@@ -44,6 +45,30 @@ function TzCompanion({ label, value }: { label: string; value: string }) {
   )
 }
 
+// --- FieldHint ---
+// A small info icon with a tooltip, placed next to field labels.
+
+function FieldHint({ text }: { text: React.ReactNode }) {
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            tabIndex={-1}
+            className="ml-0.5 inline-flex shrink-0 items-center justify-center rounded-full text-muted-foreground/40 transition-colors hover:text-muted-foreground/70 focus:outline-none"
+          >
+            <Info className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-72 text-xs leading-relaxed">
+          {text}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
 // --- AlarmField ---
 
 interface AlarmFieldProps {
@@ -58,7 +83,10 @@ interface AlarmFieldProps {
 export function AlarmField({ control, errors, disabled, alarms, showOnCall = true, onAlarmChange }: AlarmFieldProps) {
   return (
     <div className="space-y-2 sm:col-span-2">
-      <Label>Allarme *</Label>
+      <div className="flex items-center">
+        <Label>Allarme *</Label>
+        <FieldHint text="Selezionando un allarme che ha un runbook associato, il campo Runbook viene compilato automaticamente." />
+      </div>
       <div className="flex items-start gap-3">
         <div className="flex-1 space-y-1">
           <Controller
@@ -172,7 +200,10 @@ interface OccurrencesFieldProps {
 export function OccurrencesField({ registration, errors, disabled }: OccurrencesFieldProps) {
   return (
     <div className="space-y-2">
-      <Label htmlFor="form-occurrences">Occorrenze</Label>
+      <div className="flex items-center">
+        <Label htmlFor="form-occurrences">Occorrenze</Label>
+        <FieldHint text="Numero di volte che l'allarme si e' attivato in questo evento. Usato nei report KPI per calcolare il totale giornaliero." />
+      </div>
       <Input
         id="form-occurrences"
         type="number"
@@ -201,9 +232,10 @@ interface FirstAlarmFieldProps {
 export function FirstAlarmField({ control, errors, disabled, onAutoFill, showNow }: FirstAlarmFieldProps) {
   return (
     <div className="space-y-2">
-      <div className="flex items-baseline gap-1.5">
+      <div className="flex items-center gap-1.5">
         <Label>Primo allarme *</Label>
         <span className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wide">UTC</span>
+        <FieldHint text={<>Inserisci la data/ora in UTC. Puoi incollare date in vari formati: <span className="font-mono">28/02/2026 08:00</span>, <span className="font-mono">28/02/2026 08.00.55</span>, oppure ISO come <span className="font-mono">2026-02-28T08:00:55Z</span>. Se &quot;Ultimo allarme&quot; e' vuoto, viene compilato automaticamente con lo stesso valore.</>} />
       </div>
       <Controller
         name="firstAlarmAt"
@@ -250,9 +282,10 @@ interface LastAlarmFieldProps {
 export function LastAlarmField({ control, errors, disabled, dateError }: LastAlarmFieldProps) {
   return (
     <div className="space-y-2">
-      <div className="flex items-baseline gap-1.5">
+      <div className="flex items-center gap-1.5">
         <Label>Ultimo allarme *</Label>
         <span className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wide">UTC</span>
+        <FieldHint text={<>Inserisci la data/ora in UTC. Puoi incollare date in vari formati: <span className="font-mono">28/02/2026 08:00</span>, <span className="font-mono">28/02/2026 08.00.55</span>, oppure ISO. Deve essere uguale o successivo al primo allarme.</>} />
       </div>
       <Controller
         name="lastAlarmAt"
@@ -310,9 +343,10 @@ export function AnalysisDateField({ control, errors, disabled, dateError }: Anal
           }
           return (
             <>
-              <div className="flex items-baseline gap-1.5">
+              <div className="flex items-center gap-1.5">
                 <Label>Data analisi *</Label>
                 <span className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wide">ora Roma</span>
+                <FieldHint text={<>Inserisci la data/ora nel fuso orario di Roma (Europe/Rome). Puoi incollare date in vari formati: <span className="font-mono">28/02/2026 08:00</span>, <span className="font-mono">28/02/2026 08.00.55</span>, oppure ISO. Usa il pulsante orologio per impostare data e ora corrente.</>} />
               </div>
               <div>
                 <DateTimePicker
@@ -633,7 +667,10 @@ interface LinksFieldProps {
 export function LinksField({ fields, append, remove, register, errors, linkUrlValues, disabled }: LinksFieldProps) {
   return (
     <div className="space-y-3 sm:col-span-2">
-      <Label>Link</Label>
+      <div className="flex items-center">
+        <Label>Link</Label>
+        <FieldHint text="Il tipo di link (CloudWatch, Jira, Confluence, ecc.) viene rilevato automaticamente dall'URL inserito." />
+      </div>
       {fields.map((field, index) => {
         const urlValue = linkUrlValues[index] ?? ''
         const linkType = urlValue ? inferLinkType(urlValue) : ''
