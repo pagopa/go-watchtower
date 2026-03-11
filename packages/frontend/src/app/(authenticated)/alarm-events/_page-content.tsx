@@ -110,7 +110,7 @@ export function AlarmEventsPageWrapper() {
 function AlarmEventsPageContent() {
   const queryClient = useQueryClient()
   const { can, isLoading: permissionsLoading } = usePermissions()
-  const { preferences, isLoading: prefsLoading, updatePreferences } = usePreferences()
+  const { preferences, updatePreferences } = usePreferences()
 
   // Filters — persisted in user preferences under savedFilters['alarmEvents'].
   // filtersOverride is null until the user changes filters in this session;

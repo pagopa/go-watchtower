@@ -325,7 +325,7 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
             GROUP BY environment_id, day
           `,
           prisma.$queryRaw<Array<{ environment_id: string; day: number; count: bigint }>>`
-            SELECT environment_id, EXTRACT(DAY FROM analysis_date AT TIME ZONE 'UTC')::int AS day, COUNT(*)::bigint AS count
+            SELECT environment_id, EXTRACT(DAY FROM analysis_date AT TIME ZONE 'UTC')::int AS day, COALESCE(SUM(occurrences), 0)::bigint AS count
             FROM alarm_analyses
             WHERE product_id = ${productId}
               AND analysis_date >= ${dateFrom} AND analysis_date < ${dateTo}
@@ -334,7 +334,7 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
             GROUP BY environment_id, day
           `,
           prisma.$queryRaw<Array<{ environment_id: string; day: number; count: bigint }>>`
-            SELECT environment_id, EXTRACT(DAY FROM analysis_date AT TIME ZONE 'UTC')::int AS day, COUNT(*)::bigint AS count
+            SELECT environment_id, EXTRACT(DAY FROM analysis_date AT TIME ZONE 'UTC')::int AS day, COALESCE(SUM(occurrences), 0)::bigint AS count
             FROM alarm_analyses
             WHERE product_id = ${productId}
               AND analysis_date >= ${dateFrom} AND analysis_date < ${dateTo}
@@ -344,7 +344,7 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
           prisma.environment.findMany({
             where: { productId },
             select: { id: true, name: true },
-            orderBy: { name: "asc" },
+            orderBy: [{ order: "asc" }, { name: "asc" }],
           }),
         ]);
 
