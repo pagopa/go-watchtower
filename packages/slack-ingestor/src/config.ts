@@ -1,6 +1,8 @@
 export type ParserId = "amazon-q" | "opsgenie" | "email-sns";
 
 export interface ChannelConfig {
+  /** Human-readable label for logs (e.g. "SEND prod") */
+  label: string;
   /** Slack channel ID (e.g. C0123ABCDEF) */
   channelId: string;
   /** UUID of the product in the DB */
@@ -41,16 +43,18 @@ export const CHANNEL_REGISTRY: ChannelConfig[] = [
 
   // SEND - prod
   {
+    label:               'SEND / Produzione',
     channelId:           'C0585442Z39',
     productId:           'd0000000-0000-0000-0000-000000000001',
     environmentId:       'e0000000-0000-0000-0001-000000000001',
     parserId:            'opsgenie',
     defaultAwsAccountId: '350578575906',
     defaultAwsRegion:    'eu-south-1',
-  },  
+  },
 
   // SEND - UAT
   {
+    label:               'SEND / UAT',
     channelId:           'C03JJLHL5K8',
     productId:           'd0000000-0000-0000-0000-000000000001',
     environmentId:       'e0000000-0000-0000-0001-000000000002',
@@ -59,8 +63,20 @@ export const CHANNEL_REGISTRY: ChannelConfig[] = [
     defaultAwsRegion:    'eu-south-1',
   },
 
+  // SEND - Building block (PROD)
+  {
+    label:               'SEND / Building Block',
+    channelId:           'C0AGKJCMYDQ',
+    productId:           'd0000000-0000-0000-0000-000000000001',
+    environmentId:       'e0000000-0000-0000-0001-000000000001',
+    parserId:            'email-sns',
+    defaultAwsAccountId: '730335668132',
+    defaultAwsRegion:    'eu-south-1',
+  },
+
   // interop - PROD
   {
+    label:               'Interop / Produzione',
     channelId:           'C0472QPG5D2',
     productId:           'd0000000-0000-0000-0000-000000000002',
     environmentId:       'e0000000-0000-0000-0002-000000000001',
@@ -71,6 +87,7 @@ export const CHANNEL_REGISTRY: ChannelConfig[] = [
 
   // interop - Attestazione
   {
+    label:               'Interop / Attestazione',
     channelId:           'C06LQ7Y8B17',
     productId:           'd0000000-0000-0000-0000-000000000002',
     environmentId:       'e0000000-0000-0000-0002-000000000002',
@@ -81,6 +98,7 @@ export const CHANNEL_REGISTRY: ChannelConfig[] = [
 
   // interop - Collaudo
   {
+    label:               'Interop / Collaudo',
     channelId:           'C04708Y1QP5',
     productId:           'd0000000-0000-0000-0000-000000000002',
     environmentId:       'e0000000-0000-0000-0002-000000000003',
@@ -91,6 +109,7 @@ export const CHANNEL_REGISTRY: ChannelConfig[] = [
 
   // interop - Catalog
   {
+    label:               'Interop / Catalog',
     channelId:           'C09RVCSL4BS',
     productId:           'd0000000-0000-0000-0000-000000000002',
     environmentId:       'e0000000-0000-0000-0002-000000000004',
