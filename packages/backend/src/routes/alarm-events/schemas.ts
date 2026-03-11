@@ -65,8 +65,8 @@ export const AlarmEventsQuerySchema = Type.Object({
   analysisId:    Type.Optional(Type.String()),
   awsAccountId:  Type.Optional(Type.String()),
   awsRegion:     Type.Optional(Type.String()),
-  dateFrom:      Type.Optional(Type.String({ format: "date-time" })),
-  dateTo:        Type.Optional(Type.String({ format: "date-time" })),
+  dateFrom:      Type.Optional(Type.String()),
+  dateTo:        Type.Optional(Type.String()),
   page:          Type.Optional(Type.Integer({ minimum: 1, default: 1 })),
   pageSize:      Type.Optional(Type.Integer({ minimum: 1, maximum: 1000, default: 20 })),
 });

@@ -19,7 +19,7 @@ interface DataTableHeaderProps {
 }
 
 export function DataTableHeader({
-  columns, getWidth, setWidth, sortBy, sortOrder, onSort, hasActions, actionsWidth = 80, actionsLabel = 'Azioni', className, prependContent,
+  columns, getWidth, setWidth, sortBy, sortOrder, onSort, hasActions, actionsWidth = 48, actionsLabel = 'Azioni', className, prependContent,
 }: DataTableHeaderProps) {
   return (
     <TableHeader className={className}>

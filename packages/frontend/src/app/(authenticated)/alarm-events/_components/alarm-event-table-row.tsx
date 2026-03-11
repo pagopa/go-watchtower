@@ -22,6 +22,7 @@ export interface AlarmEventTableRowProps {
   getWidth: (id: string) => number | undefined
   canWrite: boolean
   canDelete: boolean
+  canWriteAnalysis: boolean
   onRowClick: (event: AlarmEvent) => void
   onToggleSelect: (eventId: string) => void
   onEdit: (event: AlarmEvent) => void
@@ -42,6 +43,7 @@ export const AlarmEventTableRow = memo(function AlarmEventTableRow({
   getWidth,
   canWrite,
   canDelete,
+  canWriteAnalysis,
   onRowClick,
   onToggleSelect,
   onEdit,
@@ -91,9 +93,9 @@ export const AlarmEventTableRow = memo(function AlarmEventTableRow({
           </TableCell>
         )
       })}
-      {(canWrite || canDelete) && (
+      {(canWrite || canDelete || canWriteAnalysis) && (
         <TableCell className={
-          'sticky right-0 z-10 border-l border-border/40 py-2 text-right ' +
+          'relative sticky right-0 z-10 border-l border-border/40 py-2 ' +
           (isDetailSelected
             ? 'bg-primary/[0.07] group-hover:bg-primary/[0.09]'
             : 'bg-card group-hover:bg-muted')
@@ -104,9 +106,9 @@ export const AlarmEventTableRow = memo(function AlarmEventTableRow({
             canDelete={canDelete}
             onEdit={onEdit}
             onDelete={onDelete}
-            onCreateAnalysis={onCreateAnalysis}
-            onAssociateAnalysis={onAssociateAnalysis}
-            onUnlinkAnalysis={onUnlinkAnalysis}
+            onCreateAnalysis={canWriteAnalysis ? onCreateAnalysis : undefined}
+            onAssociateAnalysis={canWriteAnalysis ? onAssociateAnalysis : undefined}
+            onUnlinkAnalysis={canWriteAnalysis ? onUnlinkAnalysis : undefined}
           />
         </TableCell>
       )}

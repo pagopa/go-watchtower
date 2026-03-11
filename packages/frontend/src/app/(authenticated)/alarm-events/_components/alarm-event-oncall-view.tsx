@@ -26,6 +26,7 @@ export interface AlarmEventOnCallViewProps {
   totalMinWidth:   number
   canWrite:        boolean
   canDelete:       boolean
+  canWriteAnalysis: boolean
   selectedEventId: string | null
   showDetailPanel: boolean
   lingeringId:     string | null
@@ -284,7 +285,7 @@ export function OnCallNavigation({
 export function AlarmEventOnCallView({
   workingHours, onCallHours, filters,
   visibleColumns, getWidth, totalMinWidth,
-  canWrite, canDelete,
+  canWrite, canDelete, canWriteAnalysis,
   selectedEventId, showDetailPanel, lingeringId,
   onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
   onCreateAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
@@ -323,7 +324,7 @@ export function AlarmEventOnCallView({
     [allEvents, splitAt],
   )
 
-  const bucketProps = { visibleColumns, getWidth, totalMinWidth, canWrite, canDelete,
+  const bucketProps = { visibleColumns, getWidth, totalMinWidth, canWrite, canDelete, canWriteAnalysis,
     selectedEventId, showDetailPanel, lingeringId, onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
     onCreateAnalysis, onAssociateAnalysis, onUnlinkAnalysis }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
 import { Loader2, AlertTriangle, Unlink, Trash2 } from 'lucide-react'
@@ -14,6 +14,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
 import { api, type AlarmAnalysis } from '@/lib/api-client'
 import { usePermissions } from '@/hooks/use-permissions'
 
@@ -36,6 +38,13 @@ export function UnlinkAlarmEventDialog({
   const { data: session } = useSession()
   const { canFor, getScope } = usePermissions()
   const currentUserId = session?.user?.id
+  const [decrementOccurrences, setDecrementOccurrences] = useState(true)
+
+  // Reset state when dialog closes
+  const handleOpenChange = (isOpen: boolean) => {
+    if (!isOpen) setDecrementOccurrences(true)
+    onOpenChange(isOpen)
+  }
 
   // Fetch lock days policy
   const { data: policy } = useQuery({
@@ -65,18 +74,19 @@ export function UnlinkAlarmEventDialog({
   }, [analysis, lockDays, getScope, canFor, currentUserId])
 
   const isSingleOccurrence = analysis?.occurrences === 1
+  const canDecrement = !isSingleOccurrence && permissions.canEdit
 
   const invalidateAll = () => {
     queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string).startsWith('alarm-events') })
     queryClient.invalidateQueries({ queryKey: ['analyses'] })
   }
 
-  // Unlink: remove analysisId from event + decrement occurrences (if > 1)
+  // Unlink: remove analysisId from event + optionally decrement occurrences
   const unlinkMutation = useMutation({
     mutationFn: async () => {
       if (!eventId || !analysis) throw new Error('Missing data')
-      await api.updateAlarmEvent(eventId, { analysisId: null })
-      if (!isSingleOccurrence && permissions.canEdit) {
+      await api.linkAlarmEventAnalysis(eventId, null)
+      if (canDecrement && decrementOccurrences) {
         await api.updateAnalysis(analysis.productId, analysis.id, {
           occurrences: analysis.occurrences - 1,
         })
@@ -84,11 +94,13 @@ export function UnlinkAlarmEventDialog({
     },
     onSuccess: () => {
       invalidateAll()
-      toast.success(isSingleOccurrence
-        ? 'Allarme scollegato (occorrenze invariate)'
-        : 'Allarme scollegato e occorrenze decrementate')
+      if (canDecrement && decrementOccurrences) {
+        toast.success('Allarme scollegato e occorrenze decrementate')
+      } else {
+        toast.success('Allarme scollegato (occorrenze invariate)')
+      }
       onCompleted()
-      onOpenChange(false)
+      handleOpenChange(false)
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Errore durante lo scollegamento')
@@ -99,14 +111,14 @@ export function UnlinkAlarmEventDialog({
   const deleteMutation = useMutation({
     mutationFn: async () => {
       if (!eventId || !analysis) throw new Error('Missing data')
-      await api.updateAlarmEvent(eventId, { analysisId: null })
+      await api.linkAlarmEventAnalysis(eventId, null)
       await api.deleteAnalysis(analysis.productId, analysis.id)
     },
     onSuccess: () => {
       invalidateAll()
       toast.success('Allarme scollegato e analisi eliminata')
       onCompleted()
-      onOpenChange(false)
+      handleOpenChange(false)
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Errore durante l\'eliminazione')
@@ -116,7 +128,7 @@ export function UnlinkAlarmEventDialog({
   const isPending = unlinkMutation.isPending || deleteMutation.isPending
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Scollega allarme scattato</DialogTitle>
@@ -137,13 +149,26 @@ export function UnlinkAlarmEventDialog({
               </p>
             </div>
 
-            {/* Normal case: occurrences > 1 */}
-            {!isSingleOccurrence && (
-              <p className="text-sm text-muted-foreground">
-                Le occorrenze verranno decrementate da{' '}
-                <span className="font-semibold text-foreground">{analysis.occurrences}</span> a{' '}
-                <span className="font-semibold text-foreground">{analysis.occurrences - 1}</span>.
-              </p>
+            {/* Decrement toggle — only when occurrences > 1 and user can edit */}
+            {canDecrement && (
+              <div className="flex items-start gap-3 rounded-md border border-border/50 bg-muted/20 px-3 py-2.5">
+                <Switch
+                  id="decrement-occurrences"
+                  checked={decrementOccurrences}
+                  onCheckedChange={setDecrementOccurrences}
+                  className="mt-0.5"
+                />
+                <div className="min-w-0 space-y-0.5">
+                  <Label htmlFor="decrement-occurrences" className="text-sm font-medium cursor-pointer">
+                    Decrementa occorrenze
+                  </Label>
+                  <p className="text-xs text-muted-foreground/70">
+                    {decrementOccurrences
+                      ? `Il contatore occorrenze dell'analisi passerà da ${analysis.occurrences} a ${analysis.occurrences - 1}.`
+                      : 'L\'evento verrà scollegato senza modificare il contatore occorrenze dell\'analisi.'}
+                  </p>
+                </div>
+              </div>
             )}
 
             {/* Warning: single occurrence */}
@@ -178,7 +203,7 @@ export function UnlinkAlarmEventDialog({
         <DialogFooter className="flex-col gap-2 sm:flex-row">
           <Button
             variant="outline"
-            onClick={() => onOpenChange(false)}
+            onClick={() => handleOpenChange(false)}
             disabled={isPending}
           >
             Annulla

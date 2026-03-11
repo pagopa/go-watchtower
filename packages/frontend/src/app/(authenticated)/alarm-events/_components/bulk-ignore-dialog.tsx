@@ -176,7 +176,7 @@ export function BulkIgnoreDialog({
 
         // Collega ogni evento all'analisi creata
         for (const eventId of row.eventIds) {
-          await api.updateAlarmEvent(eventId, { analysisId: analysis.id })
+          await api.linkAlarmEventAnalysis(eventId, analysis.id)
         }
       }
 

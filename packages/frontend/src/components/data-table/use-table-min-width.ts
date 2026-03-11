@@ -20,7 +20,7 @@ export function useTableMinWidth(
     const lastColMin = lastCol
       ? (getWidth(lastCol.id) ?? lastCol.defaultWidth ?? lastCol.minWidth ?? 80)
       : 80
-    const actionsWidth = hasActions ? 80 : 0
+    const actionsWidth = hasActions ? 48 : 0
     return nonLastSum + lastColMin + actionsWidth
   }, [visibleColumns, getWidth, hasActions])
 }

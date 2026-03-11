@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
+import { Type } from "@sinclair/typebox";
 import { prisma, SystemComponent } from "@go-watchtower/database";
 import { buildDiff } from "../../services/system-event.service.js";
 import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
@@ -259,6 +260,61 @@ export async function alarmEventRoutes(app: FastifyInstance) {
         resourceId:    updated.id,
         resourceLabel: updated.name,
         metadata:      { changes: buildDiff(existing, updated, ["description", "reason", "alarmId", "analysisId"]) },
+      });
+
+      return reply.send(formatResponse(updated));
+    }
+  );
+
+  // ─── PATCH /alarm-events/:id/link-analysis ──────────────────────────────
+  //
+  // Dedicated endpoint for linking/unlinking an analysis to an alarm event.
+  // Requires ALARM_ANALYSIS write (not ALARM_EVENT write) so that operators
+  // who can create analyses can also associate them to events.
+
+  server.patch<{ Params: AlarmEventParams; Body: { analysisId: string | null } }>(
+    "/alarm-events/:id/link-analysis",
+    {
+      onRequest: [server.authenticate, requirePermission(SystemComponent.ALARM_ANALYSIS, "write")],
+      schema: {
+        tags: ["Alarm Events"],
+        summary: "Link or unlink an analysis to/from an alarm event",
+        security: [{ bearerAuth: [] }],
+        params: AlarmEventParamsSchema,
+        body: Type.Object({
+          analysisId: Type.Union([Type.String({ minLength: 1 }), Type.Null()]),
+        }),
+        response: {
+          200: AlarmEventResponseSchema,
+          403: ErrorResponseSchema,
+          404: ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const existing = await prisma.alarmEvent.findUnique({
+        where: { id: request.params.id },
+        select: { id: true, name: true, analysisId: true },
+      });
+
+      if (!existing) {
+        return HttpError.notFound(reply, "Alarm event");
+      }
+
+      const analysisId = request.body.analysisId || null;
+
+      const updated = await prisma.alarmEvent.update({
+        where: { id: request.params.id },
+        data: { analysisId },
+        include,
+      });
+
+      request.auditEvents.push({
+        action:        SystemEventActions.ALARM_EVENT_UPDATED,
+        resource:      SystemEventResources.ALARM_EVENTS,
+        resourceId:    updated.id,
+        resourceLabel: updated.name,
+        metadata:      { changes: buildDiff(existing, updated, ["analysisId"]) },
       });
 
       return reply.send(formatResponse(updated));

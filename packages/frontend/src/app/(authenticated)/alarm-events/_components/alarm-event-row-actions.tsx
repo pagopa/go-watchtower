@@ -2,7 +2,6 @@
 
 import { memo } from 'react'
 import { MoreHorizontal, Plus, Link2, Unlink, Pencil, Trash2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,18 +34,17 @@ export const AlarmEventRowActions = memo(function AlarmEventRowActions({
   if (!hasAnalysisActions && !hasEventActions) return null
 
   return (
-    <div className="flex justify-end opacity-0 transition-opacity group-hover:opacity-100 has-[[data-state=open]]:opacity-100">
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <div
+          role="button"
+          tabIndex={-1}
+          className="absolute inset-0 flex cursor-pointer items-center justify-center opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+        </div>
+      </DropdownMenuTrigger>
         <DropdownMenuContent align="end" onCloseAutoFocus={(e) => e.preventDefault()}>
           {hasAnalysisActions && (
             <>
@@ -90,6 +88,5 @@ export const AlarmEventRowActions = memo(function AlarmEventRowActions({
           )}
         </DropdownMenuContent>
       </DropdownMenu>
-    </div>
   )
 })

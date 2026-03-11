@@ -106,6 +106,7 @@ const EventRow = forwardRef<HTMLTableRowElement, {
   getWidth: (id: string) => number | undefined
   canWrite: boolean
   canDelete: boolean
+  canWriteAnalysis: boolean
   selectedEventId: string | null
   showDetailPanel: boolean
   lingeringId: string | null
@@ -120,7 +121,7 @@ const EventRow = forwardRef<HTMLTableRowElement, {
   indented?: boolean
   dataIndex?: number
 }>(function EventRow({
-  event, visibleColumns, getWidth, canWrite, canDelete,
+  event, visibleColumns, getWidth, canWrite, canDelete, canWriteAnalysis,
   selectedEventId, showDetailPanel, lingeringId,
   onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
   onCreateAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
@@ -163,9 +164,9 @@ const EventRow = forwardRef<HTMLTableRowElement, {
           </TableCell>
         )
       })}
-      {(canWrite || canDelete) && (
+      {(canWrite || canDelete || canWriteAnalysis) && (
         <TableCell className={
-          'sticky right-0 z-10 border-l border-border/40 py-2 text-right ' +
+          'relative sticky right-0 z-10 border-l border-border/40 py-2 ' +
           (isSelected
             ? 'bg-primary/[0.07] group-hover:bg-primary/[0.09]'
             : 'bg-card group-hover:bg-muted')
@@ -176,9 +177,9 @@ const EventRow = forwardRef<HTMLTableRowElement, {
             canDelete={canDelete}
             onEdit={onEdit}
             onDelete={onDelete}
-            onCreateAnalysis={onCreateAnalysis}
-            onAssociateAnalysis={onAssociateAnalysis}
-            onUnlinkAnalysis={onUnlinkAnalysis}
+            onCreateAnalysis={canWriteAnalysis ? onCreateAnalysis : undefined}
+            onAssociateAnalysis={canWriteAnalysis ? onAssociateAnalysis : undefined}
+            onUnlinkAnalysis={canWriteAnalysis ? onUnlinkAnalysis : undefined}
           />
         </TableCell>
       )}
@@ -200,7 +201,7 @@ const VIRTUALIZE_THRESHOLD = 100
 function GroupedBucketSection({
   cfg, events, timeRange,
   visibleColumns, getWidth, totalMinWidth,
-  canWrite, canDelete,
+  canWrite, canDelete, canWriteAnalysis,
   selectedEventId, showDetailPanel, lingeringId,
   onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
   onCreateAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
@@ -213,6 +214,7 @@ function GroupedBucketSection({
   totalMinWidth:   number
   canWrite:        boolean
   canDelete:       boolean
+  canWriteAnalysis: boolean
   selectedEventId: string | null
   showDetailPanel: boolean
   lingeringId:     string | null
@@ -241,7 +243,7 @@ function GroupedBucketSection({
     })
   }
 
-  const hasActions = canWrite || canDelete
+  const hasActions = canWrite || canDelete || canWriteAnalysis
   const totalColSpan = visibleColumns.length + (hasActions ? 1 : 0)
 
   // Flatten groups into a virtual list
@@ -274,7 +276,7 @@ function GroupedBucketSection({
   })
 
   const rowProps = {
-    visibleColumns, getWidth, canWrite, canDelete,
+    visibleColumns, getWidth, canWrite, canDelete, canWriteAnalysis,
     selectedEventId, showDetailPanel, lingeringId,
     onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
     onCreateAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
@@ -321,8 +323,8 @@ function GroupedBucketSection({
         })}
         {hasActions && (
           <ResizableTableHead
-            width={80}
-            minWidth={80}
+            width={48}
+            minWidth={48}
             className="sticky right-0 z-10 border-l border-border/40 bg-muted text-right"
           >
             <span className="sr-only">Azioni</span>
@@ -406,7 +408,7 @@ const DEFAULT_WH: WorkingHours = { timezone: 'Europe/Rome', start: '09:00', end:
 export function AlarmEventGroupedView({
   workingHours, onCallHours, filters,
   visibleColumns, getWidth, totalMinWidth,
-  canWrite, canDelete,
+  canWrite, canDelete, canWriteAnalysis,
   selectedEventId, showDetailPanel, lingeringId,
   onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
   onCreateAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
@@ -447,7 +449,7 @@ export function AlarmEventGroupedView({
     [allEvents, splitAt],
   )
 
-  const bucketProps = { visibleColumns, getWidth, totalMinWidth, canWrite, canDelete,
+  const bucketProps = { visibleColumns, getWidth, totalMinWidth, canWrite, canDelete, canWriteAnalysis,
     selectedEventId, showDetailPanel, lingeringId, onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
     onCreateAnalysis, onAssociateAnalysis, onUnlinkAnalysis }
 

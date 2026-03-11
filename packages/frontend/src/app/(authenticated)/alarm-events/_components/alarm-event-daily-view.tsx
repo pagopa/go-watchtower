@@ -33,6 +33,7 @@ export interface AlarmEventDailyViewProps {
   totalMinWidth:   number
   canWrite:        boolean
   canDelete:       boolean
+  canWriteAnalysis: boolean
   selectedEventId: string | null
   showDetailPanel: boolean
   lingeringId:     string | null
@@ -249,7 +250,7 @@ const VIRTUALIZE_THRESHOLD = 100
 export function BucketSection({
   cfg, events, timeRange,
   visibleColumns, getWidth, totalMinWidth,
-  canWrite, canDelete,
+  canWrite, canDelete, canWriteAnalysis,
   selectedEventId, showDetailPanel, lingeringId,
   onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
   onCreateAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
@@ -262,6 +263,7 @@ export function BucketSection({
   totalMinWidth:   number
   canWrite:        boolean
   canDelete:       boolean
+  canWriteAnalysis: boolean
   selectedEventId: string | null
   showDetailPanel: boolean
   lingeringId:     string | null
@@ -287,7 +289,7 @@ export function BucketSection({
     enabled: shouldVirtualize && !collapsed,
   })
 
-  const hasActions = canWrite || canDelete
+  const hasActions = canWrite || canDelete || canWriteAnalysis
   const totalColSpan = visibleColumns.length + (hasActions ? 1 : 0)
 
   const renderRow = (event: AlarmEvent, ref?: (el: HTMLTableRowElement | null) => void, dataIndex?: number) => {
@@ -330,7 +332,7 @@ export function BucketSection({
         })}
         {hasActions && (
           <TableCell className={
-            'sticky right-0 z-10 border-l border-border/40 py-2 text-right ' +
+            'relative sticky right-0 z-10 border-l border-border/40 py-2 ' +
             (isSelected
               ? 'bg-primary/[0.07] group-hover:bg-primary/[0.09]'
               : 'bg-card group-hover:bg-muted')
@@ -341,9 +343,9 @@ export function BucketSection({
               canDelete={canDelete}
               onEdit={onEdit}
               onDelete={onDelete}
-              onCreateAnalysis={onCreateAnalysis}
-              onAssociateAnalysis={onAssociateAnalysis}
-              onUnlinkAnalysis={onUnlinkAnalysis}
+              onCreateAnalysis={canWriteAnalysis ? onCreateAnalysis : undefined}
+              onAssociateAnalysis={canWriteAnalysis ? onAssociateAnalysis : undefined}
+              onUnlinkAnalysis={canWriteAnalysis ? onUnlinkAnalysis : undefined}
             />
           </TableCell>
         )}
@@ -370,8 +372,8 @@ export function BucketSection({
         })}
         {hasActions && (
           <ResizableTableHead
-            width={80}
-            minWidth={80}
+            width={48}
+            minWidth={48}
             className="sticky right-0 z-10 border-l border-border/40 bg-muted text-right"
           >
             <span className="sr-only">Azioni</span>
@@ -455,7 +457,7 @@ const DEFAULT_WH: WorkingHours = { timezone: 'Europe/Rome', start: '09:00', end:
 export function AlarmEventDailyView({
   selectedDate, onDateChange, workingHours, filters,
   visibleColumns, getWidth, totalMinWidth,
-  canWrite, canDelete,
+  canWrite, canDelete, canWriteAnalysis,
   selectedEventId, showDetailPanel, lingeringId,
   onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
   onCreateAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
@@ -494,7 +496,7 @@ export function AlarmEventDailyView({
     [allEvents, wh],
   )
 
-  const bucketProps = { visibleColumns, getWidth, totalMinWidth, canWrite, canDelete,
+  const bucketProps = { visibleColumns, getWidth, totalMinWidth, canWrite, canDelete, canWriteAnalysis,
     selectedEventId, showDetailPanel, lingeringId, onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
     onCreateAnalysis, onAssociateAnalysis, onUnlinkAnalysis }
 

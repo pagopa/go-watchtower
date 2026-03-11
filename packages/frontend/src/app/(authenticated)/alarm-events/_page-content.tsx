@@ -152,21 +152,15 @@ function AlarmEventsPageContent() {
   // Multi-select (hook called after events query below)
   const [bulkIgnoreOpen, setBulkIgnoreOpen] = useState(false)
 
-  // View mode — persisted in user preferences.
-  // Initialized to 'list'; synced once preferences load from the server
-  // (staleTime=Infinity, so subsequent navigations resolve from cache synchronously).
-  const [viewMode, setViewMode] = useState<'list' | 'daily' | 'oncall' | 'grouped'>('list')
-  const viewModeInitialized = useRef(false)
-  useEffect(() => {
-    if (!viewModeInitialized.current && preferences.alarmEventViewMode) {
-      viewModeInitialized.current = true
-      setViewMode(preferences.alarmEventViewMode)
-    }
-  }, [preferences.alarmEventViewMode])
+  // View mode — derived from user preferences when available, local override otherwise.
+  // preferences.alarmEventViewMode resolves synchronously from cache on subsequent
+  // navigations (staleTime=Infinity). The local override is set only when the user
+  // explicitly changes the view mode; until then we follow the server preference.
+  const [viewModeOverride, setViewModeOverride] = useState<'list' | 'daily' | 'oncall' | 'grouped' | null>(null)
+  const viewMode = viewModeOverride ?? (preferences.alarmEventViewMode as 'list' | 'daily' | 'oncall' | 'grouped' | undefined) ?? 'list'
 
   const handleSetViewMode = useCallback((mode: 'list' | 'daily' | 'oncall' | 'grouped') => {
-    viewModeInitialized.current = true
-    setViewMode(mode)
+    setViewModeOverride(mode)
     updatePreferences({ alarmEventViewMode: mode })
   }, [updatePreferences])
   const [selectedDate, setSelectedDate] = useState<string>(() => todayUTC())
@@ -177,6 +171,8 @@ function AlarmEventsPageContent() {
   // Permissions
   const canWrite  = !permissionsLoading && can('ALARM_EVENT', 'write')
   const canDelete = !permissionsLoading && can('ALARM_EVENT', 'delete')
+  const canWriteAnalysis = !permissionsLoading && can('ALARM_ANALYSIS', 'write')
+  const hasRowActions = canWrite || canDelete || canWriteAnalysis
 
   // Column settings
   const {
@@ -191,7 +187,7 @@ function AlarmEventsPageContent() {
     resetColumns,
   } = useColumnSettings('alarmEvents', ALARM_EVENT_COLUMNS)
 
-  const totalTableMinWidth = useTableMinWidth(visibleColumns, getWidth, canWrite || canDelete)
+  const totalTableMinWidth = useTableMinWidth(visibleColumns, getWidth, hasRowActions)
 
   // --- Queries ---
 
@@ -482,7 +478,7 @@ function AlarmEventsPageContent() {
       const analysis = await api.createAnalysis(analysisProductId, data)
       // Link the alarm event to the new analysis
       if (analysisSourceEventId) {
-        await api.updateAlarmEvent(analysisSourceEventId, { analysisId: analysis.id })
+        await api.linkAlarmEventAnalysis(analysisSourceEventId, analysis.id)
       }
       return analysis
     },
@@ -601,6 +597,7 @@ function AlarmEventsPageContent() {
           totalMinWidth={totalTableMinWidth}
           canWrite={canWrite}
           canDelete={canDelete}
+          canWriteAnalysis={canWriteAnalysis}
           selectedEventId={selectedEvent?.id ?? null}
           showDetailPanel={showDetailPanel}
           lingeringId={lingeringId}
@@ -626,6 +623,7 @@ function AlarmEventsPageContent() {
           totalMinWidth={totalTableMinWidth}
           canWrite={canWrite}
           canDelete={canDelete}
+          canWriteAnalysis={canWriteAnalysis}
           selectedEventId={selectedEvent?.id ?? null}
           showDetailPanel={showDetailPanel}
           lingeringId={lingeringId}
@@ -651,6 +649,7 @@ function AlarmEventsPageContent() {
           totalMinWidth={totalTableMinWidth}
           canWrite={canWrite}
           canDelete={canDelete}
+          canWriteAnalysis={canWriteAnalysis}
           selectedEventId={selectedEvent?.id ?? null}
           showDetailPanel={showDetailPanel}
           lingeringId={lingeringId}
@@ -688,6 +687,9 @@ function AlarmEventsPageContent() {
           ) : eventsError && !events ? (
             <div className="flex flex-col items-center gap-2 py-12 text-center">
               <p className="text-sm text-destructive">Errore durante il caricamento degli allarmi.</p>
+              {eventsError instanceof Error && eventsError.message && (
+                <p className="text-xs text-muted-foreground">{eventsError.message}</p>
+              )}
             </div>
           ) : events && events.length > 0 ? (
             <>
@@ -727,7 +729,7 @@ function AlarmEventsPageContent() {
                   sortBy={sortBy}
                   sortOrder={sortOrder}
                   onSort={handleSort}
-                  hasActions={canWrite || canDelete}
+                  hasActions={hasRowActions}
                   prependContent={
                     <TableHead className="w-10 px-2">
                       <input
@@ -754,6 +756,7 @@ function AlarmEventsPageContent() {
                       getWidth={getWidth}
                       canWrite={canWrite}
                       canDelete={canDelete}
+                      canWriteAnalysis={canWriteAnalysis}
                       onRowClick={handleRowClick}
                       onToggleSelect={toggleSelectEvent}
                       onEdit={handleEdit}

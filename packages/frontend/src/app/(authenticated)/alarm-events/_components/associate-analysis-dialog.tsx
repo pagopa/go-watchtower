@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Search, CheckCircle2 } from 'lucide-react'
+import { Loader2, Search, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -17,6 +17,8 @@ import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { api, type AlarmEvent, type AlarmAnalysis } from '@/lib/api-client'
 import { ANALYSIS_STATUS_LABELS } from '@go-watchtower/shared'
@@ -108,6 +110,7 @@ export function AssociateAnalysisDialog({
   const [selectedAnalysisId, setSelectedAnalysisId] = useState<string | null>(null)
   const [tab, setTab] = useState<'suggested' | 'all'>('suggested')
   const [searchQuery, setSearchQuery] = useState('')
+  const [incrementOccurrences, setIncrementOccurrences] = useState(true)
 
   // Reset state when dialog opens/closes
   const handleOpenChange = (isOpen: boolean) => {
@@ -115,6 +118,7 @@ export function AssociateAnalysisDialog({
       setSelectedAnalysisId(null)
       setTab('suggested')
       setSearchQuery('')
+      setIncrementOccurrences(true)
     }
     onOpenChange(isOpen)
   }
@@ -161,18 +165,28 @@ export function AssociateAnalysisDialog({
     )
   }, [allQuery.data?.data, searchQuery])
 
+  // Find the selected analysis to check alarm name mismatch
+  const selectedAnalysis = useMemo(() => {
+    if (!selectedAnalysisId) return null
+    const allAnalyses = [...(suggestedQuery.data?.data ?? []), ...(allQuery.data?.data ?? [])]
+    return allAnalyses.find((a) => a.id === selectedAnalysisId) ?? null
+  }, [selectedAnalysisId, suggestedQuery.data?.data, allQuery.data?.data])
+
+  const alarmNameMismatch = !!(
+    event && selectedAnalysis &&
+    selectedAnalysis.alarm.name !== event.name
+  )
+
   // Mutation for associating
   const associateMutation = useMutation({
     mutationFn: async () => {
       if (!event || !selectedAnalysisId) throw new Error('Missing data')
       // 1. Link the alarm event to the analysis
-      await api.updateAlarmEvent(event.id, { analysisId: selectedAnalysisId })
-      // 2. Increment occurrences on the analysis
-      const allAnalyses = [...(suggestedQuery.data?.data ?? []), ...(allQuery.data?.data ?? [])]
-      const analysis = allAnalyses.find((a) => a.id === selectedAnalysisId)
-      if (analysis) {
-        await api.updateAnalysis(analysis.productId, analysis.id, {
-          occurrences: analysis.occurrences + 1,
+      await api.linkAlarmEventAnalysis(event.id, selectedAnalysisId)
+      // 2. Increment occurrences on the analysis (if enabled)
+      if (incrementOccurrences && selectedAnalysis) {
+        await api.updateAnalysis(selectedAnalysis.productId, selectedAnalysis.id, {
+          occurrences: selectedAnalysis.occurrences + 1,
         })
       }
     },
@@ -317,6 +331,44 @@ export function AssociateAnalysisDialog({
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* Alarm name mismatch warning */}
+        {alarmNameMismatch && selectedAnalysis && (
+          <div className="flex items-start gap-2.5 rounded-md border border-amber-300/60 bg-amber-50/60 px-3 py-2.5 dark:border-amber-800/30 dark:bg-amber-950/20">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            <div className="min-w-0 space-y-0.5">
+              <p className="text-xs font-medium text-amber-800 dark:text-amber-300">
+                Nome allarme diverso
+              </p>
+              <p className="text-xs text-amber-700/80 dark:text-amber-400/70">
+                L&apos;analisi selezionata si riferisce all&apos;allarme <span className="font-semibold">&quot;{selectedAnalysis.alarm.name}&quot;</span>,
+                mentre l&apos;evento scattato si chiama <span className="font-semibold">&quot;{event?.name}&quot;</span>.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Increment occurrences toggle */}
+        {selectedAnalysisId && (
+          <div className="flex items-start gap-3 rounded-md border border-border/50 bg-muted/20 px-3 py-2.5">
+            <Switch
+              id="increment-occurrences"
+              checked={incrementOccurrences}
+              onCheckedChange={setIncrementOccurrences}
+              className="mt-0.5"
+            />
+            <div className="min-w-0 space-y-0.5">
+              <Label htmlFor="increment-occurrences" className="text-sm font-medium cursor-pointer">
+                Incrementa occorrenze
+              </Label>
+              <p className="text-xs text-muted-foreground/70">
+                {incrementOccurrences
+                  ? `Il contatore occorrenze dell'analisi passerà da ${selectedAnalysis?.occurrences ?? '?'} a ${(selectedAnalysis?.occurrences ?? 0) + 1}.`
+                  : 'L\'evento verrà associato senza modificare il contatore occorrenze dell\'analisi.'}
+              </p>
+            </div>
+          </div>
+        )}
 
         <DialogFooter className="pt-4">
           <Button
