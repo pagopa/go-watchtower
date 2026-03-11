@@ -110,10 +110,34 @@ export function AlarmEventsPageWrapper() {
 function AlarmEventsPageContent() {
   const queryClient = useQueryClient()
   const { can, isLoading: permissionsLoading } = usePermissions()
-  const { preferences, updatePreferences } = usePreferences()
+  const { preferences, isLoading: prefsLoading, updatePreferences } = usePreferences()
 
-  // Filters
-  const [filters, setFilters] = useState<AlarmEventFiltersState>(DEFAULT_FILTERS)
+  // Filters — persisted in user preferences under savedFilters['alarmEvents'].
+  // filtersOverride is null until the user changes filters in this session;
+  // until then we derive from the server-side preferences (resolved synchronously
+  // from TanStack Query cache on subsequent navigations).
+  const FILTER_KEY = 'alarmEvents'
+  const [filtersOverride, setFiltersOverride] = useState<AlarmEventFiltersState | null>(null)
+  const filters: AlarmEventFiltersState = filtersOverride
+    ?? (preferences.savedFilters?.[FILTER_KEY]
+      ? { ...DEFAULT_FILTERS, ...preferences.savedFilters[FILTER_KEY] } as AlarmEventFiltersState
+      : DEFAULT_FILTERS)
+
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Flush pending debounced save on unmount
+  useEffect(() => () => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+  }, [])
+
+  const persistFilters = useCallback(
+    (value: Record<string, unknown> | null) => {
+      updatePreferences({
+        savedFilters: { ...preferences.savedFilters, [FILTER_KEY]: value } as Record<string, Record<string, unknown>>,
+      })
+    },
+    [updatePreferences, preferences.savedFilters],
+  )
 
   // Pagination
   const [page, setPage] = useState(1)
@@ -362,16 +386,22 @@ function AlarmEventsPageContent() {
   // --- Handlers ---
 
   const handleFilterChange = useCallback((newFilters: AlarmEventFiltersState) => {
-    setFilters(newFilters)
+    setFiltersOverride(newFilters)
     setPage(1)
     clearSelection()
-  }, [clearSelection])
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => {
+      persistFilters(newFilters as unknown as Record<string, unknown>)
+    }, 1000)
+  }, [clearSelection, persistFilters])
 
   const handleResetFilters = useCallback(() => {
-    setFilters(DEFAULT_FILTERS)
+    setFiltersOverride(DEFAULT_FILTERS)
     setPage(1)
     clearSelection()
-  }, [clearSelection])
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    persistFilters(null)
+  }, [clearSelection, persistFilters])
 
 
 

@@ -1,6 +1,6 @@
 {
   "name": "@go-watchtower/frontend",
-  "version": "1.0.3",
+  "version": "1.0.6",
   "private": true,
   "type": "module",
   "scripts": {

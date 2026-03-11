@@ -28,6 +28,7 @@ import {
 import {
   ANALYSIS_STATUS_VARIANTS,
   formatDateTimeRome,
+  formatDateTimeUTC,
 } from '../../analyses/_lib/constants'
 
 interface AssociateAnalysisDialogProps {
@@ -111,6 +112,7 @@ export function AssociateAnalysisDialog({
   const [tab, setTab] = useState<'suggested' | 'all'>('suggested')
   const [searchQuery, setSearchQuery] = useState('')
   const [incrementOccurrences, setIncrementOccurrences] = useState(true)
+  const [updateLastAlarmAt, setUpdateLastAlarmAt] = useState(true)
 
   // Reset state when dialog opens/closes
   const handleOpenChange = (isOpen: boolean) => {
@@ -119,6 +121,7 @@ export function AssociateAnalysisDialog({
       setTab('suggested')
       setSearchQuery('')
       setIncrementOccurrences(true)
+      setUpdateLastAlarmAt(true)
     }
     onOpenChange(isOpen)
   }
@@ -177,17 +180,30 @@ export function AssociateAnalysisDialog({
     selectedAnalysis.alarm.name !== event.name
   )
 
+  // Check if event firedAt is strictly after the analysis lastAlarmAt
+  const eventIsNewer = !!(
+    event && selectedAnalysis &&
+    new Date(event.firedAt).getTime() > new Date(selectedAnalysis.lastAlarmAt).getTime()
+  )
+
   // Mutation for associating
   const associateMutation = useMutation({
     mutationFn: async () => {
       if (!event || !selectedAnalysisId) throw new Error('Missing data')
       // 1. Link the alarm event to the analysis
       await api.linkAlarmEventAnalysis(event.id, selectedAnalysisId)
-      // 2. Increment occurrences on the analysis (if enabled)
-      if (incrementOccurrences && selectedAnalysis) {
-        await api.updateAnalysis(selectedAnalysis.productId, selectedAnalysis.id, {
-          occurrences: selectedAnalysis.occurrences + 1,
-        })
+      // 2. Update analysis fields based on flags
+      if (selectedAnalysis) {
+        const updates: Record<string, unknown> = {}
+        if (incrementOccurrences) {
+          updates.occurrences = selectedAnalysis.occurrences + 1
+        }
+        if (updateLastAlarmAt && eventIsNewer) {
+          updates.lastAlarmAt = event.firedAt
+        }
+        if (Object.keys(updates).length > 0) {
+          await api.updateAnalysis(selectedAnalysis.productId, selectedAnalysis.id, updates)
+        }
       }
     },
     onSuccess: () => {
@@ -348,24 +364,61 @@ export function AssociateAnalysisDialog({
           </div>
         )}
 
-        {/* Increment occurrences toggle */}
+        {/* Options toggles — always visible when an analysis is selected */}
         {selectedAnalysisId && (
-          <div className="flex items-start gap-3 rounded-md border border-border/50 bg-muted/20 px-3 py-2.5">
-            <Switch
-              id="increment-occurrences"
-              checked={incrementOccurrences}
-              onCheckedChange={setIncrementOccurrences}
-              className="mt-0.5"
-            />
-            <div className="min-w-0 space-y-0.5">
-              <Label htmlFor="increment-occurrences" className="text-sm font-medium cursor-pointer">
-                Incrementa occorrenze
-              </Label>
-              <p className="text-xs text-muted-foreground/70">
-                {incrementOccurrences
-                  ? `Il contatore occorrenze dell'analisi passerà da ${selectedAnalysis?.occurrences ?? '?'} a ${(selectedAnalysis?.occurrences ?? 0) + 1}.`
-                  : 'L\'evento verrà associato senza modificare il contatore occorrenze dell\'analisi.'}
-              </p>
+          <div className="space-y-2">
+            {/* Increment occurrences */}
+            <div className="flex items-start gap-3 rounded-md border border-border/50 bg-muted/20 px-3 py-2.5">
+              <Switch
+                id="increment-occurrences"
+                checked={incrementOccurrences}
+                onCheckedChange={setIncrementOccurrences}
+                className="mt-0.5"
+              />
+              <div className="min-w-0 space-y-0.5">
+                <Label htmlFor="increment-occurrences" className="text-sm font-medium cursor-pointer">
+                  Incrementa occorrenze
+                </Label>
+                <p className="text-xs text-muted-foreground/70">
+                  {incrementOccurrences
+                    ? `Il contatore occorrenze dell'analisi passerà da ${selectedAnalysis?.occurrences ?? '?'} a ${(selectedAnalysis?.occurrences ?? 0) + 1}.`
+                    : 'L\'evento verrà associato senza modificare il contatore occorrenze dell\'analisi.'}
+                </p>
+              </div>
+            </div>
+
+            {/* Update last alarm date */}
+            <div className="flex items-start gap-3 rounded-md border border-border/50 bg-muted/20 px-3 py-2.5">
+              <Switch
+                id="update-last-alarm-at"
+                checked={updateLastAlarmAt && eventIsNewer}
+                onCheckedChange={setUpdateLastAlarmAt}
+                disabled={!eventIsNewer}
+                className="mt-0.5"
+              />
+              <div className="min-w-0 space-y-0.5">
+                <Label
+                  htmlFor="update-last-alarm-at"
+                  className={cn('text-sm font-medium cursor-pointer', !eventIsNewer && 'text-muted-foreground')}
+                >
+                  Aggiorna data ultimo allarme
+                </Label>
+                <p className="text-xs text-muted-foreground/70">
+                  {!eventIsNewer ? (
+                    <>
+                      L&apos;evento scattato ({formatDateTimeUTC(event?.firedAt ?? '')} UTC) non è più recente dell&apos;ultimo allarme
+                      sull&apos;analisi ({formatDateTimeUTC(selectedAnalysis?.lastAlarmAt ?? '')} UTC), nessun aggiornamento necessario.
+                    </>
+                  ) : updateLastAlarmAt ? (
+                    <>
+                      La data ultimo allarme dell&apos;analisi verrà aggiornata
+                      da <span className="font-semibold text-foreground">{formatDateTimeUTC(selectedAnalysis?.lastAlarmAt ?? '')} UTC</span> a <span className="font-semibold text-foreground">{formatDateTimeUTC(event?.firedAt ?? '')} UTC</span>.
+                    </>
+                  ) : (
+                    'L\'evento verrà associato senza modificare la data ultimo allarme dell\'analisi.'
+                  )}
+                </p>
+              </div>
             </div>
           </div>
         )}
