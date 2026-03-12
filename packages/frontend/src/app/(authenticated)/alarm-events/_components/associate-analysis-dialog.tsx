@@ -214,11 +214,14 @@ export function AssociateAnalysisDialog({
     queryKey: ['analyses', 'for-link', event?.product.id, event?.environment.id, event?.alarmId, ownOnly ? currentUserId : null],
     queryFn: () => {
       const e = event!
+      const oneMonthAgo = new Date()
+      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1)
       return api.getAllAnalyses({
         productId: e.product.id,
         environmentId: e.environment.id,
         ...(e.alarmId && { alarmId: e.alarmId }),
         ...(ownOnly && currentUserId && { createdById: currentUserId }),
+        dateFrom: oneMonthAgo.toISOString(),
         pageSize: 50,
         sortBy: 'analysisDate',
         sortOrder: 'desc',
@@ -239,10 +242,10 @@ export function AssociateAnalysisDialog({
     selectedAnalysis.alarm.name !== event.name
   )
 
-  const eventIsNewer = useMemo(() => {
-    if (!event || !selectedAnalysis) return false
-    return new Date(event.firedAt).getTime() > new Date(selectedAnalysis.lastAlarmAt).getTime()
-  }, [event?.firedAt, selectedAnalysis?.lastAlarmAt])
+  const eventIsNewer = !!(
+    event && selectedAnalysis &&
+    new Date(event.firedAt).getTime() > new Date(selectedAnalysis.lastAlarmAt).getTime()
+  )
 
   const isCompleted = selectedAnalysis?.status === AnalysisStatuses.COMPLETED
 
@@ -291,10 +294,10 @@ export function AssociateAnalysisDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[1100px] flex flex-col gap-0 p-0 overflow-hidden">
+      <DialogContent className="sm:max-w-[1240px] max-h-[calc(100vh-16rem)] flex flex-col gap-0 p-0 overflow-hidden">
         <DialogTitle className="sr-only">Associa evento ad analisi</DialogTitle>
 
-        <div className="flex flex-1 min-h-0" style={{ minHeight: '680px' }}>
+        <div className="flex flex-1 min-h-0" style={{ minHeight: 'min(680px, calc(100vh - 18rem))' }}>
 
           {/* ─── Left: Event details + Analysis list ──────────────── */}
           <div className="w-[480px] shrink-0 border-r flex flex-col min-h-0">
@@ -414,27 +417,27 @@ export function AssociateAnalysisDialog({
             ) : (
               <>
                 {/* ── Analysis detail ──────────────────────────────── */}
-                <div className="flex-1 px-5 py-4 space-y-3 overflow-y-auto">
+                <div className="flex-1 px-6 py-5 space-y-4 overflow-y-auto">
                   <div className="flex items-center gap-2 mb-1">
-                    <FileText className="h-4 w-4 text-primary/50" />
-                    <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Analisi selezionata</h3>
+                    <FileText className="h-4.5 w-4.5 text-primary/50" />
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">Analisi selezionata</h3>
                   </div>
 
                   {/* Alarm name + status */}
                   <div className="flex items-start justify-between gap-3">
-                    <p className="text-[15px] font-semibold leading-snug break-words">{selectedAnalysis.alarm.name}</p>
-                    <Badge variant={ANALYSIS_STATUS_VARIANTS[selectedAnalysis.status]} className="shrink-0">
+                    <p className="text-lg font-semibold leading-snug break-words">{selectedAnalysis.alarm.name}</p>
+                    <Badge variant={ANALYSIS_STATUS_VARIANTS[selectedAnalysis.status]} className="shrink-0 text-xs px-2.5 py-0.5">
                       {ANALYSIS_STATUS_LABELS[selectedAnalysis.status]}
                     </Badge>
                   </div>
 
                   {/* Name mismatch warning */}
                   {alarmNameMismatch && (
-                    <div className="flex items-start gap-2.5 rounded-md border border-amber-300/50 bg-amber-50/50 px-3 py-2.5 dark:border-amber-800/25 dark:bg-amber-950/15">
+                    <div className="flex items-start gap-2.5 rounded-md border border-amber-300/50 bg-amber-50/50 px-3.5 py-3 dark:border-amber-800/25 dark:bg-amber-950/15">
                       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500 dark:text-amber-400" />
                       <div className="min-w-0">
-                        <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">Nome allarme diverso</p>
-                        <p className="text-[11px] text-amber-700/70 dark:text-amber-400/60 mt-0.5 leading-relaxed">
+                        <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Nome allarme diverso</p>
+                        <p className="text-xs text-amber-700/70 dark:text-amber-400/60 mt-0.5 leading-relaxed">
                           L&apos;analisi si riferisce a <span className="font-semibold">&quot;{selectedAnalysis.alarm.name}&quot;</span>,
                           l&apos;evento a <span className="font-semibold">&quot;{event?.name}&quot;</span>.
                         </p>
@@ -443,58 +446,58 @@ export function AssociateAnalysisDialog({
                   )}
 
                   {/* Detail grid */}
-                  <div className="grid grid-cols-3 gap-x-5 gap-y-3 pt-1">
+                  <div className="grid grid-cols-3 gap-x-6 gap-y-4 pt-1">
                     <DetailField icon={Siren} label="Tipo">
                       {(() => {
                         const { Icon: TIcon, className: tCls } = TYPE_ICONS[selectedAnalysis.analysisType]
                         return (
                           <div className="flex items-center gap-1.5">
-                            <TIcon className={cn('h-3 w-3', tCls)} />
-                            <span className="text-xs">{ANALYSIS_TYPE_LABELS[selectedAnalysis.analysisType]}</span>
+                            <TIcon className={cn('h-3.5 w-3.5', tCls)} />
+                            <span className="text-sm">{ANALYSIS_TYPE_LABELS[selectedAnalysis.analysisType]}</span>
                           </div>
                         )
                       })()}
                     </DetailField>
 
                     <DetailField icon={User} label="Operatore">
-                      <span className="text-xs font-medium">{selectedAnalysis.operator.name}</span>
+                      <span className="text-sm font-medium">{selectedAnalysis.operator.name}</span>
                     </DetailField>
 
                     <DetailField icon={Calendar} label="Data analisi">
-                      <span className="font-mono text-xs tabular-nums">{formatDateTimeRome(selectedAnalysis.analysisDate)}</span>
+                      <span className="font-mono text-sm tabular-nums">{formatDateTimeRome(selectedAnalysis.analysisDate)}</span>
                     </DetailField>
 
                     <DetailField icon={Hash} label="Occorrenze">
-                      <span className="font-mono text-xs tabular-nums font-semibold">{selectedAnalysis.occurrences}</span>
+                      <span className="font-mono text-sm tabular-nums font-semibold">{selectedAnalysis.occurrences}</span>
                     </DetailField>
 
                     <DetailField icon={Clock} label="Primo allarme">
-                      <span className="font-mono text-xs tabular-nums">{formatDateTimeUTC(selectedAnalysis.firstAlarmAt)} UTC</span>
+                      <span className="font-mono text-sm tabular-nums">{formatDateTimeUTC(selectedAnalysis.firstAlarmAt)} UTC</span>
                     </DetailField>
 
                     <DetailField icon={Clock} label="Ultimo allarme">
-                      <span className="font-mono text-xs tabular-nums">{formatDateTimeUTC(selectedAnalysis.lastAlarmAt)} UTC</span>
+                      <span className="font-mono text-sm tabular-nums">{formatDateTimeUTC(selectedAnalysis.lastAlarmAt)} UTC</span>
                     </DetailField>
 
                     <DetailField icon={Tag} label="Prodotto">
-                      <span className="text-xs">{selectedAnalysis.product.name}</span>
+                      <span className="text-sm">{selectedAnalysis.product.name}</span>
                     </DetailField>
 
                     <DetailField icon={Activity} label="Ambiente">
-                      <span className="text-xs">{selectedAnalysis.environment.name}</span>
+                      <span className="text-sm">{selectedAnalysis.environment.name}</span>
                     </DetailField>
 
                     {selectedAnalysis.isOnCall && (
                       <DetailField icon={Bell} label="Reperibilità">
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">On-call</Badge>
+                        <Badge variant="outline" className="text-xs px-2 py-0">On-call</Badge>
                       </DetailField>
                     )}
                   </div>
 
                   {selectedAnalysis.errorDetails && (
-                    <div className="pt-2 border-t border-border/40">
+                    <div className="pt-3 border-t border-border/40">
                       <DetailField icon={FileText} label="Dettagli errore">
-                        <p className="text-xs text-muted-foreground leading-relaxed break-words">
+                        <p className="text-sm text-muted-foreground leading-relaxed break-words">
                           {selectedAnalysis.errorDetails.length > 300
                             ? `${selectedAnalysis.errorDetails.slice(0, 300)}...`
                             : selectedAnalysis.errorDetails}

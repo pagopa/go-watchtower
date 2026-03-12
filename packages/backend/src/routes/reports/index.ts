@@ -307,40 +307,99 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
       try {
         const { productId, year, month } = request.query;
 
-        // Build date range for the requested month (UTC)
+        // Month boundaries (UTC) — used for analysis queries and as date range for assigned_date
         const dateFrom = new Date(Date.UTC(year, month - 1, 1));
         const dateTo = new Date(Date.UTC(year, month, 1)); // exclusive upper bound
         const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
 
-        // 3 queries in parallel:
-        // 1. Alarm events grouped by environment + day
-        // 2. Completed analyses (ANALYZABLE + COMPLETED) grouped by environment + day
-        // 3. Ignored analyses (IGNORABLE) grouped by environment + day
-        const [alarmEventsRaw, completedRaw, ignoredRaw, environments] = await Promise.all([
+        // Expanded range for alarm events: business-day shift can move a normal
+        // alarm up to 3 calendar days forward (Fri 18:00 Rome → Monday).
+        // Pad 4 days before to capture Friday→Monday cross-month shifts.
+        // Pad 1 day after for Rome/UTC timezone boundary (e.g. last day 23:59
+        // Rome = next day ~23:00 UTC in winter).
+        const expandedFrom = new Date(dateFrom.getTime() - 4 * 86_400_000);
+        const expandedTo = new Date(dateTo.getTime() + 86_400_000);
+
+        // ── Parallel queries ─────────────────────────────────────────────────
+        //
+        // 1. Alarm events → business-day assignment (Europe/Rome, see rules below)
+        // 2. Analyses → single query with conditional aggregation (FILTER)
+        // 3. Environments → for response structure
+        //
+        // Alarm event business-day rules (times in Europe/Rome):
+        // ─ On-call alarms always count on their calendar day.
+        // ─ Normal alarms:
+        //   • Mon–Fri before 18:00 → same day
+        //   • Mon–Thu 18:00+      → next day
+        //   • Fri 18:00+          → next Monday
+        //   • Saturday             → next Monday
+        //   • Sunday               → next Monday
+
+        const [alarmEventsRaw, analysisRaw, environments] = await Promise.all([
+          // ── 1. Alarm events with business-day logic ────────────────────────
+          // LATERAL computes the Rome TZ conversion once per row; date/time/dow
+          // are derived from that single value to avoid repeated TZ lookups.
           prisma.$queryRaw<Array<{ environment_id: string; day: number; count: bigint }>>`
-            SELECT environment_id, EXTRACT(DAY FROM fired_at AT TIME ZONE 'UTC')::int AS day, COUNT(*)::bigint AS count
-            FROM alarm_events
-            WHERE product_id = ${productId}
-              AND fired_at >= ${dateFrom} AND fired_at < ${dateTo}
+            WITH event_days AS (
+              SELECT
+                ae.environment_id,
+                tz.rome_ts::date  AS fire_date,
+                tz.rome_ts::time  AS fire_time,
+                EXTRACT(ISODOW FROM tz.rome_ts::date)::int AS fire_dow,
+                COALESCE(aa.is_on_call, false) AS is_on_call
+              FROM alarm_events ae
+              LEFT JOIN alarm_analyses aa ON ae.analysis_id = aa.id
+              CROSS JOIN LATERAL (
+                SELECT ae.fired_at AT TIME ZONE 'Europe/Rome' AS rome_ts
+              ) tz
+              WHERE ae.product_id = ${productId}
+                AND ae.fired_at >= ${expandedFrom}
+                AND ae.fired_at < ${expandedTo}
+            ),
+            assigned AS (
+              SELECT
+                environment_id,
+                CASE
+                  WHEN is_on_call                                  THEN fire_date
+                  WHEN fire_dow = 6                                THEN fire_date + 2
+                  WHEN fire_dow = 7                                THEN fire_date + 1
+                  WHEN fire_time >= TIME '18:00' AND fire_dow = 5  THEN fire_date + 3
+                  WHEN fire_time >= TIME '18:00'                   THEN fire_date + 1
+                  ELSE fire_date
+                END AS assigned_date
+              FROM event_days
+            )
+            SELECT
+              environment_id,
+              EXTRACT(DAY FROM assigned_date)::int AS day,
+              COUNT(*)::bigint AS count
+            FROM assigned
+            WHERE assigned_date >= ${dateFrom}::date
+              AND assigned_date <  ${dateTo}::date
             GROUP BY environment_id, day
           `,
-          prisma.$queryRaw<Array<{ environment_id: string; day: number; count: bigint }>>`
-            SELECT environment_id, EXTRACT(DAY FROM analysis_date AT TIME ZONE 'UTC')::int AS day, COALESCE(SUM(occurrences), 0)::bigint AS count
+
+          // ── 2. Analyses — single scan with conditional FILTER aggregation ──
+          // Replaces two separate queries (completed + ignored) with one pass.
+          // Uses index alarm_analyses(product_id, analysis_date).
+          prisma.$queryRaw<Array<{ environment_id: string; day: number; completed: bigint; ignored: bigint }>>`
+            SELECT
+              environment_id,
+              EXTRACT(DAY FROM analysis_date AT TIME ZONE 'UTC')::int AS day,
+              COALESCE(SUM(occurrences) FILTER (
+                WHERE status = 'COMPLETED' AND analysis_type = 'ANALYZABLE'
+              ), 0)::bigint AS completed,
+              COALESCE(SUM(occurrences) FILTER (
+                WHERE analysis_type = 'IGNORABLE'
+              ), 0)::bigint AS ignored
             FROM alarm_analyses
             WHERE product_id = ${productId}
               AND analysis_date >= ${dateFrom} AND analysis_date < ${dateTo}
-              AND status = 'COMPLETED'
-              AND analysis_type = 'ANALYZABLE'
+              AND ((status = 'COMPLETED' AND analysis_type = 'ANALYZABLE') OR analysis_type = 'IGNORABLE')
             GROUP BY environment_id, day
           `,
-          prisma.$queryRaw<Array<{ environment_id: string; day: number; count: bigint }>>`
-            SELECT environment_id, EXTRACT(DAY FROM analysis_date AT TIME ZONE 'UTC')::int AS day, COALESCE(SUM(occurrences), 0)::bigint AS count
-            FROM alarm_analyses
-            WHERE product_id = ${productId}
-              AND analysis_date >= ${dateFrom} AND analysis_date < ${dateTo}
-              AND analysis_type = 'IGNORABLE'
-            GROUP BY environment_id, day
-          `,
+
+          // ── 3. Environments ────────────────────────────────────────────────
           prisma.environment.findMany({
             where: { productId },
             select: { id: true, name: true },
@@ -362,11 +421,12 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
         for (const r of alarmEventsRaw) {
           ensure(r.environment_id).alarmEvents[String(r.day)] = Number(r.count);
         }
-        for (const r of completedRaw) {
-          ensure(r.environment_id).completedAnalyses[String(r.day)] = Number(r.count);
-        }
-        for (const r of ignoredRaw) {
-          ensure(r.environment_id).ignoredAnalyses[String(r.day)] = Number(r.count);
+        for (const r of analysisRaw) {
+          const env = ensure(r.environment_id);
+          const completed = Number(r.completed);
+          const ignored = Number(r.ignored);
+          if (completed > 0) env.completedAnalyses[String(r.day)] = completed;
+          if (ignored > 0) env.ignoredAnalyses[String(r.day)] = ignored;
         }
 
         const result = environments.map((env: { id: string; name: string }) => {
