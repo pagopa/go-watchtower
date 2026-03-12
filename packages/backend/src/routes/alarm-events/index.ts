@@ -1,9 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import { Type } from "@sinclair/typebox";
-import { prisma, SystemComponent } from "@go-watchtower/database";
+import { prisma, SystemComponent, PermissionScope } from "@go-watchtower/database";
 import { buildDiff } from "../../services/system-event.service.js";
-import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
+import { getPermissionScope } from "../../services/permission.service.js";
+import { SystemEventActions, SystemEventResources, AnalysisStatuses } from "@go-watchtower/shared";
 import { HttpError } from "../../utils/http-errors.js";
 import { requirePermission } from "../../lib/require-permission.js";
 import {
@@ -272,17 +273,32 @@ export async function alarmEventRoutes(app: FastifyInstance) {
   // Requires ALARM_ANALYSIS write (not ALARM_EVENT write) so that operators
   // who can create analyses can also associate them to events.
 
-  server.patch<{ Params: AlarmEventParams; Body: { analysisId: string | null } }>(
+  server.patch<{
+    Params: AlarmEventParams;
+    Body: {
+      analysisId: string | null;
+      analysisUpdates?: {
+        incrementOccurrences?: boolean;
+        lastAlarmAt?: string;
+        reopenAnalysis?: boolean;
+      };
+    };
+  }>(
     "/alarm-events/:id/link-analysis",
     {
       onRequest: [server.authenticate, requirePermission(SystemComponent.ALARM_ANALYSIS, "write")],
       schema: {
         tags: ["Alarm Events"],
-        summary: "Link or unlink an analysis to/from an alarm event",
+        summary: "Link or unlink an analysis to/from an alarm event, with optional analysis updates",
         security: [{ bearerAuth: [] }],
         params: AlarmEventParamsSchema,
         body: Type.Object({
           analysisId: Type.Union([Type.String({ minLength: 1 }), Type.Null()]),
+          analysisUpdates: Type.Optional(Type.Object({
+            incrementOccurrences: Type.Optional(Type.Boolean()),
+            lastAlarmAt: Type.Optional(Type.String({ format: "date-time" })),
+            reopenAnalysis: Type.Optional(Type.Boolean()),
+          })),
         }),
         response: {
           200: AlarmEventResponseSchema,
@@ -302,11 +318,73 @@ export async function alarmEventRoutes(app: FastifyInstance) {
       }
 
       const analysisId = request.body.analysisId || null;
+      const updates = request.body.analysisUpdates;
 
-      const updated = await prisma.alarmEvent.update({
-        where: { id: request.params.id },
-        data: { analysisId },
-        include,
+      // Scope-aware ownership check for analysis updates
+      let canUpdateAnalysis = false;
+      if (analysisId && updates) {
+        const writeScope = await getPermissionScope(
+          request.user.userId,
+          SystemComponent.ALARM_ANALYSIS,
+          "write"
+        );
+        if (writeScope === PermissionScope.ALL) {
+          canUpdateAnalysis = true;
+        } else if (writeScope === PermissionScope.OWN) {
+          const target = await prisma.alarmAnalysis.findUnique({
+            where: { id: analysisId },
+            select: { createdById: true },
+          });
+          canUpdateAnalysis = target?.createdById === request.user.userId;
+        }
+        if (!canUpdateAnalysis && Object.keys(updates).some((k) => updates[k as keyof typeof updates])) {
+          return HttpError.forbidden(reply, "Non puoi modificare un'analisi creata da un altro utente");
+        }
+      }
+
+      // Apply link + optional analysis updates in a single transaction
+      const updated = await prisma.$transaction(async (tx) => {
+        const event = await tx.alarmEvent.update({
+          where: { id: request.params.id },
+          data: { analysisId },
+          include,
+        });
+
+        // Apply analysis updates if linking (not unlinking) and updates are requested
+        if (analysisId && updates && canUpdateAnalysis) {
+          const analysis = await tx.alarmAnalysis.findUnique({
+            where: { id: analysisId },
+            select: { id: true, occurrences: true, lastAlarmAt: true, status: true, alarm: { select: { name: true } } },
+          });
+
+          if (analysis) {
+            const data: Record<string, unknown> = {};
+
+            if (updates.incrementOccurrences) {
+              data.occurrences = analysis.occurrences + 1;
+            }
+            if (updates.lastAlarmAt && new Date(updates.lastAlarmAt).getTime() > analysis.lastAlarmAt.getTime()) {
+              data.lastAlarmAt = new Date(updates.lastAlarmAt);
+            }
+            if (updates.reopenAnalysis && analysis.status === AnalysisStatuses.COMPLETED) {
+              data.status = AnalysisStatuses.IN_PROGRESS;
+            }
+
+            if (Object.keys(data).length > 0) {
+              await tx.alarmAnalysis.update({ where: { id: analysisId }, data });
+
+              request.auditEvents.push({
+                action:        SystemEventActions.ANALYSIS_UPDATED,
+                resource:      SystemEventResources.ALARM_ANALYSES,
+                resourceId:    analysis.id,
+                resourceLabel: analysis.alarm.name,
+                metadata:      { changes: data, via: "link-analysis" },
+              });
+            }
+          }
+        }
+
+        return event;
       });
 
       request.auditEvents.push({

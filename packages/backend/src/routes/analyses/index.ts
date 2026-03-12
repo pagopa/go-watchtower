@@ -138,6 +138,7 @@ function buildAnalysisWhereClause(
   if (query.status) where.status = query.status;
   if (query.isOnCall !== undefined) where.isOnCall = query.isOnCall;
   if (query.operatorId) where.operatorId = query.operatorId;
+  if (query.createdById) where.createdById = query.createdById;
   if (query.environmentId) where.environmentId = query.environmentId;
   if (query.alarmId) where.alarmId = query.alarmId;
   if (query.finalActionId) where.finalActions = { some: { finalActionId: query.finalActionId } };

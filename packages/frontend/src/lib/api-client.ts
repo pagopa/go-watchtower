@@ -468,6 +468,7 @@ export interface AlarmAnalysisFilters {
   alarmId?: string
   finalActionId?: string
   productId?: string
+  createdById?: string
   dateFrom?: string
   dateTo?: string
   // Advanced filters
@@ -1029,8 +1030,15 @@ export const api = {
     request<AlarmEvent>('/api/alarm-events', { method: 'POST', body: data }),
   updateAlarmEvent: (id: string, data: UpdateAlarmEventData) =>
     request<AlarmEvent>(`/api/alarm-events/${id}`, { method: 'PATCH', body: data }),
-  linkAlarmEventAnalysis: (id: string, analysisId: string | null) =>
-    request<AlarmEvent>(`/api/alarm-events/${id}/link-analysis`, { method: 'PATCH', body: { analysisId } }),
+  linkAlarmEventAnalysis: (id: string, analysisId: string | null, analysisUpdates?: {
+    incrementOccurrences?: boolean
+    lastAlarmAt?: string
+    reopenAnalysis?: boolean
+  }) =>
+    request<AlarmEvent>(`/api/alarm-events/${id}/link-analysis`, {
+      method: 'PATCH',
+      body: { analysisId, ...(analysisUpdates && { analysisUpdates }) },
+    }),
   deleteAlarmEvent: (id: string) =>
     request<{ message: string }>(`/api/alarm-events/${id}`, { method: 'DELETE' }),
 

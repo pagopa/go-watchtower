@@ -86,6 +86,7 @@ export const AllAnalysesQuerySchema = Type.Object({
   alarmId: Type.Optional(Type.String()),
   finalActionId: Type.Optional(Type.String()),
   productId: Type.Optional(Type.String()),
+  createdById: Type.Optional(Type.String()),
   dateFrom: Type.Optional(Type.String()),
   dateTo: Type.Optional(Type.String()),
   // Advanced filters
@@ -121,6 +122,7 @@ export const AlarmAnalysisQuerySchema = Type.Object({
   environmentId: Type.Optional(Type.String()),
   alarmId: Type.Optional(Type.String()),
   finalActionId: Type.Optional(Type.String()),
+  createdById: Type.Optional(Type.String()),
   dateFrom: Type.Optional(Type.String()),
   dateTo: Type.Optional(Type.String()),
   // Advanced filters
