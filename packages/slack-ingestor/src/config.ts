@@ -68,7 +68,7 @@ export const CHANNEL_REGISTRY: ChannelConfig[] = [
     label:               'SEND / Building Block',
     channelId:           'C0AGKJCMYDQ',
     productId:           'd0000000-0000-0000-0000-000000000001',
-    environmentId:       'e0000000-0000-0000-0001-000000000001',
+    environmentId:       '019ce16c-e5d7-73cd-b0ba-ddc994151ea8',
     parserId:            'email-sns',
     defaultAwsAccountId: '730335668132',
     defaultAwsRegion:    'eu-south-1',
