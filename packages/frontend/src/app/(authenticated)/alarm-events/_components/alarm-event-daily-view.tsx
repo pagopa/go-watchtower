@@ -470,13 +470,12 @@ export function AlarmEventDailyView({
   const queryParams = useMemo(() => ({
     page:     1,
     pageSize: 1000,
-    ...(filters.productId     && { productId:     filters.productId }),
-    ...(filters.environmentId && { environmentId: filters.environmentId }),
+    ...(filters.environmentIds.length > 0 && { environmentId: filters.environmentIds }),
     ...(filters.awsAccountId  && { awsAccountId:  filters.awsAccountId }),
     ...(filters.awsRegion     && { awsRegion:      filters.awsRegion }),
     dateFrom,
     dateTo,
-  }), [selectedDate, filters.productId, filters.environmentId, filters.awsAccountId, filters.awsRegion, dateFrom, dateTo])
+  }), [selectedDate, filters.environmentIds, filters.awsAccountId, filters.awsRegion, dateFrom, dateTo])
 
   const isToday = selectedDate === todayUTC()
 

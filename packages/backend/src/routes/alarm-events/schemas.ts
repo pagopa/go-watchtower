@@ -60,7 +60,7 @@ export type AlarmEventParams = Static<typeof AlarmEventParamsSchema>;
 
 export const AlarmEventsQuerySchema = Type.Object({
   productId:     Type.Optional(Type.String()),
-  environmentId: Type.Optional(Type.String()),
+  environmentId: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())])),
   alarmId:       Type.Optional(Type.String()),
   analysisId:    Type.Optional(Type.String()),
   awsAccountId:  Type.Optional(Type.String()),

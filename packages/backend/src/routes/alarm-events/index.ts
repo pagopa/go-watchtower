@@ -85,7 +85,7 @@ export async function alarmEventRoutes(app: FastifyInstance) {
 
       const where = {
         ...(productId     && { productId }),
-        ...(environmentId && { environmentId }),
+        ...(environmentId && { environmentId: { in: Array.isArray(environmentId) ? environmentId : [environmentId] } }),
         ...(alarmId       && { alarmId }),
         ...(analysisId    && { analysisId }),
         ...(awsAccountId  && { awsAccountId }),

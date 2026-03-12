@@ -795,7 +795,7 @@ export interface AlarmEvent {
 
 export interface AlarmEventsFilters {
   productId?: string
-  environmentId?: string
+  environmentId?: string[]
   alarmId?: string
   analysisId?: string
   awsAccountId?: string
@@ -1022,7 +1022,7 @@ export const api = {
   // Alarm Events
   getAlarmEvents: (filters?: AlarmEventsFilters) =>
     request<PaginatedResponse<AlarmEvent>>('/api/alarm-events', {
-      params: filters as Record<string, string | number | boolean | undefined>,
+      params: filters as Record<string, string | number | boolean | string[] | undefined>,
     }),
   getAlarmEvent: (id: string) => request<AlarmEvent>(`/api/alarm-events/${id}`),
   createAlarmEvent: (data: CreateAlarmEventData) =>

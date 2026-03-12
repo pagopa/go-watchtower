@@ -47,7 +47,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import dynamic from 'next/dynamic'
 import { isWorkingHoursSetting, isOnCallHoursSetting } from '@go-watchtower/shared'
-import { AlarmEventFilters, type AlarmEventFiltersState } from './_components/alarm-event-filters'
+import { AlarmEventFilters, type AlarmEventFiltersState, type ProductWithEnvironments } from './_components/alarm-event-filters'
 import { AlarmEventDetailPanel } from './_components/alarm-event-detail-panel'
 import { AlarmEventDailyView, todayUTC } from './_components/alarm-event-daily-view'
 
@@ -83,8 +83,7 @@ import type { AnalysisFormData } from '../analyses/_components/analysis-form-dia
 import { isoToRomeLocal, isoToUTCLocal } from '../analyses/_components/analysis-form-schemas'
 
 const DEFAULT_FILTERS: AlarmEventFiltersState = {
-  productId:    '',
-  environmentId: '',
+  environmentIds: [],
   awsAccountId: '',
   awsRegion:    '',
   dateFrom:     '',
@@ -118,10 +117,22 @@ function AlarmEventsPageContent() {
   // from TanStack Query cache on subsequent navigations).
   const FILTER_KEY = 'alarmEvents'
   const [filtersOverride, setFiltersOverride] = useState<AlarmEventFiltersState | null>(null)
-  const filters: AlarmEventFiltersState = filtersOverride
-    ?? (preferences.savedFilters?.[FILTER_KEY]
-      ? { ...DEFAULT_FILTERS, ...preferences.savedFilters[FILTER_KEY] } as AlarmEventFiltersState
-      : DEFAULT_FILTERS)
+  const filters: AlarmEventFiltersState = useMemo(() => {
+    if (filtersOverride) return filtersOverride
+    const saved = preferences.savedFilters?.[FILTER_KEY] as Record<string, unknown> | undefined
+    if (!saved) return DEFAULT_FILTERS
+    // Migrate legacy single environmentId → environmentIds array
+    const envIds = Array.isArray(saved.environmentIds)
+      ? saved.environmentIds as string[]
+      : typeof saved.environmentId === 'string' && saved.environmentId
+        ? [saved.environmentId as string]
+        : []
+    return {
+      ...DEFAULT_FILTERS,
+      ...saved,
+      environmentIds: envIds,
+    } as AlarmEventFiltersState
+  }, [filtersOverride, preferences.savedFilters])
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -220,12 +231,6 @@ function AlarmEventsPageContent() {
     queryFn: api.getProducts,
   })
 
-  const { data: environments } = useQuery<Environment[]>({
-    queryKey: ['products', filters.productId, 'environments'],
-    queryFn: () => api.getEnvironments(filters.productId),
-    enabled: !!filters.productId,
-  })
-
   // Users — needed for the analysis form dialog
   const { data: users } = useQuery<UserDetail[]>({
     queryKey: ['users'],
@@ -233,45 +238,57 @@ function AlarmEventsPageContent() {
     enabled: can('USER', 'read'),
   })
 
-  // All environments across all products — used to build the on-call pattern map
-  // when no product filter is active. Fetched in parallel, stale for 5 min.
-  const productIds = useMemo(() => products?.map((p) => p.id) ?? [], [products])
+  // All environments across all products — used for multi-select filter + on-call pattern map.
+  const activeProducts = useMemo(() => products?.filter((p) => p.isActive) ?? [], [products])
+  const activeProductIds = useMemo(() => activeProducts.map((p) => p.id), [activeProducts])
   const { data: allEnvironments } = useQuery<Environment[]>({
-    queryKey: ['environments-all', productIds],
+    queryKey: ['environments-all', activeProductIds],
     queryFn: async () => {
-      if (!productIds.length) return []
-      const arrays = await Promise.all(productIds.map((id) => api.getEnvironments(id)))
+      if (!activeProductIds.length) return []
+      const arrays = await Promise.all(activeProductIds.map((id) => api.getEnvironments(id)))
       return arrays.flat()
     },
-    enabled: !filters.productId && productIds.length > 0,
+    enabled: activeProductIds.length > 0,
     staleTime: 5 * 60 * 1000,
   })
 
+  // Build product+environments groups for the multi-select filter
+  const productEnvironments = useMemo<ProductWithEnvironments[]>(() => {
+    if (!allEnvironments?.length || !activeProducts.length) return []
+    const envsByProduct = new Map<string, Environment[]>()
+    for (const env of allEnvironments) {
+      const list = envsByProduct.get(env.productId) ?? []
+      list.push(env)
+      envsByProduct.set(env.productId, list)
+    }
+    return activeProducts
+      .filter((p) => envsByProduct.has(p.id))
+      .map((p) => ({ product: p, environments: envsByProduct.get(p.id)! }))
+  }, [activeProducts, allEnvironments])
+
   // Map environmentId → compiled RegExp for on-call row highlighting
   const onCallRegexMap = useMemo(() => {
-    const src = filters.productId ? environments : allEnvironments
-    if (!src?.length) return new Map<string, RegExp>()
+    if (!allEnvironments?.length) return new Map<string, RegExp>()
     const map = new Map<string, RegExp>()
-    for (const e of src) {
+    for (const e of allEnvironments) {
       if (e.onCallAlarmPattern) {
         try { map.set(e.id, new RegExp(e.onCallAlarmPattern)) } catch { /* invalid regex, skip */ }
       }
     }
     return map
-  }, [filters.productId, environments, allEnvironments])
+  }, [allEnvironments])
 
   const queryParams = useMemo(() => ({
     page,
     pageSize,
-    ...(filters.productId    && { productId:    filters.productId }),
-    ...(filters.environmentId && { environmentId: filters.environmentId }),
+    ...(filters.environmentIds.length > 0 && { environmentId: filters.environmentIds }),
     ...(filters.awsAccountId && { awsAccountId: filters.awsAccountId }),
     ...(filters.awsRegion    && { awsRegion:    filters.awsRegion }),
     ...(filters.dateFrom     && { dateFrom:     filters.dateFrom }),
     ...(filters.dateTo       && { dateTo:       filters.dateTo }),
   }), [
     page, pageSize,
-    filters.productId, filters.environmentId, filters.awsAccountId,
+    filters.environmentIds, filters.awsAccountId,
     filters.awsRegion, filters.dateFrom, filters.dateTo,
   ])
 
@@ -540,8 +557,7 @@ function AlarmEventsPageContent() {
         filters={filters}
         onFilterChange={handleFilterChange}
         onReset={handleResetFilters}
-        products={products}
-        environments={filters.productId ? environments : undefined}
+        productEnvironments={productEnvironments}
         collapsed={filtersCollapsed}
         onToggleCollapsed={handleToggleFiltersCollapsed}
       />
