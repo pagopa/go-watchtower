@@ -2,9 +2,11 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { Search, X, ChevronDown, SlidersHorizontal, Check } from 'lucide-react'
+import { format, subDays, startOfMonth } from 'date-fns'
+import type { DateRange } from 'react-day-picker'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { DateTimePicker } from '@/components/ui/date-time-picker'
+import { DateRangePicker, type DateRangePreset } from '@/components/ui/date-range-picker'
 import { Button } from '@/components/ui/button'
 import type { Product, Environment } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
@@ -31,6 +33,36 @@ interface AlarmEventFiltersProps {
   collapsed?: boolean
   onToggleCollapsed?: () => void
 }
+
+// ─── Date helpers ─────────────────────────────────────────────────────────────
+
+function filtersToRange(dateFrom: string, dateTo: string): DateRange | undefined {
+  if (!dateFrom && !dateTo) return undefined
+  return {
+    from: dateFrom ? new Date(dateFrom) : undefined,
+    to: dateTo ? new Date(dateTo) : undefined,
+  }
+}
+
+function rangeToFilters(range: DateRange | undefined): { dateFrom: string; dateTo: string } {
+  if (!range?.from) return { dateFrom: '', dateTo: '' }
+  const dateFrom = format(range.from, "yyyy-MM-dd'T'00:00")
+  const dateTo = range.to ? format(range.to, "yyyy-MM-dd'T'23:59") : ''
+  return { dateFrom, dateTo }
+}
+
+function sod(d: Date): Date { d.setHours(0, 0, 0, 0); return d }
+function eod(d: Date): Date { d.setHours(23, 59, 59, 999); return d }
+
+const ALARM_DATE_PRESETS: DateRangePreset[] = [
+  { label: 'Oggi',      range: () => ({ from: sod(new Date()), to: eod(new Date()) }) },
+  { label: 'Ieri',      range: () => ({ from: sod(subDays(new Date(), 1)), to: eod(subDays(new Date(), 1)) }) },
+  { label: '7 giorni',  range: () => ({ from: sod(subDays(new Date(), 6)), to: eod(new Date()) }) },
+  { label: '30 giorni', range: () => ({ from: sod(subDays(new Date(), 29)), to: eod(new Date()) }) },
+  { label: 'Mese',      range: () => ({ from: startOfMonth(new Date()), to: eod(new Date()) }) },
+]
+
+// ─── Main component ──────────────────────────────────────────────────────────
 
 export function AlarmEventFilters({
   filters,
@@ -81,12 +113,21 @@ export function AlarmEventFilters({
     onReset()
   }
 
+  const dateRange = useMemo(
+    () => filtersToRange(filters.dateFrom, filters.dateTo),
+    [filters.dateFrom, filters.dateTo],
+  )
+
+  const handleDateRangeChange = (range: DateRange | undefined) => {
+    const { dateFrom, dateTo } = rangeToFilters(range)
+    onFilterChange({ ...filters, dateFrom, dateTo })
+  }
+
   const activeFilterCount = [
     filters.environmentIds.length > 0,
     filters.awsAccountId,
     filters.awsRegion,
-    filters.dateFrom,
-    filters.dateTo,
+    filters.dateFrom || filters.dateTo,
   ].filter(Boolean).length
 
   return (
@@ -153,23 +194,14 @@ export function AlarmEventFilters({
               </div>
             </div>
 
-            {/* Date From */}
-            <div className="space-y-2">
-              <Label>Data da</Label>
-              <DateTimePicker
-                value={filters.dateFrom}
-                onChange={(v) => updateFilter('dateFrom', v)}
-                showNow
-              />
-            </div>
-
-            {/* Date To */}
-            <div className="space-y-2">
-              <Label>Data a</Label>
-              <DateTimePicker
-                value={filters.dateTo}
-                onChange={(v) => updateFilter('dateTo', v)}
-                showNow
+            {/* Date range picker with presets — spans 2 cols */}
+            <div className="space-y-2 sm:col-span-2">
+              <Label>Periodo</Label>
+              <DateRangePicker
+                value={dateRange}
+                onChange={handleDateRangeChange}
+                presets={ALARM_DATE_PRESETS}
+                className="w-full"
               />
             </div>
 

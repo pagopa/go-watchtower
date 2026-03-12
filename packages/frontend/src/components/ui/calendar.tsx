@@ -166,11 +166,13 @@ function Calendar({
             '[&:has([aria-selected])]:bg-accent',
             'first:[&:has([aria-selected])]:rounded-l-md',
             'last:[&:has([aria-selected])]:rounded-r-md',
-            'focus-within:relative focus-within:z-20'
+            'focus-within:relative focus-within:z-20',
+            // Override ghost button hover on selected days — let td bg show through
+            '[&[aria-selected=true]>button:hover]:bg-transparent [&[aria-selected=true]>button:hover]:text-[inherit]',
           ),
           day_button: cn(
             buttonVariants({ variant: 'ghost' }),
-            'h-9 w-9 p-0 font-normal aria-selected:opacity-100'
+            'h-9 w-9 p-0 font-normal aria-selected:opacity-100',
           ),
           range_end: 'day-range-end',
           selected:
