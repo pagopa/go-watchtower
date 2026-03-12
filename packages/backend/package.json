@@ -26,12 +26,12 @@
     "@sinclair/typebox": "^0.34.48",
     "bcrypt": "^6.0.0",
     "dotenv": "^17.3.1",
-    "fastify": "^5.7.4",
+    "fastify": "^5.8.2",
     "fastify-plugin": "^5.1.0"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
-    "@types/node": "^25.3.3",
+    "@types/node": "^25.5.0",
     "pino-pretty": "^13.1.3"
   }
 }

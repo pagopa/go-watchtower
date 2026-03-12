@@ -2,7 +2,7 @@
 
 import { Fragment, useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { startOfMonth } from 'date-fns'
+import { startOfMonth } from '@go-watchtower/shared'
 import type { DateRange } from 'react-day-picker'
 import { ChevronRight, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'

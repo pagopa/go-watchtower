@@ -82,6 +82,39 @@ export { inferLinkType } from './utils/infer-link-type.js';
 export { buildDiff } from './utils/build-diff.js';
 export { matchIgnoredAlarm } from './utils/match-ignored-alarm.js';
 export type { IgnoredAlarmEntry } from './utils/match-ignored-alarm.js';
+export {
+  // Timezone / low-level
+  getLocalParts,
+  assignAlarmBusinessDay,
+  // Formatting
+  formatDateTimeRome,
+  formatDateTimeUTC,
+  formatDateTimeDual,
+  formatDate,
+  formatDateTime,
+  formatDateLong,
+  formatDateShort,
+  formatJsDate,
+  formatRelativeTime,
+  formatRelativeTimeFromDate,
+  formatAbsoluteDateTime,
+  formatDuration,
+  computeMTTA,
+  // Conversione timezone (form input)
+  isoToRomeLocal,
+  isoToUTCLocal,
+  romeLocalToISO,
+  utcLocalToISO,
+  romeDateToISO,
+  // Date math
+  startOfMonth,
+  subMonths,
+  subDays,
+  isSameDay,
+  parseDate,
+  formatInRome,
+} from './utils/dates.js';
+export type { LocalParts, DualDateTime } from './utils/dates.js';
 
 // ─── Validazione analisi ───────────────────────────────────────────────────────
 

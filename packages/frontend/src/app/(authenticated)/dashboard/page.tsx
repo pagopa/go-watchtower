@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
 import { useQuery } from '@tanstack/react-query'
-import { startOfMonth, subMonths } from 'date-fns'
+import { startOfMonth, subMonths } from '@go-watchtower/shared'
 import type { DateRange } from 'react-day-picker'
 import { Skeleton } from '@/components/ui/skeleton'
 import {

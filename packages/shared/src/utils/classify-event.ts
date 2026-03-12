@@ -1,5 +1,6 @@
 import type { WorkingHours } from '../types/working-hours.js';
 import type { OnCallHours } from '../types/on-call-hours.js';
+import { getLocalParts } from './dates.js';
 
 export type EventClass = 'PRE' | 'WORK' | 'POST' | 'ON_CALL';
 
@@ -7,32 +8,6 @@ export type EventClass = 'PRE' | 'WORK' | 'POST' | 'ON_CALL';
 function toMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(':').map(Number);
   return (h ?? 0) * 60 + (m ?? 0);
-}
-
-/** Estrae le parti della data nell'IANA timezone specificata. */
-function localParts(date: Date, timezone: string): { isoWeekday: number; minuteOfDay: number } {
-  const fmt = new Intl.DateTimeFormat('en-US', {
-    timeZone:    timezone,
-    weekday:     'short',
-    hour:        '2-digit',
-    minute:      '2-digit',
-    hour12:      false,
-  });
-
-  const parts = fmt.formatToParts(date);
-  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
-
-  const weekdayShort = get('weekday'); // "Mon", "Tue", ...
-  const hour         = parseInt(get('hour'),   10);
-  const minute       = parseInt(get('minute'), 10);
-  const minuteOfDay  = hour * 60 + minute;
-
-  const weekdayMap: Record<string, number> = {
-    Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7,
-  };
-  const isoWeekday = weekdayMap[weekdayShort] ?? 1;
-
-  return { isoWeekday, minuteOfDay };
 }
 
 /**
@@ -78,7 +53,9 @@ export function classifyEvent(
 
   // ── Classificazione ON_CALL ───────────────────────────────────────────────
   if (onCall) {
-    const { isoWeekday, minuteOfDay } = localParts(firedAt, tz);
+    const lp = getLocalParts(firedAt, tz);
+    const isoWeekday = lp.isoWeekday;
+    const minuteOfDay = lp.hour * 60 + lp.minute;
 
     // Turno notturno feriale (overnight): inizia a `start` e termina a `end` del giorno dopo
     if (onCall.overnight) {

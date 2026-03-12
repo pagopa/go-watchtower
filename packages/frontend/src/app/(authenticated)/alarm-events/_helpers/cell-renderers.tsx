@@ -1,23 +1,10 @@
 import { memo } from 'react'
 import Link from 'next/link'
 import { PhoneCall, BookOpen, FileSearch } from 'lucide-react'
+import { formatDateTimeUTC } from '@go-watchtower/shared'
 import type { AlarmEvent } from '@/lib/api-client'
 
 type EmbeddedAlarm = NonNullable<AlarmEvent['alarm']>
-
-const UTC_DATE_FORMATTER = new Intl.DateTimeFormat('it-IT', {
-  timeZone: 'UTC',
-  year: 'numeric', month: '2-digit', day: '2-digit',
-  hour: '2-digit', minute: '2-digit',
-})
-
-function formatDateTimeUTC(iso: string): string {
-  try {
-    return UTC_DATE_FORMATTER.format(new Date(iso)) + ' UTC'
-  } catch {
-    return iso
-  }
-}
 
 export interface AlarmEventCellProps {
   columnId: string

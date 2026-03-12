@@ -1,8 +1,7 @@
 'use client'
 
 import { useCallback, useRef } from 'react'
-import { format, isSameDay } from 'date-fns'
-import { it } from 'date-fns/locale'
+import { formatJsDate, isSameDay } from '@go-watchtower/shared'
 import { CalendarIcon, X } from 'lucide-react'
 import type { DateRange } from 'react-day-picker'
 import { cn } from '@/lib/utils'
@@ -41,9 +40,9 @@ export function DateRangePicker({
 
   const formatTrigger = () => {
     if (!value?.from) return placeholder
-    if (!value.to) return format(value.from, 'dd MMM yyyy', { locale: it })
-    if (isSameDay(value.from, value.to)) return format(value.from, 'dd MMM yyyy', { locale: it })
-    return `${format(value.from, 'dd MMM yyyy', { locale: it })} – ${format(value.to, 'dd MMM yyyy', { locale: it })}`
+    if (!value.to) return formatJsDate(value.from, 'dd MMM yyyy')
+    if (isSameDay(value.from, value.to)) return formatJsDate(value.from, 'dd MMM yyyy')
+    return `${formatJsDate(value.from, 'dd MMM yyyy')} – ${formatJsDate(value.to, 'dd MMM yyyy')}`
   }
 
   const hasPresets = presets && presets.length > 0

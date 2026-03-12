@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { Search, X, ChevronDown, SlidersHorizontal, Check } from 'lucide-react'
-import { format, subDays, startOfMonth } from 'date-fns'
+import { formatJsDate, subDays, startOfMonth } from '@go-watchtower/shared'
 import type { DateRange } from 'react-day-picker'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -46,8 +46,8 @@ function filtersToRange(dateFrom: string, dateTo: string): DateRange | undefined
 
 function rangeToFilters(range: DateRange | undefined): { dateFrom: string; dateTo: string } {
   if (!range?.from) return { dateFrom: '', dateTo: '' }
-  const dateFrom = format(range.from, "yyyy-MM-dd'T'00:00")
-  const dateTo = range.to ? format(range.to, "yyyy-MM-dd'T'23:59") : ''
+  const dateFrom = formatJsDate(range.from, "yyyy-MM-dd'T'00:00")
+  const dateTo = range.to ? formatJsDate(range.to, "yyyy-MM-dd'T'23:59") : ''
   return { dateFrom, dateTo }
 }
 

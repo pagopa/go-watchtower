@@ -2,8 +2,7 @@
 
 import * as React from 'react'
 import { CalendarIcon, ChevronDown, ChevronUp, Clock, X } from 'lucide-react'
-import { format, parse } from 'date-fns'
-import { formatInTimeZone } from 'date-fns-tz'
+import { formatJsDate, parseDate, formatInRome } from '@go-watchtower/shared'
 import { cn } from '@/lib/utils'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
@@ -147,8 +146,8 @@ function tryParseDate(text: string): Date | null {
   ] as const
 
   for (const fmt of itFormats) {
-    const parsed = parse(normalised, fmt, new Date())
-    if (!isNaN(parsed.getTime())) return parsed
+    const parsed = parseDate(normalised, fmt)
+    if (parsed) return parsed
   }
 
   return null
@@ -341,7 +340,7 @@ export function DateTimePicker({
     const parsed = tryParseDate(text)
     if (parsed && !isNaN(parsed.getTime())) {
       const storeFormat = dateOnly ? 'yyyy-MM-dd' : "yyyy-MM-dd'T'HH:mm"
-      const newValue = format(parsed, storeFormat)
+      const newValue = formatJsDate(parsed, storeFormat)
       lastEmitted.current = newValue
       setDigits(valueToDigits(newValue, dateOnly))
       onChange(newValue)
@@ -354,8 +353,8 @@ export function DateTimePicker({
   const dateObj = React.useMemo(() => {
     if (!value) return undefined
     const storeFormat = dateOnly ? 'yyyy-MM-dd' : "yyyy-MM-dd'T'HH:mm"
-    const d = parse(value, storeFormat, new Date())
-    return isNaN(d.getTime()) ? undefined : d
+    const d = parseDate(value, storeFormat)
+    return d ?? undefined
   }, [value, dateOnly])
 
   const hours = dateObj ? dateObj.getHours() : 0
@@ -365,7 +364,7 @@ export function DateTimePicker({
     if (!day) return
     const storeFormat = dateOnly ? 'yyyy-MM-dd' : "yyyy-MM-dd'T'HH:mm"
     if (!dateOnly) day.setHours(hours, minutes, 0, 0)
-    const newValue = format(day, storeFormat)
+    const newValue = formatJsDate(day, storeFormat)
     lastEmitted.current = newValue
     setDigits(valueToDigits(newValue, dateOnly))
     onChange(newValue)
@@ -376,7 +375,7 @@ export function DateTimePicker({
     const base = dateObj ? new Date(dateObj) : new Date()
     if (!dateObj) base.setHours(0, 0, 0, 0)
     base.setHours((base.getHours() + hDelta + 24) % 24, (base.getMinutes() + mDelta + 60) % 60, 0, 0)
-    const newValue = format(base, "yyyy-MM-dd'T'HH:mm")
+    const newValue = formatJsDate(base, "yyyy-MM-dd'T'HH:mm")
     lastEmitted.current = newValue
     setDigits(valueToDigits(newValue, dateOnly))
     onChange(newValue)
@@ -397,8 +396,8 @@ export function DateTimePicker({
   const handleNow = () => {
     const storeFormat = dateOnly ? 'yyyy-MM-dd' : "yyyy-MM-dd'T'HH:mm"
     const newValue = nowTimezone
-      ? formatInTimeZone(new Date(), nowTimezone, storeFormat)
-      : format(new Date(), storeFormat)
+      ? formatInRome(new Date(), storeFormat)
+      : formatJsDate(new Date(), storeFormat)
     lastEmitted.current = newValue
     setDigits(valueToDigits(newValue, dateOnly))
     onChange(newValue)

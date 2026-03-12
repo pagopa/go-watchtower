@@ -1,51 +1,13 @@
 import { useMemo } from 'react'
 import { z } from 'zod'
-import { fromZonedTime, formatInTimeZone } from 'date-fns-tz'
+import {
+  isoToRomeLocal,
+  isoToUTCLocal,
+  romeLocalToISO,
+  utcLocalToISO,
+} from '@go-watchtower/shared'
 
-const ROME_TZ = 'Europe/Rome'
-
-// ─── Timezone-aware date conversion helpers ────────────────────────────────────
-//
-// analysisDate  → entered by the analyst as local ROME time
-// firstAlarmAt  → entered as UTC (copied from monitoring dashboards)
-// lastAlarmAt   → same as firstAlarmAt
-
-/**
- * UTC ISO → "YYYY-MM-DDTHH:mm" in Europe/Rome TZ.
- * Use to pre-fill the DateTimePicker for analysisDate when editing.
- */
-export const isoToRomeLocal = (iso: string): string => {
-  if (!iso) return ''
-  return formatInTimeZone(new Date(iso), ROME_TZ, "yyyy-MM-dd'T'HH:mm")
-}
-
-/**
- * UTC ISO → "YYYY-MM-DDTHH:mm" in UTC (strips timezone suffix).
- * Use to pre-fill the DateTimePicker for firstAlarmAt / lastAlarmAt when editing.
- */
-export const isoToUTCLocal = (iso: string): string => {
-  if (!iso) return ''
-  return iso.slice(0, 16)
-}
-
-/**
- * "YYYY-MM-DDTHH:mm" interpreted as Europe/Rome → UTC ISO string.
- * Use when submitting analysisDate.
- */
-export const romeLocalToISO = (val: string): string => {
-  if (!val) return ''
-  return fromZonedTime(new Date(val), ROME_TZ).toISOString()
-}
-
-/**
- * "YYYY-MM-DDTHH:mm" interpreted as UTC → UTC ISO string.
- * Use when submitting firstAlarmAt / lastAlarmAt.
- */
-export const utcLocalToISO = (val: string): string => {
-  if (!val) return ''
-  // Append ':00.000Z' to unambiguously treat the value as UTC.
-  return new Date(val + ':00.000Z').toISOString()
-}
+export { isoToRomeLocal, isoToUTCLocal, romeLocalToISO, utcLocalToISO }
 
 // ─── Full schema ───────────────────────────────────────────────────────────────
 
@@ -90,7 +52,7 @@ export const analysisFormSchema = z.object({
   (data) => {
     if (!data.analysisDate || !data.firstAlarmAt) return true
     // analysisDate is Rome local, firstAlarmAt is UTC — convert to actual UTC before comparing.
-    const analysisUTC = fromZonedTime(new Date(data.analysisDate), ROME_TZ)
+    const analysisUTC = new Date(romeLocalToISO(data.analysisDate))
     const firstAlarmUTC = new Date(data.firstAlarmAt + ':00.000Z')
     return analysisUTC >= firstAlarmUTC
   },
@@ -202,7 +164,7 @@ export function useDateValidation(
     }
 
     if (analysisDate) {
-      const analysisUTC = fromZonedTime(new Date(analysisDate), ROME_TZ)
+      const analysisUTC = new Date(romeLocalToISO(analysisDate))
 
       // analysisDate is Rome local, firstAlarmAt is UTC — convert properly before comparing.
       if (firstAlarm) {

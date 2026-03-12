@@ -3,8 +3,7 @@
 import { useState, useMemo, useRef, useCallback, useEffect, Fragment } from 'react'
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
-import { formatDistanceToNow, format } from 'date-fns'
-import { it } from 'date-fns/locale'
+import { formatRelativeTimeFromDate, formatAbsoluteDateTime } from '@go-watchtower/shared'
 import {
   ChevronLeft,
   ChevronRight,
@@ -276,8 +275,8 @@ function resolveResourceLink(event: SystemEvent): string | null {
 
 function RelativeTime({ dateStr }: { dateStr: string }) {
   const date = new Date(dateStr)
-  const relative = formatDistanceToNow(date, { addSuffix: true, locale: it })
-  const absolute = format(date, 'dd MMM yyyy · HH:mm:ss', { locale: it })
+  const relative = formatRelativeTimeFromDate(date)
+  const absolute = formatAbsoluteDateTime(date)
 
   return (
     <TooltipProvider delayDuration={300}>
