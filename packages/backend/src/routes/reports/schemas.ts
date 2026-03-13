@@ -64,6 +64,37 @@ export const MonthlyKpiQuerySchema = Type.Object({
 
 export type MonthlyKpiQuery = Static<typeof MonthlyKpiQuerySchema>;
 
+// ============================================================================
+// Yearly Summary Query & Response
+// ============================================================================
+
+export const YearlySummaryQuerySchema = Type.Object({
+  year: Type.Integer({ minimum: 2020, maximum: 2100 }),
+});
+
+export type YearlySummaryQuery = Static<typeof YearlySummaryQuerySchema>;
+
+const YearlySummaryMonthSchema = Type.Object({
+  month: Type.Integer(),
+  prodAnalysisOccurrences: Type.Integer(),
+  prodIgnorableOccurrences: Type.Integer(),
+  prodIgnorablePercent: Type.Number(),
+  prodAlarmEvents: Type.Integer(),
+  prodCoveragePercent: Type.Number(),
+  totalAnalysisOccurrences: Type.Integer(),
+  totalIgnorableOccurrences: Type.Integer(),
+  prodOnCallAlarmEvents: Type.Integer(),
+});
+
+export const YearlySummaryResponseSchema = Type.Object({
+  year: Type.Integer(),
+  months: Type.Array(YearlySummaryMonthSchema),
+});
+
+// ============================================================================
+// Monthly KPI Query & Response
+// ============================================================================
+
 /** Day number (1-31) → count */
 const DayCountsSchema = Type.Record(Type.String(), Type.Integer());
 

@@ -10,9 +10,12 @@ import {
   AlarmRankingResponseSchema,
   MonthlyKpiQuerySchema,
   MonthlyKpiResponseSchema,
+  YearlySummaryQuerySchema,
+  YearlySummaryResponseSchema,
   ErrorResponseSchema,
   type ReportQuery,
   type MonthlyKpiQuery,
+  type YearlySummaryQuery,
 } from "./schemas.js";
 
 function buildWhereClause(query: ReportQuery): Prisma.AlarmAnalysisWhereInput {
@@ -418,6 +421,165 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Failed to generate monthly KPI report";
+        HttpError.internal(reply, message);
+      }
+    }
+  );
+
+  // ============================================================================
+  // YEARLY SUMMARY REPORT
+  // ============================================================================
+
+  app.get<{ Querystring: YearlySummaryQuery }>(
+    "/reports/yearly-summary",
+    {
+      onRequest: [app.authenticate, requirePermission(SystemComponent.ALARM_ANALYSIS, "read")],
+      schema: {
+        tags: ["reports"],
+        summary: "Yearly summary — monthly production/total metrics across all products",
+        security: [{ bearerAuth: [] }],
+        querystring: YearlySummaryQuerySchema,
+        response: {
+          200: YearlySummaryResponseSchema,
+          403: ErrorResponseSchema,
+          500: ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const { year } = request.query;
+
+        const yearStart = new Date(Date.UTC(year, 0, 1));
+        const yearEnd = new Date(Date.UTC(year + 1, 0, 1));
+
+        // Expanded range for alarm events: business-day shift can move events across month boundaries
+        const expandedFrom = new Date(yearStart.getTime() - 4 * 86_400_000);
+        const expandedTo = new Date(yearEnd.getTime() + 86_400_000);
+
+        // ── 1. Production environments (order = 0) with on-call patterns ─────
+        const prodEnvironments = await prisma.environment.findMany({
+          where: { order: 0 },
+          select: { id: true, onCallAlarmPattern: true },
+        });
+
+        const prodEnvIds = prodEnvironments.map((e) => e.id);
+        const hasProdEnvs = prodEnvIds.length > 0;
+
+        const onCallRegexMap = new Map<string, RegExp>();
+        for (const env of prodEnvironments) {
+          if (env.onCallAlarmPattern) {
+            try {
+              onCallRegexMap.set(env.id, new RegExp(env.onCallAlarmPattern));
+            } catch {
+              /* invalid regex, skip */
+            }
+          }
+        }
+
+        // ── 2. Parallel queries ──────────────────────────────────────────────
+        const [alarmEventsRaw, prodAnalysisRaw, totalAnalysisRaw] = await Promise.all([
+          // Alarm events from production environments
+          hasProdEnvs
+            ? prisma.alarmEvent.findMany({
+                where: {
+                  environmentId: { in: prodEnvIds },
+                  firedAt: { gte: expandedFrom, lt: expandedTo },
+                },
+                select: { name: true, environmentId: true, firedAt: true },
+              })
+            : Promise.resolve([]),
+
+          // Production analyses: sum occurrences by month (total + ignorable breakdown)
+          hasProdEnvs
+            ? prisma.$queryRaw<Array<{ month: number; total_occurrences: bigint; ignorable_occurrences: bigint }>>`
+                SELECT
+                  EXTRACT(MONTH FROM analysis_date AT TIME ZONE 'UTC')::int AS month,
+                  COALESCE(SUM(occurrences), 0)::bigint AS total_occurrences,
+                  COALESCE(SUM(occurrences) FILTER (WHERE analysis_type = 'IGNORABLE'), 0)::bigint AS ignorable_occurrences
+                FROM alarm_analyses
+                WHERE environment_id IN (${Prisma.join(prodEnvIds)})
+                  AND analysis_date >= ${yearStart} AND analysis_date < ${yearEnd}
+                  AND ((status = 'COMPLETED' AND analysis_type = 'ANALYZABLE') OR analysis_type = 'IGNORABLE')
+                GROUP BY month
+              `
+            : Promise.resolve([]),
+
+          // All analyses: sum occurrences by month (all environments, total + ignorable)
+          prisma.$queryRaw<Array<{ month: number; total_occurrences: bigint; ignorable_occurrences: bigint }>>`
+            SELECT
+              EXTRACT(MONTH FROM analysis_date AT TIME ZONE 'UTC')::int AS month,
+              COALESCE(SUM(occurrences), 0)::bigint AS total_occurrences,
+              COALESCE(SUM(occurrences) FILTER (WHERE analysis_type = 'IGNORABLE'), 0)::bigint AS ignorable_occurrences
+            FROM alarm_analyses
+            WHERE analysis_date >= ${yearStart} AND analysis_date < ${yearEnd}
+              AND ((status = 'COMPLETED' AND analysis_type = 'ANALYZABLE') OR analysis_type = 'IGNORABLE')
+            GROUP BY month
+          `,
+        ]);
+
+        // ── 3. Business-day assignment for alarm events ──────────────────────
+        const prodAlarmByMonth = new Map<number, number>();
+        const prodOnCallByMonth = new Map<number, number>();
+
+        for (const ev of alarmEventsRaw) {
+          const regex = onCallRegexMap.get(ev.environmentId);
+          const isOnCall = regex ? regex.test(ev.name) : false;
+          const assigned = assignAlarmBusinessDay(ev.firedAt, isOnCall, "Europe/Rome");
+
+          if (assigned.year !== year) continue;
+
+          const m = assigned.month;
+          prodAlarmByMonth.set(m, (prodAlarmByMonth.get(m) ?? 0) + 1);
+          if (isOnCall) {
+            prodOnCallByMonth.set(m, (prodOnCallByMonth.get(m) ?? 0) + 1);
+          }
+        }
+
+        // ── 4. Lookup maps for analyses ──────────────────────────────────────
+        const prodAnalysisMap = new Map<number, number>();
+        const prodIgnorableMap = new Map<number, number>();
+        for (const r of prodAnalysisRaw) {
+          prodAnalysisMap.set(r.month, Number(r.total_occurrences));
+          prodIgnorableMap.set(r.month, Number(r.ignorable_occurrences));
+        }
+
+        const totalAnalysisMap = new Map<number, number>();
+        const totalIgnorableMap = new Map<number, number>();
+        for (const r of totalAnalysisRaw) {
+          totalAnalysisMap.set(r.month, Number(r.total_occurrences));
+          totalIgnorableMap.set(r.month, Number(r.ignorable_occurrences));
+        }
+
+        // ── 5. Build response ────────────────────────────────────────────────
+        const months = Array.from({ length: 12 }, (_, i) => {
+          const m = i + 1;
+          const prodAlarms = prodAlarmByMonth.get(m) ?? 0;
+          const prodAnalyses = prodAnalysisMap.get(m) ?? 0;
+          const prodIgnorable = prodIgnorableMap.get(m) ?? 0;
+          const totalAnalyses = totalAnalysisMap.get(m) ?? 0;
+          const totalIgnorable = totalIgnorableMap.get(m) ?? 0;
+          const prodOnCall = prodOnCallByMonth.get(m) ?? 0;
+
+          return {
+            month: m,
+            prodAnalysisOccurrences: prodAnalyses,
+            prodIgnorableOccurrences: prodIgnorable,
+            prodIgnorablePercent:
+              prodAnalyses > 0 ? Math.round((prodIgnorable / prodAnalyses) * 10000) / 100 : 0,
+            prodAlarmEvents: prodAlarms,
+            prodCoveragePercent:
+              prodAlarms > 0 ? Math.round((prodAnalyses / prodAlarms) * 10000) / 100 : 0,
+            totalAnalysisOccurrences: totalAnalyses,
+            totalIgnorableOccurrences: totalIgnorable,
+            prodOnCallAlarmEvents: prodOnCall,
+          };
+        });
+
+        reply.send({ year, months });
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Failed to generate yearly summary report";
         HttpError.internal(reply, message);
       }
     }
