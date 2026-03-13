@@ -1,7 +1,7 @@
 'use client'
 
 import { memo } from 'react'
-import { MoreHorizontal, Plus, Link2, Unlink, Pencil, Trash2 } from 'lucide-react'
+import { MoreHorizontal, Plus, EyeOff, Link2, Unlink, Pencil, Trash2 } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,16 +19,17 @@ export interface AlarmEventRowActionsProps {
   onEdit: (e: AlarmEvent) => void
   onDelete: (e: AlarmEvent) => void
   onCreateAnalysis?: (e: AlarmEvent) => void
+  onCreateIgnorableAnalysis?: (e: AlarmEvent) => void
   onAssociateAnalysis?: (e: AlarmEvent) => void
   onUnlinkAnalysis?: (e: AlarmEvent) => void
 }
 
 export const AlarmEventRowActions = memo(function AlarmEventRowActions({
   event, canWrite, canDelete, onEdit, onDelete,
-  onCreateAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
+  onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
 }: AlarmEventRowActionsProps) {
   const isLinked = !!event.analysisId
-  const hasAnalysisActions = isLinked ? !!onUnlinkAnalysis : (!!onCreateAnalysis && !!onAssociateAnalysis)
+  const hasAnalysisActions = isLinked ? !!onUnlinkAnalysis : (!!onCreateAnalysis && !!onCreateIgnorableAnalysis && !!onAssociateAnalysis)
   const hasEventActions = canWrite || canDelete
 
   if (!hasAnalysisActions && !hasEventActions) return null
@@ -61,6 +62,10 @@ export const AlarmEventRowActions = memo(function AlarmEventRowActions({
                   <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onCreateAnalysis!(event) }}>
                     <Plus className="h-4 w-4" />
                     Crea analisi
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onCreateIgnorableAnalysis!(event) }}>
+                    <EyeOff className="h-4 w-4" />
+                    Crea analisi da ignorare
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onAssociateAnalysis!(event) }}>
                     <Link2 className="h-4 w-4" />

@@ -503,6 +503,22 @@ function AlarmEventsPageContent() {
     setAnalysisFormOpen(true)
   }, [])
 
+  const handleCreateIgnorableAnalysisFromEvent = useCallback((event: AlarmEvent) => {
+    setShowDetailPanel(false)
+    setAnalysisProductId(event.product.id)
+    setAnalysisSourceEventId(event.id)
+    setAnalysisInitialValues({
+      analysisDate: isoToRomeLocal(new Date().toISOString()),
+      firstAlarmAt: isoToUTCLocal(event.firedAt),
+      lastAlarmAt:  isoToUTCLocal(event.firedAt),
+      alarmId:      event.alarmId ?? '',
+      environmentId: event.environment.id,
+      occurrences:  1,
+      analysisType: 'IGNORABLE' as const,
+    })
+    setAnalysisFormOpen(true)
+  }, [])
+
   const handleAssociateAnalysis = useCallback((event: AlarmEvent) => {
     setShowDetailPanel(false)
     setAssociateEvent(event)
@@ -653,6 +669,7 @@ function AlarmEventsPageContent() {
           isOnCallEvent={isOnCallEvent}
           onAlarmClick={handleAlarmClick}
           onCreateAnalysis={handleCreateAnalysisFromEvent}
+          onCreateIgnorableAnalysis={handleCreateIgnorableAnalysisFromEvent}
           onAssociateAnalysis={handleAssociateAnalysis}
           onUnlinkAnalysis={handleUnlinkAnalysis}
         />
@@ -679,6 +696,7 @@ function AlarmEventsPageContent() {
           isOnCallEvent={isOnCallEvent}
           onAlarmClick={handleAlarmClick}
           onCreateAnalysis={handleCreateAnalysisFromEvent}
+          onCreateIgnorableAnalysis={handleCreateIgnorableAnalysisFromEvent}
           onAssociateAnalysis={handleAssociateAnalysis}
           onUnlinkAnalysis={handleUnlinkAnalysis}
         />
@@ -705,6 +723,7 @@ function AlarmEventsPageContent() {
           isOnCallEvent={isOnCallEvent}
           onAlarmClick={handleAlarmClick}
           onCreateAnalysis={handleCreateAnalysisFromEvent}
+          onCreateIgnorableAnalysis={handleCreateIgnorableAnalysisFromEvent}
           onAssociateAnalysis={handleAssociateAnalysis}
           onUnlinkAnalysis={handleUnlinkAnalysis}
         />
@@ -809,6 +828,7 @@ function AlarmEventsPageContent() {
                       onDelete={handleDelete}
                       onAlarmClick={handleAlarmClick}
                       onCreateAnalysis={handleCreateAnalysisFromEvent}
+                      onCreateIgnorableAnalysis={handleCreateIgnorableAnalysisFromEvent}
                       onAssociateAnalysis={handleAssociateAnalysis}
                       onUnlinkAnalysis={handleUnlinkAnalysis}
                     />

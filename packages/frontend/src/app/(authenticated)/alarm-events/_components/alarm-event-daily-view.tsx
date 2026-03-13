@@ -42,9 +42,10 @@ export interface AlarmEventDailyViewProps {
   onDelete:        (e: AlarmEvent) => void
   isOnCallEvent?:  (e: AlarmEvent) => boolean
   onAlarmClick?:   (alarm: NonNullable<AlarmEvent['alarm']>, productId: string) => void
-  onCreateAnalysis?:    (e: AlarmEvent) => void
-  onAssociateAnalysis?: (e: AlarmEvent) => void
-  onUnlinkAnalysis?:    (e: AlarmEvent) => void
+  onCreateAnalysis?:           (e: AlarmEvent) => void
+  onCreateIgnorableAnalysis?:  (e: AlarmEvent) => void
+  onAssociateAnalysis?:        (e: AlarmEvent) => void
+  onUnlinkAnalysis?:           (e: AlarmEvent) => void
 }
 
 // ─── Date utilities ───────────────────────────────────────────────────────────
@@ -253,7 +254,7 @@ export function BucketSection({
   canWrite, canDelete, canWriteAnalysis,
   selectedEventId, showDetailPanel, lingeringId,
   onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
-  onCreateAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
+  onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
 }: {
   cfg:             BucketCfg
   events:          AlarmEvent[]
@@ -272,9 +273,10 @@ export function BucketSection({
   onDelete:        (e: AlarmEvent) => void
   isOnCallEvent?:  (e: AlarmEvent) => boolean
   onAlarmClick?:   (alarm: NonNullable<AlarmEvent['alarm']>, productId: string) => void
-  onCreateAnalysis?:    (e: AlarmEvent) => void
-  onAssociateAnalysis?: (e: AlarmEvent) => void
-  onUnlinkAnalysis?:    (e: AlarmEvent) => void
+  onCreateAnalysis?:           (e: AlarmEvent) => void
+  onCreateIgnorableAnalysis?:  (e: AlarmEvent) => void
+  onAssociateAnalysis?:        (e: AlarmEvent) => void
+  onUnlinkAnalysis?:           (e: AlarmEvent) => void
 }) {
   const [collapsed, setCollapsed] = useState(events.length === 0)
   const { Icon } = cfg
@@ -344,6 +346,7 @@ export function BucketSection({
               onEdit={onEdit}
               onDelete={onDelete}
               onCreateAnalysis={canWriteAnalysis ? onCreateAnalysis : undefined}
+              onCreateIgnorableAnalysis={canWriteAnalysis ? onCreateIgnorableAnalysis : undefined}
               onAssociateAnalysis={canWriteAnalysis ? onAssociateAnalysis : undefined}
               onUnlinkAnalysis={canWriteAnalysis ? onUnlinkAnalysis : undefined}
             />
@@ -460,7 +463,7 @@ export function AlarmEventDailyView({
   canWrite, canDelete, canWriteAnalysis,
   selectedEventId, showDetailPanel, lingeringId,
   onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
-  onCreateAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
+  onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
 }: AlarmEventDailyViewProps) {
   const wh = workingHours ?? DEFAULT_WH
   const tz = wh.timezone ?? 'Europe/Rome'
@@ -497,7 +500,7 @@ export function AlarmEventDailyView({
 
   const bucketProps = { visibleColumns, getWidth, totalMinWidth, canWrite, canDelete, canWriteAnalysis,
     selectedEventId, showDetailPanel, lingeringId, onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
-    onCreateAnalysis, onAssociateAnalysis, onUnlinkAnalysis }
+    onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis }
 
   return (
     <div className="space-y-3">

@@ -35,9 +35,10 @@ export interface AlarmEventOnCallViewProps {
   onDelete:        (e: AlarmEvent) => void
   isOnCallEvent?:  (e: AlarmEvent) => boolean
   onAlarmClick?:   (alarm: NonNullable<AlarmEvent['alarm']>, productId: string) => void
-  onCreateAnalysis?:    (e: AlarmEvent) => void
-  onAssociateAnalysis?: (e: AlarmEvent) => void
-  onUnlinkAnalysis?:    (e: AlarmEvent) => void
+  onCreateAnalysis?:           (e: AlarmEvent) => void
+  onCreateIgnorableAnalysis?:  (e: AlarmEvent) => void
+  onAssociateAnalysis?:        (e: AlarmEvent) => void
+  onUnlinkAnalysis?:           (e: AlarmEvent) => void
 }
 
 // ─── Bucket configs ───────────────────────────────────────────────────────────
@@ -288,7 +289,7 @@ export function AlarmEventOnCallView({
   canWrite, canDelete, canWriteAnalysis,
   selectedEventId, showDetailPanel, lingeringId,
   onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
-  onCreateAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
+  onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
 }: AlarmEventOnCallViewProps) {
   const [referenceDate, setReferenceDate] = useState<string>(() => todayUTC())
 
@@ -325,7 +326,7 @@ export function AlarmEventOnCallView({
 
   const bucketProps = { visibleColumns, getWidth, totalMinWidth, canWrite, canDelete, canWriteAnalysis,
     selectedEventId, showDetailPanel, lingeringId, onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
-    onCreateAnalysis, onAssociateAnalysis, onUnlinkAnalysis }
+    onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis }
 
   return (
     <div className="space-y-3">

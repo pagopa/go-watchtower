@@ -116,6 +116,7 @@ const EventRow = forwardRef<HTMLTableRowElement, {
   isOnCallEvent?: (e: AlarmEvent) => boolean
   onAlarmClick?: (alarm: NonNullable<AlarmEvent['alarm']>, productId: string) => void
   onCreateAnalysis?: (e: AlarmEvent) => void
+  onCreateIgnorableAnalysis?: (e: AlarmEvent) => void
   onAssociateAnalysis?: (e: AlarmEvent) => void
   onUnlinkAnalysis?: (e: AlarmEvent) => void
   indented?: boolean
@@ -124,7 +125,7 @@ const EventRow = forwardRef<HTMLTableRowElement, {
   event, visibleColumns, getWidth, canWrite, canDelete, canWriteAnalysis,
   selectedEventId, showDetailPanel, lingeringId,
   onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
-  onCreateAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
+  onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
   indented, dataIndex,
 }, ref) {
   const isSelected  = event.id === selectedEventId && showDetailPanel
@@ -178,6 +179,7 @@ const EventRow = forwardRef<HTMLTableRowElement, {
             onEdit={onEdit}
             onDelete={onDelete}
             onCreateAnalysis={canWriteAnalysis ? onCreateAnalysis : undefined}
+            onCreateIgnorableAnalysis={canWriteAnalysis ? onCreateIgnorableAnalysis : undefined}
             onAssociateAnalysis={canWriteAnalysis ? onAssociateAnalysis : undefined}
             onUnlinkAnalysis={canWriteAnalysis ? onUnlinkAnalysis : undefined}
           />
@@ -204,7 +206,7 @@ function GroupedBucketSection({
   canWrite, canDelete, canWriteAnalysis,
   selectedEventId, showDetailPanel, lingeringId,
   onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
-  onCreateAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
+  onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
 }: {
   cfg:             BucketCfg
   events:          AlarmEvent[]
@@ -223,9 +225,10 @@ function GroupedBucketSection({
   onDelete:        (e: AlarmEvent) => void
   isOnCallEvent?:  (e: AlarmEvent) => boolean
   onAlarmClick?:   (alarm: NonNullable<AlarmEvent['alarm']>, productId: string) => void
-  onCreateAnalysis?:    (e: AlarmEvent) => void
-  onAssociateAnalysis?: (e: AlarmEvent) => void
-  onUnlinkAnalysis?:    (e: AlarmEvent) => void
+  onCreateAnalysis?:           (e: AlarmEvent) => void
+  onCreateIgnorableAnalysis?:  (e: AlarmEvent) => void
+  onAssociateAnalysis?:        (e: AlarmEvent) => void
+  onUnlinkAnalysis?:           (e: AlarmEvent) => void
 }) {
   const [collapsed, setCollapsed] = useState(events.length === 0)
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
@@ -279,7 +282,7 @@ function GroupedBucketSection({
     visibleColumns, getWidth, canWrite, canDelete, canWriteAnalysis,
     selectedEventId, showDetailPanel, lingeringId,
     onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
-    onCreateAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
+    onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
   }
 
   const renderFlatItem = (item: FlatItem, ref?: (el: HTMLTableRowElement | null) => void, dataIndex?: number) => {
@@ -411,7 +414,7 @@ export function AlarmEventGroupedView({
   canWrite, canDelete, canWriteAnalysis,
   selectedEventId, showDetailPanel, lingeringId,
   onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
-  onCreateAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
+  onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
 }: AlarmEventGroupedViewProps) {
   const [referenceDate, setReferenceDate] = useState<string>(() => todayUTC())
 
@@ -450,7 +453,7 @@ export function AlarmEventGroupedView({
 
   const bucketProps = { visibleColumns, getWidth, totalMinWidth, canWrite, canDelete, canWriteAnalysis,
     selectedEventId, showDetailPanel, lingeringId, onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
-    onCreateAnalysis, onAssociateAnalysis, onUnlinkAnalysis }
+    onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis }
 
   return (
     <div className="space-y-3">

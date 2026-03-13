@@ -57,6 +57,12 @@ export const analysisFormSchema = z.object({
     return analysisUTC >= firstAlarmUTC
   },
   { message: 'La data analisi non può precedere il primo allarme', path: ['analysisDate'] }
+).refine(
+  (data) => {
+    if (data.analysisType === 'IGNORABLE' && !data.ignoreReasonCode) return false
+    return true
+  },
+  { message: 'Il motivo è obbligatorio per le analisi da ignorare', path: ['ignoreReasonCode'] }
 )
 
 export type AnalysisFormData = z.infer<typeof analysisFormSchema>

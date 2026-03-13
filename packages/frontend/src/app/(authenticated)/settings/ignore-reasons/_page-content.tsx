@@ -189,6 +189,7 @@ function SchemaEditor({
             control={{} as never}
             schema={parsed}
             disabled
+            preview
           />
         </div>
       )}

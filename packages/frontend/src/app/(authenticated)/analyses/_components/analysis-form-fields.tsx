@@ -484,9 +484,11 @@ interface IgnoreReasonFieldProps {
   control: Control<FieldValues>
   disabled: boolean
   options: { value: string; label: string }[]
+  errors?: FieldErrors<FieldValues>
 }
 
-export function IgnoreReasonField({ control, disabled, options }: IgnoreReasonFieldProps) {
+export function IgnoreReasonField({ control, disabled, options, errors }: IgnoreReasonFieldProps) {
+  const error = errors?.ignoreReasonCode?.message as string | undefined
   return (
     <div className="space-y-2">
       <Label>Motivo *</Label>
@@ -499,7 +501,7 @@ export function IgnoreReasonField({ control, disabled, options }: IgnoreReasonFi
             onValueChange={field.onChange}
             disabled={disabled}
           >
-            <SelectTrigger>
+            <SelectTrigger className={error ? 'border-destructive' : ''}>
               <SelectValue placeholder="Seleziona motivo" />
             </SelectTrigger>
             <SelectContent>
@@ -512,6 +514,7 @@ export function IgnoreReasonField({ control, disabled, options }: IgnoreReasonFi
           </Select>
         )}
       />
+      {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   )
 }

@@ -29,6 +29,7 @@ export interface AlarmEventTableRowProps {
   onDelete: (event: AlarmEvent) => void
   onAlarmClick: (alarm: EmbeddedAlarm, productId: string) => void
   onCreateAnalysis: (event: AlarmEvent) => void
+  onCreateIgnorableAnalysis: (event: AlarmEvent) => void
   onAssociateAnalysis: (event: AlarmEvent) => void
   onUnlinkAnalysis: (event: AlarmEvent) => void
 }
@@ -50,6 +51,7 @@ export const AlarmEventTableRow = memo(function AlarmEventTableRow({
   onDelete,
   onAlarmClick,
   onCreateAnalysis,
+  onCreateIgnorableAnalysis,
   onAssociateAnalysis,
   onUnlinkAnalysis,
 }: AlarmEventTableRowProps) {
@@ -107,6 +109,7 @@ export const AlarmEventTableRow = memo(function AlarmEventTableRow({
             onEdit={onEdit}
             onDelete={onDelete}
             onCreateAnalysis={canWriteAnalysis ? onCreateAnalysis : undefined}
+            onCreateIgnorableAnalysis={canWriteAnalysis ? onCreateIgnorableAnalysis : undefined}
             onAssociateAnalysis={canWriteAnalysis ? onAssociateAnalysis : undefined}
             onUnlinkAnalysis={canWriteAnalysis ? onUnlinkAnalysis : undefined}
           />

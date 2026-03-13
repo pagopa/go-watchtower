@@ -577,6 +577,7 @@ export function AnalysisFormDialog({
                     control={fvControl}
                     disabled={isPending}
                     options={ignoreReasons?.map((r) => ({ value: r.code, label: r.label })) ?? []}
+                    errors={errors}
                   />
                   {selectedIgnoreReason?.detailsSchema && (
                     <div className="sm:col-span-2">
