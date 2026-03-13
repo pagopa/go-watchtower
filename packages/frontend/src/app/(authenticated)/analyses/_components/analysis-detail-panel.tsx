@@ -16,6 +16,7 @@ import { api, type AlarmAnalysis, type AlarmEvent, type PaginatedResponse } from
 import { sanitizeUrl } from '@/lib/sanitize-url'
 import { usePreferences } from '@/hooks/use-preferences'
 import { UnlinkAlarmEventDialog } from '../../alarm-events/_components/unlink-alarm-event-dialog'
+import { IgnoredAlarmDetailsDialog } from './ignored-alarm-warning'
 import {
   ANALYSIS_TYPE_LABELS,
   ANALYSIS_STATUS_LABELS,
@@ -338,6 +339,43 @@ function TrackingEntryCard({
         </p>
       )}
     </div>
+  )
+}
+
+// ─── Listed ignored alarm link ────────────────────────────────────────────────
+
+function ListedIgnoredAlarmLink({ analysis }: { analysis: AlarmAnalysis }) {
+  const [showDetails, setShowDetails] = useState(false)
+
+  const { data: ignoredAlarms } = useQuery({
+    queryKey: ['ignored-alarms', analysis.productId],
+    queryFn: () => api.getIgnoredAlarms(analysis.productId),
+    staleTime: 60_000,
+  })
+
+  const matched = ignoredAlarms?.find(
+    (ia) => ia.alarm.name === analysis.alarm.name && ia.environmentId === analysis.environmentId,
+  )
+
+  if (!matched) return null
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setShowDetails(true)}
+        className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-200 transition-colors"
+      >
+        <Info className="h-3 w-3 shrink-0" />
+        Allarme presente nella lista da ignorare
+        <ExternalLink className="h-3 w-3 shrink-0" />
+      </button>
+      <IgnoredAlarmDetailsDialog
+        ignoredAlarm={matched}
+        open={showDetails}
+        onOpenChange={setShowDetails}
+      />
+    </>
   )
 }
 
@@ -785,6 +823,9 @@ export function AnalysisDetailPanel({
                           </Field>
                         )
                       })}
+                    {analysis.ignoreReasonCode === 'LISTED' && (
+                      <ListedIgnoredAlarmLink analysis={analysis} />
+                    )}
                   </dl>
                 )}
 

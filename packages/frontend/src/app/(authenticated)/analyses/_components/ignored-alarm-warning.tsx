@@ -165,7 +165,7 @@ interface IgnoredAlarmDetailsDialogProps {
   onOpenChange: (open: boolean) => void
 }
 
-function IgnoredAlarmDetailsDialog({ ignoredAlarm, open, onOpenChange }: IgnoredAlarmDetailsDialogProps) {
+export function IgnoredAlarmDetailsDialog({ ignoredAlarm, open, onOpenChange }: IgnoredAlarmDetailsDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col gap-0 p-0">
