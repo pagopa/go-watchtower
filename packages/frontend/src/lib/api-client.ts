@@ -744,14 +744,18 @@ export interface AlarmRankingItem {
 
 export interface YearlySummaryMonth {
   month: number
+  prodAlarmEvents: number
   prodAnalysisOccurrences: number
   prodIgnorableOccurrences: number
+  prodOnCallAlarmEvents: number
   prodIgnorablePercent: number
-  prodAlarmEvents: number
   prodCoveragePercent: number
+  totalAlarmEvents: number
   totalAnalysisOccurrences: number
   totalIgnorableOccurrences: number
-  prodOnCallAlarmEvents: number
+  totalOnCallAlarmEvents: number
+  totalIgnorablePercent: number
+  totalCoveragePercent: number
 }
 
 export interface YearlySummaryData {
@@ -989,9 +993,9 @@ export const api = {
     request<MonthlyKpiData>('/api/reports/monthly-kpi', {
       params: filters as unknown as Record<string, string | number | boolean | undefined>,
     }),
-  getYearlySummary: (year: number) =>
+  getYearlySummary: (year: number, productId?: string) =>
     request<YearlySummaryData>('/api/reports/yearly-summary', {
-      params: { year },
+      params: { year, ...(productId ? { productId } : {}) },
     }),
 
   // Users

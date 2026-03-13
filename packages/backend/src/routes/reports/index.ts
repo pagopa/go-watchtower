@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import { prisma, Prisma, SystemComponent } from "@go-watchtower/database";
-import { assignAlarmBusinessDay } from "@go-watchtower/shared";
+import { assignAlarmBusinessDay, romeDateToISO } from "@go-watchtower/shared";
 import { requirePermission } from "../../lib/require-permission.js";
 import { HttpError } from "../../utils/http-errors.js";
 import {
@@ -448,95 +448,205 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const { year } = request.query;
+        const { year, productId } = request.query;
 
-        const yearStart = new Date(Date.UTC(year, 0, 1));
-        const yearEnd = new Date(Date.UTC(year + 1, 0, 1));
+        // Rome midnight → UTC (handles CET/CEST correctly)
+        const yearStart = new Date(romeDateToISO(`${year}-01-01`));
+        const yearEnd = new Date(romeDateToISO(`${year + 1}-01-01`));
 
         // Expanded range for alarm events: business-day shift can move events across month boundaries
         const expandedFrom = new Date(yearStart.getTime() - 4 * 86_400_000);
         const expandedTo = new Date(yearEnd.getTime() + 86_400_000);
 
-        // ── 1. Production environments (order = 0) with on-call patterns ─────
+        // ── 1. Production environments (order = 0), optionally scoped by product ──
         const prodEnvironments = await prisma.environment.findMany({
-          where: { order: 0 },
-          select: { id: true, onCallAlarmPattern: true },
+          where: { order: 0, ...(productId ? { productId } : {}) },
+          select: { id: true },
         });
 
         const prodEnvIds = prodEnvironments.map((e) => e.id);
         const hasProdEnvs = prodEnvIds.length > 0;
 
-        const onCallRegexMap = new Map<string, RegExp>();
-        for (const env of prodEnvironments) {
-          if (env.onCallAlarmPattern) {
-            try {
-              onCallRegexMap.set(env.id, new RegExp(env.onCallAlarmPattern));
-            } catch {
-              /* invalid regex, skip */
-            }
-          }
-        }
-
         // ── 2. Parallel queries ──────────────────────────────────────────────
-        const [alarmEventsRaw, prodAnalysisRaw, totalAnalysisRaw] = await Promise.all([
-          // Alarm events from production environments
+        const [prodAlarmsByMonth, totalAlarmsByMonth, prodAnalysisRaw, totalAnalysisRaw] = await Promise.all([
+          // Alarm events: business-day assignment + aggregation fully in SQL
+          // Replicates assignAlarmBusinessDay logic: on-call → calendar day,
+          // normal Mon–Fri <18:00 → same day, Mon–Thu ≥18 → +1, Fri ≥18 → +3,
+          // Sat → +2, Sun → +1. On-call detection via environment regex pattern.
           hasProdEnvs
-            ? prisma.alarmEvent.findMany({
-                where: {
-                  environmentId: { in: prodEnvIds },
-                  firedAt: { gte: expandedFrom, lt: expandedTo },
-                },
-                select: { name: true, environmentId: true, firedAt: true },
-              })
+            ? prisma.$queryRaw<Array<{ month: number; total_events: number; on_call_events: number }>>`
+                WITH rome_events AS (
+                  SELECT
+                    ae.fired_at AT TIME ZONE 'Europe/Rome' AS rome_ts,
+                    CASE
+                      WHEN e.on_call_alarm_pattern IS NOT NULL
+                        AND ae.name ~ e.on_call_alarm_pattern THEN true
+                      ELSE false
+                    END AS is_on_call
+                  FROM alarm_events ae
+                  JOIN environments e ON e.id = ae.environment_id
+                  WHERE ae.environment_id IN (${Prisma.join(prodEnvIds)})
+                    AND ae.fired_at >= ${expandedFrom} AND ae.fired_at < ${expandedTo}
+                ),
+                business_days AS (
+                  SELECT
+                    is_on_call,
+                    CASE
+                      WHEN is_on_call THEN rome_ts
+                      WHEN EXTRACT(ISODOW FROM rome_ts) BETWEEN 1 AND 5
+                        AND EXTRACT(HOUR FROM rome_ts) < 18 THEN rome_ts
+                      WHEN EXTRACT(ISODOW FROM rome_ts) BETWEEN 1 AND 4
+                        AND EXTRACT(HOUR FROM rome_ts) >= 18 THEN rome_ts + INTERVAL '1 day'
+                      WHEN EXTRACT(ISODOW FROM rome_ts) = 5
+                        AND EXTRACT(HOUR FROM rome_ts) >= 18 THEN rome_ts + INTERVAL '3 days'
+                      WHEN EXTRACT(ISODOW FROM rome_ts) = 6 THEN rome_ts + INTERVAL '2 days'
+                      WHEN EXTRACT(ISODOW FROM rome_ts) = 7 THEN rome_ts + INTERVAL '1 day'
+                    END AS business_day
+                  FROM rome_events
+                )
+                SELECT
+                  EXTRACT(MONTH FROM business_day)::int AS month,
+                  COUNT(*)::int AS total_events,
+                  COUNT(*) FILTER (WHERE is_on_call)::int AS on_call_events
+                FROM business_days
+                WHERE EXTRACT(YEAR FROM business_day)::int = ${year}
+                GROUP BY month
+              `
             : Promise.resolve([]),
+
+          // Total alarm events (all environments): same business-day logic, with on-call breakdown
+          productId
+            ? prisma.$queryRaw<Array<{ month: number; total_events: number; on_call_events: number }>>`
+                WITH rome_events AS (
+                  SELECT
+                    ae.fired_at AT TIME ZONE 'Europe/Rome' AS rome_ts,
+                    CASE
+                      WHEN e.on_call_alarm_pattern IS NOT NULL
+                        AND ae.name ~ e.on_call_alarm_pattern THEN true
+                      ELSE false
+                    END AS is_on_call
+                  FROM alarm_events ae
+                  JOIN environments e ON e.id = ae.environment_id
+                  WHERE ae.product_id = ${productId}
+                    AND ae.fired_at >= ${expandedFrom} AND ae.fired_at < ${expandedTo}
+                ),
+                business_days AS (
+                  SELECT
+                    is_on_call,
+                    CASE
+                      WHEN is_on_call THEN rome_ts
+                      WHEN EXTRACT(ISODOW FROM rome_ts) BETWEEN 1 AND 5
+                        AND EXTRACT(HOUR FROM rome_ts) < 18 THEN rome_ts
+                      WHEN EXTRACT(ISODOW FROM rome_ts) BETWEEN 1 AND 4
+                        AND EXTRACT(HOUR FROM rome_ts) >= 18 THEN rome_ts + INTERVAL '1 day'
+                      WHEN EXTRACT(ISODOW FROM rome_ts) = 5
+                        AND EXTRACT(HOUR FROM rome_ts) >= 18 THEN rome_ts + INTERVAL '3 days'
+                      WHEN EXTRACT(ISODOW FROM rome_ts) = 6 THEN rome_ts + INTERVAL '2 days'
+                      WHEN EXTRACT(ISODOW FROM rome_ts) = 7 THEN rome_ts + INTERVAL '1 day'
+                    END AS business_day
+                  FROM rome_events
+                )
+                SELECT
+                  EXTRACT(MONTH FROM business_day)::int AS month,
+                  COUNT(*)::int AS total_events,
+                  COUNT(*) FILTER (WHERE is_on_call)::int AS on_call_events
+                FROM business_days
+                WHERE EXTRACT(YEAR FROM business_day)::int = ${year}
+                GROUP BY month
+              `
+            : prisma.$queryRaw<Array<{ month: number; total_events: number; on_call_events: number }>>`
+                WITH rome_events AS (
+                  SELECT
+                    ae.fired_at AT TIME ZONE 'Europe/Rome' AS rome_ts,
+                    CASE
+                      WHEN e.on_call_alarm_pattern IS NOT NULL
+                        AND ae.name ~ e.on_call_alarm_pattern THEN true
+                      ELSE false
+                    END AS is_on_call
+                  FROM alarm_events ae
+                  JOIN environments e ON e.id = ae.environment_id
+                  WHERE ae.fired_at >= ${expandedFrom} AND ae.fired_at < ${expandedTo}
+                ),
+                business_days AS (
+                  SELECT
+                    is_on_call,
+                    CASE
+                      WHEN is_on_call THEN rome_ts
+                      WHEN EXTRACT(ISODOW FROM rome_ts) BETWEEN 1 AND 5
+                        AND EXTRACT(HOUR FROM rome_ts) < 18 THEN rome_ts
+                      WHEN EXTRACT(ISODOW FROM rome_ts) BETWEEN 1 AND 4
+                        AND EXTRACT(HOUR FROM rome_ts) >= 18 THEN rome_ts + INTERVAL '1 day'
+                      WHEN EXTRACT(ISODOW FROM rome_ts) = 5
+                        AND EXTRACT(HOUR FROM rome_ts) >= 18 THEN rome_ts + INTERVAL '3 days'
+                      WHEN EXTRACT(ISODOW FROM rome_ts) = 6 THEN rome_ts + INTERVAL '2 days'
+                      WHEN EXTRACT(ISODOW FROM rome_ts) = 7 THEN rome_ts + INTERVAL '1 day'
+                    END AS business_day
+                  FROM rome_events
+                )
+                SELECT
+                  EXTRACT(MONTH FROM business_day)::int AS month,
+                  COUNT(*)::int AS total_events,
+                  COUNT(*) FILTER (WHERE is_on_call)::int AS on_call_events
+                FROM business_days
+                WHERE EXTRACT(YEAR FROM business_day)::int = ${year}
+                GROUP BY month
+              `,
 
           // Production analyses: sum occurrences by month (total + ignorable breakdown)
           hasProdEnvs
             ? prisma.$queryRaw<Array<{ month: number; total_occurrences: bigint; ignorable_occurrences: bigint }>>`
                 SELECT
-                  EXTRACT(MONTH FROM analysis_date AT TIME ZONE 'UTC')::int AS month,
+                  EXTRACT(MONTH FROM analysis_date AT TIME ZONE 'Europe/Rome')::int AS month,
                   COALESCE(SUM(occurrences), 0)::bigint AS total_occurrences,
                   COALESCE(SUM(occurrences) FILTER (WHERE analysis_type = 'IGNORABLE'), 0)::bigint AS ignorable_occurrences
                 FROM alarm_analyses
                 WHERE environment_id IN (${Prisma.join(prodEnvIds)})
                   AND analysis_date >= ${yearStart} AND analysis_date < ${yearEnd}
-                  AND ((status = 'COMPLETED' AND analysis_type = 'ANALYZABLE') OR analysis_type = 'IGNORABLE')
+                  AND status = 'COMPLETED'
                 GROUP BY month
               `
             : Promise.resolve([]),
 
           // All analyses: sum occurrences by month (all environments, total + ignorable)
-          prisma.$queryRaw<Array<{ month: number; total_occurrences: bigint; ignorable_occurrences: bigint }>>`
-            SELECT
-              EXTRACT(MONTH FROM analysis_date AT TIME ZONE 'UTC')::int AS month,
-              COALESCE(SUM(occurrences), 0)::bigint AS total_occurrences,
-              COALESCE(SUM(occurrences) FILTER (WHERE analysis_type = 'IGNORABLE'), 0)::bigint AS ignorable_occurrences
-            FROM alarm_analyses
-            WHERE analysis_date >= ${yearStart} AND analysis_date < ${yearEnd}
-              AND ((status = 'COMPLETED' AND analysis_type = 'ANALYZABLE') OR analysis_type = 'IGNORABLE')
-            GROUP BY month
-          `,
+          productId
+            ? prisma.$queryRaw<Array<{ month: number; total_occurrences: bigint; ignorable_occurrences: bigint }>>`
+                SELECT
+                  EXTRACT(MONTH FROM analysis_date AT TIME ZONE 'Europe/Rome')::int AS month,
+                  COALESCE(SUM(occurrences), 0)::bigint AS total_occurrences,
+                  COALESCE(SUM(occurrences) FILTER (WHERE analysis_type = 'IGNORABLE'), 0)::bigint AS ignorable_occurrences
+                FROM alarm_analyses
+                WHERE product_id = ${productId}
+                  AND analysis_date >= ${yearStart} AND analysis_date < ${yearEnd}
+                  AND status = 'COMPLETED'
+                GROUP BY month
+              `
+            : prisma.$queryRaw<Array<{ month: number; total_occurrences: bigint; ignorable_occurrences: bigint }>>`
+                SELECT
+                  EXTRACT(MONTH FROM analysis_date AT TIME ZONE 'Europe/Rome')::int AS month,
+                  COALESCE(SUM(occurrences), 0)::bigint AS total_occurrences,
+                  COALESCE(SUM(occurrences) FILTER (WHERE analysis_type = 'IGNORABLE'), 0)::bigint AS ignorable_occurrences
+                FROM alarm_analyses
+                WHERE analysis_date >= ${yearStart} AND analysis_date < ${yearEnd}
+                  AND status = 'COMPLETED'
+                GROUP BY month
+              `,
         ]);
 
-        // ── 3. Business-day assignment for alarm events ──────────────────────
+        // ── 3. Lookup maps ──────────────────────────────────────────────────
         const prodAlarmByMonth = new Map<number, number>();
         const prodOnCallByMonth = new Map<number, number>();
-
-        for (const ev of alarmEventsRaw) {
-          const regex = onCallRegexMap.get(ev.environmentId);
-          const isOnCall = regex ? regex.test(ev.name) : false;
-          const assigned = assignAlarmBusinessDay(ev.firedAt, isOnCall, "Europe/Rome");
-
-          if (assigned.year !== year) continue;
-
-          const m = assigned.month;
-          prodAlarmByMonth.set(m, (prodAlarmByMonth.get(m) ?? 0) + 1);
-          if (isOnCall) {
-            prodOnCallByMonth.set(m, (prodOnCallByMonth.get(m) ?? 0) + 1);
-          }
+        for (const r of prodAlarmsByMonth) {
+          prodAlarmByMonth.set(r.month, r.total_events);
+          prodOnCallByMonth.set(r.month, r.on_call_events);
         }
 
-        // ── 4. Lookup maps for analyses ──────────────────────────────────────
+        const totalAlarmByMonth = new Map<number, number>();
+        const totalOnCallByMonth = new Map<number, number>();
+        for (const r of totalAlarmsByMonth) {
+          totalAlarmByMonth.set(r.month, r.total_events);
+          totalOnCallByMonth.set(r.month, r.on_call_events);
+        }
+
         const prodAnalysisMap = new Map<number, number>();
         const prodIgnorableMap = new Map<number, number>();
         for (const r of prodAnalysisRaw) {
@@ -559,20 +669,28 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
           const prodIgnorable = prodIgnorableMap.get(m) ?? 0;
           const totalAnalyses = totalAnalysisMap.get(m) ?? 0;
           const totalIgnorable = totalIgnorableMap.get(m) ?? 0;
+          const totalAlarms = totalAlarmByMonth.get(m) ?? 0;
+          const totalOnCall = totalOnCallByMonth.get(m) ?? 0;
           const prodOnCall = prodOnCallByMonth.get(m) ?? 0;
 
           return {
             month: m,
+            prodAlarmEvents: prodAlarms,
             prodAnalysisOccurrences: prodAnalyses,
             prodIgnorableOccurrences: prodIgnorable,
+            prodOnCallAlarmEvents: prodOnCall,
             prodIgnorablePercent:
               prodAnalyses > 0 ? Math.round((prodIgnorable / prodAnalyses) * 10000) / 100 : 0,
-            prodAlarmEvents: prodAlarms,
             prodCoveragePercent:
               prodAlarms > 0 ? Math.round((prodAnalyses / prodAlarms) * 10000) / 100 : 0,
+            totalAlarmEvents: totalAlarms,
             totalAnalysisOccurrences: totalAnalyses,
             totalIgnorableOccurrences: totalIgnorable,
-            prodOnCallAlarmEvents: prodOnCall,
+            totalOnCallAlarmEvents: totalOnCall,
+            totalIgnorablePercent:
+              totalAnalyses > 0 ? Math.round((totalIgnorable / totalAnalyses) * 10000) / 100 : 0,
+            totalCoveragePercent:
+              totalAlarms > 0 ? Math.round((totalAnalyses / totalAlarms) * 10000) / 100 : 0,
           };
         });
 

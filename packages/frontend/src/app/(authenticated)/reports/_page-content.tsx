@@ -133,7 +133,7 @@ export function ReportsPageContent() {
               <MonthlyKpiTab products={products} />
             )}
             {activeReport === 'yearly-summary' && (
-              <YearlySummaryTab />
+              <YearlySummaryTab products={products} />
             )}
           </div>
         </>

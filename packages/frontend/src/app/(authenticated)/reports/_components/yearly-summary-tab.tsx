@@ -22,10 +22,19 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-import { api, type YearlySummaryData, type YearlySummaryMonth } from '@/lib/api-client'
+import { api, type Product, type YearlySummaryData, type YearlySummaryMonth } from '@/lib/api-client'
 import { downloadCsv, downloadJson } from '@/lib/export-utils'
 import { ExportMenu } from './export-menu'
+import { ALL_VALUE } from '@/lib/constants'
 
 // ─── Summary KPI card ────────────────────────────────────────────────────────
 
@@ -100,33 +109,42 @@ function fmtPct(n: number, hasData: boolean): string {
 
 // ─── Main component ──────────────────────────────────────────────────────────
 
-export function YearlySummaryTab() {
+interface YearlySummaryTabProps {
+  products?: Product[]
+}
+
+export function YearlySummaryTab({ products }: YearlySummaryTabProps) {
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
+  const [selectedProductId, setSelectedProductId] = useState('')
 
   const { data, isLoading, isFetching } = useQuery<YearlySummaryData>({
-    queryKey: ['report-yearly-summary', year],
-    queryFn: () => api.getYearlySummary(year),
+    queryKey: ['report-yearly-summary', year, selectedProductId],
+    queryFn: () => api.getYearlySummary(year, selectedProductId || undefined),
   })
 
   const totals = useMemo(() => {
     if (!data) return null
     return data.months.reduce(
       (acc, m) => ({
+        prodAlarmEvents: acc.prodAlarmEvents + m.prodAlarmEvents,
         prodAnalysisOccurrences: acc.prodAnalysisOccurrences + m.prodAnalysisOccurrences,
         prodIgnorableOccurrences: acc.prodIgnorableOccurrences + m.prodIgnorableOccurrences,
-        prodAlarmEvents: acc.prodAlarmEvents + m.prodAlarmEvents,
+        prodOnCallAlarmEvents: acc.prodOnCallAlarmEvents + m.prodOnCallAlarmEvents,
+        totalAlarmEvents: acc.totalAlarmEvents + m.totalAlarmEvents,
         totalAnalysisOccurrences: acc.totalAnalysisOccurrences + m.totalAnalysisOccurrences,
         totalIgnorableOccurrences: acc.totalIgnorableOccurrences + m.totalIgnorableOccurrences,
-        prodOnCallAlarmEvents: acc.prodOnCallAlarmEvents + m.prodOnCallAlarmEvents,
+        totalOnCallAlarmEvents: acc.totalOnCallAlarmEvents + m.totalOnCallAlarmEvents,
       }),
       {
+        prodAlarmEvents: 0,
         prodAnalysisOccurrences: 0,
         prodIgnorableOccurrences: 0,
-        prodAlarmEvents: 0,
+        prodOnCallAlarmEvents: 0,
+        totalAlarmEvents: 0,
         totalAnalysisOccurrences: 0,
         totalIgnorableOccurrences: 0,
-        prodOnCallAlarmEvents: 0,
+        totalOnCallAlarmEvents: 0,
       },
     )
   }, [data])
@@ -135,8 +153,16 @@ export function YearlySummaryTab() {
     ? Math.round((totals.prodAnalysisOccurrences / totals.prodAlarmEvents) * 10000) / 100
     : 0
 
-  const totalIgnorablePercent = totals && totals.prodAnalysisOccurrences > 0
+  const totalCoverageAll = totals && totals.totalAlarmEvents > 0
+    ? Math.round((totals.totalAnalysisOccurrences / totals.totalAlarmEvents) * 10000) / 100
+    : 0
+
+  const prodIgnorablePercent = totals && totals.prodAnalysisOccurrences > 0
     ? Math.round((totals.prodIgnorableOccurrences / totals.prodAnalysisOccurrences) * 10000) / 100
+    : 0
+
+  const totalIgnorablePercentAll = totals && totals.totalAnalysisOccurrences > 0
+    ? Math.round((totals.totalIgnorableOccurrences / totals.totalAnalysisOccurrences) * 10000) / 100
     : 0
 
   // ── Export ──────────────────────────────────────────────────────────────────
@@ -145,25 +171,33 @@ export function YearlySummaryTab() {
     if (!data) return
     const rows = data.months.map((m) => ({
       month: MONTH_NAMES[m.month - 1],
+      prodAlarmEvents: m.prodAlarmEvents,
       prodAnalysisOccurrences: m.prodAnalysisOccurrences,
       prodIgnorableOccurrences: m.prodIgnorableOccurrences,
+      prodOnCallAlarmEvents: m.prodOnCallAlarmEvents,
       prodIgnorablePercent: m.prodIgnorablePercent,
-      prodAlarmEvents: m.prodAlarmEvents,
       prodCoveragePercent: m.prodCoveragePercent,
+      totalAlarmEvents: m.totalAlarmEvents,
       totalAnalysisOccurrences: m.totalAnalysisOccurrences,
       totalIgnorableOccurrences: m.totalIgnorableOccurrences,
-      prodOnCallAlarmEvents: m.prodOnCallAlarmEvents,
+      totalOnCallAlarmEvents: m.totalOnCallAlarmEvents,
+      totalIgnorablePercent: m.totalIgnorablePercent,
+      totalCoveragePercent: m.totalCoveragePercent,
     }))
     downloadCsv(rows, [
       { key: 'month', label: 'Mese' },
+      { key: 'prodAlarmEvents', label: 'Allarmi Prod' },
       { key: 'prodAnalysisOccurrences', label: 'Analisi Prod (occ.)' },
       { key: 'prodIgnorableOccurrences', label: 'Ignorate Prod (occ.)' },
-      { key: 'prodIgnorablePercent', label: 'Ignorate Prod %' },
-      { key: 'prodAlarmEvents', label: 'Allarmi Prod' },
-      { key: 'prodCoveragePercent', label: 'Copertura %' },
+      { key: 'prodOnCallAlarmEvents', label: 'On-Call Prod' },
+      { key: 'prodIgnorablePercent', label: 'Ign. % Prod' },
+      { key: 'prodCoveragePercent', label: 'Copertura Prod %' },
+      { key: 'totalAlarmEvents', label: 'Allarmi Totali' },
       { key: 'totalAnalysisOccurrences', label: 'Analisi Totali (occ.)' },
       { key: 'totalIgnorableOccurrences', label: 'Ignorate Totali (occ.)' },
-      { key: 'prodOnCallAlarmEvents', label: 'On-Call Prod' },
+      { key: 'totalOnCallAlarmEvents', label: 'On-Call Totali' },
+      { key: 'totalIgnorablePercent', label: 'Ign. % Totale' },
+      { key: 'totalCoveragePercent', label: 'Copertura Totale %' },
     ], `report-annuale-${year}`)
   }, [data, year])
 
@@ -191,6 +225,24 @@ export function YearlySummaryTab() {
             <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md" onClick={() => setYear(year + 1)}>
               <ChevronRight className="h-3.5 w-3.5" />
             </Button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Label className="text-sm whitespace-nowrap">Prodotto</Label>
+            <Select
+              value={selectedProductId || ALL_VALUE}
+              onValueChange={(val) => setSelectedProductId(val === ALL_VALUE ? '' : val)}
+            >
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Tutti" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_VALUE}>Tutti i prodotti</SelectItem>
+                {products?.filter(p => p.isActive).map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {isRefetching && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
@@ -281,40 +333,54 @@ export function YearlySummaryTab() {
                           Produzione
                         </th>
                         <th
-                          colSpan={2}
-                          className="px-3 py-1.5 text-center text-[11px] font-semibold uppercase tracking-widest text-sky-700 dark:text-sky-400 border-x border-sky-200/40 dark:border-sky-800/30 bg-sky-500/[0.04]"
+                          colSpan={6}
+                          className="px-3 py-1.5 text-center text-[11px] font-semibold uppercase tracking-widest text-sky-700 dark:text-sky-400 border-l-2 border-border border-r border-sky-200/40 dark:border-sky-800/30 bg-sky-500/[0.04]"
                         >
                           Tutti gli ambienti
                         </th>
                       </tr>
-                      {/* Column labels */}
+                      {/* Column labels — order: Allarmi, Analisi, Ignorate, On-Call, Ign. %, Copertura */}
                       <tr className="border-b bg-muted/20">
                         <th className="sticky left-0 z-10 bg-card px-3 py-2 text-left text-xs font-medium text-muted-foreground">
                           Mese
                         </th>
+                        {/* ── Produzione ── */}
+                        <HeaderCell tip="Allarmi scattati in produzione (conteggio business-day)">
+                          Allarmi
+                        </HeaderCell>
                         <HeaderCell tip="Somma occorrenze analisi (completate + ignorate) in ambienti di produzione">
                           Analisi
                         </HeaderCell>
                         <HeaderCell tip="Somma occorrenze analisi da ignorare in produzione" muted>
                           Ignorate
                         </HeaderCell>
-                        <HeaderCell tip="Percentuale analisi ignorate sul totale analisi di produzione" muted>
-                          Ign. %
-                        </HeaderCell>
-                        <HeaderCell tip="Allarmi scattati in produzione (conteggio business-day)">
-                          Allarmi
-                        </HeaderCell>
                         <HeaderCell tip="Allarmi on-call scattati in produzione">
                           On-Call
                         </HeaderCell>
+                        <HeaderCell tip="Percentuale analisi ignorate sul totale analisi di produzione" muted>
+                          Ign. %
+                        </HeaderCell>
                         <HeaderCell tip="Analisi / Allarmi scattati in produzione">
                           Copertura
+                        </HeaderCell>
+                        {/* ── Tutti gli ambienti ── */}
+                        <HeaderCell tip="Allarmi scattati in tutti i prodotti e ambienti (conteggio business-day)" className="border-l-2 border-border">
+                          Allarmi
                         </HeaderCell>
                         <HeaderCell tip="Somma occorrenze analisi per tutti i prodotti e ambienti">
                           Analisi
                         </HeaderCell>
                         <HeaderCell tip="Somma occorrenze analisi da ignorare per tutti i prodotti e ambienti" muted>
                           Ignorate
+                        </HeaderCell>
+                        <HeaderCell tip="Allarmi on-call scattati in tutti gli ambienti">
+                          On-Call
+                        </HeaderCell>
+                        <HeaderCell tip="Percentuale analisi ignorate sul totale analisi" muted>
+                          Ign. %
+                        </HeaderCell>
+                        <HeaderCell tip="Analisi totali / Allarmi totali scattati">
+                          Copertura
                         </HeaderCell>
                       </tr>
                     </thead>
@@ -334,29 +400,43 @@ export function YearlySummaryTab() {
                         <td className="sticky left-0 z-10 bg-muted/30 px-3 py-2.5 text-xs font-bold uppercase tracking-wide">
                           Totale
                         </td>
+                        {/* ── Produzione ── */}
+                        <td className="px-3 py-2.5 text-right tabular-nums text-sm font-bold">
+                          {fmtNum(totals.prodAlarmEvents)}
+                        </td>
                         <td className="px-3 py-2.5 text-right tabular-nums text-sm font-bold">
                           {fmtNum(totals.prodAnalysisOccurrences)}
                         </td>
                         <td className="px-3 py-2.5 text-right tabular-nums text-sm font-medium text-muted-foreground">
                           {fmtNum(totals.prodIgnorableOccurrences)}
                         </td>
-                        <td className="px-3 py-2.5 text-right tabular-nums text-sm font-medium text-muted-foreground">
-                          {fmtPct(totalIgnorablePercent, totals.prodAnalysisOccurrences > 0)}
-                        </td>
-                        <td className="px-3 py-2.5 text-right tabular-nums text-sm font-bold">
-                          {fmtNum(totals.prodAlarmEvents)}
-                        </td>
                         <td className="px-3 py-2.5 text-right tabular-nums text-sm font-bold">
                           {fmtNum(totals.prodOnCallAlarmEvents)}
                         </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-sm font-medium text-muted-foreground">
+                          {fmtPct(prodIgnorablePercent, totals.prodAnalysisOccurrences > 0)}
+                        </td>
                         <td className="px-3 py-2.5">
                           <CoverageBar value={totalCoverage} hasData={totals.prodAlarmEvents > 0} />
+                        </td>
+                        {/* ── Tutti gli ambienti ── */}
+                        <td className="px-3 py-2.5 text-right tabular-nums text-sm font-bold border-l-2 border-border">
+                          {fmtNum(totals.totalAlarmEvents)}
                         </td>
                         <td className="px-3 py-2.5 text-right tabular-nums text-sm font-bold">
                           {fmtNum(totals.totalAnalysisOccurrences)}
                         </td>
                         <td className="px-3 py-2.5 text-right tabular-nums text-sm font-medium text-muted-foreground">
                           {fmtNum(totals.totalIgnorableOccurrences)}
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-sm font-bold">
+                          {fmtNum(totals.totalOnCallAlarmEvents)}
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-sm font-medium text-muted-foreground">
+                          {fmtPct(totalIgnorablePercentAll, totals.totalAnalysisOccurrences > 0)}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <CoverageBar value={totalCoverageAll} hasData={totals.totalAlarmEvents > 0} />
                         </td>
                       </tr>
                     </tfoot>
@@ -381,13 +461,14 @@ export function YearlySummaryTab() {
 
 // ─── Table subcomponents ─────────────────────────────────────────────────────
 
-function HeaderCell({ children, tip, muted }: {
+function HeaderCell({ children, tip, muted, className }: {
   children: React.ReactNode
   tip: string
   muted?: boolean
+  className?: string
 }) {
   return (
-    <th className="px-3 py-2 text-right">
+    <th className={cn('px-3 py-2 text-right', className)}>
       <Tooltip>
         <TooltipTrigger asChild>
           <span className={cn(
@@ -410,7 +491,7 @@ function MonthRow({ m, isCurrentMonth, isFutureMonth }: {
   isCurrentMonth: boolean
   isFutureMonth: boolean
 }) {
-  const hasData = m.prodAlarmEvents > 0 || m.prodAnalysisOccurrences > 0 || m.totalAnalysisOccurrences > 0
+  const hasData = m.prodAlarmEvents > 0 || m.prodAnalysisOccurrences > 0 || m.totalAnalysisOccurrences > 0 || m.totalAlarmEvents > 0
   const dimmed = isFutureMonth && !hasData
 
   return (
@@ -435,37 +516,43 @@ function MonthRow({ m, isCurrentMonth, isFutureMonth }: {
           )}
         </span>
       </td>
-      {/* Production: analyses */}
-      <td className="px-3 py-2 text-right tabular-nums text-sm">
-        {hasData ? fmtNum(m.prodAnalysisOccurrences) : <Dash />}
-      </td>
-      {/* Production: ignorable */}
-      <td className="px-3 py-2 text-right tabular-nums text-sm text-muted-foreground">
-        {hasData ? fmtNum(m.prodIgnorableOccurrences) : <Dash />}
-      </td>
-      {/* Production: ignorable % */}
-      <td className="px-3 py-2 text-right tabular-nums text-sm text-muted-foreground">
-        {fmtPct(m.prodIgnorablePercent, m.prodAnalysisOccurrences > 0)}
-      </td>
-      {/* Production: alarm events */}
+      {/* ── Produzione: Allarmi, Analisi, Ignorate, On-Call, Ign. %, Copertura ── */}
       <td className="px-3 py-2 text-right tabular-nums text-sm font-medium">
         {hasData ? fmtNum(m.prodAlarmEvents) : <Dash />}
       </td>
-      {/* Production: on-call */}
+      <td className="px-3 py-2 text-right tabular-nums text-sm">
+        {hasData ? fmtNum(m.prodAnalysisOccurrences) : <Dash />}
+      </td>
+      <td className="px-3 py-2 text-right tabular-nums text-sm text-muted-foreground">
+        {hasData ? fmtNum(m.prodIgnorableOccurrences) : <Dash />}
+      </td>
       <td className="px-3 py-2 text-right tabular-nums text-sm font-medium">
         {hasData ? fmtNum(m.prodOnCallAlarmEvents) : <Dash />}
       </td>
-      {/* Production: coverage */}
+      <td className="px-3 py-2 text-right tabular-nums text-sm text-muted-foreground">
+        {fmtPct(m.prodIgnorablePercent, m.prodAnalysisOccurrences > 0)}
+      </td>
       <td className="px-3 py-2">
         <CoverageBar value={m.prodCoveragePercent} hasData={m.prodAlarmEvents > 0} />
       </td>
-      {/* All: analyses */}
+      {/* ── Tutti: Allarmi, Analisi, Ignorate, On-Call, Ign. %, Copertura ── */}
+      <td className="px-3 py-2 text-right tabular-nums text-sm font-medium border-l-2 border-border">
+        {hasData ? fmtNum(m.totalAlarmEvents) : <Dash />}
+      </td>
       <td className="px-3 py-2 text-right tabular-nums text-sm">
         {hasData ? fmtNum(m.totalAnalysisOccurrences) : <Dash />}
       </td>
-      {/* All: ignorable */}
       <td className="px-3 py-2 text-right tabular-nums text-sm text-muted-foreground">
         {hasData ? fmtNum(m.totalIgnorableOccurrences) : <Dash />}
+      </td>
+      <td className="px-3 py-2 text-right tabular-nums text-sm font-medium">
+        {hasData ? fmtNum(m.totalOnCallAlarmEvents) : <Dash />}
+      </td>
+      <td className="px-3 py-2 text-right tabular-nums text-sm text-muted-foreground">
+        {fmtPct(m.totalIgnorablePercent, m.totalAnalysisOccurrences > 0)}
+      </td>
+      <td className="px-3 py-2">
+        <CoverageBar value={m.totalCoveragePercent} hasData={m.totalAlarmEvents > 0} />
       </td>
     </tr>
   )
