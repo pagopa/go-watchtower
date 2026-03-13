@@ -63,7 +63,11 @@ function SchemaPreview({ schema }: { schema: IgnoreReasonDetailsSchema | null })
   if (!schema?.properties) {
     return <span className="text-xs text-muted-foreground/50 italic">—</span>
   }
-  const fields = Object.entries(schema.properties)
+  const orderedKeys = (schema as Record<string, unknown>)['x-order'] as string[] | undefined
+  const keys = orderedKeys
+    ? orderedKeys.filter((k) => k in schema.properties!)
+    : Object.keys(schema.properties)
+  const fields = keys.map((k) => [k, schema.properties![k]!] as const)
   const required = schema.required ?? []
   return (
     <div className="space-y-1">

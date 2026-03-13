@@ -546,8 +546,10 @@ function AlarmEventsPageContent() {
       return analysis
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string).startsWith('alarm-events') })
-      queryClient.invalidateQueries({ queryKey: ['analyses'] })
+      queryClient.invalidateQueries({ predicate: (q) => {
+        const key = typeof q.queryKey[0] === 'string' ? q.queryKey[0] : ''
+        return key.startsWith('alarm-events') || key.startsWith('analyses') || key.startsWith('report-')
+      }})
       toast.success('Analisi creata e evento associato')
       setAnalysisFormOpen(false)
       setAnalysisSourceEventId(null)

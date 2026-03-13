@@ -467,7 +467,10 @@ function AnalysesPageContent() {
 
   const invalidateAnalyses = useCallback(() => {
     queryClient.invalidateQueries({
-      predicate: (q) => typeof q.queryKey[0] === 'string' && q.queryKey[0].startsWith('analyses'),
+      predicate: (q) => {
+        const key = typeof q.queryKey[0] === 'string' ? q.queryKey[0] : ''
+        return key.startsWith('analyses') || key.startsWith('report-')
+      },
     })
     queryClient.invalidateQueries({ queryKey: ['analysis-authors'] })
   }, [queryClient])

@@ -36,8 +36,10 @@ import {
   type IgnoreReason,
   type CreateAlarmAnalysisData,
 } from '@/lib/api-client'
+import { DateTimePicker } from '@/components/ui/date-time-picker'
 import { DynamicIgnoreDetailsForm } from '@/components/ui/json-schema-form'
 import { useForm, type FieldValues } from 'react-hook-form'
+import { isoToRomeLocal, romeLocalToISO } from '../../analyses/_components/analysis-form-schemas'
 
 interface GroupedAlarmRow {
   /** Chiave di raggruppamento */
@@ -84,6 +86,7 @@ export function BulkIgnoreDialog({
   const queryClient = useQueryClient()
   const { data: session } = useSession()
   const [ignoreReasonCode, setIgnoreReasonCode] = useState('')
+  const [analysisDate, setAnalysisDate] = useState(() => isoToRomeLocal(new Date().toISOString()))
 
   const { data: ignoreReasons } = useQuery<IgnoreReason[]>({
     queryKey: ['ignore-reasons'],
@@ -157,7 +160,7 @@ export function BulkIgnoreDialog({
 
       for (const row of grouped) {
         const data: CreateAlarmAnalysisData = {
-          analysisDate: new Date().toISOString(),
+          analysisDate: romeLocalToISO(analysisDate),
           firstAlarmAt: row.firstAlarmAt,
           lastAlarmAt: row.lastAlarmAt,
           occurrences: row.occurrences,
@@ -183,10 +186,13 @@ export function BulkIgnoreDialog({
       return results
     },
     onSuccess: (results) => {
-      queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string).startsWith('alarm-events') })
-      queryClient.invalidateQueries({ queryKey: ['analyses'] })
+      queryClient.invalidateQueries({ predicate: (q) => {
+        const key = typeof q.queryKey[0] === 'string' ? q.queryKey[0] : ''
+        return key.startsWith('alarm-events') || key.startsWith('analyses') || key.startsWith('report-')
+      }})
       toast.success(`${results.length} analisi create e ${selectedEvents.length - skipped.length} eventi collegati`)
       setIgnoreReasonCode('')
+      setAnalysisDate(isoToRomeLocal(new Date().toISOString()))
       resetDetails()
       onOpenChange(false)
       onCompleted()
@@ -196,7 +202,7 @@ export function BulkIgnoreDialog({
     },
   })
 
-  const canSubmit = ignoreReasonCode && grouped.length > 0 && !bulkMutation.isPending
+  const canSubmit = ignoreReasonCode && analysisDate && grouped.length > 0 && !bulkMutation.isPending
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -251,8 +257,19 @@ export function BulkIgnoreDialog({
           </div>
         )}
 
-        {/* Motivo esclusione */}
+        {/* Data analisi + Motivo esclusione */}
         <div className="space-y-4 border-t pt-4">
+          <div className="space-y-2">
+            <Label>Data analisi * <span className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wide">ora Roma</span></Label>
+            <DateTimePicker
+              value={analysisDate}
+              onChange={setAnalysisDate}
+              disabled={bulkMutation.isPending}
+              showNow
+              nowTimezone="Europe/Rome"
+            />
+          </div>
+
           <div className="space-y-2">
             <Label>Motivo di esclusione *</Label>
             <Select value={ignoreReasonCode} onValueChange={setIgnoreReasonCode} disabled={bulkMutation.isPending}>

@@ -26,8 +26,32 @@ interface DynamicIgnoreDetailsFormProps {
   control: Control<any>
   schema: IgnoreReasonDetailsSchema
   disabled?: boolean
+  preview?: boolean
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   errors?: Record<string, any>
+}
+
+function PreviewField({ name, def, required }: { name: string; def: IgnoreReasonFieldDef; required: boolean }) {
+  const fieldPath = `ignoreDetails.${name}`
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={fieldPath}>
+        {def.title}
+        {required && <span className="ml-0.5 text-destructive">*</span>}
+      </Label>
+      {def['x-ui'] === 'textarea' ? (
+        <Textarea id={fieldPath} placeholder={def.description} rows={3} disabled />
+      ) : def.enum && def.enum.length > 0 ? (
+        <Select disabled>
+          <SelectTrigger id={fieldPath}>
+            <SelectValue placeholder={def.description ?? 'Seleziona...'} />
+          </SelectTrigger>
+        </Select>
+      ) : (
+        <Input id={fieldPath} type={def.type === 'number' ? 'number' : 'text'} placeholder={def.description} disabled />
+      )}
+    </div>
+  )
 }
 
 function DynamicField({
@@ -130,26 +154,36 @@ export function DynamicIgnoreDetailsForm({
   control,
   schema,
   disabled,
+  preview,
   errors,
 }: DynamicIgnoreDetailsFormProps) {
   if (!schema.properties || Object.keys(schema.properties).length === 0) return null
 
   const required = schema.required ?? []
   const detailsErrors = errors?.ignoreDetails
+  const orderedKeys = (schema as Record<string, unknown>)['x-order'] as string[] | undefined
+  const keys = orderedKeys
+    ? orderedKeys.filter((k) => k in schema.properties!)
+    : Object.keys(schema.properties)
 
   return (
     <div className="space-y-3 rounded-lg border border-dashed border-border bg-muted/30 p-4">
-      {Object.entries(schema.properties).map(([key, def]) => (
-        <DynamicField
-          key={key}
-          name={key}
-          def={def}
-          required={required.includes(key)}
-          control={control}
-          disabled={disabled}
-          errors={detailsErrors}
-        />
-      ))}
+      {keys.map((key) => {
+        const def = schema.properties![key]!
+        return preview ? (
+          <PreviewField key={key} name={key} def={def} required={required.includes(key)} />
+        ) : (
+          <DynamicField
+            key={key}
+            name={key}
+            def={def}
+            required={required.includes(key)}
+            control={control}
+            disabled={disabled}
+            errors={detailsErrors}
+          />
+        )
+      })}
     </div>
   )
 }
