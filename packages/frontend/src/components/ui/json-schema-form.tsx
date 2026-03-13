@@ -60,7 +60,6 @@ function DynamicField({
   required,
   control,
   disabled,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   errors,
 }: {
   name: string

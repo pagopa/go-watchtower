@@ -1,7 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useForm, type Control, type FieldErrors, type FieldValues, type Resolver } from 'react-hook-form'
+import { startTransition, useCallback, useEffect, useMemo, useState } from 'react'
+import { useForm, useWatch, type Control, type FieldErrors, type FieldValues, type Resolver } from 'react-hook-form'
 import { useSession } from 'next-auth/react'
 import { useQuery } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -105,7 +105,6 @@ export function ShortcutAnalysisDialog({
     handleSubmit,
     reset,
     control,
-    watch,
     formState: { errors: typedErrors, isDirty },
   } = useForm<ShortcutInCorsoData>({
     resolver: zodResolver(shortcutInCorsoSchema) as Resolver<ShortcutInCorsoData>,
@@ -116,9 +115,9 @@ export function ShortcutAnalysisDialog({
   const fvControl = control as unknown as Control<FieldValues>
   const errors = typedErrors as FieldErrors<FieldValues>
 
-  const watchedAlarmId = watch('alarmId')
-  const watchedEnvironmentId = watch('environmentId')
-  const watchedFirstAlarm = watch('firstAlarmAt')
+  const watchedAlarmId = useWatch({ control, name: 'alarmId' })
+  const watchedEnvironmentId = useWatch({ control, name: 'environmentId' })
+  const watchedFirstAlarm = useWatch({ control, name: 'firstAlarmAt' })
 
   const ignoredAlarmMatch = useMemo((): IgnoredAlarm | null => {
     if (!watchedAlarmId || !watchedEnvironmentId || !watchedFirstAlarm || !ignoredAlarms) return null
@@ -144,8 +143,10 @@ export function ShortcutAnalysisDialog({
   // Reset form when the parent closes the dialog (e.g. after successful creation)
   useEffect(() => {
     if (!open) {
-      reset(DEFAULT_VALUES)
-      setSelectedRunbookId(null)
+      startTransition(() => {
+        reset(DEFAULT_VALUES)
+        setSelectedRunbookId(null)
+      })
     }
   }, [open, reset])
 

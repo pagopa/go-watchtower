@@ -235,7 +235,7 @@ export function FirstAlarmField({ control, errors, disabled, onAutoFill, showNow
       <div className="flex items-center gap-1.5">
         <Label>Primo allarme *</Label>
         <span className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wide">UTC</span>
-        <FieldHint text={<>Inserisci la data/ora in UTC. Puoi incollare date in vari formati: <span className="font-mono">28/02/2026 08:00</span>, <span className="font-mono">28/02/2026 08.00.55</span>, oppure ISO come <span className="font-mono">2026-02-28T08:00:55Z</span>. Se &quot;Ultimo allarme&quot; e' vuoto, viene compilato automaticamente con lo stesso valore.</>} />
+        <FieldHint text={<>Inserisci la data/ora in UTC. Puoi incollare date in vari formati: <span className="font-mono">28/02/2026 08:00</span>, <span className="font-mono">28/02/2026 08.00.55</span>, oppure ISO come <span className="font-mono">2026-02-28T08:00:55Z</span>. Se &quot;Ultimo allarme&quot; è vuoto, viene compilato automaticamente con lo stesso valore.</>} />
       </div>
       <Controller
         name="firstAlarmAt"

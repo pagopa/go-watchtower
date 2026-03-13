@@ -478,7 +478,7 @@ export function AlarmEventDailyView({
     ...(filters.awsRegion     && { awsRegion:      filters.awsRegion }),
     dateFrom,
     dateTo,
-  }), [selectedDate, filters.environmentIds, filters.awsAccountId, filters.awsRegion, dateFrom, dateTo])
+  }), [filters.environmentIds, filters.awsAccountId, filters.awsRegion, dateFrom, dateTo])
 
   const isToday = selectedDate === todayUTC()
 
@@ -489,13 +489,12 @@ export function AlarmEventDailyView({
     refetchOnWindowFocus: isToday,
   })
 
-  const allEvents  = data?.data ?? []
   const totalCount = data?.pagination?.totalItems ?? null
   const tooMany    = totalCount !== null && totalCount > 1000
 
   const { pre, work, post } = useMemo(
-    () => partitionEvents(allEvents, wh),
-    [allEvents, wh],
+    () => partitionEvents(data?.data ?? [], wh),
+    [data?.data, wh],
   )
 
   const bucketProps = { visibleColumns, getWidth, totalMinWidth, canWrite, canDelete, canWriteAnalysis,

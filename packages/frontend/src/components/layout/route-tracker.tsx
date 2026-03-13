@@ -14,9 +14,12 @@ export function RouteTracker() {
   const { updatePreferences } = usePreferences()
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const updatePreferencesRef = useRef(updatePreferences)
-  
+
   useEffect(() => {
     updatePreferencesRef.current = updatePreferences
+  }, [updatePreferences])
+
+  useEffect(() => {
     if (timer.current) clearTimeout(timer.current)
     timer.current = setTimeout(() => {
       if (pathname) {

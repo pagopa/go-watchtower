@@ -4,6 +4,7 @@ import * as React from 'react'
 import { DayPicker } from 'react-day-picker'
 import { it } from 'react-day-picker/locale'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { MONTH_NAMES, MONTH_SHORT_NAMES } from '@go-watchtower/shared'
 import { cn } from '@/lib/utils'
 import { buttonVariants } from '@/components/ui/button'
 import {
@@ -16,11 +17,6 @@ import {
 
 export type CalendarProps = React.ComponentProps<typeof DayPicker>
 
-const MONTHS_IT = [
-  'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
-  'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre',
-]
-
 function Calendar({
   className,
   classNames,
@@ -28,8 +24,9 @@ function Calendar({
   startMonth,
   endMonth,
   numberOfMonths = 1,
-  // Extract to prevent conflict with our internal controlled state
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- extracted to keep out of ...props
   month: _externalMonth,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- extracted to keep out of ...props
   onMonthChange: _externalOnMonthChange,
   ...props
 }: CalendarProps) {
@@ -86,9 +83,9 @@ function Calendar({
         {numberOfMonths > 1 ? (
           /* Range picker: plain text "Gen 2026 – Feb 2026" */
           <span className="text-sm font-medium select-none">
-            {MONTHS_IT[month.getMonth()].slice(0, 3)} {month.getFullYear()}
+            {MONTH_SHORT_NAMES[month.getMonth()]} {month.getFullYear()}
             {' – '}
-            {MONTHS_IT[lastVisibleMonth.getMonth()].slice(0, 3)} {lastVisibleMonth.getFullYear()}
+            {MONTH_SHORT_NAMES[lastVisibleMonth.getMonth()]} {lastVisibleMonth.getFullYear()}
           </span>
         ) : (
           /* Single picker: interactive Radix selects — never truncate */
@@ -103,7 +100,7 @@ function Calendar({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {MONTHS_IT.map((name, i) => (
+                {MONTH_NAMES.map((name, i) => (
                   <SelectItem key={name} value={String(i)}>{name}</SelectItem>
                 ))}
               </SelectContent>

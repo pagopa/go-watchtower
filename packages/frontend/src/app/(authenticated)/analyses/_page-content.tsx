@@ -141,15 +141,18 @@ function AnalysesPageContent() {
 
   const filterKey = `analyses:${effectiveProductId || '__all__'}`
   const filtersRef = useRef(filters)
-  filtersRef.current = filters
   const filterKeyRef = useRef(filterKey)
-  filterKeyRef.current = filterKey
   const updatePrefsRef = useRef(updatePreferences)
-  updatePrefsRef.current = updatePreferences
   const savedFiltersRef = useRef(preferences.savedFilters)
-  savedFiltersRef.current = preferences.savedFilters
   const activeKeyRef = useRef<string | null>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    filtersRef.current = filters
+    filterKeyRef.current = filterKey
+    updatePrefsRef.current = updatePreferences
+    savedFiltersRef.current = preferences.savedFilters
+  })
 
   // Helper: persist a single product's filters while keeping all other entries.
   // Spreads the full savedFilters map so the optimistic update (shallow merge)
@@ -163,7 +166,11 @@ function AnalysesPageContent() {
     [updatePreferences],
   )
   const persistFiltersRef = useRef(persistFilters)
-  persistFiltersRef.current = persistFilters
+  useEffect(() => { persistFiltersRef.current = persistFilters })
+
+  // Pagination (declared early — used by filter-swap effect below)
+  const [page, setPage] = useState(1)
+  const { pageSize, setPageSize } = usePageSize()
 
   // Load/swap filters when product changes or preferences become available
   useEffect(() => {
@@ -181,14 +188,16 @@ function AnalysesPageContent() {
 
     // Load saved filters for the new product
     const saved = preferences.savedFilters?.[filterKey]
-    if (saved && typeof saved === 'object') {
-      setFilters({ ...DEFAULT_FILTERS, ...saved } as AnalysisFiltersState)
-    } else {
-      setFilters({ ...DEFAULT_FILTERS })
-    }
-    if (activeKeyRef.current !== null) setPage(1)
-
+    const shouldResetPage = activeKeyRef.current !== null
     activeKeyRef.current = filterKey
+    startTransition(() => {
+      if (saved && typeof saved === 'object') {
+        setFilters({ ...DEFAULT_FILTERS, ...saved } as AnalysisFiltersState)
+      } else {
+        setFilters({ ...DEFAULT_FILTERS })
+      }
+      if (shouldResetPage) setPage(1)
+    })
   }, [filterKey, prefsLoading, preferences.savedFilters, persistFilters])
 
   // Flush pending filter save on unmount
@@ -206,7 +215,9 @@ function AnalysesPageContent() {
   useEffect(() => {
     if (!viewModeInitialized.current && preferences.analysisViewMode) {
       viewModeInitialized.current = true
-      setViewMode(preferences.analysisViewMode)
+      startTransition(() => {
+        setViewMode(preferences.analysisViewMode)
+      })
     }
   }, [preferences.analysisViewMode])
 
@@ -217,10 +228,6 @@ function AnalysesPageContent() {
   }, [updatePreferences])
 
   const [selectedDate, setSelectedDate] = useState<string>(() => todayUTC())
-
-  // Pagination
-  const [page, setPage] = useState(1)
-  const { pageSize, setPageSize } = usePageSize()
 
   // Sorting
   const { sortBy, sortOrder, handleSort } = useSort('analysisDate')

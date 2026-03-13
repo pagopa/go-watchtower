@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useForm, type Resolver } from 'react-hook-form'
+import { useForm, useWatch, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { IGNORE_REASON_CODE_REGEX } from '@go-watchtower/shared'
@@ -221,7 +221,7 @@ function ReasonDialog({
   const {
     register,
     handleSubmit,
-    watch,
+    control,
     setValue,
     reset,
     formState: { errors },
@@ -244,7 +244,7 @@ function ReasonDialog({
     }
   }, [open, editItem, reset])
 
-  const schemaText = watch('detailsSchema') ?? ''
+  const schemaText = useWatch({ control, name: 'detailsSchema' }) ?? ''
 
   const handleSave = (data: ReasonFormData) => {
     let detailsSchema: IgnoreReasonDetailsSchema | null = null

@@ -1,7 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useForm, Controller, type Control, type FieldErrors, type FieldValues } from 'react-hook-form'
+import { startTransition, useCallback, useEffect, useRef, useState } from 'react'
+import { useForm, useWatch, Controller, type Control, type FieldErrors, type FieldValues } from 'react-hook-form'
 import { useSession } from 'next-auth/react'
 import { useQuery } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -120,7 +120,6 @@ export function ShortcutIgnorableDialog({
     handleSubmit,
     reset,
     control,
-    watch,
     setValue,
     getValues,
     formState: { errors: typedErrors, isDirty },
@@ -148,15 +147,17 @@ export function ShortcutIgnorableDialog({
   // Reset form when the parent closes the dialog (e.g. after successful creation)
   useEffect(() => {
     if (!open) {
-      reset(DEFAULT_VALUES)
-      setSelectedRunbookId(null)
+      startTransition(() => {
+        reset(DEFAULT_VALUES)
+        setSelectedRunbookId(null)
+      })
       lastAlarmAutoFilledRef.current = false
     }
   }, [open, reset])
 
-  const watchedIgnoreReasonCode = watch('ignoreReasonCode') as string
-  const watchedFirstAlarm = watch('firstAlarmAt') as string
-  const watchedLastAlarm = watch('lastAlarmAt') as string
+  const watchedIgnoreReasonCode = useWatch({ control, name: 'ignoreReasonCode' }) as string
+  const watchedFirstAlarm = useWatch({ control, name: 'firstAlarmAt' }) as string
+  const watchedLastAlarm = useWatch({ control, name: 'lastAlarmAt' }) as string
   const dateValidation = useDateValidation(watchedFirstAlarm, watchedLastAlarm, '')
 
   const selectedReason = ignoreReasons?.find((r) => r.code === watchedIgnoreReasonCode)
