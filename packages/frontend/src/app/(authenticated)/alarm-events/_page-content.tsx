@@ -4,7 +4,7 @@ import { Suspense, useState, useMemo, useRef, useEffect, useCallback } from 'rea
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Plus, Inbox, RefreshCw, ChevronDown,
-  LayoutList, CalendarDays, PhoneCall, Layers, Ban,
+  LayoutList, CalendarDays, PhoneCall, Layers,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -79,6 +79,7 @@ const AnalysisFormDialog = dynamic(
 
 import { UnlinkAlarmEventDialog } from './_components/unlink-alarm-event-dialog'
 import { BulkIgnoreDialog } from './_components/bulk-ignore-dialog'
+import { SelectionToolbar } from './_components/selection-toolbar'
 import type { AnalysisFormData } from '../analyses/_components/analysis-form-dialog'
 import { isoToRomeLocal, isoToUTCLocal } from '../analyses/_components/analysis-form-schemas'
 
@@ -184,7 +185,12 @@ function AlarmEventsPageContent() {
   const [associateEvent, setAssociateEvent] = useState<AlarmEvent | null>(null)
   const [unlinkEvent, setUnlinkEvent] = useState<AlarmEvent | null>(null)
 
-  // Multi-select (hook called after events query below)
+  // Multi-select (shared across all view modes)
+  const {
+    selectedIds, selectedItems: selectedEvents, selectedCount,
+    toggleOne, toggleBucket, isBucketAllSelected, isBucketIndeterminate,
+    clearSelection,
+  } = useRowSelection<AlarmEvent>()
   const [bulkIgnoreOpen, setBulkIgnoreOpen] = useState(false)
 
   // View mode — derived from user preferences when available, local override otherwise.
@@ -197,7 +203,13 @@ function AlarmEventsPageContent() {
   const handleSetViewMode = useCallback((mode: 'list' | 'daily' | 'oncall' | 'grouped') => {
     setViewModeOverride(mode)
     updatePreferences({ alarmEventViewMode: mode })
-  }, [updatePreferences])
+    clearSelection()
+  }, [updatePreferences, clearSelection])
+
+  const selectionProps = useMemo(() => ({
+    selectedIds, onToggleSelect: toggleOne, onToggleBucket: toggleBucket,
+    isBucketAllSelected, isBucketIndeterminate,
+  }), [selectedIds, toggleOne, toggleBucket, isBucketAllSelected, isBucketIndeterminate])
   const [selectedDate, setSelectedDate] = useState<string>(() => todayUTC())
 
   // Filters collapsed
@@ -309,12 +321,6 @@ function AlarmEventsPageContent() {
 
   const events     = eventsResponse?.data
   const pagination = eventsResponse?.pagination
-
-  // Multi-select
-  const {
-    selectedIds, selectedItems: selectedEvents, isAllSelected, isIndeterminate,
-    toggleOne: toggleSelectEvent, toggleAll: toggleSelectAll, clearSelection,
-  } = useRowSelection(events)
 
   // Working hours — fetched with fallback so non-admin users still get defaults.
   // 403 is expected for non-admin users; other errors are logged.
@@ -674,6 +680,7 @@ function AlarmEventsPageContent() {
           onCreateIgnorableAnalysis={handleCreateIgnorableAnalysisFromEvent}
           onAssociateAnalysis={handleAssociateAnalysis}
           onUnlinkAnalysis={handleUnlinkAnalysis}
+          selection={selectionProps}
         />
       )}
 
@@ -701,6 +708,7 @@ function AlarmEventsPageContent() {
           onCreateIgnorableAnalysis={handleCreateIgnorableAnalysisFromEvent}
           onAssociateAnalysis={handleAssociateAnalysis}
           onUnlinkAnalysis={handleUnlinkAnalysis}
+          selection={selectionProps}
         />
       )}
 
@@ -728,6 +736,7 @@ function AlarmEventsPageContent() {
           onCreateIgnorableAnalysis={handleCreateIgnorableAnalysisFromEvent}
           onAssociateAnalysis={handleAssociateAnalysis}
           onUnlinkAnalysis={handleUnlinkAnalysis}
+          selection={selectionProps}
         />
       )}
 
@@ -760,31 +769,6 @@ function AlarmEventsPageContent() {
             </div>
           ) : events && events.length > 0 ? (
             <>
-              {/* Barra selezione multipla */}
-              {selectedIds.size > 0 && (
-                <div className="flex items-center gap-3 border-b bg-primary/5 px-4 py-2">
-                  <span className="text-sm font-medium">
-                    <span className="tabular-nums">{selectedIds.size}</span> selezionati
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-xs gap-1.5"
-                    onClick={() => setBulkIgnoreOpen(true)}
-                  >
-                    <Ban className="h-3.5 w-3.5" />
-                    Crea analisi da ignorare
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 text-xs"
-                    onClick={clearSelection}
-                  >
-                    Deseleziona
-                  </Button>
-                </div>
-              )}
               <Table
                 className="w-full"
                 style={{ tableLayout: 'fixed', minWidth: `${totalTableMinWidth}px` }}
@@ -803,9 +787,9 @@ function AlarmEventsPageContent() {
                         type="checkbox"
                         aria-label="Seleziona tutti gli allarmi"
                         className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
-                        checked={isAllSelected}
-                        ref={(el) => { if (el) el.indeterminate = isIndeterminate }}
-                        onChange={toggleSelectAll}
+                        checked={events ? isBucketAllSelected(events) : false}
+                        ref={(el) => { if (el) el.indeterminate = events ? isBucketIndeterminate(events) : false }}
+                        onChange={() => events && toggleBucket(events)}
                       />
                     </TableHead>
                   }
@@ -825,7 +809,7 @@ function AlarmEventsPageContent() {
                       canDelete={canDelete}
                       canWriteAnalysis={canWriteAnalysis}
                       onRowClick={handleRowClick}
-                      onToggleSelect={toggleSelectEvent}
+                      onToggleSelect={toggleOne}
                       onEdit={handleEdit}
                       onDelete={handleDelete}
                       onAlarmClick={handleAlarmClick}
@@ -949,6 +933,14 @@ function AlarmEventsPageContent() {
         onOpenChange={setBulkIgnoreOpen}
         selectedEvents={selectedEvents}
         onCompleted={clearSelection}
+      />
+
+      {/* Floating selection toolbar */}
+      <SelectionToolbar
+        selectedCount={selectedCount}
+        onBulkIgnore={() => setBulkIgnoreOpen(true)}
+        onClearSelection={clearSelection}
+        canWriteAnalysis={canWriteAnalysis}
       />
     </div>
   )

@@ -12,7 +12,7 @@ import type { ColumnDef } from '@/lib/column-registry'
 import type { AlarmEventFiltersState } from './alarm-event-filters'
 import { Button } from '@/components/ui/button'
 import type { WorkingHours, OnCallHours } from '@go-watchtower/shared'
-import type { BucketCfg } from './alarm-event-daily-view'
+import type { BucketCfg, SelectionProps } from './alarm-event-daily-view'
 import { BucketSection, shiftDay, todayUTC, formatDateLong } from './alarm-event-daily-view'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -39,6 +39,7 @@ export interface AlarmEventOnCallViewProps {
   onCreateIgnorableAnalysis?:  (e: AlarmEvent) => void
   onAssociateAnalysis?:        (e: AlarmEvent) => void
   onUnlinkAnalysis?:           (e: AlarmEvent) => void
+  selection:       SelectionProps
 }
 
 // ─── Bucket configs ───────────────────────────────────────────────────────────
@@ -290,6 +291,7 @@ export function AlarmEventOnCallView({
   selectedEventId, showDetailPanel, lingeringId,
   onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
   onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
+  selection,
 }: AlarmEventOnCallViewProps) {
   const [referenceDate, setReferenceDate] = useState<string>(() => todayUTC())
 
@@ -326,7 +328,7 @@ export function AlarmEventOnCallView({
 
   const bucketProps = { visibleColumns, getWidth, totalMinWidth, canWrite, canDelete, canWriteAnalysis,
     selectedEventId, showDetailPanel, lingeringId, onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
-    onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis }
+    onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis, selection }
 
   return (
     <div className="space-y-3">

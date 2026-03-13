@@ -18,6 +18,7 @@ import type { AlarmEventOnCallViewProps } from './alarm-event-oncall-view'
 import {
   todayUTC,
   type BucketCfg,
+  type SelectionProps,
 } from './alarm-event-daily-view'
 import {
   ONCALL_BUCKETS, partitionShiftEvents,
@@ -71,16 +72,33 @@ const GroupHeaderRow = forwardRef<HTMLTableRowElement, {
   expanded: boolean
   onToggle: () => void
   bucketCfg: BucketCfg
+  selection: SelectionProps
   dataIndex?: number
-}>(function GroupHeaderRow({ group, colSpan, expanded, onToggle, bucketCfg, dataIndex }, ref) {
+}>(function GroupHeaderRow({ group, colSpan, expanded, onToggle, bucketCfg, selection, dataIndex }, ref) {
+  const groupAllSelected = selection.isBucketAllSelected(group.events)
+  const groupIndeterminate = selection.isBucketIndeterminate(group.events)
+
   return (
     <TableRow
       ref={ref}
       data-index={dataIndex}
       className="cursor-pointer border-b border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors"
-      onClick={onToggle}
+      onClick={(e) => {
+        if ((e.target as HTMLElement).closest('input[type="checkbox"]')) return
+        onToggle()
+      }}
     >
-      <TableCell colSpan={colSpan} className="py-2 px-3">
+      <TableCell className="w-10 px-2 py-2">
+        <input
+          type="checkbox"
+          aria-label={`Seleziona tutti "${group.alarmName}"`}
+          className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
+          checked={groupAllSelected}
+          ref={(el) => { if (el) el.indeterminate = groupIndeterminate }}
+          onChange={() => selection.onToggleBucket(group.events)}
+        />
+      </TableCell>
+      <TableCell colSpan={colSpan - 1} className="py-2 px-3">
         <div className="flex items-center gap-2.5">
           <span className="flex h-5 w-5 items-center justify-center rounded transition-colors">
             {expanded
@@ -119,6 +137,7 @@ const EventRow = forwardRef<HTMLTableRowElement, {
   onCreateIgnorableAnalysis?: (e: AlarmEvent) => void
   onAssociateAnalysis?: (e: AlarmEvent) => void
   onUnlinkAnalysis?: (e: AlarmEvent) => void
+  selection: SelectionProps
   indented?: boolean
   dataIndex?: number
 }>(function EventRow({
@@ -126,8 +145,9 @@ const EventRow = forwardRef<HTMLTableRowElement, {
   selectedEventId, showDetailPanel, lingeringId,
   onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
   onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
-  indented, dataIndex,
+  selection, indented, dataIndex,
 }, ref) {
+  const isChecked   = selection.selectedIds.has(event.id)
   const isSelected  = event.id === selectedEventId && showDetailPanel
   const isLingering = event.id === lingeringId && !showDetailPanel
   const isOnCall    = isOnCallEvent ? isOnCallEvent(event) : false
@@ -138,19 +158,30 @@ const EventRow = forwardRef<HTMLTableRowElement, {
       data-index={dataIndex}
       className={
         'group cursor-pointer border-b border-border/50 ' +
-        (isSelected
-          ? 'analysis-row-selected hover:bg-primary/[0.09]'
-          : isLingering
-            ? 'analysis-row-lingering hover:bg-muted/30'
-            : isOnCall
-              ? 'bg-rose-500/[0.04] hover:bg-rose-500/[0.06] transition-colors border-l-[3px] border-l-rose-500/60'
-              : 'transition-colors hover:bg-muted/30')
+        (isChecked
+          ? 'bg-primary/[0.05] hover:bg-primary/[0.08]'
+          : isSelected
+            ? 'analysis-row-selected hover:bg-primary/[0.09]'
+            : isLingering
+              ? 'analysis-row-lingering hover:bg-muted/30'
+              : isOnCall
+                ? 'bg-rose-500/[0.04] hover:bg-rose-500/[0.06] transition-colors border-l-[3px] border-l-rose-500/60'
+                : 'transition-colors hover:bg-muted/30')
       }
       onClick={(e) => {
-        if ((e.target as HTMLElement).closest('button')) return
+        if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('input[type="checkbox"]')) return
         onRowClick(event)
       }}
     >
+      <TableCell className="w-10 px-2 py-2.5">
+        <input
+          type="checkbox"
+          aria-label={`Seleziona ${event.name}`}
+          className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
+          checked={isChecked}
+          onChange={() => selection.onToggleSelect(event)}
+        />
+      </TableCell>
       {visibleColumns.map((col, idx) => {
         const isLast = idx === visibleColumns.length - 1
         return (
@@ -207,6 +238,7 @@ function GroupedBucketSection({
   selectedEventId, showDetailPanel, lingeringId,
   onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
   onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
+  selection,
 }: {
   cfg:             BucketCfg
   events:          AlarmEvent[]
@@ -229,6 +261,7 @@ function GroupedBucketSection({
   onCreateIgnorableAnalysis?:  (e: AlarmEvent) => void
   onAssociateAnalysis?:        (e: AlarmEvent) => void
   onUnlinkAnalysis?:           (e: AlarmEvent) => void
+  selection:       SelectionProps
 }) {
   const [collapsed, setCollapsed] = useState(events.length === 0)
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
@@ -247,7 +280,7 @@ function GroupedBucketSection({
   }
 
   const hasActions = canWrite || canDelete || canWriteAnalysis
-  const totalColSpan = visibleColumns.length + (hasActions ? 1 : 0)
+  const totalColSpan = visibleColumns.length + (hasActions ? 1 : 0) + 1 /* checkbox col */
 
   // Flatten groups into a virtual list
   const flatItems = useMemo((): FlatItem[] => {
@@ -283,6 +316,7 @@ function GroupedBucketSection({
     selectedEventId, showDetailPanel, lingeringId,
     onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
     onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
+    selection,
   }
 
   const renderFlatItem = (item: FlatItem, ref?: (el: HTMLTableRowElement | null) => void, dataIndex?: number) => {
@@ -298,6 +332,7 @@ function GroupedBucketSection({
             expanded={item.expanded}
             onToggle={() => toggleGroup(item.group.alarmName)}
             bucketCfg={cfg}
+            selection={selection}
             ref={ref}
             dataIndex={dataIndex}
           />
@@ -307,9 +342,22 @@ function GroupedBucketSection({
     }
   }
 
+  const bucketAllSelected = selection.isBucketAllSelected(events)
+  const bucketIndeterminate = selection.isBucketIndeterminate(events)
+
   const tableHeader = (
     <TableHeader className={shouldVirtualize ? 'sticky top-0 z-20 bg-card' : ''}>
       <TableRow className="bg-muted/20 hover:bg-muted/20 border-b">
+        <ResizableTableHead width={40} minWidth={40}>
+          <input
+            type="checkbox"
+            aria-label="Seleziona tutti in questa sezione"
+            className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
+            checked={bucketAllSelected}
+            ref={(el) => { if (el) el.indeterminate = bucketIndeterminate }}
+            onChange={() => selection.onToggleBucket(events)}
+          />
+        </ResizableTableHead>
         {visibleColumns.map((col, idx) => {
           const isLast = idx === visibleColumns.length - 1
           return (
@@ -415,6 +463,7 @@ export function AlarmEventGroupedView({
   selectedEventId, showDetailPanel, lingeringId,
   onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
   onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
+  selection,
 }: AlarmEventGroupedViewProps) {
   const [referenceDate, setReferenceDate] = useState<string>(() => todayUTC())
 
@@ -453,7 +502,7 @@ export function AlarmEventGroupedView({
 
   const bucketProps = { visibleColumns, getWidth, totalMinWidth, canWrite, canDelete, canWriteAnalysis,
     selectedEventId, showDetailPanel, lingeringId, onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
-    onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis }
+    onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis, selection }
 
   return (
     <div className="space-y-3">

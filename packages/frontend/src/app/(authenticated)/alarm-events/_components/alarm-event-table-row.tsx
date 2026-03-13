@@ -24,7 +24,7 @@ export interface AlarmEventTableRowProps {
   canDelete: boolean
   canWriteAnalysis: boolean
   onRowClick: (event: AlarmEvent) => void
-  onToggleSelect: (eventId: string) => void
+  onToggleSelect: (event: AlarmEvent) => void
   onEdit: (event: AlarmEvent) => void
   onDelete: (event: AlarmEvent) => void
   onAlarmClick: (alarm: EmbeddedAlarm, productId: string) => void
@@ -80,7 +80,7 @@ export const AlarmEventTableRow = memo(function AlarmEventTableRow({
           aria-label={`Seleziona ${event.name}`}
           className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
           checked={isChecked}
-          onChange={() => onToggleSelect(event.id)}
+          onChange={() => onToggleSelect(event)}
         />
       </TableCell>
       {visibleColumns.map((col, colIdx) => {

@@ -216,7 +216,7 @@ function AnalysesPageContent() {
     if (!viewModeInitialized.current && preferences.analysisViewMode) {
       viewModeInitialized.current = true
       startTransition(() => {
-        setViewMode(preferences.analysisViewMode)
+        setViewMode(preferences.analysisViewMode as 'list' | 'daily' | 'oncall')
       })
     }
   }, [preferences.analysisViewMode])

@@ -23,6 +23,14 @@ import type { WorkingHours } from '@go-watchtower/shared'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export interface SelectionProps {
+  selectedIds:            Set<string>
+  onToggleSelect:         (item: AlarmEvent) => void
+  onToggleBucket:         (items: AlarmEvent[]) => void
+  isBucketAllSelected:    (items: AlarmEvent[]) => boolean
+  isBucketIndeterminate:  (items: AlarmEvent[]) => boolean
+}
+
 export interface AlarmEventDailyViewProps {
   selectedDate:    string
   onDateChange:    (d: string) => void
@@ -46,6 +54,7 @@ export interface AlarmEventDailyViewProps {
   onCreateIgnorableAnalysis?:  (e: AlarmEvent) => void
   onAssociateAnalysis?:        (e: AlarmEvent) => void
   onUnlinkAnalysis?:           (e: AlarmEvent) => void
+  selection:       SelectionProps
 }
 
 // ─── Date utilities ───────────────────────────────────────────────────────────
@@ -255,6 +264,7 @@ export function BucketSection({
   selectedEventId, showDetailPanel, lingeringId,
   onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
   onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
+  selection,
 }: {
   cfg:             BucketCfg
   events:          AlarmEvent[]
@@ -277,6 +287,7 @@ export function BucketSection({
   onCreateIgnorableAnalysis?:  (e: AlarmEvent) => void
   onAssociateAnalysis?:        (e: AlarmEvent) => void
   onUnlinkAnalysis?:           (e: AlarmEvent) => void
+  selection:       SelectionProps
 }) {
   const [collapsed, setCollapsed] = useState(events.length === 0)
   const { Icon } = cfg
@@ -292,9 +303,10 @@ export function BucketSection({
   })
 
   const hasActions = canWrite || canDelete || canWriteAnalysis
-  const totalColSpan = visibleColumns.length + (hasActions ? 1 : 0)
+  const totalColSpan = visibleColumns.length + (hasActions ? 1 : 0) + 1 /* checkbox col */
 
   const renderRow = (event: AlarmEvent, ref?: (el: HTMLTableRowElement | null) => void, dataIndex?: number) => {
+    const isChecked   = selection.selectedIds.has(event.id)
     const isSelected  = event.id === selectedEventId && showDetailPanel
     const isLingering = event.id === lingeringId && !showDetailPanel
     const isOnCall    = isOnCallEvent ? isOnCallEvent(event) : false
@@ -305,19 +317,30 @@ export function BucketSection({
         data-index={dataIndex}
         className={
           'group cursor-pointer border-b border-border/50 ' +
-          (isSelected
-            ? 'analysis-row-selected hover:bg-primary/[0.09]'
-            : isLingering
-              ? 'analysis-row-lingering hover:bg-muted/30'
-              : isOnCall
-                ? 'bg-rose-500/[0.04] hover:bg-rose-500/[0.06] transition-colors border-l-[3px] border-l-rose-500/60'
-                : 'transition-colors hover:bg-muted/30')
+          (isChecked
+            ? 'bg-primary/[0.05] hover:bg-primary/[0.08]'
+            : isSelected
+              ? 'analysis-row-selected hover:bg-primary/[0.09]'
+              : isLingering
+                ? 'analysis-row-lingering hover:bg-muted/30'
+                : isOnCall
+                  ? 'bg-rose-500/[0.04] hover:bg-rose-500/[0.06] transition-colors border-l-[3px] border-l-rose-500/60'
+                  : 'transition-colors hover:bg-muted/30')
         }
         onClick={(e) => {
-          if ((e.target as HTMLElement).closest('button')) return
+          if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('input[type="checkbox"]')) return
           onRowClick(event)
         }}
       >
+        <TableCell className="w-10 px-2 py-2.5">
+          <input
+            type="checkbox"
+            aria-label={`Seleziona ${event.name}`}
+            className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
+            checked={isChecked}
+            onChange={() => selection.onToggleSelect(event)}
+          />
+        </TableCell>
         {visibleColumns.map((col, idx) => {
           const isLast = idx === visibleColumns.length - 1
           return (
@@ -356,9 +379,22 @@ export function BucketSection({
     )
   }
 
+  const bucketAllSelected = selection.isBucketAllSelected(events)
+  const bucketIndeterminate = selection.isBucketIndeterminate(events)
+
   const tableHeader = (
     <TableHeader className={shouldVirtualize ? 'sticky top-0 z-20 bg-card' : ''}>
       <TableRow className="bg-muted/20 hover:bg-muted/20 border-b">
+        <ResizableTableHead width={40} minWidth={40}>
+          <input
+            type="checkbox"
+            aria-label="Seleziona tutti in questa sezione"
+            className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
+            checked={bucketAllSelected}
+            ref={(el) => { if (el) el.indeterminate = bucketIndeterminate }}
+            onChange={() => selection.onToggleBucket(events)}
+          />
+        </ResizableTableHead>
         {visibleColumns.map((col, idx) => {
           const isLast = idx === visibleColumns.length - 1
           return (
@@ -464,6 +500,7 @@ export function AlarmEventDailyView({
   selectedEventId, showDetailPanel, lingeringId,
   onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
   onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
+  selection,
 }: AlarmEventDailyViewProps) {
   const wh = workingHours ?? DEFAULT_WH
   const tz = wh.timezone ?? 'Europe/Rome'
@@ -499,7 +536,7 @@ export function AlarmEventDailyView({
 
   const bucketProps = { visibleColumns, getWidth, totalMinWidth, canWrite, canDelete, canWriteAnalysis,
     selectedEventId, showDetailPanel, lingeringId, onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
-    onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis }
+    onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis, selection }
 
   return (
     <div className="space-y-3">
