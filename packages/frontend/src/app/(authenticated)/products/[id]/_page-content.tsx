@@ -20,6 +20,8 @@ import {
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { api, type Product } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
+import { invalidate } from '@/lib/query-invalidation'
 import { formatDateTime as formatDate } from '@/lib/format'
 import { usePermissions } from '@/hooks/use-permissions'
 import { Button } from '@/components/ui/button'
@@ -54,14 +56,14 @@ function ProductDetailContent() {
     isLoading,
     error,
   } = useQuery<Product>({
-    queryKey: ['products', productId],
+    queryKey: qk.products.detail(productId),
     queryFn: () => api.getProduct(productId),
   })
 
   const deleteMutation = useMutation({
     mutationFn: () => api.deleteProduct(productId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products'] })
+      invalidate(queryClient, 'products')
       toast.success('Prodotto eliminato con successo')
       router.push('/products')
     },

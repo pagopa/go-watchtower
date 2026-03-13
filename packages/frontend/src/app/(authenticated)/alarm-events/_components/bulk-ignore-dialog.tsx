@@ -36,6 +36,8 @@ import {
   type IgnoreReason,
   type CreateAlarmAnalysisData,
 } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
+import { invalidate } from '@/lib/query-invalidation'
 import { DateTimePicker } from '@/components/ui/date-time-picker'
 import { DynamicIgnoreDetailsForm } from '@/components/ui/json-schema-form'
 import { useForm, type FieldValues } from 'react-hook-form'
@@ -89,7 +91,7 @@ export function BulkIgnoreDialog({
   const [analysisDate, setAnalysisDate] = useState(() => isoToRomeLocal(new Date().toISOString()))
 
   const { data: ignoreReasons } = useQuery<IgnoreReason[]>({
-    queryKey: ['ignore-reasons'],
+    queryKey: qk.ignoreReasons.list,
     queryFn: () => api.getIgnoreReasons(),
     enabled: open,
   })
@@ -186,10 +188,7 @@ export function BulkIgnoreDialog({
       return results
     },
     onSuccess: (results) => {
-      queryClient.invalidateQueries({ predicate: (q) => {
-        const key = typeof q.queryKey[0] === 'string' ? q.queryKey[0] : ''
-        return key.startsWith('alarm-events') || key.startsWith('analyses') || key.startsWith('report-')
-      }})
+      invalidate(queryClient, 'alarmEvents', 'analyses')
       toast.success(`${results.length} analisi create e ${selectedEvents.length - skipped.length} eventi collegati`)
       setIgnoreReasonCode('')
       setAnalysisDate(isoToRomeLocal(new Date().toISOString()))

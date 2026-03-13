@@ -9,6 +9,8 @@ import { z } from 'zod'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { api, type CreateUserData, type Role } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
+import { invalidate } from '@/lib/query-invalidation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -35,7 +37,7 @@ export function NewUserPage() {
   const queryClient = useQueryClient()
 
   const { data: roles } = useQuery<Role[]>({
-    queryKey: ['roles'],
+    queryKey: qk.roles.list,
     queryFn: api.getRoles,
   })
 
@@ -60,7 +62,7 @@ export function NewUserPage() {
   const createMutation = useMutation({
     mutationFn: (data: CreateUserData) => api.createUser(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] })
+      invalidate(queryClient, 'users')
       toast.success('Utente creato con successo')
       router.push('/users')
     },

@@ -49,6 +49,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import dynamic from 'next/dynamic'
+import { qk } from '@/lib/query-keys'
+import { invalidate } from '@/lib/query-invalidation'
 import { validateAnalysis, assessQuality, type ValidationResult, type QualityResult } from '@/lib/analysis-validation'
 import { ValidationScoreBadge } from '@/components/analysis/validation-score-badge'
 import { ValidationDetailPanel } from '@/components/analysis/validation-detail-panel'
@@ -251,7 +253,7 @@ function AnalysesPageContent() {
   // Fetches the specific analysis by ID and opens the detail panel once.
   const autoOpenedAnalysisRef = useRef<string | null>(null)
   const { data: linkedAnalysis } = useQuery<AlarmAnalysis>({
-    queryKey: ['analysis', effectiveProductId, analysisIdFromUrl],
+    queryKey: qk.analyses.detail(effectiveProductId, analysisIdFromUrl),
     queryFn: () => api.getAnalysis(effectiveProductId, analysisIdFromUrl),
     enabled: !!analysisIdFromUrl && !!effectiveProductId,
     retry: false,
@@ -277,7 +279,7 @@ function AnalysesPageContent() {
   // Lock days setting: how many days after creation an OPERATOR can no longer edit/delete their own analyses.
   // Uses a dedicated policy endpoint accessible to any authenticated user (no SYSTEM_SETTING permission needed).
   const { data: analysisPolicy } = useQuery({
-    queryKey: ['analyses', 'policy'],
+    queryKey: qk.analyses.policy,
     queryFn: () => api.getAnalysisPolicy(),
     staleTime: 5 * 60 * 1000,
     enabled: !permissionsLoading,
@@ -341,25 +343,25 @@ function AnalysesPageContent() {
   // --- Queries ---
 
   const { data: products } = useQuery<Product[]>({
-    queryKey: ['products'],
+    queryKey: qk.products.list,
     queryFn: api.getProducts,
   })
 
   const { data: users } = useQuery<UserDetail[]>({
-    queryKey: ['users'],
+    queryKey: qk.users.list,
     queryFn: api.getUsers,
     enabled: can('USER', 'read'),
   })
 
   const { data: analysisAuthors } = useQuery<AnalysisAuthor[]>({
-    queryKey: ['analysis-authors'],
+    queryKey: qk.analyses.authors,
     queryFn: api.getAnalysisAuthors,
     enabled: can('ALARM_ANALYSIS', 'read'),
   })
 
   // Reference data for filter dropdowns (only when viewing a specific product)
   const { data: filterOptions } = useQuery<ProductFilterOptions>({
-    queryKey: ['products', effectiveProductId, 'filter-options'],
+    queryKey: qk.products.filterOptions(effectiveProductId),
     queryFn: () => api.getFilterOptions(effectiveProductId),
     enabled: !!effectiveProductId,
   })
@@ -372,14 +374,14 @@ function AnalysesPageContent() {
 
   // Advanced filter data
   const { data: ignoreReasons } = useQuery<IgnoreReason[]>({
-    queryKey: ['ignore-reasons'],
+    queryKey: qk.ignoreReasons.list,
     queryFn: api.getIgnoreReasons,
     enabled: can('ALARM_ANALYSIS', 'read'),
   })
 
   // Working hours & on-call hours for daily/oncall views
   const { data: workingHours } = useQuery({
-    queryKey: ['working-hours'],
+    queryKey: qk.settings.workingHours,
     queryFn: async () => {
       const s = await api.getSetting('working_hours')
       if (isWorkingHoursSetting(s)) return s.value
@@ -390,7 +392,7 @@ function AnalysesPageContent() {
   })
 
   const { data: onCallHours } = useQuery({
-    queryKey: ['on-call-hours'],
+    queryKey: qk.settings.onCallHours,
     queryFn: async () => {
       const s = await api.getSetting('on_call_hours')
       if (isOnCallHoursSetting(s)) return s.value
@@ -445,7 +447,7 @@ function AnalysesPageContent() {
     refetch: refetchAnalyses,
     dataUpdatedAt: analysesUpdatedAt,
   } = useQuery<PaginatedResponse<AlarmAnalysis>>({
-    queryKey: ['analyses', analysisQueryParams],
+    queryKey: qk.analyses.list(analysisQueryParams),
     queryFn: () => api.getAllAnalyses(analysisQueryParams),
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
@@ -473,13 +475,7 @@ function AnalysesPageContent() {
   // --- Mutations ---
 
   const invalidateAnalyses = useCallback(() => {
-    queryClient.invalidateQueries({
-      predicate: (q) => {
-        const key = typeof q.queryKey[0] === 'string' ? q.queryKey[0] : ''
-        return key.startsWith('analyses') || key.startsWith('report-')
-      },
-    })
-    queryClient.invalidateQueries({ queryKey: ['analysis-authors'] })
+    invalidate(queryClient, 'analyses')
   }, [queryClient])
 
   const createMutation = useMutation({

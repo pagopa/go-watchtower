@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { Plus, Pencil, Trash2, Loader2, Server, Minus, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { api, type Environment } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useSortable } from '@/hooks/use-sortable'
 import { Button } from '@/components/ui/button'
@@ -65,12 +66,12 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
     isLoading,
     error,
   } = useQuery<Environment[]>({
-    queryKey: ['products', productId, 'environments'],
+    queryKey: qk.products.environments(productId),
     queryFn: () => api.getEnvironments(productId),
   })
 
   const { data: slackWorkspaceUrl } = useQuery({
-    queryKey: ['setting', 'slack_workspace_url'],
+    queryKey: qk.settings.detail('slack_workspace_url'),
     queryFn: async () => {
       try {
         const s = await api.getSetting('slack_workspace_url')
@@ -111,7 +112,7 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
   const createMutation = useMutation({
     mutationFn: (data: EnvironmentFormData) => api.createEnvironment(productId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products', productId, 'environments'] })
+      queryClient.invalidateQueries({ queryKey: qk.products.environments(productId) })
       toast.success('Ambiente creato con successo')
       setShowCreateDialog(false)
       reset()
@@ -133,7 +134,7 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
         onCallAlarmPattern:  data.onCallAlarmPattern || null,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products', productId, 'environments'] })
+      queryClient.invalidateQueries({ queryKey: qk.products.environments(productId) })
       toast.success('Ambiente aggiornato con successo')
       setEditItem(null)
       reset()
@@ -146,7 +147,7 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteEnvironment(productId, id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products', productId, 'environments'] })
+      queryClient.invalidateQueries({ queryKey: qk.products.environments(productId) })
       toast.success('Ambiente eliminato con successo')
       setDeleteItem(null)
     },

@@ -9,6 +9,7 @@ import {
   Loader2, Inbox, RefreshCw, AlertTriangle,
 } from 'lucide-react'
 import { api, type AlarmEvent, type PaginatedResponse } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
 import type { ColumnDef } from '@/lib/column-registry'
 import type { AlarmEventFiltersState } from './alarm-event-filters'
 import { Button } from '@/components/ui/button'
@@ -520,7 +521,7 @@ export function AlarmEventDailyView({
   const isToday = selectedDate === todayUTC()
 
   const { data, isLoading, isFetching, refetch } = useQuery<PaginatedResponse<AlarmEvent>>({
-    queryKey:             ['alarm-events-daily', queryParams],
+    queryKey:             qk.alarmEvents.daily(queryParams),
     queryFn:              () => api.getAlarmEvents(queryParams),
     refetchInterval:      isToday ? 30_000 : false,
     refetchOnWindowFocus: isToday,

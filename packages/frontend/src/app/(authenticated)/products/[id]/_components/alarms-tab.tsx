@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { Plus, Pencil, Trash2, Loader2, Bell, BookOpen, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { api, type Alarm, type Runbook } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
 import { AlarmDetailDialog, type AlarmDetailData } from '@/components/alarm-detail-dialog'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useSortable } from '@/hooks/use-sortable'
@@ -57,12 +58,12 @@ export function AlarmsTab({ productId }: AlarmsTabProps) {
     isLoading,
     error,
   } = useQuery<Alarm[]>({
-    queryKey: ['products', productId, 'alarms'],
+    queryKey: qk.products.alarms(productId),
     queryFn: () => api.getAlarms(productId),
   })
 
   const { data: runbooks } = useQuery<Runbook[]>({
-    queryKey: ['products', productId, 'runbooks'],
+    queryKey: qk.products.runbooks(productId),
     queryFn: () => api.getRunbooks(productId),
   })
 
@@ -112,7 +113,7 @@ export function AlarmsTab({ productId }: AlarmsTabProps) {
         runbookId: data.runbookId || null,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products', productId, 'alarms'] })
+      queryClient.invalidateQueries({ queryKey: qk.products.alarms(productId) })
       toast.success('Allarme creato con successo')
       setShowCreateDialog(false)
       reset()
@@ -130,7 +131,7 @@ export function AlarmsTab({ productId }: AlarmsTabProps) {
         runbookId: data.runbookId || null,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products', productId, 'alarms'] })
+      queryClient.invalidateQueries({ queryKey: qk.products.alarms(productId) })
       toast.success('Allarme aggiornato con successo')
       setEditItem(null)
       reset()
@@ -143,7 +144,7 @@ export function AlarmsTab({ productId }: AlarmsTabProps) {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteAlarm(productId, id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products', productId, 'alarms'] })
+      queryClient.invalidateQueries({ queryKey: qk.products.alarms(productId) })
       toast.success('Allarme eliminato con successo')
       setDeleteItem(null)
     },

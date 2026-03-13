@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
 import { api, type Product, type AlarmRankingItem } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
 import { downloadCsv, downloadJson } from '@/lib/export-utils'
 import { ExportMenu } from './export-menu'
 import { ALL_VALUE } from '@/lib/constants'
@@ -49,7 +50,7 @@ export function AlarmRankingTab({ products }: AlarmRankingTabProps) {
   }, [selectedProductId, dateRange])
 
   const { data, isLoading } = useQuery<AlarmRankingItem[]>({
-    queryKey: ['report-alarm-ranking', filters],
+    queryKey: qk.reports.alarmRanking(filters),
     queryFn: () => api.getAlarmRanking(filters),
   })
 

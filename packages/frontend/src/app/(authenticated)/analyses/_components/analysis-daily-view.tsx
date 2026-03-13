@@ -12,6 +12,7 @@ import {
   type AlarmAnalysis,
   type PaginatedResponse,
 } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
 import type { ColumnDef } from '@/lib/column-registry'
 import type { AnalysisFiltersState } from './analysis-filters'
 import { Button } from '@/components/ui/button'
@@ -382,7 +383,7 @@ export function AnalysisDailyView({
   const isToday = selectedDate === new Date().toISOString().slice(0, 10)
 
   const { data, isLoading, isFetching, refetch } = useQuery<PaginatedResponse<AlarmAnalysis>>({
-    queryKey:             ['analyses-daily', queryParams],
+    queryKey:             qk.analyses.daily(queryParams),
     queryFn:              () => api.getAllAnalyses(queryParams),
     refetchInterval:      isToday ? 30_000 : false,
     refetchOnWindowFocus: isToday,

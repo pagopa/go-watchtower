@@ -8,6 +8,7 @@ import {
   Loader2, RefreshCw, AlertTriangle,
 } from 'lucide-react'
 import { api, type AlarmEvent, type PaginatedResponse } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
 import type { ColumnDef } from '@/lib/column-registry'
 import type { AlarmEventFiltersState } from './alarm-event-filters'
 import { Button } from '@/components/ui/button'
@@ -311,7 +312,7 @@ export function AlarmEventOnCallView({
   }), [dateFrom, dateTo, filters.environmentIds, filters.awsAccountId, filters.awsRegion])
 
   const { data, isLoading, isFetching, refetch } = useQuery<PaginatedResponse<AlarmEvent>>({
-    queryKey:             ['alarm-events-oncall', queryParams],
+    queryKey:             qk.alarmEvents.oncall(queryParams),
     queryFn:              () => api.getAlarmEvents(queryParams),
     refetchInterval:      30_000,
     refetchOnWindowFocus: true,

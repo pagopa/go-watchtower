@@ -14,6 +14,7 @@ import {
   type IgnoredAlarm,
   type TimeConstraint,
 } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
 import { usePermissions } from '@/hooks/use-permissions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -536,17 +537,17 @@ export function IgnoredAlarmsTab({ productId }: IgnoredAlarmsTabProps) {
   const canDelete = !permissionsLoading && can('IGNORED_ALARM', 'delete')
 
   const { data: ignoredAlarms, isLoading, error } = useQuery<IgnoredAlarm[]>({
-    queryKey: ['products', productId, 'ignored-alarms'],
+    queryKey: qk.products.ignoredAlarms(productId),
     queryFn: () => api.getIgnoredAlarms(productId),
   })
 
   const { data: alarms } = useQuery<Alarm[]>({
-    queryKey: ['products', productId, 'alarms'],
+    queryKey: qk.products.alarms(productId),
     queryFn: () => api.getAlarms(productId),
   })
 
   const { data: environments } = useQuery<Environment[]>({
-    queryKey: ['products', productId, 'environments'],
+    queryKey: qk.products.environments(productId),
     queryFn: () => api.getEnvironments(productId),
   })
 
@@ -566,7 +567,7 @@ export function IgnoredAlarmsTab({ productId }: IgnoredAlarmsTabProps) {
     mutationFn: (data: IgnoredAlarmFormData) =>
       api.createIgnoredAlarm(productId, formDataToApi(data)),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products', productId, 'ignored-alarms'] })
+      queryClient.invalidateQueries({ queryKey: qk.products.ignoredAlarms(productId) })
       toast.success('Allarme ignorato creato con successo')
       setShowCreateDialog(false)
       reset(EMPTY_DEFAULTS)
@@ -580,7 +581,7 @@ export function IgnoredAlarmsTab({ productId }: IgnoredAlarmsTabProps) {
     mutationFn: ({ id, data }: { id: string; data: IgnoredAlarmFormData }) =>
       api.updateIgnoredAlarm(productId, id, formDataToApi(data)),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products', productId, 'ignored-alarms'] })
+      queryClient.invalidateQueries({ queryKey: qk.products.ignoredAlarms(productId) })
       toast.success('Allarme ignorato aggiornato con successo')
       setEditItem(null)
       reset(EMPTY_DEFAULTS)
@@ -593,7 +594,7 @@ export function IgnoredAlarmsTab({ productId }: IgnoredAlarmsTabProps) {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteIgnoredAlarm(productId, id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products', productId, 'ignored-alarms'] })
+      queryClient.invalidateQueries({ queryKey: qk.products.ignoredAlarms(productId) })
       toast.success('Allarme ignorato eliminato con successo')
       setDeleteItem(null)
     },

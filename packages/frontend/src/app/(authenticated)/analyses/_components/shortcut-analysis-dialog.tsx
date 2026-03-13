@@ -23,6 +23,7 @@ import {
   type Product,
   type IgnoredAlarm,
 } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
 import { matchIgnoredAlarm } from '@go-watchtower/shared'
 import { IgnoredAlarmWarningBanner } from './ignored-alarm-warning'
 import {
@@ -80,19 +81,19 @@ export function ShortcutAnalysisDialog({
   const productId = selectedProductId || ''
 
   const { data: alarms } = useQuery<Alarm[]>({
-    queryKey: ['products', productId, 'alarms'],
+    queryKey: qk.products.alarms(productId),
     queryFn: () => api.getAlarms(productId),
     enabled: open && !!productId,
   })
 
   const { data: environments } = useQuery<Environment[]>({
-    queryKey: ['products', productId, 'environments'],
+    queryKey: qk.products.environments(productId),
     queryFn: () => api.getEnvironments(productId),
     enabled: open && !!productId,
   })
 
   const { data: ignoredAlarms } = useQuery<IgnoredAlarm[]>({
-    queryKey: ['products', productId, 'ignored-alarms'],
+    queryKey: qk.products.ignoredAlarms(productId),
     queryFn: () => api.getIgnoredAlarms(productId),
     enabled: open && !!productId,
     staleTime: 60_000,

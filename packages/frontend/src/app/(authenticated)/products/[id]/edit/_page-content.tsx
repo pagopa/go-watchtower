@@ -9,6 +9,8 @@ import { z } from 'zod'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { api, type Product, type UpdateProductData } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
+import { invalidate } from '@/lib/query-invalidation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -37,7 +39,7 @@ export function EditProductPage() {
     isLoading,
     error,
   } = useQuery<Product>({
-    queryKey: ['products', productId],
+    queryKey: qk.products.detail(productId),
     queryFn: () => api.getProduct(productId),
   })
 
@@ -66,7 +68,7 @@ export function EditProductPage() {
   const updateMutation = useMutation({
     mutationFn: (data: UpdateProductData) => api.updateProduct(productId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products'] })
+      invalidate(queryClient, 'products')
       toast.success('Prodotto aggiornato con successo')
       router.push(`/products/${productId}`)
     },

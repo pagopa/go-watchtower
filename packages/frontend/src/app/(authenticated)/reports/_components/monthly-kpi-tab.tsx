@@ -21,6 +21,7 @@ import {
   type Product,
   type MonthlyKpiData,
 } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
 import { downloadCsv, downloadJson } from '@/lib/export-utils'
 import { ExportMenu } from './export-menu'
 import { ALL_VALUE } from '@/lib/constants'
@@ -53,7 +54,7 @@ export function MonthlyKpiTab({ products }: MonthlyKpiTabProps) {
 
   // Single-product query (when a specific product is selected)
   const singleQuery = useQuery<MonthlyKpiData>({
-    queryKey: ['report-monthly-kpi', productId, year, month],
+    queryKey: qk.reports.monthlyKpi(productId, year, month),
     queryFn: () => api.getMonthlyKpi({ productId, year, month }),
     enabled: productId !== ALL_VALUE,
   })
@@ -62,7 +63,7 @@ export function MonthlyKpiTab({ products }: MonthlyKpiTabProps) {
   const multiQueries = useQueries({
     queries: productId === ALL_VALUE
       ? activeProducts.map((p) => ({
-          queryKey: ['report-monthly-kpi', p.id, year, month],
+          queryKey: qk.reports.monthlyKpi(p.id, year, month),
           queryFn: () => api.getMonthlyKpi({ productId: p.id, year, month }),
         }))
       : [],

@@ -9,6 +9,7 @@ import { Plus, Pencil, Trash2, Loader2, ExternalLink, BookOpen, ArrowUp, ArrowDo
 import { toast } from 'sonner'
 import { RunbookStatuses, RUNBOOK_STATUS_LABELS } from '@go-watchtower/shared'
 import { api, type Runbook } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
 import { sanitizeUrl } from '@/lib/sanitize-url'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useSortable } from '@/hooks/use-sortable'
@@ -71,7 +72,7 @@ export function RunbooksTab({ productId }: RunbooksTabProps) {
     isLoading,
     error,
   } = useQuery<Runbook[]>({
-    queryKey: ['products', productId, 'runbooks'],
+    queryKey: qk.products.runbooks(productId),
     queryFn: () => api.getRunbooks(productId),
   })
 
@@ -103,7 +104,7 @@ export function RunbooksTab({ productId }: RunbooksTabProps) {
   const createMutation = useMutation({
     mutationFn: (data: RunbookFormData) => api.createRunbook(productId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products', productId, 'runbooks'] })
+      queryClient.invalidateQueries({ queryKey: qk.products.runbooks(productId) })
       toast.success('Runbook creato con successo')
       setShowCreateDialog(false)
       reset()
@@ -122,7 +123,7 @@ export function RunbooksTab({ productId }: RunbooksTabProps) {
         status: data.status,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products', productId, 'runbooks'] })
+      queryClient.invalidateQueries({ queryKey: qk.products.runbooks(productId) })
       toast.success('Runbook aggiornato con successo')
       setEditItem(null)
       reset()
@@ -135,7 +136,7 @@ export function RunbooksTab({ productId }: RunbooksTabProps) {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteRunbook(productId, id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products', productId, 'runbooks'] })
+      queryClient.invalidateQueries({ queryKey: qk.products.runbooks(productId) })
       toast.success('Runbook eliminato con successo')
       setDeleteItem(null)
     },

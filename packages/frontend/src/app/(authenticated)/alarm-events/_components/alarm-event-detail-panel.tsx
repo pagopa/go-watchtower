@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { api, type AlarmEvent, type AlarmAnalysis } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
+import { invalidate } from '@/lib/query-invalidation'
 import { sanitizeUrl } from '@/lib/sanitize-url'
 import { usePreferences } from '@/hooks/use-preferences'
 import { ANALYSIS_STATUS_LABELS, ANALYSIS_TYPE_LABELS } from '../../analyses/_lib/constants'
@@ -22,7 +24,7 @@ function LinkedAnalysisSection({ analysisId, productId, eventId, eventName }: {
   const queryClient = useQueryClient()
   const [unlinkOpen, setUnlinkOpen] = useState(false)
   const { data: analysis, isLoading } = useQuery<AlarmAnalysis>({
-    queryKey: ['analysis', productId, analysisId],
+    queryKey: qk.analyses.detail(productId, analysisId),
     queryFn: () => api.getAnalysis(productId, analysisId),
     staleTime: 30_000,
   })
@@ -88,7 +90,7 @@ function LinkedAnalysisSection({ analysisId, productId, eventId, eventName }: {
         eventName={eventName}
         analysis={analysis}
         onCompleted={() => {
-          queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string).startsWith('alarm-events') })
+          invalidate(queryClient, 'alarmEvents')
         }}
       />
     </div>

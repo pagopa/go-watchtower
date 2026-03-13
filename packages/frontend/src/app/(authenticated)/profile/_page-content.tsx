@@ -10,6 +10,7 @@ import {
   KeyRound, Globe, RotateCcw, Eye, EyeOff, Lock, ChevronDown, ChevronUp,
 } from 'lucide-react'
 import { api, type UserDetail } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
 import type { ColumnSettings } from '@go-watchtower/shared'
 import { formatDateLong as formatDate, getInitials } from '@/lib/format'
 import { COLUMN_REGISTRY, LIST_LABELS, type ColumnDef } from '@/lib/column-registry'
@@ -328,7 +329,7 @@ export function ProfilePageContent() {
   const userId = session?.user?.id ?? ''
 
   const { data: userDetail, isLoading } = useQuery<UserDetail>({
-    queryKey: ['user', userId],
+    queryKey: qk.users.profile(userId),
     queryFn: () => api.getUser(userId),
     enabled: !!userId,
     staleTime: 30_000,
@@ -345,8 +346,8 @@ export function ProfilePageContent() {
   const { mutate: saveName, isPending } = useMutation({
     mutationFn: (name: string) => api.updateUser(userId, { name }),
     onSuccess: (updated) => {
-      queryClient.setQueryData<UserDetail>(['user', userId], updated)
-      queryClient.invalidateQueries({ queryKey: ['user', userId] })
+      queryClient.setQueryData<UserDetail>(qk.users.profile(userId), updated)
+      queryClient.invalidateQueries({ queryKey: qk.users.profile(userId) })
       toast.success('Nome aggiornato con successo')
       setEditing(false)
     },

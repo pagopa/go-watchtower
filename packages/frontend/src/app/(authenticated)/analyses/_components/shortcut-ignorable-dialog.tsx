@@ -31,6 +31,7 @@ import {
   type IgnoreReason,
   type Product,
 } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
 import {
   shortcutIgnorableSchema,
   utcLocalToISO as fromDatetimeLocal,
@@ -98,19 +99,19 @@ export function ShortcutIgnorableDialog({
   const productId = selectedProductId || ''
 
   const { data: ignoreReasons } = useQuery<IgnoreReason[]>({
-    queryKey: ['ignore-reasons'],
+    queryKey: qk.ignoreReasons.list,
     queryFn: () => api.getIgnoreReasons(),
     enabled: open,
   })
 
   const { data: alarms } = useQuery<Alarm[]>({
-    queryKey: ['products', productId, 'alarms'],
+    queryKey: qk.products.alarms(productId),
     queryFn: () => api.getAlarms(productId),
     enabled: open && !!productId,
   })
 
   const { data: environments } = useQuery<Environment[]>({
-    queryKey: ['products', productId, 'environments'],
+    queryKey: qk.products.environments(productId),
     queryFn: () => api.getEnvironments(productId),
     enabled: open && !!productId,
   })

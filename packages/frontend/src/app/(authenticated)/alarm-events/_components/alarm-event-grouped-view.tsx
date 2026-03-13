@@ -8,6 +8,7 @@ import {
   Loader2, AlertTriangle,
 } from 'lucide-react'
 import { api, type AlarmEvent, type PaginatedResponse } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
 import type { ColumnDef } from '@/lib/column-registry'
 import {
   Table, TableBody, TableCell, TableHeader, TableRow,
@@ -485,7 +486,7 @@ export function AlarmEventGroupedView({
   const isToday = referenceDate === todayUTC()
 
   const { data, isLoading, isFetching, refetch } = useQuery<PaginatedResponse<AlarmEvent>>({
-    queryKey:             ['alarm-events-grouped', queryParams],
+    queryKey:             qk.alarmEvents.grouped(queryParams),
     queryFn:              () => api.getAlarmEvents(queryParams),
     refetchInterval:      isToday ? 30_000 : false,
     refetchOnWindowFocus: isToday,

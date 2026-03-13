@@ -24,6 +24,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { api, type AlarmEvent, type CreateAlarmEventData, type UpdateAlarmEventData } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
 
 const NO_VALUE = '__none__'
 
@@ -92,13 +93,13 @@ export function AlarmEventFormDialog({
   const selectedProductId = watch('productId')
 
   const { data: products } = useQuery({
-    queryKey: ['products'],
+    queryKey: qk.products.list,
     queryFn: api.getProducts,
     enabled: open,
   })
 
   const { data: environments } = useQuery({
-    queryKey: ['products', selectedProductId, 'environments'],
+    queryKey: qk.products.environments(selectedProductId),
     queryFn: () => api.getEnvironments(selectedProductId),
     enabled: open && !!selectedProductId,
   })

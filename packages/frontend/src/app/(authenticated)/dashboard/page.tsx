@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { usePermissions } from '@/hooks/use-permissions'
 import { api, type Product, type AnalysisStats } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
 import {
   ByProductEnvironmentChart,
   ByOperatorChart,
@@ -48,13 +49,13 @@ export default function DashboardPage() {
   }, [selectedProductId, dateRange])
 
   const { data: products } = useQuery<Product[]>({
-    queryKey: ['products'],
+    queryKey: qk.products.list,
     queryFn: api.getProducts,
     enabled: canReadAnalyses,
   })
 
   const { data: stats, isLoading: statsLoading } = useQuery<AnalysisStats>({
-    queryKey: ['analysis-stats', filters],
+    queryKey: qk.reports.analysisStats(filters),
     queryFn: () => api.getAnalysisStats(filters),
     enabled: canReadAnalyses,
   })

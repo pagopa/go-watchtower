@@ -28,6 +28,8 @@ import { usePageSize, type AllowedPageSize } from '@/hooks/use-page-size'
 import { useRowSelection } from '@/hooks/use-row-selection'
 import { useColumnSettings } from '@/hooks/use-column-settings'
 import { COLUMN_REGISTRY } from '@/lib/column-registry'
+import { qk } from '@/lib/query-keys'
+import { invalidate } from '@/lib/query-invalidation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -239,13 +241,13 @@ function AlarmEventsPageContent() {
   // --- Queries ---
 
   const { data: products } = useQuery<Product[]>({
-    queryKey: ['products'],
+    queryKey: qk.products.list,
     queryFn: api.getProducts,
   })
 
   // Users — needed for the analysis form dialog
   const { data: users } = useQuery<UserDetail[]>({
-    queryKey: ['users'],
+    queryKey: qk.users.list,
     queryFn: api.getUsers,
     enabled: can('USER', 'read'),
   })
@@ -254,7 +256,7 @@ function AlarmEventsPageContent() {
   const activeProducts = useMemo(() => products?.filter((p) => p.isActive) ?? [], [products])
   const activeProductIds = useMemo(() => activeProducts.map((p) => p.id), [activeProducts])
   const { data: allEnvironments } = useQuery<Environment[]>({
-    queryKey: ['environments-all', activeProductIds],
+    queryKey: qk.products.allEnvironments(activeProductIds),
     queryFn: async () => {
       if (!activeProductIds.length) return []
       const arrays = await Promise.all(activeProductIds.map((id) => api.getEnvironments(id)))
@@ -312,7 +314,7 @@ function AlarmEventsPageContent() {
     refetch: refetchEvents,
     dataUpdatedAt: eventsUpdatedAt,
   } = useQuery<PaginatedResponse<AlarmEvent>>({
-    queryKey: ['alarm-events', queryParams],
+    queryKey: qk.alarmEvents.list(queryParams),
     queryFn: () => api.getAlarmEvents(queryParams),
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
@@ -325,7 +327,7 @@ function AlarmEventsPageContent() {
   // Working hours — fetched with fallback so non-admin users still get defaults.
   // 403 is expected for non-admin users; other errors are logged.
   const { data: workingHours } = useQuery({
-    queryKey: ['working-hours'],
+    queryKey: qk.settings.workingHours,
     queryFn:  async () => {
       try {
         const s = await api.getSetting('working_hours')
@@ -343,7 +345,7 @@ function AlarmEventsPageContent() {
   // On-call hours — optional, shown only when configured.
   // 403 is expected for non-admin users; other errors are logged.
   const { data: onCallHours } = useQuery({
-    queryKey: ['on-call-hours'],
+    queryKey: qk.settings.onCallHours,
     queryFn:  async () => {
       try {
         const s = await api.getSetting('on_call_hours')
@@ -363,7 +365,7 @@ function AlarmEventsPageContent() {
   const createMutation = useMutation({
     mutationFn: (data: CreateAlarmEventData) => api.createAlarmEvent(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string).startsWith('alarm-events') })
+      invalidate(queryClient, 'alarmEvents')
       setPage(1)
       toast.success('Allarme scattato creato con successo')
       setEditItem(null)
@@ -378,7 +380,7 @@ function AlarmEventsPageContent() {
     mutationFn: ({ id, data }: { id: string; data: UpdateAlarmEventData }) =>
       api.updateAlarmEvent(id, data),
     onSuccess: (updated) => {
-      queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string).startsWith('alarm-events') })
+      invalidate(queryClient, 'alarmEvents')
       toast.success('Allarme aggiornato con successo')
       setEditItem(null)
       setFormOpen(false)
@@ -393,7 +395,7 @@ function AlarmEventsPageContent() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteAlarmEvent(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string).startsWith('alarm-events') })
+      invalidate(queryClient, 'alarmEvents')
       toast.success('Allarme scattato eliminato con successo')
       setDeleteItem(null)
       setShowDetailPanel(false)
@@ -552,10 +554,7 @@ function AlarmEventsPageContent() {
       return analysis
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ predicate: (q) => {
-        const key = typeof q.queryKey[0] === 'string' ? q.queryKey[0] : ''
-        return key.startsWith('alarm-events') || key.startsWith('analyses') || key.startsWith('report-')
-      }})
+      invalidate(queryClient, 'alarmEvents', 'analyses')
       toast.success('Analisi creata e evento associato')
       setAnalysisFormOpen(false)
       setAnalysisSourceEventId(null)
@@ -917,7 +916,7 @@ function AlarmEventsPageContent() {
         onOpenChange={setAssociateDialogOpen}
         event={associateEvent}
         onAssociated={() => {
-          queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string).startsWith('alarm-events') })
+          invalidate(queryClient, 'alarmEvents')
         }}
       />
 
@@ -956,7 +955,7 @@ function UnlinkAlarmEventFromRow({ unlinkEvent, onClose }: {
   const analysisId = unlinkEvent?.analysisId ?? ''
 
   const { data: analysis } = useQuery<AlarmAnalysis>({
-    queryKey: ['analysis', productId, analysisId],
+    queryKey: qk.analyses.detail(productId, analysisId),
     queryFn: () => api.getAnalysis(productId, analysisId),
     enabled: !!unlinkEvent && !!analysisId,
     staleTime: 30_000,
@@ -970,8 +969,7 @@ function UnlinkAlarmEventFromRow({ unlinkEvent, onClose }: {
       eventName={unlinkEvent?.name ?? ''}
       analysis={analysis ?? null}
       onCompleted={() => {
-        queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string).startsWith('alarm-events') })
-        queryClient.invalidateQueries({ queryKey: ['analyses'] })
+        invalidate(queryClient, 'alarmEvents', 'analyses')
         onClose()
       }}
     />

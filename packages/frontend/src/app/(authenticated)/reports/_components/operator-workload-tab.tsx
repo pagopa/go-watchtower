@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
 import { api, type Product, type OperatorWorkloadItem } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
 import { downloadCsv, downloadJson } from '@/lib/export-utils'
 import { ExportMenu } from './export-menu'
 import { formatDuration } from '../_lib/format-duration'
@@ -52,7 +53,7 @@ export function OperatorWorkloadTab({ products }: OperatorWorkloadTabProps) {
   }, [selectedProductId, dateRange])
 
   const { data, isLoading } = useQuery<OperatorWorkloadItem[]>({
-    queryKey: ['report-operator-workload', filters],
+    queryKey: qk.reports.operatorWorkload(filters),
     queryFn: () => api.getOperatorWorkload(filters),
   })
 

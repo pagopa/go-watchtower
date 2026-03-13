@@ -55,6 +55,7 @@ interface SimpleNamedResourceTabProps<TItem extends NamedEntity> {
   productId: string
   permission: CrudPermission
   queryKey: string
+  queryKeyFn: (productId: string) => readonly unknown[]
   labels: {
     plural: string
     createButton: string
@@ -83,6 +84,7 @@ export function SimpleNamedResourceTab<TItem extends NamedEntity>({
   productId,
   permission,
   queryKey,
+  queryKeyFn,
   labels,
   emptyIcon: EmptyIcon,
   queryFn,
@@ -104,7 +106,7 @@ export function SimpleNamedResourceTab<TItem extends NamedEntity>({
     isLoading,
     error,
   } = useQuery<TItem[]>({
-    queryKey: ['products', productId, queryKey],
+    queryKey: queryKeyFn(productId),
     queryFn: () => queryFn(productId),
   })
 
@@ -129,7 +131,7 @@ export function SimpleNamedResourceTab<TItem extends NamedEntity>({
   const createMutation = useMutation({
     mutationFn: (data: EntityFormData) => createFn(productId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products', productId, queryKey] })
+      queryClient.invalidateQueries({ queryKey: queryKeyFn(productId) })
       toast.success(labels.createSuccess)
       setShowCreateDialog(false)
       reset()
@@ -143,7 +145,7 @@ export function SimpleNamedResourceTab<TItem extends NamedEntity>({
     mutationFn: ({ id, data }: { id: string; data: EntityFormData }) =>
       updateFn(productId, id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products', productId, queryKey] })
+      queryClient.invalidateQueries({ queryKey: queryKeyFn(productId) })
       toast.success(labels.updateSuccess)
       setEditItem(null)
       reset()
@@ -156,7 +158,7 @@ export function SimpleNamedResourceTab<TItem extends NamedEntity>({
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteFn(productId, id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products', productId, queryKey] })
+      queryClient.invalidateQueries({ queryKey: queryKeyFn(productId) })
       toast.success(labels.deleteSuccess)
       setDeleteItem(null)
     },

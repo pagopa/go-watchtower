@@ -10,6 +10,8 @@ import { toast } from 'sonner'
 import { isWorkingHoursSetting, isOnCallHoursSetting, isFkSetting } from '@go-watchtower/shared'
 import type { OnCallHours } from '@go-watchtower/shared'
 import { api, type SystemSetting } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
+import { invalidate } from '@/lib/query-invalidation'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useFkSettingLabel } from '@/hooks/use-fk-setting-label'
 import { FK_RESOLVERS } from '@/lib/fk-setting-resolvers'
@@ -595,9 +597,9 @@ function SettingCard({
   const mutation = useMutation({
     mutationFn: (value: unknown) => api.updateSetting(setting.key, value),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['settings'] })
-      queryClient.invalidateQueries({ queryKey: ['working-hours'] })
-      queryClient.invalidateQueries({ queryKey: ['on-call-hours'] })
+      invalidate(queryClient, 'settings')
+      queryClient.invalidateQueries({ queryKey: qk.settings.workingHours })
+      queryClient.invalidateQueries({ queryKey: qk.settings.onCallHours })
       setEditing(false)
       setDialogOpen(false)
       toast.success('Configurazione aggiornata')
@@ -797,7 +799,7 @@ export function SystemParametersPage() {
   const { can, isLoading: permissionsLoading } = usePermissions()
 
   const { data: settings, isLoading } = useQuery({
-    queryKey: ['settings'],
+    queryKey: qk.settings.list,
     queryFn:  api.getSettings,
   })
 

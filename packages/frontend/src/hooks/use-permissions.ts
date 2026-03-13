@@ -4,6 +4,7 @@ import { useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
 import { api, type UserPermissions, type PermissionScope } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
 import type { Resource, PermissionAction } from '@go-watchtower/shared'
 
 export function usePermissions() {
@@ -13,7 +14,7 @@ export function usePermissions() {
     isLoading: queryLoading,
     error,
   } = useQuery<UserPermissions>({
-    queryKey: ['permissions'],
+    queryKey: qk.permissions.all,
     queryFn: api.getMyPermissions,
     staleTime: 5 * 60 * 1000, // 5 minutes
     enabled: status === 'authenticated',

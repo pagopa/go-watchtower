@@ -34,6 +34,8 @@ import {
   type CreateResourceTypeData,
   type UpdateResourceTypeData,
 } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
+import { invalidate } from '@/lib/query-invalidation'
 
 // ─── Zod schema ───────────────────────────────────────────────────────────────
 
@@ -138,14 +140,14 @@ export function ResourceTypesPage() {
   const [deleteTarget, setDeleteTarget] = useState<ResourceType | null>(null)
 
   const { data: resourceTypes, isLoading } = useQuery({
-    queryKey: ['resource-types'],
+    queryKey: qk.resourceTypes.list,
     queryFn: () => api.getResourceTypes(),
   })
 
   const createMutation = useMutation({
     mutationFn: (data: CreateResourceTypeData) => api.createResourceType(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['resource-types'] })
+      invalidate(queryClient, 'resourceTypes')
       setDialogOpen(false)
       toast.success('Tipo risorsa creato con successo')
     },
@@ -156,7 +158,7 @@ export function ResourceTypesPage() {
     mutationFn: ({ id, data }: { id: string; data: UpdateResourceTypeData }) =>
       api.updateResourceType(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['resource-types'] })
+      invalidate(queryClient, 'resourceTypes')
       setDialogOpen(false)
       setEditItem(null)
       toast.success('Tipo risorsa aggiornato')
@@ -167,7 +169,7 @@ export function ResourceTypesPage() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteResourceType(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['resource-types'] })
+      invalidate(queryClient, 'resourceTypes')
       setDeleteTarget(null)
       toast.success('Tipo risorsa eliminato')
     },

@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Loader2, AlertTriangle } from 'lucide-react'
 import { api, type AlarmAnalysis, type PaginatedResponse } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
 import type { ColumnDef } from '@/lib/column-registry'
 import type { AnalysisFiltersState } from './analysis-filters'
 import type { WorkingHours, OnCallHours } from '@go-watchtower/shared'
@@ -91,7 +92,7 @@ export function AnalysisOnCallView({
   ])
 
   const { data, isLoading, isFetching, refetch } = useQuery<PaginatedResponse<AlarmAnalysis>>({
-    queryKey:             ['analyses-oncall', queryParams],
+    queryKey:             qk.analyses.oncall(queryParams),
     queryFn:              () => api.getAllAnalyses(queryParams),
     refetchInterval:      30_000,
     refetchOnWindowFocus: true,

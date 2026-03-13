@@ -7,6 +7,8 @@ import { useRouter } from 'next/navigation'
 import { Plus, Pencil, Trash2, Search, ArrowUpDown, ArrowUp, ArrowDown, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import { api, type UserDetail } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
+import { invalidate } from '@/lib/query-invalidation'
 import { getInitials } from '@/lib/format'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useSortable } from '@/hooks/use-sortable'
@@ -122,7 +124,7 @@ export function UsersPage() {
   const [search, setSearch] = useState('')
 
   const { data: users, isLoading, error } = useQuery<UserDetail[]>({
-    queryKey: ['users'],
+    queryKey: qk.users.list,
     queryFn: api.getUsers,
   })
 
@@ -142,7 +144,7 @@ export function UsersPage() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteUser(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] })
+      invalidate(queryClient, 'users')
       toast.success('Utente eliminato con successo')
       setDeleteUser(null)
     },

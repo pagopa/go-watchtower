@@ -32,6 +32,7 @@ import {
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { api, type Product, type YearlySummaryData, type YearlySummaryMonth } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
 import { downloadCsv, downloadJson } from '@/lib/export-utils'
 import { ExportMenu } from './export-menu'
 import { ALL_VALUE } from '@/lib/constants'
@@ -119,7 +120,7 @@ export function YearlySummaryTab({ products }: YearlySummaryTabProps) {
   const [selectedProductId, setSelectedProductId] = useState('')
 
   const { data, isLoading, isFetching } = useQuery<YearlySummaryData>({
-    queryKey: ['report-yearly-summary', year, selectedProductId],
+    queryKey: qk.reports.yearlySummary(year, selectedProductId || undefined),
     queryFn: () => api.getYearlySummary(year, selectedProductId || undefined),
   })
 

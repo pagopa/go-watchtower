@@ -4,6 +4,7 @@ import { useCallback, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
 import { api } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
 import type { UserPreferences } from '@go-watchtower/shared'
 
 export function usePreferences() {
@@ -11,7 +12,7 @@ export function usePreferences() {
   const queryClient = useQueryClient()
 
   const { data: preferences, isLoading } = useQuery<UserPreferences>({
-    queryKey: ['preferences:user'],
+    queryKey: qk.preferences.user,
     queryFn: api.getMyPreferences,
     enabled: status === 'authenticated',
     staleTime: Infinity,
@@ -26,9 +27,9 @@ export function usePreferences() {
       // setState calls (e.g. setDragWidth) in the same event handler.
       // The race risk is negligible — staleTime is Infinity so the query
       // almost never refetches; onError reverts if it does.
-      queryClient.cancelQueries({ queryKey: ['preferences:user'] })
-      const previous = queryClient.getQueryData<UserPreferences>(['preferences:user'])
-      queryClient.setQueryData<UserPreferences>(['preferences:user'], (old) => ({
+      queryClient.cancelQueries({ queryKey: qk.preferences.user })
+      const previous = queryClient.getQueryData<UserPreferences>(qk.preferences.user)
+      queryClient.setQueryData<UserPreferences>(qk.preferences.user, (old) => ({
         ...old,
         ...data,
       }))
@@ -36,7 +37,7 @@ export function usePreferences() {
     },
     onError: (_err, _data, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(['preferences:user'], context.previous)
+        queryClient.setQueryData(qk.preferences.user, context.previous)
       }
     },
   })

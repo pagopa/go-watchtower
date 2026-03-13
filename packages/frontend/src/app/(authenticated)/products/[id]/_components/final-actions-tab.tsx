@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { Plus, Pencil, Trash2, Loader2, CheckCircle2, Minus } from 'lucide-react'
 import { toast } from 'sonner'
 import { api, type FinalAction } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useSortable } from '@/hooks/use-sortable'
 import { Button } from '@/components/ui/button'
@@ -64,7 +65,7 @@ export function FinalActionsTab({ productId }: FinalActionsTabProps) {
     isLoading,
     error,
   } = useQuery<FinalAction[]>({
-    queryKey: ['products', productId, 'final-actions'],
+    queryKey: qk.products.finalActions(productId),
     queryFn: () => api.getFinalActions(productId),
   })
 
@@ -96,7 +97,7 @@ export function FinalActionsTab({ productId }: FinalActionsTabProps) {
   const createMutation = useMutation({
     mutationFn: (data: FinalActionFormData) => api.createFinalAction(productId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products', productId, 'final-actions'] })
+      queryClient.invalidateQueries({ queryKey: qk.products.finalActions(productId) })
       toast.success('Azione finale creata con successo')
       setShowCreateDialog(false)
       reset()
@@ -110,7 +111,7 @@ export function FinalActionsTab({ productId }: FinalActionsTabProps) {
     mutationFn: ({ id, data }: { id: string; data: FinalActionFormData }) =>
       api.updateFinalAction(productId, id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products', productId, 'final-actions'] })
+      queryClient.invalidateQueries({ queryKey: qk.products.finalActions(productId) })
       toast.success('Azione finale aggiornata con successo')
       setEditItem(null)
       reset()
@@ -123,7 +124,7 @@ export function FinalActionsTab({ productId }: FinalActionsTabProps) {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteFinalAction(productId, id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products', productId, 'final-actions'] })
+      queryClient.invalidateQueries({ queryKey: qk.products.finalActions(productId) })
       toast.success('Azione finale eliminata con successo')
       setDeleteItem(null)
     },

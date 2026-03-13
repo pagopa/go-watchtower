@@ -7,6 +7,8 @@ import { useRouter } from 'next/navigation'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { api, type Product } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
+import { invalidate } from '@/lib/query-invalidation'
 import { formatDateShort as formatDate } from '@/lib/format'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useSortable } from '@/hooks/use-sortable'
@@ -36,7 +38,7 @@ export function ProductsPage() {
     isLoading,
     error,
   } = useQuery<Product[]>({
-    queryKey: ['products'],
+    queryKey: qk.products.list,
     queryFn: api.getProducts,
   })
 
@@ -46,7 +48,7 @@ export function ProductsPage() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteProduct(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products'] })
+      invalidate(queryClient, 'products')
       toast.success('Prodotto eliminato con successo')
       setDeleteProduct(null)
     },

@@ -22,6 +22,8 @@ import {
   type UpdateRoleData,
   type UpdateRolePermissionsData,
 } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
+import { invalidate } from '@/lib/query-invalidation'
 import { usePermissions } from '@/hooks/use-permissions'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -503,7 +505,7 @@ export function RolesPage() {
     isLoading,
     error,
   } = useQuery<Role[]>({
-    queryKey: ['roles'],
+    queryKey: qk.roles.list,
     queryFn: api.getRoles,
   })
 
@@ -513,7 +515,7 @@ export function RolesPage() {
   const createMutation = useMutation({
     mutationFn: (data: CreateRoleData) => api.createRole(data),
     onSuccess: (newRole) => {
-      queryClient.invalidateQueries({ queryKey: ['roles'] })
+      invalidate(queryClient, 'roles')
       setIsCreating(false)
       setSelectedRoleId(newRole.id)
       toast.success('Ruolo creato con successo')
@@ -527,7 +529,7 @@ export function RolesPage() {
     mutationFn: ({ id, data }: { id: string; data: UpdateRoleData }) =>
       api.updateRole(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['roles'] })
+      invalidate(queryClient, 'roles')
       toast.success('Ruolo aggiornato con successo')
     },
     onError: (err: Error) => {
@@ -538,7 +540,7 @@ export function RolesPage() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteRole(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['roles'] })
+      invalidate(queryClient, 'roles')
       setSelectedRoleId(null)
       toast.success('Ruolo eliminato con successo')
     },
@@ -551,7 +553,7 @@ export function RolesPage() {
     mutationFn: ({ id, data }: { id: string; data: UpdateRolePermissionsData }) =>
       api.updateRolePermissions(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['roles'] })
+      invalidate(queryClient, 'roles')
       toast.success('Permessi aggiornati con successo')
     },
     onError: (err: Error) => {

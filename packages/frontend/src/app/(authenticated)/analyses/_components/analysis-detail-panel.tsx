@@ -13,6 +13,8 @@ import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAnalysisScores } from '@/hooks/use-analysis-scores'
 import { api, type AlarmAnalysis, type AlarmEvent, type PaginatedResponse } from '@/lib/api-client'
+import { invalidate } from '@/lib/query-invalidation'
+import { qk } from '@/lib/query-keys'
 import { sanitizeUrl } from '@/lib/sanitize-url'
 import { usePreferences } from '@/hooks/use-preferences'
 import { UnlinkAlarmEventDialog } from '../../alarm-events/_components/unlink-alarm-event-dialog'
@@ -34,7 +36,7 @@ function LinkedAlarmEvents({ analysis }: { analysis: AlarmAnalysis }) {
   const [unlinkEvent, setUnlinkEvent] = useState<AlarmEvent | null>(null)
 
   const { data } = useQuery<PaginatedResponse<AlarmEvent>>({
-    queryKey: ['alarm-events', { analysisId: analysis.id }],
+    queryKey: qk.alarmEvents.forAnalysis(analysis.id),
     queryFn: () => api.getAlarmEvents({ analysisId: analysis.id, pageSize: 100 }),
     staleTime: 30_000,
   })
@@ -86,8 +88,7 @@ function LinkedAlarmEvents({ analysis }: { analysis: AlarmAnalysis }) {
         eventName={unlinkEvent?.name ?? ''}
         analysis={analysis}
         onCompleted={() => {
-          queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string).startsWith('alarm-events') })
-          queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === 'string' && q.queryKey[0].startsWith('analyses') })
+          invalidate(queryClient, 'alarmEvents', 'analyses')
           setUnlinkEvent(null)
         }}
       />

@@ -15,6 +15,8 @@ import {
   type Role,
   type PermissionScope,
 } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
+import { invalidate } from '@/lib/query-invalidation'
 import { usePermissions } from '@/hooks/use-permissions'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -73,24 +75,24 @@ export function UserDetailPage() {
     isLoading: userLoading,
     error: userError,
   } = useQuery<UserDetailWithOverrides>({
-    queryKey: ['users', userId],
+    queryKey: qk.users.detail(userId),
     queryFn: () => api.getUser(userId),
   })
 
   const { data: userPermissions, isLoading: permLoading } = useQuery<UserWithPermissions>({
-    queryKey: ['users', userId, 'permissions'],
+    queryKey: qk.users.permissions(userId),
     queryFn: () => api.getUserPermissions(userId),
   })
 
   const { data: roles } = useQuery<Role[]>({
-    queryKey: ['roles'],
+    queryKey: qk.roles.list,
     queryFn: api.getRoles,
   })
 
   const deleteMutation = useMutation({
     mutationFn: () => api.deleteUser(userId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] })
+      invalidate(queryClient, 'users')
       toast.success('Utente eliminato con successo')
       router.push('/users')
     },
@@ -102,8 +104,8 @@ export function UserDetailPage() {
   const changeRoleMutation = useMutation({
     mutationFn: (roleId: string) => api.updateUser(userId, { roleId }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users', userId] })
-      queryClient.invalidateQueries({ queryKey: ['users', userId, 'permissions'] })
+      queryClient.invalidateQueries({ queryKey: qk.users.detail(userId) })
+      queryClient.invalidateQueries({ queryKey: qk.users.permissions(userId) })
       toast.success('Ruolo aggiornato con successo')
     },
     onError: (error: Error) => {
@@ -115,8 +117,8 @@ export function UserDetailPage() {
     mutationFn: ({ resource, action, value }: { resource: string; action: PermAction; value: PermissionScope | null }) =>
       api.setUserPermissionOverride(userId, { resource, [action]: value }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users', userId] })
-      queryClient.invalidateQueries({ queryKey: ['users', userId, 'permissions'] })
+      queryClient.invalidateQueries({ queryKey: qk.users.detail(userId) })
+      queryClient.invalidateQueries({ queryKey: qk.users.permissions(userId) })
       toast.success('Override permesso impostato')
     },
     onError: (error: Error) => {
@@ -127,8 +129,8 @@ export function UserDetailPage() {
   const removeOverrideMutation = useMutation({
     mutationFn: (resource: string) => api.removeUserPermissionOverride(userId, resource),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users', userId] })
-      queryClient.invalidateQueries({ queryKey: ['users', userId, 'permissions'] })
+      queryClient.invalidateQueries({ queryKey: qk.users.detail(userId) })
+      queryClient.invalidateQueries({ queryKey: qk.users.permissions(userId) })
       toast.success('Override permesso rimosso')
     },
     onError: (error: Error) => {

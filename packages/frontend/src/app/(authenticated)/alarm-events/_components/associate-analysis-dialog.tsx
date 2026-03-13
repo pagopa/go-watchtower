@@ -22,6 +22,8 @@ import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
 import { usePermissions } from '@/hooks/use-permissions'
 import { api, type AlarmEvent, type AlarmAnalysis } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
+import { invalidate } from '@/lib/query-invalidation'
 import { ANALYSIS_STATUS_LABELS, ANALYSIS_TYPE_LABELS, AnalysisStatuses } from '@go-watchtower/shared'
 import {
   STATUS_ICONS,
@@ -211,7 +213,7 @@ export function AssociateAnalysisDialog({
   // ── Query ────────────────────────────────────────────────────────────────
 
   const analysesQuery = useQuery({
-    queryKey: ['analyses', 'for-link', event?.product.id, event?.environment.id, event?.alarmId, ownOnly ? currentUserId : null],
+    queryKey: qk.analyses.forLink(event?.product.id ?? null, event?.environment.id ?? null, event?.alarmId ?? null, ownOnly ? currentUserId ?? null : null),
     queryFn: () => {
       const e = event!
       const oneMonthAgo = new Date()
@@ -279,8 +281,7 @@ export function AssociateAnalysisDialog({
       )
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === 'string' && q.queryKey[0].startsWith('alarm-events') })
-      queryClient.invalidateQueries({ queryKey: ['analyses'] })
+      invalidate(queryClient, 'alarmEvents', 'analyses')
       toast.success('Evento associato all\'analisi')
       onAssociated()
       handleOpenChange(false)

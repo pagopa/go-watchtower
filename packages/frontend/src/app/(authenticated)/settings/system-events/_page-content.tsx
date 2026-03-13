@@ -54,6 +54,7 @@ import { COLUMN_REGISTRY } from '@/lib/column-registry'
 import { ALL_VALUE } from '@/lib/constants'
 import { api } from '@/lib/api-client'
 import type { SystemEvent, SystemEventsFilters, UserDetail } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
 import {
   SystemEventActions,
   SystemEventResources,
@@ -642,7 +643,7 @@ export function SystemEventsPage() {
 
   // Users list for filter dropdown
   const { data: users } = useQuery<UserDetail[]>({
-    queryKey: ['users'],
+    queryKey: qk.users.list,
     queryFn: api.getUsers,
     enabled: can('USER', 'read'),
   })
@@ -656,7 +657,7 @@ export function SystemEventsPage() {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['system-events', filters, page, pageSize, sortBy, sortOrder],
+    queryKey: qk.systemEvents.list({ filters, page, pageSize, sortBy, sortOrder }),
     queryFn: () => api.getSystemEvents({ ...filters, page, limit: pageSize, sortBy, sortOrder }),
     placeholderData: (prev) => prev,
     staleTime: 0,

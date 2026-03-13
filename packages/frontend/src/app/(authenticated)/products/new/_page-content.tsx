@@ -9,6 +9,7 @@ import { z } from 'zod'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { api, type CreateProductData } from '@/lib/api-client'
+import { invalidate } from '@/lib/query-invalidation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -48,7 +49,7 @@ export function NewProductPage() {
   const createMutation = useMutation({
     mutationFn: (data: CreateProductData) => api.createProduct(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products'] })
+      invalidate(queryClient, 'products')
       toast.success('Prodotto creato con successo')
       router.push('/products')
     },

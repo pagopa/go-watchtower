@@ -17,6 +17,8 @@ import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { api, type AlarmAnalysis } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
+import { invalidate } from '@/lib/query-invalidation'
 import { usePermissions } from '@/hooks/use-permissions'
 
 interface UnlinkAlarmEventDialogProps {
@@ -48,7 +50,7 @@ export function UnlinkAlarmEventDialog({
 
   // Fetch lock days policy
   const { data: policy } = useQuery({
-    queryKey: ['analyses', 'policy'],
+    queryKey: qk.analyses.policy,
     queryFn: () => api.getAnalysisPolicy(),
     staleTime: 5 * 60 * 1000,
   })
@@ -77,8 +79,7 @@ export function UnlinkAlarmEventDialog({
   const canDecrement = !isSingleOccurrence && permissions.canEdit
 
   const invalidateAll = () => {
-    queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string).startsWith('alarm-events') })
-    queryClient.invalidateQueries({ queryKey: ['analyses'] })
+    invalidate(queryClient, 'alarmEvents', 'analyses')
   }
 
   // Unlink: remove analysisId from event + optionally decrement occurrences

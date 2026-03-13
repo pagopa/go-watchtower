@@ -36,6 +36,7 @@ import {
   type ProductResource,
   type ResourceType,
 } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
 
 const SKELETON_ROWS = [0, 1, 2]
 
@@ -66,12 +67,12 @@ export function ResourcesTab({ productId }: ResourcesTabProps) {
     isLoading,
     error,
   } = useQuery<ProductResource[]>({
-    queryKey: ['products', productId, 'resources'],
+    queryKey: qk.products.resources(productId),
     queryFn: () => api.getResources(productId),
   })
 
   const { data: resourceTypes } = useQuery<ResourceType[]>({
-    queryKey: ['resource-types'],
+    queryKey: qk.resourceTypes.list,
     queryFn: () => api.getResourceTypes(),
   })
 
@@ -101,7 +102,7 @@ export function ResourcesTab({ productId }: ResourcesTabProps) {
     mutationFn: (data: ResourceFormData) =>
       api.createResource(productId, { name: data.name, description: data.description, typeId: data.typeId }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products', productId, 'resources'] })
+      queryClient.invalidateQueries({ queryKey: qk.products.resources(productId) })
       toast.success('Risorsa creata con successo')
       setShowCreateDialog(false)
       reset()
@@ -115,7 +116,7 @@ export function ResourcesTab({ productId }: ResourcesTabProps) {
     mutationFn: ({ id, data }: { id: string; data: ResourceFormData }) =>
       api.updateResource(productId, id, { name: data.name, description: data.description, typeId: data.typeId }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products', productId, 'resources'] })
+      queryClient.invalidateQueries({ queryKey: qk.products.resources(productId) })
       toast.success('Risorsa aggiornata con successo')
       setEditItem(null)
       reset()
@@ -128,7 +129,7 @@ export function ResourcesTab({ productId }: ResourcesTabProps) {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteResource(productId, id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products', productId, 'resources'] })
+      queryClient.invalidateQueries({ queryKey: qk.products.resources(productId) })
       toast.success('Risorsa eliminata con successo')
       setDeleteItem(null)
     },

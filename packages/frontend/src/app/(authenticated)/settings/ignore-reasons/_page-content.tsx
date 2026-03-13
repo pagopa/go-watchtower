@@ -42,6 +42,8 @@ import {
   type CreateIgnoreReasonData,
   type UpdateIgnoreReasonData,
 } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
+import { invalidate } from '@/lib/query-invalidation'
 import { DynamicIgnoreDetailsForm } from '@/components/ui/json-schema-form'
 
 // ─── Zod schema ───────────────────────────────────────────────────────────────
@@ -346,14 +348,14 @@ export function IgnoreReasonsPage() {
   const [deleteTarget, setDeleteTarget] = useState<IgnoreReason | null>(null)
 
   const { data: reasons, isLoading } = useQuery({
-    queryKey: ['ignore-reasons'],
+    queryKey: qk.ignoreReasons.list,
     queryFn: () => api.getIgnoreReasons(),
   })
 
   const createMutation = useMutation({
     mutationFn: (data: CreateIgnoreReasonData) => api.createIgnoreReason(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['ignore-reasons'] })
+      invalidate(queryClient, 'ignoreReasons')
       setDialogOpen(false)
       toast.success('Motivo creato con successo')
     },
@@ -364,7 +366,7 @@ export function IgnoreReasonsPage() {
     mutationFn: ({ code, data }: { code: string; data: UpdateIgnoreReasonData }) =>
       api.updateIgnoreReason(code, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['ignore-reasons'] })
+      invalidate(queryClient, 'ignoreReasons')
       setDialogOpen(false)
       setEditItem(null)
       toast.success('Motivo aggiornato')
@@ -375,7 +377,7 @@ export function IgnoreReasonsPage() {
   const deleteMutation = useMutation({
     mutationFn: (code: string) => api.deleteIgnoreReason(code),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['ignore-reasons'] })
+      invalidate(queryClient, 'ignoreReasons')
       setDeleteTarget(null)
       toast.success('Motivo eliminato')
     },

@@ -16,6 +16,8 @@ import {
   type UpdateUserData,
   type Role,
 } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
+import { invalidate } from '@/lib/query-invalidation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -50,12 +52,12 @@ export function EditUserPage() {
     isLoading: userLoading,
     error: userError,
   } = useQuery<UserDetailWithOverrides>({
-    queryKey: ['users', userId],
+    queryKey: qk.users.detail(userId),
     queryFn: () => api.getUser(userId),
   })
 
   const { data: roles } = useQuery<Role[]>({
-    queryKey: ['roles'],
+    queryKey: qk.roles.list,
     queryFn: api.getRoles,
   })
 
@@ -89,7 +91,7 @@ export function EditUserPage() {
   const updateMutation = useMutation({
     mutationFn: (data: UpdateUserData) => api.updateUser(userId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] })
+      invalidate(queryClient, 'users')
       toast.success('Utente aggiornato con successo')
       router.push(`/users/${userId}`)
     },

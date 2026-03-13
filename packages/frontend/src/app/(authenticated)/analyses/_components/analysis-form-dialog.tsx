@@ -44,6 +44,7 @@ import {
   type UserDetail,
   type IgnoredAlarm,
 } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
 
 import {
   analysisFormSchema,
@@ -176,49 +177,49 @@ export function AnalysisFormDialog({
   const productId = editItem?.productId || selectedProductId || ''
 
   const { data: environments } = useQuery<Environment[]>({
-    queryKey: ['products', productId, 'environments'],
+    queryKey: qk.products.environments(productId),
     queryFn: () => api.getEnvironments(productId),
     enabled: open && !!productId,
   })
 
   const { data: alarms } = useQuery<Alarm[]>({
-    queryKey: ['products', productId, 'alarms'],
+    queryKey: qk.products.alarms(productId),
     queryFn: () => api.getAlarms(productId),
     enabled: open && !!productId,
   })
 
   const { data: finalActions } = useQuery<FinalAction[]>({
-    queryKey: ['products', productId, 'final-actions'],
+    queryKey: qk.products.finalActions(productId),
     queryFn: () => api.getFinalActions(productId),
     enabled: open && !!productId,
   })
 
   const { data: runbooks } = useQuery<Runbook[]>({
-    queryKey: ['products', productId, 'runbooks'],
+    queryKey: qk.products.runbooks(productId),
     queryFn: () => api.getRunbooks(productId),
     enabled: open && !!productId,
   })
 
   const { data: resources } = useQuery<ProductResource[]>({
-    queryKey: ['products', productId, 'resources'],
+    queryKey: qk.products.resources(productId),
     queryFn: () => api.getResources(productId),
     enabled: open && !!productId,
   })
 
   const { data: downstreams } = useQuery<Downstream[]>({
-    queryKey: ['products', productId, 'downstreams'],
+    queryKey: qk.products.downstreams(productId),
     queryFn: () => api.getDownstreams(productId),
     enabled: open && !!productId,
   })
 
   const { data: ignoreReasons } = useQuery({
-    queryKey: ['ignore-reasons'],
+    queryKey: qk.ignoreReasons.list,
     queryFn: () => api.getIgnoreReasons(),
     staleTime: Infinity,
   })
 
   const { data: ignoredAlarms } = useQuery<IgnoredAlarm[]>({
-    queryKey: ['products', productId, 'ignored-alarms'],
+    queryKey: qk.products.ignoredAlarms(productId),
     queryFn: () => api.getIgnoredAlarms(productId),
     enabled: open && !!productId && !editItem,
     staleTime: 60_000,

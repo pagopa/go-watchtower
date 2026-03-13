@@ -32,6 +32,7 @@ import { usePermissions } from '@/hooks/use-permissions'
 import { usePreferences } from '@/hooks/use-preferences'
 import { useState, useCallback } from 'react'
 import { api, type Product } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
 
 interface NavItem {
   title: string
@@ -182,7 +183,7 @@ export function Sidebar() {
   const canReadAnalyses = isLoading || can('ALARM_ANALYSIS', 'read')
 
   const { data: products } = useQuery<Product[]>({
-    queryKey: ['products'],
+    queryKey: qk.products.list,
     queryFn: api.getProducts,
     enabled: canReadAnalyses,
   })

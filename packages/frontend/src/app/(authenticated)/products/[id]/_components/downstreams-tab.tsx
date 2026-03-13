@@ -2,6 +2,7 @@
 
 import { ArrowDownRight } from 'lucide-react'
 import { api, type Downstream } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
 import { SimpleNamedResourceTab } from './simple-named-resource-tab'
 
 interface DownstreamsTabProps {
@@ -14,6 +15,7 @@ export function DownstreamsTab({ productId }: DownstreamsTabProps) {
       productId={productId}
       permission="DOWNSTREAM"
       queryKey="downstreams"
+      queryKeyFn={qk.products.downstreams}
       labels={{
         plural: 'downstream',
         createButton: 'Nuovo Downstream',

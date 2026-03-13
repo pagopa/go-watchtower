@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Users, BarChart3, CalendarDays, CalendarRange } from 'lucide-react'
 import { usePermissions } from '@/hooks/use-permissions'
 import { api, type Product } from '@/lib/api-client'
+import { qk } from '@/lib/query-keys'
 import { cn } from '@/lib/utils'
 import dynamic from 'next/dynamic'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -65,7 +66,7 @@ export function ReportsPageContent() {
   const [activeReport, setActiveReport] = useState<ReportId>('operators')
 
   const { data: products } = useQuery<Product[]>({
-    queryKey: ['products'],
+    queryKey: qk.products.list,
     queryFn: api.getProducts,
     enabled: canReadAnalyses,
   })
