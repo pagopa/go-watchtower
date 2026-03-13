@@ -29,8 +29,7 @@ import { downloadCsv, downloadJson } from '@/lib/export-utils'
 import { ExportMenu } from './export-menu'
 import { formatDuration } from '../_lib/format-duration'
 import { cn } from '@/lib/utils'
-
-const ALL_VALUE = '__all__'
+import { ALL_VALUE } from '@/lib/constants'
 
 interface OperatorWorkloadTabProps {
   products?: Product[]

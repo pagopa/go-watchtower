@@ -27,8 +27,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { api, type Product, type AlarmRankingItem } from '@/lib/api-client'
 import { downloadCsv, downloadJson } from '@/lib/export-utils'
 import { ExportMenu } from './export-menu'
-
-const ALL_VALUE = '__all__'
+import { ALL_VALUE } from '@/lib/constants'
 
 interface AlarmRankingTabProps {
   products?: Product[]

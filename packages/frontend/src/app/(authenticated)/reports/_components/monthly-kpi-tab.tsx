@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback } from 'react'
 import { useQuery, useQueries } from '@tanstack/react-query'
+import { MONTH_NAMES } from '@go-watchtower/shared'
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import {
   Select,
@@ -22,13 +23,7 @@ import {
 } from '@/lib/api-client'
 import { downloadCsv, downloadJson } from '@/lib/export-utils'
 import { ExportMenu } from './export-menu'
-
-const MONTH_NAMES = [
-  'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
-  'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre',
-]
-
-const ALL_VALUE = '__all__'
+import { ALL_VALUE } from '@/lib/constants'
 
 const ROW_DEFS = [
   { key: 'alarmEvents', label: 'Allarmi scattati', color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-500/10' },

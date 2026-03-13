@@ -26,8 +26,7 @@ import {
   TopAlarmsTable,
   KpiSummaryCards,
 } from './_components/dashboard'
-
-const ALL_VALUE = '__all__'
+import { ALL_VALUE } from '@/lib/constants'
 
 export default function DashboardPage() {
   const { data: session, status } = useSession()

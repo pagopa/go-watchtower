@@ -51,6 +51,7 @@ import { ColumnConfigurator } from '@/components/ui/column-configurator'
 import { useColumnSettings } from '@/hooks/use-column-settings'
 import { usePermissions } from '@/hooks/use-permissions'
 import { COLUMN_REGISTRY } from '@/lib/column-registry'
+import { ALL_VALUE } from '@/lib/constants'
 import { api } from '@/lib/api-client'
 import type { SystemEvent, SystemEventsFilters, UserDetail } from '@/lib/api-client'
 import {
@@ -783,8 +784,8 @@ export function SystemEventsPage() {
           <div className="space-y-1.5">
             <Label className="text-sm text-muted-foreground">Risorsa</Label>
             <Select
-              value={filters.resource ?? '__all__'}
-              onValueChange={(v) => updateFilters({ resource: v === '__all__' ? undefined : v })}
+              value={filters.resource ?? ALL_VALUE}
+              onValueChange={(v) => updateFilters({ resource: v === ALL_VALUE ? undefined : v })}
             >
               <SelectTrigger className="h-9 text-sm">
                 <SelectValue placeholder="Tutte" />
@@ -804,8 +805,8 @@ export function SystemEventsPage() {
           <div className="space-y-1.5">
             <Label className="text-sm text-muted-foreground">Utente</Label>
             <Select
-              value={filters.userId ?? '__all__'}
-              onValueChange={(v) => updateFilters({ userId: v === '__all__' ? undefined : v })}
+              value={filters.userId ?? ALL_VALUE}
+              onValueChange={(v) => updateFilters({ userId: v === ALL_VALUE ? undefined : v })}
             >
               <SelectTrigger className="h-9 text-sm">
                 <SelectValue placeholder="Tutti gli utenti" />

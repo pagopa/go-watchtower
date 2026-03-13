@@ -72,6 +72,7 @@ export { SYSTEM_EVENT_RESOURCE_LABELS, SYSTEM_EVENT_ACTION_LABELS } from './labe
 export { RESOURCE_LABELS, DISPLAY_RESOURCES } from './labels/resource-labels.js';
 export { PERMISSION_SCOPE_LABELS } from './labels/permission-scope-labels.js';
 export { AUTH_PROVIDER_LABELS } from './labels/auth-provider-labels.js';
+export { MONTH_NAMES, MONTH_SHORT_NAMES } from './labels/month-labels.js';
 
 // ─── Utility ───────────────────────────────────────────────────────────────────
 

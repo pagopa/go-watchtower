@@ -29,8 +29,7 @@ import type {
 } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
 import { ANALYSIS_TYPE_LABELS, ANALYSIS_STATUS_LABELS } from '../_lib/constants'
-
-const ALL_VALUE = '__all__'
+import { ALL_VALUE } from '@/lib/constants'
 
 export interface AnalysisFiltersState {
   search: string
@@ -86,13 +85,25 @@ export function AnalysisFilters({
     onFilterChange({ ...filters, [key]: value })
   }
 
-  // Debounced search
+  // Debounced search — useState for prev-value tracking (React 19 safe)
   const [searchLocal, setSearchLocal] = useState(filters.search)
+  const [prevSearch, setPrevSearch] = useState(filters.search)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Debounced traceId
   const [traceIdLocal, setTraceIdLocal] = useState(filters.traceId)
+  const [prevTraceId, setPrevTraceId] = useState(filters.traceId)
   const traceIdTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Sync local debounced values when parent swaps filters (product switch)
+  if (prevSearch !== filters.search) {
+    setPrevSearch(filters.search)
+    setSearchLocal(filters.search)
+  }
+  if (prevTraceId !== filters.traceId) {
+    setPrevTraceId(filters.traceId)
+    setTraceIdLocal(filters.traceId)
+  }
 
   useEffect(() => {
     return () => {
@@ -100,17 +111,6 @@ export function AnalysisFilters({
       if (traceIdTimer.current) clearTimeout(traceIdTimer.current)
     }
   }, [])
-
-  // Sync local debounced values when parent swaps filters (product switch)
-  useEffect(() => {
-    setSearchLocal(filters.search)
-    if (searchTimer.current) { clearTimeout(searchTimer.current); searchTimer.current = null }
-  }, [filters.search])
-
-  useEffect(() => {
-    setTraceIdLocal(filters.traceId)
-    if (traceIdTimer.current) { clearTimeout(traceIdTimer.current); traceIdTimer.current = null }
-  }, [filters.traceId])
 
   const handleSearchChange = (value: string) => {
     setSearchLocal(value)
@@ -142,23 +142,17 @@ export function AnalysisFilters({
     onReset()
   }
 
-  // Advanced filters section open/closed (local state — resets on page navigation)
-  const [advancedOpen, setAdvancedOpen] = useState(() => {
-    return !!(
-      filters.ignoreReasonCode ||
-      filters.runbookId ||
-      filters.resourceId ||
-      filters.downstreamId ||
-      filters.traceId
-    )
-  })
-
-  // Auto-open advanced section when restored filters have advanced values
-  useEffect(() => {
-    if (filters.ignoreReasonCode || filters.runbookId || filters.resourceId || filters.downstreamId || filters.traceId) {
-      setAdvancedOpen(true)
-    }
-  }, [filters.ignoreReasonCode, filters.runbookId, filters.resourceId, filters.downstreamId, filters.traceId])
+  // Advanced filters section — force open when advanced filters are active,
+  // otherwise respect user toggle
+  const hasAdvancedFilters = !!(
+    filters.ignoreReasonCode ||
+    filters.runbookId ||
+    filters.resourceId ||
+    filters.downstreamId ||
+    filters.traceId
+  )
+  const [advancedToggle, setAdvancedToggle] = useState(false)
+  const advancedOpen = hasAdvancedFilters || advancedToggle
 
   const basicFilterCount = [
     filters.search,
@@ -401,7 +395,7 @@ export function AnalysisFilters({
           <div className="border-t pt-3">
             <button
               type="button"
-              onClick={() => setAdvancedOpen((o) => !o)}
+              onClick={() => setAdvancedToggle((o) => !o)}
               className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
               <Settings2 className="h-3.5 w-3.5" />

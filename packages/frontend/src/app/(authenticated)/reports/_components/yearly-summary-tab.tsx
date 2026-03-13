@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { MONTH_NAMES, MONTH_SHORT_NAMES } from '@go-watchtower/shared'
 import {
   ChevronLeft,
   ChevronRight,
@@ -25,16 +26,6 @@ import { cn } from '@/lib/utils'
 import { api, type YearlySummaryData, type YearlySummaryMonth } from '@/lib/api-client'
 import { downloadCsv, downloadJson } from '@/lib/export-utils'
 import { ExportMenu } from './export-menu'
-
-const MONTH_NAMES = [
-  'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
-  'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre',
-]
-
-const SHORT_MONTHS = [
-  'Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu',
-  'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic',
-]
 
 // ─── Summary KPI card ────────────────────────────────────────────────────────
 
@@ -436,7 +427,7 @@ function MonthRow({ m, isCurrentMonth, isFutureMonth }: {
           <span className={cn(
             'inline-block w-5 text-center text-[11px] tabular-nums font-normal text-muted-foreground/60',
           )}>
-            {SHORT_MONTHS[m.month - 1]}
+            {MONTH_SHORT_NAMES[m.month - 1]}
           </span>
           <span>{MONTH_NAMES[m.month - 1]}</span>
           {isCurrentMonth && (
