@@ -804,11 +804,11 @@ function AnalysesPageContent() {
                 <Skeleton className="h-3 w-24 rounded" />
                 <Skeleton className="h-3 w-32 rounded" />
               </div>
-              {[...Array(7)].map((_, i) => (
+              {Array.from({ length: 7 }, (_, n) => n).map(n => (
                 <div
-                  key={`skeleton-row-${i}`}
+                  key={n}
                   className="flex items-center gap-4 px-4 py-3"
-                  style={{ animationDelay: `${i * 40}ms` }}
+                  style={{ animationDelay: `${n * 40}ms` }}
                 >
                   <Skeleton className="h-3.5 w-24 rounded" />
                   <Skeleton className="h-5 w-20 rounded" />

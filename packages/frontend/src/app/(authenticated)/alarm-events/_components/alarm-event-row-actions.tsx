@@ -42,6 +42,7 @@ export const AlarmEventRowActions = memo(function AlarmEventRowActions({
           tabIndex={-1}
           className="absolute inset-0 flex cursor-pointer items-center justify-center opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100"
           onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.stopPropagation() }}
         >
           <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
         </div>

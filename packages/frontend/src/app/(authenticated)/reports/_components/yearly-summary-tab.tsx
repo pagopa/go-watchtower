@@ -116,7 +116,7 @@ interface YearlySummaryTabProps {
 
 export function YearlySummaryTab({ products }: YearlySummaryTabProps) {
   const now = new Date()
-  const [year, setYear] = useState(now.getFullYear())
+  const [year, setYear] = useState(() => now.getFullYear())
   const [selectedProductId, setSelectedProductId] = useState('')
 
   const { data, isLoading, isFetching } = useQuery<YearlySummaryData>({
@@ -217,13 +217,13 @@ export function YearlySummaryTab({ products }: YearlySummaryTabProps) {
         {/* ── Year selector ─────────────────────────────────────────────── */}
         <div className="flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-0.5 rounded-lg border bg-card p-0.5">
-            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md" onClick={() => setYear(year - 1)}>
+            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md" onClick={() => setYear(y => y - 1)}>
               <ChevronLeft className="h-3.5 w-3.5" />
             </Button>
             <span className="min-w-[72px] text-center text-sm font-semibold tabular-nums select-none">
               {year}
             </span>
-            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md" onClick={() => setYear(year + 1)}>
+            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md" onClick={() => setYear(y => y + 1)}>
               <ChevronRight className="h-3.5 w-3.5" />
             </Button>
           </div>
@@ -261,8 +261,8 @@ export function YearlySummaryTab({ products }: YearlySummaryTabProps) {
         {isLoading ? (
           <div className="space-y-4">
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-              {Array.from({ length: 5 }, (_, i) => (
-                <Skeleton key={i} className="h-[72px] rounded-lg" />
+              {Array.from({ length: 5 }, (_, n) => n).map(n => (
+                <Skeleton key={n} className="h-[72px] rounded-lg" />
               ))}
             </div>
             <Skeleton className="h-[480px] rounded-lg" />

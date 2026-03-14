@@ -70,8 +70,8 @@ export function ProductsPage() {
         <Card>
           <CardContent className="p-0">
             <div className="space-y-4 p-6">
-              {[...Array(5)].map((_, i) => (
-                <Skeleton key={`skeleton-${i}`} className="h-12 w-full" />
+              {Array.from({ length: 5 }, (_, n) => n).map(n => (
+                <Skeleton key={n} className="h-12 w-full" />
               ))}
             </div>
           </CardContent>

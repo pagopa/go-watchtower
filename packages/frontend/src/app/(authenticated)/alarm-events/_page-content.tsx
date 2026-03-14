@@ -745,12 +745,12 @@ function AlarmEventsPageContent() {
           {eventsLoading ? (
             <div className="divide-y">
               <div className="flex items-center gap-4 bg-muted/30 px-4 py-2.5">
-                {[24, 20, 14, 14, 16].map((w, i) => (
-                  <Skeleton key={`hcol-${i}-w${w}`} className={`h-3 w-${w} rounded`} />
+                {Array.from([24, 20, 14, 14, 16].entries()).map(([n, w]) => (
+                  <Skeleton key={n} className={`h-3 w-${w} rounded`} />
                 ))}
               </div>
-              {Array.from({ length: 8 }, (_, i) => (
-                <div key={`srow-${i}`} className="flex items-center gap-4 px-4 py-3" style={{ animationDelay: `${i * 40}ms` }}>
+              {Array.from({ length: 8 }, (_, n) => n).map(n => (
+                <div key={n} className="flex items-center gap-4 px-4 py-3" style={{ animationDelay: `${n * 40}ms` }}>
                   <Skeleton className="h-3.5 w-32 rounded" />
                   <Skeleton className="h-3.5 w-44 rounded" />
                   <Skeleton className="h-5 w-20 rounded" />

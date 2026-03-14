@@ -38,8 +38,8 @@ interface MonthlyKpiTabProps {
 
 export function MonthlyKpiTab({ products }: MonthlyKpiTabProps) {
   const now = new Date()
-  const [year, setYear] = useState(now.getFullYear())
-  const [month, setMonth] = useState(now.getMonth() + 1)
+  const [year, setYear] = useState(() => now.getFullYear())
+  const [month, setMonth] = useState(() => now.getMonth() + 1)
   const [productId, setProductId] = useState(ALL_VALUE)
 
   const activeProducts = useMemo(
@@ -83,13 +83,13 @@ export function MonthlyKpiTab({ products }: MonthlyKpiTabProps) {
   }, [year, month])
 
   const handlePrevMonth = () => {
-    if (month === 1) { setYear(year - 1); setMonth(12) }
-    else setMonth(month - 1)
+    if (month === 1) { setYear(y => y - 1); setMonth(12) }
+    else setMonth(m => m - 1)
   }
 
   const handleNextMonth = () => {
-    if (month === 12) { setYear(year + 1); setMonth(1) }
-    else setMonth(month + 1)
+    if (month === 12) { setYear(y => y + 1); setMonth(1) }
+    else setMonth(m => m + 1)
   }
 
   // Today marker
@@ -204,8 +204,8 @@ export function MonthlyKpiTab({ products }: MonthlyKpiTabProps) {
       {isAnyLoading ? (
         <Card>
           <CardContent className="p-4 space-y-3">
-            {Array.from({ length: 6 }, (_, i) => (
-              <Skeleton key={i} className="h-8 w-full rounded" />
+            {Array.from({ length: 6 }, (_, n) => n).map(n => (
+              <Skeleton key={n} className="h-8 w-full rounded" />
             ))}
           </CardContent>
         </Card>

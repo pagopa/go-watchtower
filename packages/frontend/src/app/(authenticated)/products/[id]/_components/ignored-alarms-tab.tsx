@@ -256,7 +256,7 @@ function ConstraintSection({
       {hasContent ? (
         <div className="space-y-1.5">
           {constraints.map((c, i) => (
-            <ConstraintRuleDisplay key={`rule-${i}`} constraint={c} index={i} />
+            <ConstraintRuleDisplay key={JSON.stringify(c)} constraint={c} index={i} />
           ))}
         </div>
       ) : (

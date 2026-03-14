@@ -134,7 +134,7 @@ function ConstraintSection({
         <div className="space-y-2">
           {constraints.map((c, i) => (
             <div
-              key={`constraint-${i}`}
+              key={JSON.stringify(c)}
               className={cn(
                 'rounded-lg border px-3.5 py-3 space-y-2',
                 constraints.length > 1

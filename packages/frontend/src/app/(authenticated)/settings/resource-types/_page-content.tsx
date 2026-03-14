@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -73,14 +73,15 @@ function ResourceTypeDialog({
     defaultValues: { name: '', sortOrder: 0 },
   })
 
-  useEffect(() => {
-    if (open) {
+  const handleOpenChange = useCallback((value: boolean) => {
+    if (value) {
       reset({
         name:      editItem?.name ?? '',
         sortOrder: editItem?.sortOrder ?? 0,
       })
     }
-  }, [open, editItem, reset])
+    onOpenChange(value)
+  }, [editItem, reset, onOpenChange])
 
   const handleSave = (data: ResourceTypeFormData) => {
     if (isEdit) {
@@ -91,8 +92,8 @@ function ResourceTypeDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md" isDirty={isDirty} onDirtyClose={() => onOpenChange(false)}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-md" isDirty={isDirty} onDirtyClose={() => handleOpenChange(false)}>
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Modifica tipo risorsa' : 'Nuovo tipo risorsa'}</DialogTitle>
           <DialogDescription>
@@ -226,8 +227,8 @@ export function ResourceTypesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {[...Array(3)].map((_, i) => (
-                <TableRow key={`skeleton-${i}`}>
+              {Array.from({ length: 3 }, (_, n) => n).map(n => (
+                <TableRow key={n}>
                   <TableCell><Skeleton className="h-4 w-40" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-8" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-16" /></TableCell>
