@@ -41,7 +41,7 @@ import { env } from "../../config/env.js";
 import { logEvent } from "../../services/system-event.service.js";
 import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
 import { HttpError } from "../../utils/http-errors.js";
-import type { JwtPayload } from "../../plugins/jwt.js";
+
 
 // Access token expires in 15 minutes (in seconds)
 const ACCESS_TOKEN_EXPIRES_IN_SECONDS = 15 * 60;
@@ -312,7 +312,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       let logoutUserLabel: string | null = null;
       try {
         await request.jwtVerify();
-        const payload = request.user as JwtPayload;
+        const payload = request.user;
         logoutUserId = payload.userId;
         logoutUserLabel = payload.name
           ? `${payload.name} (${payload.email})`

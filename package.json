@@ -5,6 +5,7 @@
   "type": "module",
   "description": "Watchtower veglia sull'infrastruttura digitale di PagoPa 24 ore su 24. Un punto unico di osservazione per allarmi, incidenti e azioni — perché nessun problema passi inosservato.",
   "scripts": {
+    "lint": "eslint . && pnpm --filter @go-watchtower/frontend lint",
     "type-check": "tsc --noEmit",
     "deploy:frontend": "bash scripts/deploy-frontend.sh",
     "deploy:backend": "bash scripts/deploy-backend.sh",

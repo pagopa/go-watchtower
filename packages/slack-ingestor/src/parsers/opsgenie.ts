@@ -60,7 +60,7 @@ export const parseOpsgenie: ParserFn = (
   // ── Extract firedAt ──────────────────────────────────────────────────
   // Pattern: [value (DD/MM/YY HH:MM:SS)] in the text body
   const tsMatch = text.match(
-    /\[[\d.eE+\-]+ \((\d{2}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2})\)\]/,
+    /\[[\d.eE+-]+ \((\d{2}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2})\)\]/,
   );
   let firedAt: Date;
 

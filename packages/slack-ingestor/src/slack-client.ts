@@ -31,6 +31,7 @@ const slackLogger: Logger = {
     if (msgs[0] === "http request failed") {
       httpWarningCount++;
       // Capture whatever info the library passes (usually e.message, often empty for network errors)
+      // eslint-disable-next-line @typescript-eslint/no-base-to-string -- intentional: stringify whatever the Slack SDK passes
       const detail = String(msgs[1] ?? "").trim() || "(empty — likely transient network error in VPC/NAT)";
       lastHttpWarningDetail = detail;
       // Log only the first occurrence per invocation to reduce noise

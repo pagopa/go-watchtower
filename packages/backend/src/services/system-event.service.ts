@@ -30,7 +30,6 @@ export function logEvent(params: {
       },
     })
     .catch((err: unknown) => {
-      // eslint-disable-next-line no-console
       console.error("[system-event] Failed to persist audit event:", err);
     });
 }

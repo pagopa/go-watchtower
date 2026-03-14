@@ -21,12 +21,12 @@ async function main() {
         app.log.error(err, "Token cleanup failed");
       }
     };
-    cleanup(); // run once on startup
-    setInterval(cleanup, TOKEN_CLEANUP_INTERVAL_MS);
+    void cleanup(); // run once on startup
+    setInterval(() => { void cleanup(); }, TOKEN_CLEANUP_INTERVAL_MS);
   } catch (err) {
     app.log.error(err);
     process.exit(1);
   }
 }
 
-main();
+void main();
