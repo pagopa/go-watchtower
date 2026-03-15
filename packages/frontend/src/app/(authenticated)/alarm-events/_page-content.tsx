@@ -82,6 +82,11 @@ const AnalysisFormDialog = dynamic(
 import { UnlinkAlarmEventDialog } from './_components/unlink-alarm-event-dialog'
 import { BulkIgnoreDialog } from './_components/bulk-ignore-dialog'
 import { SelectionToolbar } from './_components/selection-toolbar'
+
+const BulkAssociateAnalysisDialog = dynamic(
+  () => import('./_components/bulk-associate-analysis-dialog').then((m) => ({ default: m.BulkAssociateAnalysisDialog })),
+  { ssr: false }
+)
 import type { AnalysisFormData } from '../analyses/_components/analysis-form-dialog'
 import { isoToRomeLocal, isoToUTCLocal } from '../analyses/_components/analysis-form-schemas'
 
@@ -194,6 +199,21 @@ function AlarmEventsPageContent() {
     clearSelection,
   } = useRowSelection<AlarmEvent>()
   const [bulkIgnoreOpen, setBulkIgnoreOpen] = useState(false)
+  const [bulkAssociateOpen, setBulkAssociateOpen] = useState(false)
+
+  // Bulk associate is available only when ALL selected events share the same
+  // alarm name, product, and environment — and all have a cataloged alarm.
+  const canBulkAssociate = useMemo(() => {
+    if (selectedEvents.length < 1) return false
+    const first = selectedEvents[0]
+    if (!first.alarmId || !first.alarm) return false
+    return selectedEvents.every((e) =>
+      e.name === first.name &&
+      e.product.id === first.product.id &&
+      e.environment.id === first.environment.id &&
+      !!e.alarmId
+    )
+  }, [selectedEvents])
 
   // View mode — derived from user preferences when available, local override otherwise.
   // preferences.alarmEventViewMode resolves synchronously from cache on subsequent
@@ -934,10 +954,20 @@ function AlarmEventsPageContent() {
         onCompleted={clearSelection}
       />
 
+      {/* Bulk Associate to Existing Analysis */}
+      <BulkAssociateAnalysisDialog
+        open={bulkAssociateOpen}
+        onOpenChange={setBulkAssociateOpen}
+        selectedEvents={selectedEvents}
+        onCompleted={clearSelection}
+      />
+
       {/* Floating selection toolbar */}
       <SelectionToolbar
         selectedCount={selectedCount}
         onBulkIgnore={() => setBulkIgnoreOpen(true)}
+        onBulkAssociate={() => setBulkAssociateOpen(true)}
+        canBulkAssociate={canBulkAssociate}
         onClearSelection={clearSelection}
         canWriteAnalysis={canWriteAnalysis}
       />

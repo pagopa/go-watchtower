@@ -1,6 +1,6 @@
 'use client'
 
-import { Ban, ChevronDown, X } from 'lucide-react'
+import { Ban, ChevronDown, Link2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -12,6 +12,8 @@ import {
 interface SelectionToolbarProps {
   selectedCount: number
   onBulkIgnore: () => void
+  onBulkAssociate: () => void
+  canBulkAssociate: boolean
   onClearSelection: () => void
   canWriteAnalysis: boolean
 }
@@ -19,6 +21,8 @@ interface SelectionToolbarProps {
 export function SelectionToolbar({
   selectedCount,
   onBulkIgnore,
+  onBulkAssociate,
+  canBulkAssociate,
   onClearSelection,
   canWriteAnalysis,
 }: SelectionToolbarProps) {
@@ -53,6 +57,16 @@ export function SelectionToolbar({
               <DropdownMenuItem onClick={onBulkIgnore}>
                 <Ban className="mr-2 h-3.5 w-3.5" />
                 Crea analisi da ignorare
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={onBulkAssociate}
+                disabled={!canBulkAssociate}
+                title={canBulkAssociate
+                  ? undefined
+                  : 'Tutti gli eventi devono avere lo stesso nome, prodotto e ambiente'}
+              >
+                <Link2 className="mr-2 h-3.5 w-3.5" />
+                Associa ad analisi esistente
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
