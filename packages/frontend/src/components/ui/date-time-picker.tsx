@@ -202,7 +202,7 @@ function TimeSpinner({ hours, minutes, onAdjust }: TimeSpinnerProps) {
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
-export interface DateTimePickerProps {
+interface DateTimePickerProps {
   /** YYYY-MM-DDTHH:mm (datetime) or YYYY-MM-DD (dateOnly) */
   value: string
   onChange: (value: string) => void

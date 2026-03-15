@@ -1,12 +1,12 @@
 import { api } from '@/lib/api-client'
 import { qk } from '@/lib/query-keys'
 
-export interface FkEntityOption {
+interface FkEntityOption {
   id:    string
   label: string
 }
 
-export interface FkResolver {
+interface FkResolver {
   queryKey: string[]
   fetch:    () => Promise<FkEntityOption[]>
 }

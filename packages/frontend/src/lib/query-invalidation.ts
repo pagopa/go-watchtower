@@ -7,7 +7,7 @@ import { qk } from './query-keys'
  * Each entity maps to one or more query-key roots that must be invalidated
  * when a mutation on that entity succeeds.
  */
-export type Entity =
+type Entity =
   | 'analyses'
   | 'alarmEvents'
   | 'products'

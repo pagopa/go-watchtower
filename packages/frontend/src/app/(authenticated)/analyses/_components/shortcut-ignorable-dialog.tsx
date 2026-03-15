@@ -50,7 +50,7 @@ import {
 } from './analysis-form-fields'
 import { DynamicIgnoreDetailsForm } from '@/components/ui/json-schema-form'
 
-export interface ShortcutIgnorableDialogProps {
+interface ShortcutIgnorableDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSubmit: (data: AnalysisFormData) => void

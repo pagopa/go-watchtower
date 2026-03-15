@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useSyncExternalStore } from 'react'
 import { z } from 'zod'
 import {
   isoToRomeLocal,
@@ -79,58 +79,6 @@ export const shortcutInCorsoSchema = z.object({
 
 export type ShortcutInCorsoData = z.infer<typeof shortcutInCorsoSchema>
 
-export const shortcutDisservizioSchema = z.object({
-  alarmId: z.string().min(1, 'L\'allarme è obbligatorio'),
-  ignoreReasonCode: z.enum(['RELEASE', 'MAINTENANCE'], {
-    error: 'Il motivo è obbligatorio',
-  }),
-  occurrences: z.coerce.number().min(1, 'Minimo 1').optional().or(z.literal('')),
-  environmentId: z.string().min(1, 'L\'ambiente è obbligatorio'),
-  firstAlarmAt: z.string().min(1, 'La data del primo allarme è obbligatoria'),
-  lastAlarmAt: z.string().min(1, 'La data dell\'ultimo allarme è obbligatoria'),
-}).refine(
-  (data) => {
-    if (!data.firstAlarmAt || !data.lastAlarmAt) return true
-    return new Date(data.lastAlarmAt + ':00.000Z') >= new Date(data.firstAlarmAt + ':00.000Z')
-  },
-  { message: 'La data ultimo allarme non può precedere il primo allarme', path: ['lastAlarmAt'] }
-)
-
-export type ShortcutDisservizioData = z.infer<typeof shortcutDisservizioSchema>
-
-export const shortcutIgnoreListSchema = z.object({
-  alarmId: z.string().min(1, 'L\'allarme è obbligatorio'),
-  occurrences: z.coerce.number().min(1, 'Minimo 1').optional().or(z.literal('')),
-  environmentId: z.string().min(1, 'L\'ambiente è obbligatorio'),
-  firstAlarmAt: z.string().min(1, 'La data del primo allarme è obbligatoria'),
-  lastAlarmAt: z.string().min(1, 'La data dell\'ultimo allarme è obbligatoria'),
-}).refine(
-  (data) => {
-    if (!data.firstAlarmAt || !data.lastAlarmAt) return true
-    return new Date(data.lastAlarmAt + ':00.000Z') >= new Date(data.firstAlarmAt + ':00.000Z')
-  },
-  { message: 'La data ultimo allarme non può precedere il primo allarme', path: ['lastAlarmAt'] }
-)
-
-export type ShortcutIgnoreListData = z.infer<typeof shortcutIgnoreListSchema>
-
-export const shortcutNonGestitoSchema = z.object({
-  alarmId: z.string().min(1, 'L\'allarme è obbligatorio'),
-  handler: z.string().min(1, 'Il nome del team/gestore è obbligatorio'),
-  occurrences: z.coerce.number().min(1, 'Minimo 1').optional().or(z.literal('')),
-  environmentId: z.string().min(1, 'L\'ambiente è obbligatorio'),
-  firstAlarmAt: z.string().min(1, 'La data del primo allarme è obbligatoria'),
-  lastAlarmAt: z.string().min(1, 'La data dell\'ultimo allarme è obbligatoria'),
-}).refine(
-  (data) => {
-    if (!data.firstAlarmAt || !data.lastAlarmAt) return true
-    return new Date(data.lastAlarmAt + ':00.000Z') >= new Date(data.firstAlarmAt + ':00.000Z')
-  },
-  { message: 'La data ultimo allarme non può precedere il primo allarme', path: ['lastAlarmAt'] }
-)
-
-export type ShortcutNonGestitoData = z.infer<typeof shortcutNonGestitoSchema>
-
 export const shortcutIgnorableSchema = z.object({
   alarmId: z.string().min(1, 'L\'allarme è obbligatorio'),
   occurrences: z.coerce.number().min(1, 'Minimo 1').optional().or(z.literal('')),
@@ -149,6 +97,19 @@ export const shortcutIgnorableSchema = z.object({
 
 export type ShortcutIgnorableData = z.infer<typeof shortcutIgnorableSchema>
 
+// ─── Minute-precision clock (render-safe via useSyncExternalStore) ────────────
+
+const MINUTE_MS = 60_000
+
+function subscribeMinuteTick(callback: () => void) {
+  const id = setInterval(callback, MINUTE_MS)
+  return () => clearInterval(id)
+}
+
+function getMinuteNow() {
+  return Math.floor(Date.now() / MINUTE_MS) * MINUTE_MS
+}
+
 // ─── Date validation hook ──────────────────────────────────────────────────────
 
 export function useDateValidation(
@@ -157,6 +118,8 @@ export function useDateValidation(
   analysisDate: string,
   futureOffsetMinutes?: number | null,
 ) {
+  const now = useSyncExternalStore(subscribeMinuteTick, getMinuteNow, getMinuteNow)
+
   return useMemo(() => {
     const result = { lastAlarmError: '', analysisDateError: '' }
 
@@ -182,7 +145,7 @@ export function useDateValidation(
 
       // Block analysis date in the future (beyond NOW + offset).
       if (!result.analysisDateError && futureOffsetMinutes != null) {
-        const maxAllowed = new Date(Date.now() + futureOffsetMinutes * 60_000)
+        const maxAllowed = new Date(now + futureOffsetMinutes * 60_000)
         if (analysisUTC > maxAllowed) {
           result.analysisDateError = 'La data analisi non può essere nel futuro'
         }
@@ -190,5 +153,5 @@ export function useDateValidation(
     }
 
     return result
-  }, [firstAlarm, lastAlarm, analysisDate, futureOffsetMinutes])
+  }, [firstAlarm, lastAlarm, analysisDate, futureOffsetMinutes, now])
 }

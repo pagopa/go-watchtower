@@ -34,7 +34,7 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export interface AnalysisDailyViewProps {
+interface AnalysisDailyViewProps {
   selectedDate:      string
   onDateChange:      (d: string) => void
   workingHours:      WorkingHours | null

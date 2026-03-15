@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import type { AlarmEvent } from '@/lib/api-client'
 
-export interface AlarmEventRowActionsProps {
+interface AlarmEventRowActionsProps {
   event: AlarmEvent
   canWrite: boolean
   canDelete: boolean

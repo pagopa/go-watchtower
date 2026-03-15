@@ -57,9 +57,7 @@ interface ExtendedJWT extends JWT {
 // Stored on globalThis so they survive Next.js hot-module replacement in dev.
 // In production the module is loaded once so this makes no difference.
 declare global {
-  // eslint-disable-next-line no-var
   var __authPendingRefreshes: Map<string, Promise<ExtendedJWT | null>> | undefined
-  // eslint-disable-next-line no-var
   var __authRefreshCache: Map<string, { result: ExtendedJWT | null; expiresAt: number }> | undefined
 }
 const pendingRefreshes: Map<string, Promise<ExtendedJWT | null>> =
@@ -156,7 +154,7 @@ async function doRefreshAccessToken(token: ExtendedJWT): Promise<ExtendedJWT | n
   }
 }
 
-export const authConfig: NextAuthConfig = {
+const authConfig: NextAuthConfig = {
   pages: {
     signIn: '/login',
     error: '/login',
