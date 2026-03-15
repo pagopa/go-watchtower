@@ -57,7 +57,8 @@ export function UnlinkAlarmEventDialog({
 
   const lockDays = policy?.editLockDays ?? null
 
-  // Permission checks
+  // Permission checks — capture time once on mount (day-granularity check, dialog is short-lived)
+  const [mountTime] = useState(Date.now)
   const permissions = useMemo(() => {
     if (!analysis) return { canEdit: false, canDelete: false, isLocked: false }
 
@@ -65,7 +66,7 @@ export function UnlinkAlarmEventDialog({
       if (lockDays === null) return false
       if (getScope('ALARM_ANALYSIS', 'write') !== 'OWN') return false
       if (analysis.createdById !== currentUserId) return false
-      const daysSince = Math.floor((Date.now() - new Date(analysis.createdAt).getTime()) / 86_400_000)
+      const daysSince = Math.floor((mountTime - new Date(analysis.createdAt).getTime()) / 86_400_000)
       return daysSince >= lockDays
     })()
 
@@ -73,7 +74,7 @@ export function UnlinkAlarmEventDialog({
     const canDelete = !isLocked && canFor('ALARM_ANALYSIS', 'delete', analysis.createdById, currentUserId)
 
     return { canEdit, canDelete, isLocked }
-  }, [analysis, lockDays, getScope, canFor, currentUserId])
+  }, [analysis, lockDays, getScope, canFor, currentUserId, mountTime])
 
   const isSingleOccurrence = analysis?.occurrences === 1
   const canDecrement = !isSingleOccurrence && permissions.canEdit

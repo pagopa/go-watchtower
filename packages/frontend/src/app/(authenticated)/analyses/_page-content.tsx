@@ -1,11 +1,11 @@
 'use client'
 
-import { Suspense, useState, useRef, useEffect, useCallback, useMemo, startTransition } from 'react'
+import { Suspense, useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Pencil, Trash2, Plus, Inbox, Lock, RefreshCw, ChevronDown,
+  Plus, Inbox, RefreshCw, ChevronDown,
   LayoutList, CalendarDays, PhoneCall,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -35,8 +35,6 @@ import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
   TableBody,
-  TableCell,
-  TableRow,
 } from '@/components/ui/table'
 import { DeleteConfirmDialog } from '@/components/delete-confirm-dialog'
 import { DataTableHeader, PaginationControls, useTableMinWidth, useSort } from '@/components/data-table'
@@ -47,18 +45,17 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import dynamic from 'next/dynamic'
 import { qk } from '@/lib/query-keys'
 import { invalidate } from '@/lib/query-invalidation'
 import { validateAnalysis, assessQuality, type ValidationResult, type QualityResult } from '@/lib/analysis-validation'
-import { ValidationScoreBadge } from '@/components/analysis/validation-score-badge'
 import { ValidationDetailPanel } from '@/components/analysis/validation-detail-panel'
 import { isWorkingHoursSetting, isOnCallHoursSetting, romeDateToISO } from '@go-watchtower/shared'
 import { AnalysisFilters, type AnalysisFiltersState } from './_components/analysis-filters'
 import type { AnalysisFormData } from './_components/analysis-form-dialog'
 import { AnalysisDetailPanel } from './_components/analysis-detail-panel'
 import { CreateAnalysisDropdown, type ShortcutType } from './_components/create-analysis-dropdown'
+import { AnalysisTableRow } from './_components/analysis-table-row'
 import { todayUTC } from '../alarm-events/_components/alarm-event-daily-view'
 
 const AnalysisFormDialog = dynamic(
@@ -87,7 +84,6 @@ const AnalysisOnCallView = dynamic(
 )
 
 import { formatDate } from './_lib/constants'
-import { AnalysisCell } from './_helpers/cell-renderers'
 
 const DEFAULT_FILTERS: AnalysisFiltersState = {
   search: '',
@@ -137,28 +133,38 @@ function AnalysesPageContent() {
   // The effective productId for data queries (from URL or form selection)
   const effectiveProductId = productIdFromUrl
 
-  // Filters — per-product, persisted in user preferences
-  const { preferences, isLoading: prefsLoading, updatePreferences } = usePreferences()
-  const [filters, setFilters] = useState<AnalysisFiltersState>(DEFAULT_FILTERS)
+  // Filters — per-product, persisted in user preferences (synchronous derivation)
+  const { preferences, updatePreferences } = usePreferences()
 
   const filterKey = `analyses:${effectiveProductId || '__all__'}`
-  const filtersRef = useRef(filters)
   const filterKeyRef = useRef(filterKey)
-  const updatePrefsRef = useRef(updatePreferences)
   const savedFiltersRef = useRef(preferences.savedFilters)
-  const activeKeyRef = useRef<string | null>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Local overrides for the current session (keyed by filterKey).
+  // Takes priority over saved preferences; debounced save writes through.
+  const [filterOverrides, setFilterOverrides] = useState<Record<string, AnalysisFiltersState>>({})
+  const filterOverridesRef = useRef(filterOverrides)
+
   useEffect(() => {
-    filtersRef.current = filters
     filterKeyRef.current = filterKey
-    updatePrefsRef.current = updatePreferences
     savedFiltersRef.current = preferences.savedFilters
+    filterOverridesRef.current = filterOverrides
   })
 
+  // Derive filters synchronously — no useEffect/startTransition delay.
+  // On product switch filterKey changes → useMemo re-evaluates immediately.
+  const filters: AnalysisFiltersState = useMemo(() => {
+    const override = filterOverrides[filterKey]
+    if (override) return override
+    const saved = preferences.savedFilters?.[filterKey]
+    if (saved && typeof saved === 'object') {
+      return { ...DEFAULT_FILTERS, ...saved } as AnalysisFiltersState
+    }
+    return DEFAULT_FILTERS
+  }, [filterKey, filterOverrides, preferences.savedFilters])
+
   // Helper: persist a single product's filters while keeping all other entries.
-  // Spreads the full savedFilters map so the optimistic update (shallow merge)
-  // doesn't discard sibling product keys.
   const persistFilters = useCallback(
     (key: string, value: Record<string, unknown> | null) => {
       updatePreferences({
@@ -170,62 +176,45 @@ function AnalysesPageContent() {
   const persistFiltersRef = useRef(persistFilters)
   useEffect(() => { persistFiltersRef.current = persistFilters })
 
-  // Pagination (declared early — used by filter-swap effect below)
+  // Pagination
   const [page, setPage] = useState(1)
   const { pageSize, setPageSize } = usePageSize()
 
-  // Load/swap filters when product changes or preferences become available
-  useEffect(() => {
-    if (prefsLoading) return
-    if (activeKeyRef.current === filterKey) return
+  // Reset page when product changes (render-time state adjustment).
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey)
+  if (prevFilterKey !== filterKey) {
+    setPrevFilterKey(filterKey)
+    setPage(1)
+  }
 
-    // Save current product's filters before switching (skip on first init)
-    if (activeKeyRef.current !== null) {
+  // Flush pending debounced save when product changes (side-effect: ref + timer)
+  useEffect(() => {
+    return () => {
       if (saveTimerRef.current) {
         clearTimeout(saveTimerRef.current)
         saveTimerRef.current = null
       }
-      persistFilters(activeKeyRef.current, filtersRef.current as unknown as Record<string, unknown>)
     }
-
-    // Load saved filters for the new product
-    const saved = preferences.savedFilters?.[filterKey]
-    const shouldResetPage = activeKeyRef.current !== null
-    activeKeyRef.current = filterKey
-    startTransition(() => {
-      if (saved && typeof saved === 'object') {
-        setFilters({ ...DEFAULT_FILTERS, ...saved } as AnalysisFiltersState)
-      } else {
-        setFilters({ ...DEFAULT_FILTERS })
-      }
-      if (shouldResetPage) setPage(1)
-    })
-  }, [filterKey, prefsLoading, preferences.savedFilters, persistFilters])
+  }, [filterKey])
 
   // Flush pending filter save on unmount
   useEffect(() => () => {
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current)
       saveTimerRef.current = null
-      persistFiltersRef.current(filterKeyRef.current, filtersRef.current as unknown as Record<string, unknown>)
+      const pending = filterOverridesRef.current[filterKeyRef.current]
+      if (pending) {
+        persistFiltersRef.current(filterKeyRef.current, pending as unknown as Record<string, unknown>)
+      }
     }
   }, [])
 
-  // View mode — persisted in user preferences
-  const [viewMode, setViewMode] = useState<'list' | 'daily' | 'oncall'>('list')
-  const viewModeInitialized = useRef(false)
-  useEffect(() => {
-    if (!viewModeInitialized.current && preferences.analysisViewMode) {
-      viewModeInitialized.current = true
-      startTransition(() => {
-        setViewMode(preferences.analysisViewMode as 'list' | 'daily' | 'oncall')
-      })
-    }
-  }, [preferences.analysisViewMode])
+  // View mode — derived from user preferences when available, local override otherwise.
+  const [viewModeOverride, setViewModeOverride] = useState<'list' | 'daily' | 'oncall' | null>(null)
+  const viewMode = viewModeOverride ?? (preferences.analysisViewMode as 'list' | 'daily' | 'oncall' | undefined) ?? 'list'
 
   const handleSetViewMode = useCallback((mode: 'list' | 'daily' | 'oncall') => {
-    viewModeInitialized.current = true
-    setViewMode(mode)
+    setViewModeOverride(mode)
     updatePreferences({ analysisViewMode: mode })
   }, [updatePreferences])
 
@@ -251,7 +240,7 @@ function AnalysesPageContent() {
 
   // Auto-open detail panel when navigating from an external link (e.g. from the event log)
   // Fetches the specific analysis by ID and opens the detail panel once.
-  const autoOpenedAnalysisRef = useRef<string | null>(null)
+  const [autoOpenedAnalysisId, setAutoOpenedAnalysisId] = useState<string | null>(null)
   const { data: linkedAnalysis } = useQuery<AlarmAnalysis>({
     queryKey: qk.analyses.detail(effectiveProductId, analysisIdFromUrl),
     queryFn: () => api.getAnalysis(effectiveProductId, analysisIdFromUrl),
@@ -259,15 +248,12 @@ function AnalysesPageContent() {
     retry: false,
     staleTime: 30_000,
   })
-  useEffect(() => {
-    if (linkedAnalysis && autoOpenedAnalysisRef.current !== linkedAnalysis.id) {
-      autoOpenedAnalysisRef.current = linkedAnalysis.id
-      startTransition(() => {
-        setSelectedAnalysis(linkedAnalysis)
-        setShowDetailPanel(true)
-      })
-    }
-  }, [linkedAnalysis])
+  // Render-time state adjustment: open detail panel once when linked analysis arrives
+  if (linkedAnalysis && autoOpenedAnalysisId !== linkedAnalysis.id) {
+    setAutoOpenedAnalysisId(linkedAnalysis.id)
+    setSelectedAnalysis(linkedAnalysis)
+    setShowDetailPanel(true)
+  }
 
   const { collapsed: filtersCollapsed, toggle: handleToggleFiltersCollapsed } = useCollapsiblePreference('analysisFiltersCollapsed')
 
@@ -532,21 +518,25 @@ function AnalysesPageContent() {
   // --- Handlers ---
 
   const handleFilterChange = useCallback((newFilters: AnalysisFiltersState) => {
-    setFilters(newFilters)
+    setFilterOverrides(prev => ({ ...prev, [filterKeyRef.current]: newFilters }))
     setPage(1)
     // Debounce save to preferences (1s)
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(() => {
-      persistFilters(filterKey, newFilters as unknown as Record<string, unknown>)
+      persistFiltersRef.current(filterKeyRef.current, newFilters as unknown as Record<string, unknown>)
     }, 1000)
-  }, [filterKey, persistFilters])
+  }, [setFilterOverrides, setPage])
 
   const handleResetFilters = useCallback(() => {
-    setFilters(DEFAULT_FILTERS)
+    setFilterOverrides(prev => {
+      const next = { ...prev }
+      delete next[filterKeyRef.current]
+      return next
+    })
     setPage(1)
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    persistFilters(filterKey, null)
-  }, [filterKey, persistFilters])
+    persistFiltersRef.current(filterKeyRef.current, null)
+  }, [setFilterOverrides, setPage])
 
 
 
@@ -838,95 +828,26 @@ function AnalysesPageContent() {
                 hasActions={canWrite || canDelete}
               />
               <TableBody>
-                {analyses.map((analysis) => {
-                  const isSelected = analysis.id === selectedAnalysis?.id && showDetailPanel
-                  const isLingering = analysis.id === lingeringId && !showDetailPanel
-                  return (
-                  <TableRow
+                {analyses.map((analysis) => (
+                  <AnalysisTableRow
                     key={analysis.id}
-                    className={
-                      'group cursor-pointer border-b border-border/50 ' +
-                      (isSelected
-                        ? 'analysis-row-selected hover:bg-primary/[0.09]'
-                        : isLingering
-                          ? 'analysis-row-lingering hover:bg-muted/30'
-                          : 'transition-colors hover:bg-muted/30')
-                    }
-                    onClick={(e) => {
-                      if ((e.target as HTMLElement).closest('button')) return
-                      handleRowClick(analysis)
-                    }}
-                  >
-                    {visibleColumns.map((col, colIdx) => {
-                      const isLastDataCol = colIdx === visibleColumns.length - 1
-                      const cached = col.id === 'validation' ? validationCache.get(analysis.id) : undefined
-                      return (
-                        <TableCell
-                          key={col.id}
-                          className="overflow-hidden py-2.5"
-                          style={(!isLastDataCol && getWidth(col.id)) ? { width: `${getWidth(col.id)}px` } : undefined}
-                        >
-                          {col.id === 'validation' && cached ? (
-                            <ValidationScoreBadge
-                              validation={cached.validation}
-                              quality={cached.quality}
-                              onClick={() => setValidationPanelAnalysis(analysis)}
-                            />
-                          ) : col.id !== 'validation' ? (
-                            <AnalysisCell columnId={col.id} analysis={analysis} />
-                          ) : null}
-                        </TableCell>
-                      )
-                    })}
-                    {(canWrite || canDelete) && (
-                      <TableCell className={
-                        'sticky right-0 z-10 border-l border-border/40 py-2 text-right ' +
-                        (isSelected
-                          ? 'bg-primary/[0.07] group-hover:bg-primary/[0.09]'
-                          : 'bg-card group-hover:bg-muted')
-                      }>
-                        <div className="flex justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                          {canFor('ALARM_ANALYSIS', 'write', analysis.createdById, currentUserId) && (
-                            isAnalysisLocked(analysis) ? (
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-7 w-7 cursor-default opacity-40" disabled>
-                                      <Lock className="h-3.5 w-3.5" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="left">
-                                    <p>Bloccata dopo {lockDays} giorni dalla creazione</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            ) : (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7"
-                                onClick={() => handleEdit(analysis)}
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                            )
-                          )}
-                          {canDeleteAnalysis(analysis) && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-destructive hover:text-destructive"
-                              onClick={() => handleDelete(analysis)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                  )
-                })}
+                    analysis={analysis}
+                    isSelected={analysis.id === selectedAnalysis?.id && showDetailPanel}
+                    isLingering={analysis.id === lingeringId && !showDetailPanel}
+                    visibleColumns={visibleColumns}
+                    getWidth={getWidth}
+                    hasActions={canWrite || canDelete}
+                    showEditAction={canFor('ALARM_ANALYSIS', 'write', analysis.createdById, currentUserId)}
+                    isLocked={isAnalysisLocked(analysis)}
+                    showDeleteAction={canDeleteAnalysis(analysis)}
+                    lockDays={lockDays}
+                    validationData={validationCache.get(analysis.id)}
+                    onRowClick={handleRowClick}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    onValidationClick={setValidationPanelAnalysis}
+                  />
+                ))}
               </TableBody>
             </Table>
           ) : (

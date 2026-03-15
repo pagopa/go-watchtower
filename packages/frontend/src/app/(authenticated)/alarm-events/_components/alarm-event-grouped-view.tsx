@@ -492,13 +492,12 @@ export function AlarmEventGroupedView({
     refetchOnWindowFocus: isToday,
   })
 
-  const allEvents  = data?.data ?? []
   const totalCount = data?.pagination?.totalItems ?? null
   const tooMany    = totalCount !== null && totalCount > 1000
 
   const { oncall, work } = useMemo(
-    () => partitionShiftEvents(allEvents, splitAt),
-    [allEvents, splitAt],
+    () => partitionShiftEvents(data?.data ?? [], splitAt),
+    [data?.data, splitAt],
   )
 
   const bucketProps = { visibleColumns, getWidth, totalMinWidth, canWrite, canDelete, canWriteAnalysis,

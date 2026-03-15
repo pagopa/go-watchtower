@@ -415,7 +415,8 @@ export function ProfilePageContent() {
     const current = preferences.columnSettings ?? {}
     const listSettings = current[listKey]
     if (!listSettings) return
-    const { [columnId]: _removed, ...restWidths } = listSettings.widths ?? {}
+    const { [columnId]: _w, ...restWidths } = listSettings.widths ?? {}
+    void _w
     updatePreferences({
       columnSettings: {
         ...current,
@@ -429,7 +430,8 @@ export function ProfilePageContent() {
     const current = preferences.columnSettings ?? {}
     const listSettings = current[listKey]
     if (!listSettings) return
-    const { [columnId]: _removed, ...restRenames } = listSettings.renames ?? {}
+    const { [columnId]: _r, ...restRenames } = listSettings.renames ?? {}
+    void _r
     updatePreferences({
       columnSettings: {
         ...current,

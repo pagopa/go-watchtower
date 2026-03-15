@@ -35,7 +35,6 @@ function Calendar({
   const years = Array.from({ length: endYear - startYear + 1 }, (_, i) => startYear + i)
 
   // Initialise the displayed month from the selected date (if any), else today
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const getInitialMonth = (): Date => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sel = (props as any).selected

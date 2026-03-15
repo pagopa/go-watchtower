@@ -117,7 +117,7 @@ async function doRefreshAccessToken(token: ExtendedJWT): Promise<ExtendedJWT | n
       body: JSON.stringify({ refreshToken: token.refreshToken }),
       signal: controller.signal,
     })
-  } catch (err) {
+  } catch {
     // Network error or timeout: backend is temporarily unreachable.
     // Don't log the user out immediately — extend the session and retry later.
     clearTimeout(timeoutId)

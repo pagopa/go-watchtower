@@ -98,13 +98,12 @@ export function AnalysisOnCallView({
     refetchOnWindowFocus: true,
   })
 
-  const allAnalyses = data?.data ?? []
   const totalCount  = data?.pagination?.totalItems ?? null
   const tooMany     = totalCount !== null && totalCount > 1000
 
   const { oncall, work } = useMemo(
-    () => partitionShiftAnalyses(allAnalyses, splitAt),
-    [allAnalyses, splitAt],
+    () => partitionShiftAnalyses(data?.data ?? [], splitAt),
+    [data?.data, splitAt],
   )
 
   const bucketProps = {

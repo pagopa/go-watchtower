@@ -389,13 +389,12 @@ export function AnalysisDailyView({
     refetchOnWindowFocus: isToday,
   })
 
-  const allAnalyses = data?.data ?? []
   const totalCount  = data?.pagination?.totalItems ?? null
   const tooMany     = totalCount !== null && totalCount > 1000
 
   const { pre, work, post } = useMemo(
-    () => partitionAnalyses(allAnalyses, wh),
-    [allAnalyses, wh],
+    () => partitionAnalyses(data?.data ?? [], wh),
+    [data?.data, wh],
   )
 
   const bucketProps = {

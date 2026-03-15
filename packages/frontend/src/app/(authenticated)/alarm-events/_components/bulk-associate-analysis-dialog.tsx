@@ -259,12 +259,13 @@ export function BulkAssociateAnalysisDialog({
     enabled: open && !!representative,
   })
 
-  const analyses = analysesQuery.data?.data ?? []
+  const analysesData = analysesQuery.data?.data
+  const analyses = analysesData ?? []
 
   const selectedAnalysis = useMemo(() => {
     if (!selectedAnalysisId) return null
-    return analyses.find((a) => a.id === selectedAnalysisId) ?? null
-  }, [selectedAnalysisId, analyses])
+    return (analysesData ?? []).find((a) => a.id === selectedAnalysisId) ?? null
+  }, [selectedAnalysisId, analysesData])
 
   const eventIsNewer = !!(
     newestFiredAt && selectedAnalysis &&
