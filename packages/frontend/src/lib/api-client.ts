@@ -114,12 +114,23 @@ async function doFetch(
  * Refreshes the session by calling the NextAuth session endpoint.
  * This triggers the JWT callback server-side, which refreshes the
  * access token if expired. Returns the new access token or empty string.
+ *
+ * @param failedToken - The access token that caused a 401. If the session
+ *   endpoint returns the same token, it means the server-side refresh didn't
+ *   actually produce a new token (e.g., a network error during backend refresh
+ *   caused the JWT callback to return the old token with an extended expiry).
+ *   In that case we return '' to signal that the refresh failed.
  */
-async function refreshSession(): Promise<string> {
+async function refreshSession(failedToken?: string): Promise<string> {
   try {
     const { getSession } = await import('next-auth/react')
     const session = await getSession()
     const newToken = session?.user?.accessToken ?? ''
+
+    if (failedToken && newToken === failedToken) {
+      return ''
+    }
+
     if (newToken) {
       setAccessToken(newToken)
     }
@@ -131,13 +142,26 @@ async function refreshSession(): Promise<string> {
 
 let pendingSessionRefresh: Promise<string> | null = null
 
-function refreshSessionDeduped(): Promise<string> {
+function refreshSessionDeduped(failedToken?: string): Promise<string> {
   if (!pendingSessionRefresh) {
-    pendingSessionRefresh = refreshSession().finally(() => {
+    pendingSessionRefresh = refreshSession(failedToken).finally(() => {
       pendingSessionRefresh = null
     })
   }
   return pendingSessionRefresh
+}
+
+/**
+ * Clears the in-memory token and triggers a full sign-out (redirect to /login).
+ * Called when both the original request and the retry return 401, meaning
+ * the session is unrecoverable without re-authentication.
+ */
+function forceReAuth(): never {
+  setAccessToken('')
+  // Fire-and-forget: signOut triggers page navigation to /login.
+  // The thrown error below propagates immediately; the redirect follows.
+  import('next-auth/react').then(({ signOut }) => signOut({ callbackUrl: '/login' }))
+  throw new ApiClientError('Unauthorized', 401)
 }
 
 async function request<T>(
@@ -166,12 +190,13 @@ async function request<T>(
   // On 401, the access token has expired server-side.
   // Try to refresh the session and retry ONCE before giving up.
   if (response.status === 401) {
-    const freshToken = await refreshSessionDeduped()
+    const freshToken = await refreshSessionDeduped(accessToken)
     if (freshToken) {
       const retryResponse = await doFetch(url, freshToken, init, body)
       if (!retryResponse.ok) {
         if (retryResponse.status === 401) {
-          throw new ApiClientError('Unauthorized', 401)
+          // Refresh returned a token that was also rejected — force re-auth.
+          forceReAuth()
         }
         const error = await retryResponse.json().catch(() => ({ message: 'An error occurred' }))
         throw new ApiClientError(
@@ -183,7 +208,8 @@ async function request<T>(
       if (retryResponse.status === 204) return {} as T
       return retryResponse.json()
     }
-    throw new ApiClientError('Unauthorized', 401)
+    // Refresh failed (no valid token) — force re-auth.
+    forceReAuth()
   }
 
   if (!response.ok) {
