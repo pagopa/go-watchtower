@@ -46,7 +46,7 @@ function LinkedAlarmEvents({ analysis }: { analysis: AlarmAnalysis }) {
 
   return (
     <section className="space-y-4">
-      <SectionHeader label="Alarm Events collegati" icon={Zap} />
+      <SectionHeader label="Alarm Events collegati" icon={Zap} count={events.length} />
       <div className="rounded-lg border border-border overflow-hidden">
         <table className="w-full text-sm">
           <thead>
@@ -115,9 +115,11 @@ interface AnalysisDetailPanelProps {
 function SectionHeader({
   label,
   icon: Icon,
+  count,
 }: {
   label: string
   icon: React.ElementType
+  count?: number
 }) {
   return (
     <div className="flex items-center gap-2.5 pb-1">
@@ -127,6 +129,11 @@ function SectionHeader({
       <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground/70">
         {label}
       </span>
+      {count != null && (
+        <span className="rounded-full bg-muted px-1.5 text-[10px] font-semibold tabular-nums leading-5 text-muted-foreground">
+          {count}
+        </span>
+      )}
       <span className="h-px flex-1 bg-border/60" />
     </div>
   )

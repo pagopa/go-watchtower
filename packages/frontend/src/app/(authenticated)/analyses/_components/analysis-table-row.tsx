@@ -1,18 +1,16 @@
 'use client'
 
 import { memo } from 'react'
-import { Pencil, Trash2, Lock } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import {
   TableCell,
   TableRow,
 } from '@/components/ui/table'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import type { ColumnDef } from '@/hooks/use-column-settings'
 import type { AlarmAnalysis } from '@/lib/api-client'
 import type { ValidationResult, QualityResult } from '@/lib/analysis-validation'
 import { ValidationScoreBadge } from '@/components/analysis/validation-score-badge'
 import { AnalysisCell } from '../_helpers/cell-renderers'
+import { AnalysisRowActions } from './analysis-row-actions'
 
 export interface AnalysisTableRowProps {
   analysis: AlarmAnalysis
@@ -86,48 +84,20 @@ export const AnalysisTableRow = memo(function AnalysisTableRow({
       })}
       {hasActions && (
         <TableCell className={
-          'sticky right-0 z-10 border-l border-border/40 py-2 text-right ' +
+          'relative sticky right-0 z-10 border-l border-border/40 py-2 ' +
           (isSelected
             ? 'bg-primary/[0.07] group-hover:bg-primary/[0.09]'
             : 'bg-card group-hover:bg-muted')
         }>
-          <div className="flex justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-            {showEditAction && (
-              isLocked ? (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 cursor-default opacity-40" disabled>
-                        <Lock className="h-3.5 w-3.5" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="left">
-                      <p>Bloccata dopo {lockDays} giorni dalla creazione</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              ) : (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={() => onEdit(analysis)}
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
-              )
-            )}
-            {showDeleteAction && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-destructive hover:text-destructive"
-                onClick={() => onDelete(analysis)}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            )}
-          </div>
+          <AnalysisRowActions
+            analysis={analysis}
+            canEdit={showEditAction && !isLocked}
+            isLocked={showEditAction && isLocked}
+            canDelete={showDeleteAction}
+            lockDays={lockDays}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
         </TableCell>
       )}
     </TableRow>

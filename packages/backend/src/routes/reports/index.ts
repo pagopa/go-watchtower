@@ -353,12 +353,12 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
                 WHERE status = 'COMPLETED' AND analysis_type = 'ANALYZABLE'
               ), 0)::bigint AS completed,
               COALESCE(SUM(occurrences) FILTER (
-                WHERE analysis_type = 'IGNORABLE'
+                WHERE status = 'COMPLETED' AND analysis_type = 'IGNORABLE'
               ), 0)::bigint AS ignored
             FROM alarm_analyses
             WHERE product_id = ${productId}
               AND analysis_date >= ${dateFrom} AND analysis_date < ${dateTo}
-              AND ((status = 'COMPLETED' AND analysis_type = 'ANALYZABLE') OR analysis_type = 'IGNORABLE')
+              AND status = 'COMPLETED'
             GROUP BY environment_id, day
           `,
         ]);
