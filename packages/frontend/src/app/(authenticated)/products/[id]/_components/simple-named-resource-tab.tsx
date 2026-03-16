@@ -105,6 +105,7 @@ export function SimpleNamedResourceTab<TItem extends NamedEntity>({
     data: items,
     isLoading,
     error,
+    refetch,
   } = useQuery<TItem[]>({
     queryKey: queryKeyFn(productId),
     queryFn: () => queryFn(productId),
@@ -186,7 +187,7 @@ export function SimpleNamedResourceTab<TItem extends NamedEntity>({
     }
   }
 
-  if (isLoading) {
+  if (isLoading && !items) {
     return (
       <div className="space-y-3">
         <div className="flex items-center justify-between">
@@ -209,7 +210,12 @@ export function SimpleNamedResourceTab<TItem extends NamedEntity>({
 
   if (error) {
     return (
-      <p className="py-4 text-sm text-destructive">{labels.loadError}</p>
+      <div className="py-4 text-center space-y-2">
+        <p className="text-sm text-destructive">{labels.loadError}</p>
+        <Button variant="outline" size="sm" onClick={() => refetch()}>
+          Riprova
+        </Button>
+      </div>
     )
   }
 

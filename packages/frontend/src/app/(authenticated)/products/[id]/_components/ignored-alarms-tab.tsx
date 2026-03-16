@@ -536,7 +536,7 @@ export function IgnoredAlarmsTab({ productId }: IgnoredAlarmsTabProps) {
   const canWrite = !permissionsLoading && can('IGNORED_ALARM', 'write')
   const canDelete = !permissionsLoading && can('IGNORED_ALARM', 'delete')
 
-  const { data: ignoredAlarms, isLoading, error } = useQuery<IgnoredAlarm[]>({
+  const { data: ignoredAlarms, isLoading, error, refetch } = useQuery<IgnoredAlarm[]>({
     queryKey: qk.products.ignoredAlarms(productId),
     queryFn: () => api.getIgnoredAlarms(productId),
   })
@@ -622,7 +622,7 @@ export function IgnoredAlarmsTab({ productId }: IgnoredAlarmsTabProps) {
     }
   }
 
-  if (isLoading) {
+  if (isLoading && !ignoredAlarms) {
     return (
       <div className="space-y-3">
         <div className="flex items-center justify-between">
@@ -658,9 +658,14 @@ export function IgnoredAlarmsTab({ productId }: IgnoredAlarmsTabProps) {
 
   if (error) {
     return (
-      <p className="py-4 text-sm text-destructive">
-        Errore durante il caricamento degli allarmi ignorati.
-      </p>
+      <div className="py-4 text-center space-y-2">
+        <p className="text-sm text-destructive">
+          Errore durante il caricamento degli allarmi ignorati.
+        </p>
+        <Button variant="outline" size="sm" onClick={() => refetch()}>
+          Riprova
+        </Button>
+      </div>
     )
   }
 

@@ -38,6 +38,7 @@ export function EditProductPage() {
     data: product,
     isLoading,
     error,
+    refetch,
   } = useQuery<Product>({
     queryKey: qk.products.detail(productId),
     queryFn: () => api.getProduct(productId),
@@ -81,7 +82,7 @@ export function EditProductPage() {
     updateMutation.mutate(data)
   }
 
-  if (isLoading) {
+  if (isLoading && !product) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-10 w-32" />
@@ -110,8 +111,11 @@ export function EditProductPage() {
           </Link>
         </Button>
         <Card>
-          <CardContent className="p-6">
-            <p className="text-destructive">Prodotto non trovato.</p>
+          <CardContent className="p-6 text-center space-y-3">
+            <p className="text-sm text-destructive">Prodotto non trovato.</p>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              Riprova
+            </Button>
           </CardContent>
         </Card>
       </div>

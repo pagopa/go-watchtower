@@ -64,6 +64,7 @@ export function FinalActionsTab({ productId }: FinalActionsTabProps) {
     data: finalActions,
     isLoading,
     error,
+    refetch,
   } = useQuery<FinalAction[]>({
     queryKey: qk.products.finalActions(productId),
     queryFn: () => api.getFinalActions(productId),
@@ -152,7 +153,7 @@ export function FinalActionsTab({ productId }: FinalActionsTabProps) {
     }
   }
 
-  if (isLoading) {
+  if (isLoading && !finalActions) {
     return (
       <div className="space-y-3">
         <div className="flex items-center justify-between">
@@ -177,9 +178,14 @@ export function FinalActionsTab({ productId }: FinalActionsTabProps) {
 
   if (error) {
     return (
-      <p className="py-4 text-sm text-destructive">
-        Errore durante il caricamento delle azioni finali.
-      </p>
+      <div className="py-4 text-center space-y-2">
+        <p className="text-sm text-destructive">
+          Errore durante il caricamento delle azioni finali.
+        </p>
+        <Button variant="outline" size="sm" onClick={() => refetch()}>
+          Riprova
+        </Button>
+      </div>
     )
   }
 

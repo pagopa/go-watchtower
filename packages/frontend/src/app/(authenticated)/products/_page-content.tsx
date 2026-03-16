@@ -37,6 +37,7 @@ export function ProductsPage() {
     data: products,
     isLoading,
     error,
+    refetch,
   } = useQuery<Product[]>({
     queryKey: qk.products.list,
     queryFn: api.getProducts,
@@ -60,7 +61,7 @@ export function ProductsPage() {
   const canWrite = !permissionsLoading && can('PRODUCT', 'write')
   const canDelete = !permissionsLoading && can('PRODUCT', 'delete')
 
-  if (isLoading) {
+  if (isLoading && !products) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
@@ -83,10 +84,13 @@ export function ProductsPage() {
   if (error) {
     return (
       <Card>
-        <CardContent className="p-6">
-          <p className="text-destructive">
+        <CardContent className="p-6 text-center space-y-3">
+          <p className="text-sm text-destructive">
             Errore durante il caricamento dei prodotti.
           </p>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            Riprova
+          </Button>
         </CardContent>
       </Card>
     )

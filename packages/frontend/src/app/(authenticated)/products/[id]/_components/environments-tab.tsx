@@ -65,6 +65,7 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
     data: environments,
     isLoading,
     error,
+    refetch,
   } = useQuery<Environment[]>({
     queryKey: qk.products.environments(productId),
     queryFn: () => api.getEnvironments(productId),
@@ -181,7 +182,7 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
     }
   }
 
-  if (isLoading) {
+  if (isLoading && !environments) {
     return (
       <div className="space-y-3">
         <div className="flex items-center justify-between">
@@ -205,9 +206,14 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
 
   if (error) {
     return (
-      <p className="py-4 text-sm text-destructive">
-        Errore durante il caricamento degli ambienti.
-      </p>
+      <div className="py-4 text-center space-y-2">
+        <p className="text-sm text-destructive">
+          Errore durante il caricamento degli ambienti.
+        </p>
+        <Button variant="outline" size="sm" onClick={() => refetch()}>
+          Riprova
+        </Button>
+      </div>
     )
   }
 

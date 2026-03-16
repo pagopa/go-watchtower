@@ -57,6 +57,7 @@ export function AlarmsTab({ productId }: AlarmsTabProps) {
     data: alarms,
     isLoading,
     error,
+    refetch,
   } = useQuery<Alarm[]>({
     queryKey: qk.products.alarms(productId),
     queryFn: () => api.getAlarms(productId),
@@ -172,7 +173,7 @@ export function AlarmsTab({ productId }: AlarmsTabProps) {
     }
   }
 
-  if (isLoading) {
+  if (isLoading && !alarms) {
     return (
       <div className="space-y-3">
         <div className="flex items-center justify-between">
@@ -196,9 +197,14 @@ export function AlarmsTab({ productId }: AlarmsTabProps) {
 
   if (error) {
     return (
-      <p className="py-4 text-sm text-destructive">
-        Errore durante il caricamento degli allarmi.
-      </p>
+      <div className="py-4 text-center space-y-2">
+        <p className="text-sm text-destructive">
+          Errore durante il caricamento degli allarmi.
+        </p>
+        <Button variant="outline" size="sm" onClick={() => refetch()}>
+          Riprova
+        </Button>
+      </div>
     )
   }
 

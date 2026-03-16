@@ -41,6 +41,21 @@ const TAB_TRIGGER_CLASS =
   'data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm ' +
   'hover:text-foreground hover:bg-background/60 transition-colors'
 
+function TabCount({ count }: { count: number | undefined }) {
+  return (
+    <span
+      className={cn(
+        'ml-auto min-w-5 rounded-full px-1.5 text-[10px] font-semibold tabular-nums text-center leading-5',
+        count != null && count > 0
+          ? 'bg-primary/10 text-primary'
+          : 'bg-muted/80 text-muted-foreground/40',
+      )}
+    >
+      {count ?? '·'}
+    </span>
+  )
+}
+
 function ProductDetailContent() {
   const params = useParams()
   const router = useRouter()
@@ -55,6 +70,7 @@ function ProductDetailContent() {
     data: product,
     isLoading,
     error,
+    refetch,
   } = useQuery<Product>({
     queryKey: qk.products.detail(productId),
     queryFn: () => api.getProduct(productId),
@@ -82,7 +98,82 @@ function ProductDetailContent() {
   const canReadFinalActions = permissionsLoading || can('FINAL_ACTION', 'read')
   const canReadIgnoredAlarms = permissionsLoading || can('IGNORED_ALARM', 'read')
 
-  if (isLoading) {
+  // Tab configuration — must be before early returns so hooks are stable
+  const hasAnyTab =
+    canReadEnvironments || canReadResources || canReadRunbooks || canReadAlarms ||
+    canReadDownstreams || canReadFinalActions || canReadIgnoredAlarms
+
+  const firstTab = canReadEnvironments
+    ? 'environments'
+    : canReadResources
+      ? 'resources'
+      : canReadRunbooks
+        ? 'runbooks'
+        : canReadAlarms
+          ? 'alarms'
+          : canReadIgnoredAlarms
+            ? 'ignored-alarms'
+            : canReadDownstreams
+              ? 'downstreams'
+              : 'final-actions'
+
+  // Controlled tab state synced to URL
+  const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') ?? firstTab)
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value)
+    const url = new URL(window.location.href)
+    url.searchParams.set('tab', value)
+    window.history.replaceState(null, '', url.toString())
+  }
+
+  // Pre-fetch sub-resource counts — shares TanStack Query cache with tab components,
+  // so switching tabs is instant (data already in cache).
+  const productLoaded = !!product
+  const { data: envCount } = useQuery({
+    queryKey: qk.products.environments(productId),
+    queryFn: () => api.getEnvironments(productId),
+    select: (data) => data.length,
+    enabled: canReadEnvironments && productLoaded,
+  })
+  const { data: resourceCount } = useQuery({
+    queryKey: qk.products.resources(productId),
+    queryFn: () => api.getResources(productId),
+    select: (data) => data.length,
+    enabled: canReadResources && productLoaded,
+  })
+  const { data: runbookCount } = useQuery({
+    queryKey: qk.products.runbooks(productId),
+    queryFn: () => api.getRunbooks(productId),
+    select: (data) => data.length,
+    enabled: canReadRunbooks && productLoaded,
+  })
+  const { data: alarmCount } = useQuery({
+    queryKey: qk.products.alarms(productId),
+    queryFn: () => api.getAlarms(productId),
+    select: (data) => data.length,
+    enabled: canReadAlarms && productLoaded,
+  })
+  const { data: ignoredAlarmCount } = useQuery({
+    queryKey: qk.products.ignoredAlarms(productId),
+    queryFn: () => api.getIgnoredAlarms(productId),
+    select: (data) => data.length,
+    enabled: canReadIgnoredAlarms && productLoaded,
+  })
+  const { data: downstreamCount } = useQuery({
+    queryKey: qk.products.downstreams(productId),
+    queryFn: () => api.getDownstreams(productId),
+    select: (data) => data.length,
+    enabled: canReadDownstreams && productLoaded,
+  })
+  const { data: finalActionCount } = useQuery({
+    queryKey: qk.products.finalActions(productId),
+    queryFn: () => api.getFinalActions(productId),
+    select: (data) => data.length,
+    enabled: canReadFinalActions && productLoaded,
+  })
+
+  if (isLoading && !product) {
     return (
       <div className="space-y-5">
         <Skeleton className="h-5 w-40" />
@@ -113,35 +204,15 @@ function ProductDetailContent() {
             Tutti i prodotti
           </Link>
         </Button>
-        <div className="rounded-xl border p-8 text-center">
+        <div className="rounded-xl border p-8 text-center space-y-3">
           <p className="text-sm text-destructive">Prodotto non trovato.</p>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            Riprova
+          </Button>
         </div>
       </div>
     )
   }
-
-  const hasAnyTab =
-    canReadEnvironments ||
-    canReadResources ||
-    canReadRunbooks ||
-    canReadAlarms ||
-    canReadDownstreams ||
-    canReadFinalActions ||
-    canReadIgnoredAlarms
-
-  const firstTab = canReadEnvironments
-    ? 'environments'
-    : canReadResources
-      ? 'resources'
-      : canReadRunbooks
-        ? 'runbooks'
-        : canReadAlarms
-          ? 'alarms'
-          : canReadIgnoredAlarms
-            ? 'ignored-alarms'
-            : canReadDownstreams
-              ? 'downstreams'
-              : 'final-actions'
 
   return (
     <div className="space-y-5">
@@ -244,158 +315,109 @@ function ProductDetailContent() {
 
       {/* Tabs section */}
       {hasAnyTab && (
-        <Tabs defaultValue={searchParams.get('tab') ?? firstTab} orientation="vertical">
+        <Tabs value={activeTab} onValueChange={handleTabChange} orientation="vertical">
           <div className="flex gap-4 items-start">
             {/* Vertical nav sidebar */}
-            <TabsList className="flex h-auto w-48 flex-col items-stretch justify-start gap-0.5 rounded-xl border bg-muted/30 p-1.5 shrink-0">
+            <TabsList className="flex h-auto w-52 flex-col items-stretch justify-start gap-0.5 rounded-xl border bg-muted/30 p-1.5 shrink-0">
               {canReadEnvironments && (
                 <TabsTrigger value="environments" className={TAB_TRIGGER_CLASS}>
                   <Server className="h-4 w-4 shrink-0" />
                   Ambienti
+                  <TabCount count={envCount} />
                 </TabsTrigger>
               )}
               {canReadResources && (
                 <TabsTrigger value="resources" className={TAB_TRIGGER_CLASS}>
                   <Box className="h-4 w-4 shrink-0" />
                   Risorse
+                  <TabCount count={resourceCount} />
                 </TabsTrigger>
               )}
               {canReadRunbooks && (
                 <TabsTrigger value="runbooks" className={TAB_TRIGGER_CLASS}>
                   <BookOpen className="h-4 w-4 shrink-0" />
                   Runbook
+                  <TabCount count={runbookCount} />
                 </TabsTrigger>
               )}
               {canReadAlarms && (
                 <TabsTrigger value="alarms" className={TAB_TRIGGER_CLASS}>
                   <Bell className="h-4 w-4 shrink-0" />
                   Allarmi
+                  <TabCount count={alarmCount} />
                 </TabsTrigger>
               )}
               {canReadIgnoredAlarms && (
                 <TabsTrigger value="ignored-alarms" className={TAB_TRIGGER_CLASS}>
                   <BellOff className="h-4 w-4 shrink-0" />
-                  Allarmi Ignorati
+                  Ignorati
+                  <TabCount count={ignoredAlarmCount} />
                 </TabsTrigger>
               )}
               {canReadDownstreams && (
                 <TabsTrigger value="downstreams" className={TAB_TRIGGER_CLASS}>
                   <ArrowDownRight className="h-4 w-4 shrink-0" />
                   Downstream
+                  <TabCount count={downstreamCount} />
                 </TabsTrigger>
               )}
               {canReadFinalActions && (
                 <TabsTrigger value="final-actions" className={TAB_TRIGGER_CLASS}>
                   <CheckCircle2 className="h-4 w-4 shrink-0" />
                   Azioni Finali
+                  <TabCount count={finalActionCount} />
                 </TabsTrigger>
               )}
             </TabsList>
 
-            {/* Content panel */}
+            {/* Content panel — no redundant headers, tab components stand on their own */}
             <div className="flex-1 min-w-0">
               {canReadEnvironments && (
                 <TabsContent value="environments" className="mt-0">
-                  <div className="rounded-xl border bg-card">
-                    <div className="border-b px-6 py-4">
-                      <h2 className="font-semibold">Ambienti</h2>
-                      <p className="mt-0.5 text-sm text-muted-foreground">
-                        Ambienti configurati per questo prodotto
-                      </p>
-                    </div>
-                    <div className="p-6">
-                      <EnvironmentsTab productId={productId} />
-                    </div>
+                  <div className="rounded-xl border bg-card p-5">
+                    <EnvironmentsTab productId={productId} />
                   </div>
                 </TabsContent>
               )}
               {canReadResources && (
                 <TabsContent value="resources" className="mt-0">
-                  <div className="rounded-xl border bg-card">
-                    <div className="border-b px-6 py-4">
-                      <h2 className="font-semibold">Risorse</h2>
-                      <p className="mt-0.5 text-sm text-muted-foreground">
-                        Risorse associate a questo prodotto
-                      </p>
-                    </div>
-                    <div className="p-6">
-                      <ResourcesTab productId={productId} />
-                    </div>
+                  <div className="rounded-xl border bg-card p-5">
+                    <ResourcesTab productId={productId} />
                   </div>
                 </TabsContent>
               )}
               {canReadRunbooks && (
                 <TabsContent value="runbooks" className="mt-0">
-                  <div className="rounded-xl border bg-card">
-                    <div className="border-b px-6 py-4">
-                      <h2 className="font-semibold">Runbook</h2>
-                      <p className="mt-0.5 text-sm text-muted-foreground">
-                        Runbook disponibili per questo prodotto
-                      </p>
-                    </div>
-                    <div className="p-6">
-                      <RunbooksTab productId={productId} />
-                    </div>
+                  <div className="rounded-xl border bg-card p-5">
+                    <RunbooksTab productId={productId} />
                   </div>
                 </TabsContent>
               )}
               {canReadAlarms && (
                 <TabsContent value="alarms" className="mt-0">
-                  <div className="rounded-xl border bg-card">
-                    <div className="border-b px-6 py-4">
-                      <h2 className="font-semibold">Allarmi</h2>
-                      <p className="mt-0.5 text-sm text-muted-foreground">
-                        Allarmi configurati per questo prodotto
-                      </p>
-                    </div>
-                    <div className="p-6">
-                      <AlarmsTab productId={productId} />
-                    </div>
+                  <div className="rounded-xl border bg-card p-5">
+                    <AlarmsTab productId={productId} />
                   </div>
                 </TabsContent>
               )}
               {canReadIgnoredAlarms && (
                 <TabsContent value="ignored-alarms" className="mt-0">
-                  <div className="rounded-xl border bg-card">
-                    <div className="border-b px-6 py-4">
-                      <h2 className="font-semibold">Allarmi Ignorati</h2>
-                      <p className="mt-0.5 text-sm text-muted-foreground">
-                        Regole per gli allarmi da ignorare con vincoli temporali
-                      </p>
-                    </div>
-                    <div className="p-6">
-                      <IgnoredAlarmsTab productId={productId} />
-                    </div>
+                  <div className="rounded-xl border bg-card p-5">
+                    <IgnoredAlarmsTab productId={productId} />
                   </div>
                 </TabsContent>
               )}
               {canReadDownstreams && (
                 <TabsContent value="downstreams" className="mt-0">
-                  <div className="rounded-xl border bg-card">
-                    <div className="border-b px-6 py-4">
-                      <h2 className="font-semibold">Downstream</h2>
-                      <p className="mt-0.5 text-sm text-muted-foreground">
-                        Sistemi downstream utilizzati da questo prodotto
-                      </p>
-                    </div>
-                    <div className="p-6">
-                      <DownstreamsTab productId={productId} />
-                    </div>
+                  <div className="rounded-xl border bg-card p-5">
+                    <DownstreamsTab productId={productId} />
                   </div>
                 </TabsContent>
               )}
               {canReadFinalActions && (
                 <TabsContent value="final-actions" className="mt-0">
-                  <div className="rounded-xl border bg-card">
-                    <div className="border-b px-6 py-4">
-                      <h2 className="font-semibold">Azioni Finali</h2>
-                      <p className="mt-0.5 text-sm text-muted-foreground">
-                        Azioni finali disponibili per le analisi di questo prodotto
-                      </p>
-                    </div>
-                    <div className="p-6">
-                      <FinalActionsTab productId={productId} />
-                    </div>
+                  <div className="rounded-xl border bg-card p-5">
+                    <FinalActionsTab productId={productId} />
                   </div>
                 </TabsContent>
               )}

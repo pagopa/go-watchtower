@@ -71,6 +71,7 @@ export function RunbooksTab({ productId }: RunbooksTabProps) {
     data: runbooks,
     isLoading,
     error,
+    refetch,
   } = useQuery<Runbook[]>({
     queryKey: qk.products.runbooks(productId),
     queryFn: () => api.getRunbooks(productId),
@@ -164,7 +165,7 @@ export function RunbooksTab({ productId }: RunbooksTabProps) {
     }
   }
 
-  if (isLoading) {
+  if (isLoading && !runbooks) {
     return (
       <div className="space-y-3">
         <div className="flex items-center justify-between">
@@ -188,9 +189,14 @@ export function RunbooksTab({ productId }: RunbooksTabProps) {
 
   if (error) {
     return (
-      <p className="py-4 text-sm text-destructive">
-        Errore durante il caricamento dei runbook.
-      </p>
+      <div className="py-4 text-center space-y-2">
+        <p className="text-sm text-destructive">
+          Errore durante il caricamento dei runbook.
+        </p>
+        <Button variant="outline" size="sm" onClick={() => refetch()}>
+          Riprova
+        </Button>
+      </div>
     )
   }
 

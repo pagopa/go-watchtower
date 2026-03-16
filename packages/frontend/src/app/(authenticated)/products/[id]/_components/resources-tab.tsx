@@ -66,6 +66,7 @@ export function ResourcesTab({ productId }: ResourcesTabProps) {
     data: items,
     isLoading,
     error,
+    refetch,
   } = useQuery<ProductResource[]>({
     queryKey: qk.products.resources(productId),
     queryFn: () => api.getResources(productId),
@@ -157,7 +158,7 @@ export function ResourcesTab({ productId }: ResourcesTabProps) {
     }
   }
 
-  if (isLoading) {
+  if (isLoading && !items) {
     return (
       <div className="space-y-3">
         <div className="flex items-center justify-between">
@@ -180,7 +181,12 @@ export function ResourcesTab({ productId }: ResourcesTabProps) {
 
   if (error) {
     return (
-      <p className="py-4 text-sm text-destructive">Errore durante il caricamento delle risorse.</p>
+      <div className="py-4 text-center space-y-2">
+        <p className="text-sm text-destructive">Errore durante il caricamento delle risorse.</p>
+        <Button variant="outline" size="sm" onClick={() => refetch()}>
+          Riprova
+        </Button>
+      </div>
     )
   }
 
