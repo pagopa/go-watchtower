@@ -46,7 +46,7 @@ function LinkedAlarmEvents({ analysis }: { analysis: AlarmAnalysis }) {
 
   return (
     <section className="space-y-4">
-      <SectionHeader label="Alarm Events collegati" icon={Zap} count={events.length} />
+      <SectionHeader label="Alarm Events collegati" icon={Zap} count={analysis.linkedEventsCount} />
       <div className="rounded-lg border border-border overflow-hidden">
         <table className="w-full text-sm">
           <thead>

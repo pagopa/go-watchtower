@@ -8,6 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { ValidationConstraints, PASSWORD_PATTERN } from '@go-watchtower/shared'
 import { api, type CreateUserData, type Role } from '@/lib/api-client'
 import { qk } from '@/lib/query-keys'
 import { invalidate } from '@/lib/query-invalidation'
@@ -23,10 +24,14 @@ import {
 } from '@/components/ui/select'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
+const passwordRegex = new RegExp(PASSWORD_PATTERN)
+
 const userSchema = z.object({
   name: z.string().min(1, 'Il nome è obbligatorio'),
   email: z.string().email('Email non valida'),
-  password: z.string().min(6, 'La password deve avere almeno 6 caratteri'),
+  password: z.string()
+    .min(ValidationConstraints.PASSWORD_MIN_LENGTH_CREATE, `Minimo ${ValidationConstraints.PASSWORD_MIN_LENGTH_CREATE} caratteri`)
+    .regex(passwordRegex, 'Deve contenere almeno una maiuscola, una minuscola e un numero'),
   roleId: z.string().optional(),
 })
 
@@ -125,7 +130,7 @@ export function NewUserPage() {
               <Input
                 id="password"
                 type="password"
-                placeholder="Almeno 6 caratteri"
+                placeholder="Min 6 caratteri, maiuscola, minuscola e numero"
                 {...register('password')}
                 disabled={createMutation.isPending}
               />
