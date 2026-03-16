@@ -344,6 +344,13 @@ function AlarmEventsPageContent() {
   const events     = eventsResponse?.data
   const pagination = eventsResponse?.pagination
 
+  // Derive a fresh version of the selected event from the list data when available.
+  // This keeps the detail panel in sync after mutations (e.g. unlink analysis).
+  const resolvedSelectedEvent = useMemo(() => {
+    if (!selectedEvent) return null
+    return events?.find((e) => e.id === selectedEvent.id) ?? selectedEvent
+  }, [events, selectedEvent])
+
   // Working hours — fetched with fallback so non-admin users still get defaults.
   // 403 is expected for non-admin users; other errors are logged.
   const { data: workingHours } = useQuery({
@@ -881,14 +888,14 @@ function AlarmEventsPageContent() {
 
       {/* Detail Side Panel */}
       <AlarmEventDetailPanel
-        event={selectedEvent}
+        event={resolvedSelectedEvent}
         open={showDetailPanel}
         onClose={handleCloseDetailPanel}
         onEdit={handleEdit}
         onDelete={handleDelete}
         canWrite={canWrite}
         canDelete={canDelete}
-        isOnCall={selectedEvent ? isOnCallEvent(selectedEvent) : false}
+        isOnCall={resolvedSelectedEvent ? isOnCallEvent(resolvedSelectedEvent) : false}
         onAlarmClick={handleAlarmClick}
       />
 
