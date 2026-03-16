@@ -374,6 +374,8 @@ model AlarmAnalysis {
   @@index([ignoreReasonCode])
   @@index([createdById])
   @@index([updatedById])
+  @@index([productId, environmentId, analysisDate])
+  @@index([trackingIds], type: Gin)
   @@map("alarm_analyses")
 }
 

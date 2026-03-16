@@ -69,3 +69,4 @@ scripts/deploy-backend.sh
 .gitignore
 scripts/deploy-frontend.sh
 scripts/deploy-slack-ingestor.sh
+scripts/migrate-prod.sh
