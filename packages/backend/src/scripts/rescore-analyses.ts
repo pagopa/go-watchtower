@@ -1,36 +1,62 @@
 /**
  * rescore-analyses.ts
  *
- * Ricalcola validationScore e qualityScore per le analisi non ancora valutate
- * (scoredAt IS NULL) oppure, con --force, per tutte le analisi.
+ * Ricalcola validationScore e qualityScore per tutte le analisi (--force)
+ * o solo per quelle non ancora valutate (default: scoredAt IS NULL).
  *
  * Uso:
  *   pnpm rescore              # solo quelle senza score
  *   pnpm rescore -- --force   # tutte
  */
 
-import "dotenv/config";
-import { prisma } from "@go-watchtower/database";
-import { scoreAnalysis } from "../services/analysis-scoring.service.js";
+// Silence Prisma query logs — must run before the database client is created.
+// dotenv does NOT override existing env vars, so this sticks even if .env has NODE_ENV=development.
+process.env["NODE_ENV"] = "production";
+
+const { default: dotenv } = await import("dotenv");
+dotenv.config();
+
+const { prisma } = await import("@go-watchtower/database");
+const { scoreAnalysis } = await import("../services/analysis-scoring.service.js");
 
 const BATCH_SIZE = 100;
 const force = process.argv.includes("--force");
 
+function dbInfo(): string {
+  const raw = process.env["DATABASE_URL"] ?? "";
+  try {
+    const url = new URL(raw);
+    return `${url.hostname}:${url.port || "5432"} db=${url.pathname.replace("/", "")}`;
+  } catch {
+    return "(unable to parse DATABASE_URL)";
+  }
+}
+
 async function main(): Promise<void> {
-  console.log(`[rescore] Starting — mode: ${force ? "FORCE (all)" : "unscored only"}`);
+  console.log(`[rescore] DB: ${dbInfo()}`);
+  console.log(`[rescore] Mode: ${force ? "FORCE (all)" : "unscored only"}`);
 
   if (force) {
-    // Reset scoredAt to force reprocessing of everything
     const { count } = await prisma.alarmAnalysis.updateMany({
       where: { scoredAt: { not: null } },
       data: { scoredAt: null },
     });
-    console.log(`[rescore] Reset scoredAt on ${count} analyses`);
+    console.log(`[rescore] Reset ${count} analyses`);
   }
+
+  const total = await prisma.alarmAnalysis.count({ where: { scoredAt: null } });
+  if (total === 0) {
+    console.log("[rescore] Nothing to score");
+    await prisma.$disconnect();
+    process.exit(0);
+  }
+
+  console.log(`[rescore] Scoring ${total} analyses…`);
 
   let cursor: string | undefined = undefined;
   let processed = 0;
   let failed = 0;
+  const failedIds: string[] = [];
 
   while (true) {
     const batch: { id: string }[] = await prisma.alarmAnalysis.findMany({
@@ -49,19 +75,27 @@ async function main(): Promise<void> {
         processed++;
       } catch (err) {
         failed++;
-        console.error(`[rescore] Failed to score analysis ${id}:`, err);
+        failedIds.push(id);
+        console.error(`\n[rescore] ERR ${id}: ${err instanceof Error ? err.message : err}`);
       }
     }
 
     cursor = batch[batch.length - 1]!.id;
-    console.log(`[rescore] Processed ${processed} analyses so far (${failed} failed)…`);
+    const pct = Math.round(((processed + failed) / total) * 100);
+    process.stdout.write(`\r[rescore] ${processed + failed}/${total} (${pct}%)`);
   }
 
+  console.log();
   console.log(`[rescore] Done — ${processed} scored, ${failed} failed`);
+  if (failedIds.length > 0) {
+    console.log(`[rescore] Failed IDs:\n  ${failedIds.join("\n  ")}`);
+  }
+
   await prisma.$disconnect();
+  process.exit(failedIds.length > 0 ? 1 : 0);
 }
 
 main().catch((err) => {
-  console.error("[rescore] Fatal error:", err);
+  console.error("[rescore] Fatal:", err);
   process.exit(1);
 });

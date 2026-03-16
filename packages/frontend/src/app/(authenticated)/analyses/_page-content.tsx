@@ -523,18 +523,20 @@ function AnalysesPageContent() {
     // Debounce save to preferences (1s)
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(() => {
+      saveTimerRef.current = null
       persistFiltersRef.current(filterKeyRef.current, newFilters as unknown as Record<string, unknown>)
     }, 1000)
   }, [setFilterOverrides, setPage])
 
   const handleResetFilters = useCallback(() => {
-    setFilterOverrides(prev => {
-      const next = { ...prev }
-      delete next[filterKeyRef.current]
-      return next
-    })
+    // Set override to DEFAULT instead of deleting — guarantees immediate UI
+    // reset regardless of optimistic preference-update timing.
+    setFilterOverrides(prev => ({ ...prev, [filterKeyRef.current]: { ...DEFAULT_FILTERS } }))
     setPage(1)
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current)
+      saveTimerRef.current = null
+    }
     persistFiltersRef.current(filterKeyRef.current, null)
   }, [setFilterOverrides, setPage])
 

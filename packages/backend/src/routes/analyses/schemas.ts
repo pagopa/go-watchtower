@@ -269,6 +269,7 @@ export const AlarmAnalysisResponseSchema = Type.Object({
   validationScore: Type.Union([Type.Integer(), Type.Null()]),
   qualityScore:    Type.Union([Type.Integer(), Type.Null()]),
   scoredAt:        Type.Union([Type.String(), Type.Null()]),
+  linkedEventsCount: Type.Integer(),
 });
 
 export const IgnoreReasonsResponseSchema = Type.Array(IgnoreReasonResponseSchema);
