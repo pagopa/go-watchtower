@@ -478,6 +478,7 @@ export interface AlarmAnalysis {
   validationScore: number | null
   qualityScore: number | null
   scoredAt: string | null
+  linkedEventsCount: number
 }
 
 export interface AlarmAnalysisFilters {

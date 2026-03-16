@@ -34,6 +34,9 @@ export interface AnalysisSubject {
   downstreams: { id: string }[]
   links: AnalysisLink[]
   trackingIds: TrackingEntry[]
+
+  // Conteggio eventi allarme collegati (opzionale — presente quando il dato è disponibile)
+  linkedEventsCount?: number
 }
 
 // ─── Rule types ───────────────────────────────────────────────────────────────

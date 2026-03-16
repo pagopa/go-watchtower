@@ -26,6 +26,7 @@ async function fetchSubjectForScoring(
       downstreams:      { include: { downstream: { select: { id: true } } } },
       links:            true,
       trackingIds:      true,
+      _count:           { select: { alarmEvents: true } },
     },
   });
 
@@ -45,6 +46,7 @@ async function fetchSubjectForScoring(
     downstreams:      a.downstreams.map((ad) => ({ id: ad.downstream.id })),
     links:            (a.links as unknown as { url: string }[]),
     trackingIds:      (a.trackingIds as unknown as TrackingEntry[]),
+    linkedEventsCount: a._count.alarmEvents,
   };
 }
 

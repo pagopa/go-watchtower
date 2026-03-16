@@ -67,6 +67,7 @@ const analysisInclude = {
     include: { downstream: { select: { id: true, name: true } } },
   },
   ignoreReason: true,
+  _count: { select: { alarmEvents: true } },
 } as const;
 
 type AnalysisWithRelations = Prisma.AlarmAnalysisGetPayload<{
@@ -122,6 +123,7 @@ function formatAnalysisResponse(analysis: AnalysisWithRelations) {
     validationScore: analysis.validationScore ?? null,
     qualityScore:    analysis.qualityScore ?? null,
     scoredAt:        analysis.scoredAt ? analysis.scoredAt.toISOString() : null,
+    linkedEventsCount: analysis._count.alarmEvents,
   };
 }
 
