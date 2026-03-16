@@ -24,6 +24,12 @@ export const ValidationConstraints = {
   PAGE_SIZE_DEFAULT: 20,
 } as const;
 
+/**
+ * Password deve contenere almeno: 1 maiuscola, 1 minuscola, 1 cifra.
+ * Lookahead-based, non impone lunghezza (gestita da minLength).
+ */
+export const PASSWORD_PATTERN = '^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).+$';
+
 /** Pattern HH:mm per orari (es. time constraints). */
 export const TIME_HH_MM_PATTERN = '^\\d{2}:\\d{2}$';
 

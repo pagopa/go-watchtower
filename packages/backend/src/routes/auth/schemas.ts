@@ -1,20 +1,20 @@
 import { Type, type Static } from "@sinclair/typebox";
-import { ValidationConstraints } from "@go-watchtower/shared";
+import { ValidationConstraints, PASSWORD_PATTERN } from "@go-watchtower/shared";
 import { ErrorResponseSchema, MessageResponseSchema } from "../../schemas/common.js";
 
 export { ErrorResponseSchema, MessageResponseSchema };
 
 export const RegisterBodySchema = Type.Object({
   email: Type.String({ format: "email" }),
-  password: Type.String({ minLength: ValidationConstraints.PASSWORD_MIN_LENGTH_REGISTER }),
-  name: Type.String({ minLength: 2 }),
+  password: Type.String({ minLength: ValidationConstraints.PASSWORD_MIN_LENGTH_REGISTER, maxLength: 255, pattern: PASSWORD_PATTERN }),
+  name: Type.String({ minLength: 2, maxLength: 255 }),
 });
 
 export type RegisterBody = Static<typeof RegisterBodySchema>;
 
 export const LoginBodySchema = Type.Object({
   email: Type.String({ format: "email" }),
-  password: Type.String({ minLength: 1 }),
+  password: Type.String({ minLength: 1, maxLength: 255 }),
 });
 
 export type LoginBody = Static<typeof LoginBodySchema>;
@@ -65,7 +65,7 @@ export const SessionsResponseSchema = Type.Object({
 });
 
 export const RevokeSessionParamsSchema = Type.Object({
-  sessionId: Type.String(),
+  sessionId: Type.String({ format: "uuid" }),
 });
 
 export type RevokeSessionParams = Static<typeof RevokeSessionParamsSchema>;

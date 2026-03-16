@@ -1,7 +1,6 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import {
-  RegisterBodySchema,
   LoginBodySchema,
   RefreshBodySchema,
   AuthResponseSchema,
@@ -12,14 +11,12 @@ import {
   RevokeSessionParamsSchema,
   MessageResponseSchema,
   GoogleCallbackBodySchema,
-  type RegisterBody,
   type LoginBody,
   type RefreshBody,
   type RevokeSessionParams,
   type GoogleCallbackBody,
 } from "./schemas.js";
 import {
-  registerUser,
   loginUser,
   findOrCreateGoogleUser,
   getUserById,
@@ -98,54 +95,9 @@ function clearTokenCookies(reply: FastifyReply): void {
 export async function authRoutes(fastify: FastifyInstance): Promise<void> {
   const app = fastify.withTypeProvider<TypeBoxTypeProvider>();
 
-  // Register
-  app.post<{ Body: RegisterBody }>(
-    "/register",
-    {
-      ...authRateLimitConfig,
-      schema: {
-        tags: ["auth"],
-        summary: "Register a new user",
-        body: RegisterBodySchema,
-        response: {
-          201: AuthResponseSchema,
-          400: ErrorResponseSchema,
-          429: ErrorResponseSchema,
-        },
-      },
-    },
-    async (request, reply) => {
-      try {
-        const user = await registerUser(request.body);
-        const clientInfo = getClientInfo(request);
-
-        const accessToken = generateAccessToken(app, {
-          userId: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.roleName,
-        });
-
-        const refreshToken = await createRefreshToken({
-          userId: user.id,
-          ...clientInfo,
-        });
-
-        setTokenCookies(reply, accessToken, refreshToken);
-
-        reply.status(201).send({
-          user: formatUser(user),
-          accessToken,
-          refreshToken,
-          expiresIn: ACCESS_TOKEN_EXPIRES_IN_SECONDS,
-        });
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Registration failed";
-        HttpError.badRequest(reply, message);
-      }
-    }
-  );
+  // NOTE: Public registration is disabled. User creation is handled by admins
+  // via POST /users (requirePermission USER.write). If public registration is
+  // needed in the future, re-enable with email verification or invite codes.
 
   // Login
   app.post<{ Body: LoginBody }>(
@@ -221,6 +173,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
   app.post<{ Body: RefreshBody }>(
     "/refresh",
     {
+      ...authRateLimitConfig,
       schema: {
         tags: ["auth"],
         summary: "Refresh access token using refresh token",
@@ -564,7 +517,14 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
             email: string;
             name?: string;
             picture?: string;
+            aud?: string;
           };
+
+          // Verify the token was issued for this application
+          if (tokenInfo.aud !== env.GOOGLE_CLIENT_ID) {
+            throw new Error("Invalid token audience");
+          }
+
           const name = (tokenInfo.name || tokenInfo.email.split("@")[0]) as string;
           googleUser = {
             sub: tokenInfo.sub,

@@ -34,7 +34,7 @@ export type { Resource } from './constants/resources.js';
 
 export { IGNORE_REASON_CODE_PATTERN, IGNORE_REASON_CODE_REGEX } from './constants/ignore-reason-constraints.js';
 
-export { ValidationConstraints, TIME_HH_MM_PATTERN, TIME_HH_MM_REGEX, WEEKDAY_MIN, WEEKDAY_MAX } from './constants/validation.js';
+export { ValidationConstraints, PASSWORD_PATTERN, TIME_HH_MM_PATTERN, TIME_HH_MM_REGEX, WEEKDAY_MIN, WEEKDAY_MAX } from './constants/validation.js';
 
 export { AuthProviders } from './constants/auth-providers.js';
 export type { AuthProvider } from './constants/auth-providers.js';

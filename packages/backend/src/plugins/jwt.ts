@@ -20,7 +20,7 @@ declare module "@fastify/jwt" {
 
 export async function registerJwt(app: FastifyInstance): Promise<void> {
   await app.register(cookie, {
-    secret: env.JWT_SECRET,
+    secret: env.COOKIE_SECRET || env.JWT_SECRET,
     hook: "onRequest",
   });
 

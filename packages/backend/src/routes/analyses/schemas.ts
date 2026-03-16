@@ -52,8 +52,8 @@ export type AnalysisStatusValue = Static<typeof AnalysisStatusSchema>;
 export type ProductIdParams = Static<typeof ProductIdParamsSchema>;
 
 export const AlarmAnalysisParamsSchema = Type.Object({
-  productId: Type.String(),
-  id: Type.String(),
+  productId: Type.String({ format: "uuid" }),
+  id: Type.String({ format: "uuid" }),
 });
 
 export type AlarmAnalysisParams = Static<typeof AlarmAnalysisParamsSchema>;
@@ -140,9 +140,9 @@ export type AlarmAnalysisQuery = Static<typeof AlarmAnalysisQuerySchema>;
 // ============================================================================
 
 export const LinkSchema = Type.Object({
-  url: Type.String({ format: "uri" }),
-  name: Type.Optional(Type.String()),
-  type: Type.Optional(Type.String()),
+  url: Type.String({ format: "uri", maxLength: 2000 }),
+  name: Type.Optional(Type.String({ maxLength: 255 })),
+  type: Type.Optional(Type.String({ maxLength: 50 })),
 });
 
 // ============================================================================
@@ -150,10 +150,10 @@ export const LinkSchema = Type.Object({
 // ============================================================================
 
 export const TrackingEntrySchema = Type.Object({
-  traceId: Type.String(),
-  errorCode: Type.Optional(Type.String()),
-  errorDetail: Type.Optional(Type.String()),
-  timestamp: Type.Optional(Type.String()),
+  traceId: Type.String({ maxLength: 255 }),
+  errorCode: Type.Optional(Type.String({ maxLength: 255 })),
+  errorDetail: Type.Optional(Type.String({ maxLength: 2000 })),
+  timestamp: Type.Optional(Type.String({ maxLength: 50 })),
 });
 
 // ============================================================================
@@ -168,17 +168,17 @@ export const CreateAlarmAnalysisBodySchema = Type.Object({
   isOnCall: Type.Optional(Type.Boolean()),
   analysisType: Type.Optional(AnalysisTypeSchema),
   status: Type.Optional(AnalysisStatusSchema),
-  alarmId: Type.String(),
-  errorDetails: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-  conclusionNotes: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-  ignoreReasonCode: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  alarmId: Type.String({ format: "uuid" }),
+  errorDetails: Type.Optional(Type.Union([Type.String({ maxLength: 5000 }), Type.Null()])),
+  conclusionNotes: Type.Optional(Type.Union([Type.String({ maxLength: 5000 }), Type.Null()])),
+  ignoreReasonCode: Type.Optional(Type.Union([Type.String({ maxLength: 100 }), Type.Null()])),
   ignoreDetails: Type.Optional(Type.Union([Type.Record(Type.String(), Type.Unknown()), Type.Null()])),
-  operatorId: Type.String(),
-  environmentId: Type.String(),
-  finalActionIds: Type.Optional(Type.Array(Type.String())),
-  runbookId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-  resourceIds: Type.Optional(Type.Array(Type.String())),
-  downstreamIds: Type.Optional(Type.Array(Type.String())),
+  operatorId: Type.String({ format: "uuid" }),
+  environmentId: Type.String({ format: "uuid" }),
+  finalActionIds: Type.Optional(Type.Array(Type.String({ format: "uuid" }))),
+  runbookId: Type.Optional(Type.Union([Type.String({ format: "uuid" }), Type.Null()])),
+  resourceIds: Type.Optional(Type.Array(Type.String({ format: "uuid" }))),
+  downstreamIds: Type.Optional(Type.Array(Type.String({ format: "uuid" }))),
   links: Type.Optional(Type.Array(LinkSchema)),
   trackingIds: Type.Optional(Type.Array(TrackingEntrySchema)),
 });
@@ -193,17 +193,17 @@ export const UpdateAlarmAnalysisBodySchema = Type.Object({
   isOnCall: Type.Optional(Type.Boolean()),
   analysisType: Type.Optional(AnalysisTypeSchema),
   status: Type.Optional(AnalysisStatusSchema),
-  alarmId: Type.Optional(Type.String()),
-  errorDetails: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-  conclusionNotes: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-  ignoreReasonCode: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  alarmId: Type.Optional(Type.String({ format: "uuid" })),
+  errorDetails: Type.Optional(Type.Union([Type.String({ maxLength: 5000 }), Type.Null()])),
+  conclusionNotes: Type.Optional(Type.Union([Type.String({ maxLength: 5000 }), Type.Null()])),
+  ignoreReasonCode: Type.Optional(Type.Union([Type.String({ maxLength: 100 }), Type.Null()])),
   ignoreDetails: Type.Optional(Type.Union([Type.Record(Type.String(), Type.Unknown()), Type.Null()])),
-  operatorId: Type.Optional(Type.String()),
-  environmentId: Type.Optional(Type.String()),
-  finalActionIds: Type.Optional(Type.Array(Type.String())),
-  runbookId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-  resourceIds: Type.Optional(Type.Array(Type.String())),
-  downstreamIds: Type.Optional(Type.Array(Type.String())),
+  operatorId: Type.Optional(Type.String({ format: "uuid" })),
+  environmentId: Type.Optional(Type.String({ format: "uuid" })),
+  finalActionIds: Type.Optional(Type.Array(Type.String({ format: "uuid" }))),
+  runbookId: Type.Optional(Type.Union([Type.String({ format: "uuid" }), Type.Null()])),
+  resourceIds: Type.Optional(Type.Array(Type.String({ format: "uuid" }))),
+  downstreamIds: Type.Optional(Type.Array(Type.String({ format: "uuid" }))),
   links: Type.Optional(Type.Array(LinkSchema)),
   trackingIds: Type.Optional(Type.Array(TrackingEntrySchema)),
 });

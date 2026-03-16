@@ -19,6 +19,7 @@ export const env = {
 
   // JWT - Access token (short-lived)
   JWT_SECRET: requireEnv("JWT_SECRET"),
+  COOKIE_SECRET: optionalEnv("COOKIE_SECRET", ""),
   ACCESS_TOKEN_EXPIRES_IN: optionalEnv("ACCESS_TOKEN_EXPIRES_IN", "15m"),
 
   // Refresh token (long-lived, stored in DB)

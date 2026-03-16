@@ -1,5 +1,5 @@
 import { Type, type Static } from "@sinclair/typebox";
-import { ValidationConstraints, Themes } from "@go-watchtower/shared";
+import { ValidationConstraints, PASSWORD_PATTERN, Themes } from "@go-watchtower/shared";
 import { SystemComponent } from "@go-watchtower/database";
 import { ErrorResponseSchema, MessageResponseSchema, PermissionScopeSchema } from "../../schemas/common.js";
 
@@ -72,9 +72,9 @@ export const UsersResponseSchema = Type.Array(UserResponseSchema);
 
 export const CreateUserBodySchema = Type.Object({
   email: Type.String({ format: "email" }),
-  password: Type.String({ minLength: ValidationConstraints.PASSWORD_MIN_LENGTH_CREATE }),
+  password: Type.String({ minLength: ValidationConstraints.PASSWORD_MIN_LENGTH_CREATE, maxLength: 255, pattern: PASSWORD_PATTERN }),
   name: Type.String({ minLength: ValidationConstraints.USER_NAME_MIN_LENGTH, maxLength: ValidationConstraints.USER_NAME_MAX_LENGTH }),
-  roleId: Type.Optional(Type.String()),
+  roleId: Type.Optional(Type.String({ format: "uuid" })),
 });
 
 export type CreateUserBody = Static<typeof CreateUserBodySchema>;
@@ -93,20 +93,20 @@ export const SetPermissionOverrideBodySchema = Type.Object({
   canRead: Type.Optional(Type.Union([PermissionScopeSchema, Type.Null()])),
   canWrite: Type.Optional(Type.Union([PermissionScopeSchema, Type.Null()])),
   canDelete: Type.Optional(Type.Union([PermissionScopeSchema, Type.Null()])),
-  reason: Type.Optional(Type.String()),
+  reason: Type.Optional(Type.String({ maxLength: 1000 })),
 });
 
 export type SetPermissionOverrideBody = Static<typeof SetPermissionOverrideBodySchema>;
 
 export const UserIdParamsSchema = Type.Object({
-  id: Type.String(),
+  id: Type.String({ format: "uuid" }),
 });
 
 export type UserIdParams = Static<typeof UserIdParamsSchema>;
 
 export const UserPermissionResourceParamsSchema = Type.Object({
-  id: Type.String(),
-  resource: Type.String(),
+  id: Type.String({ format: "uuid" }),
+  resource: Type.Enum(SystemComponent),
 });
 
 export type UserPermissionResourceParams = Static<typeof UserPermissionResourceParamsSchema>;
@@ -127,11 +127,11 @@ export const UserPreferencesSchema = Type.Object({
     Type.Literal(Themes.DARK),
     Type.Literal(Themes.SYSTEM),
   ])),
-  lastRoute: Type.Optional(Type.String()),
+  lastRoute: Type.Optional(Type.String({ maxLength: 500 })),
   columnSettings: Type.Optional(Type.Record(Type.String(), ColumnSettingsSchema)),
   savedFilters: Type.Optional(Type.Record(Type.String(), Type.Record(Type.String(), Type.Unknown()))),
   pageSize: Type.Optional(Type.Number()),
-  locale: Type.Optional(Type.String()),
+  locale: Type.Optional(Type.String({ maxLength: 10 })),
   sidebarCollapsed: Type.Optional(Type.Boolean()),
   analysisFiltersCollapsed: Type.Optional(Type.Boolean()),
   analysisViewMode: Type.Optional(Type.Union([
@@ -163,7 +163,7 @@ export const RoleResponseSchema = Type.Object({
 export const RolesResponseSchema = Type.Array(RoleResponseSchema);
 
 export const RoleIdParamsSchema = Type.Object({
-  id: Type.String(),
+  id: Type.String({ format: "uuid" }),
 });
 
 export type RoleIdParams = Static<typeof RoleIdParamsSchema>;
@@ -187,7 +187,7 @@ export type UpdateRoleBody = Static<typeof UpdateRoleBodySchema>;
 export const UpdateRolePermissionsBodySchema = Type.Object({
   permissions: Type.Array(
     Type.Object({
-      resource: Type.String(),
+      resource: Type.Enum(SystemComponent),
       canRead: PermissionScopeSchema,
       canWrite: PermissionScopeSchema,
       canDelete: PermissionScopeSchema,

@@ -24,7 +24,7 @@ export const PermissionScopeSchema = Type.Union([
 // ─── Schemi condivisi tra route ───────────────────────────────────────────────
 
 export const ProductIdParamsSchema = Type.Object({
-  productId: Type.String(),
+  productId: Type.String({ format: "uuid" }),
 });
 
 export const DateRangeFilterSchema = Type.Object({

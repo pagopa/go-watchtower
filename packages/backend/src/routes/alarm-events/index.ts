@@ -72,7 +72,7 @@ export async function alarmEventRoutes(app: FastifyInstance) {
   server.get<{ Querystring: AlarmEventsQuery }>(
     "/alarm-events",
     {
-      onRequest: [server.authenticate],
+      onRequest: [server.authenticate, requirePermission(SystemComponent.ALARM_EVENT, "read")],
       schema: {
         tags: ["Alarm Events"],
         summary: "List alarm events",
@@ -127,7 +127,7 @@ export async function alarmEventRoutes(app: FastifyInstance) {
   server.get<{ Params: AlarmEventParams }>(
     "/alarm-events/:id",
     {
-      onRequest: [server.authenticate],
+      onRequest: [server.authenticate, requirePermission(SystemComponent.ALARM_EVENT, "read")],
       schema: {
         tags: ["Alarm Events"],
         summary: "Get a single alarm event",

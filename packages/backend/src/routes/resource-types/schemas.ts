@@ -20,7 +20,7 @@ export type ResourceTypeResponse = Static<typeof ResourceTypeResponseSchema>;
 // ─── Params ────────────────────────────────────────────────────────────────
 
 export const ResourceTypeParamsSchema = Type.Object({
-  id: Type.String(),
+  id: Type.String({ format: "uuid" }),
 });
 
 export type ResourceTypeParams = Static<typeof ResourceTypeParamsSchema>;

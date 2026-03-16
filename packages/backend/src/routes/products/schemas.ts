@@ -20,7 +20,7 @@ export {
 
 export const CreateProductBodySchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 255 }),
-  description: Type.Optional(Type.String()),
+  description: Type.Optional(Type.String({ maxLength: 2000 })),
   isActive: Type.Optional(Type.Boolean()),
 });
 
@@ -28,14 +28,14 @@ export type CreateProductBody = Static<typeof CreateProductBodySchema>;
 
 export const UpdateProductBodySchema = Type.Object({
   name: Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
-  description: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  description: Type.Optional(Type.Union([Type.String({ maxLength: 2000 }), Type.Null()])),
   isActive: Type.Optional(Type.Boolean()),
 });
 
 export type UpdateProductBody = Static<typeof UpdateProductBodySchema>;
 
 export const ProductParamsSchema = Type.Object({
-  id: Type.String(),
+  id: Type.String({ format: "uuid" }),
 });
 
 export type ProductParams = Static<typeof ProductParamsSchema>;
@@ -57,31 +57,31 @@ export const ProductsResponseSchema = Type.Array(ProductResponseSchema);
 
 export const CreateEnvironmentBodySchema = Type.Object({
   name:                Type.String({ minLength: 1, maxLength: 255 }),
-  description:         Type.Optional(Type.String()),
+  description:         Type.Optional(Type.String({ maxLength: 2000 })),
   order:               Type.Optional(Type.Number({ minimum: 0 })),
-  slackChannelId:      Type.Optional(Type.String()),
-  defaultAwsAccountId: Type.Optional(Type.String()),
-  defaultAwsRegion:    Type.Optional(Type.String()),
-  onCallAlarmPattern:  Type.Optional(Type.String()),
+  slackChannelId:      Type.Optional(Type.String({ maxLength: 255 })),
+  defaultAwsAccountId: Type.Optional(Type.String({ maxLength: 255 })),
+  defaultAwsRegion:    Type.Optional(Type.String({ maxLength: 255 })),
+  onCallAlarmPattern:  Type.Optional(Type.String({ maxLength: 500 })),
 });
 
 export type CreateEnvironmentBody = Static<typeof CreateEnvironmentBodySchema>;
 
 export const UpdateEnvironmentBodySchema = Type.Object({
   name:                Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
-  description:         Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  description:         Type.Optional(Type.Union([Type.String({ maxLength: 2000 }), Type.Null()])),
   order:               Type.Optional(Type.Number({ minimum: 0 })),
-  slackChannelId:      Type.Optional(Type.Union([Type.String(), Type.Null()])),
-  defaultAwsAccountId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-  defaultAwsRegion:    Type.Optional(Type.Union([Type.String(), Type.Null()])),
-  onCallAlarmPattern:  Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  slackChannelId:      Type.Optional(Type.Union([Type.String({ maxLength: 255 }), Type.Null()])),
+  defaultAwsAccountId: Type.Optional(Type.Union([Type.String({ maxLength: 255 }), Type.Null()])),
+  defaultAwsRegion:    Type.Optional(Type.Union([Type.String({ maxLength: 255 }), Type.Null()])),
+  onCallAlarmPattern:  Type.Optional(Type.Union([Type.String({ maxLength: 500 }), Type.Null()])),
 });
 
 export type UpdateEnvironmentBody = Static<typeof UpdateEnvironmentBodySchema>;
 
 export const EnvironmentParamsSchema = Type.Object({
-  productId: Type.String(),
-  id: Type.String(),
+  productId: Type.String({ format: "uuid" }),
+  id: Type.String({ format: "uuid" }),
 });
 
 export type EnvironmentParams = Static<typeof EnvironmentParamsSchema>;
@@ -110,7 +110,7 @@ export const EnvironmentsResponseSchema = Type.Array(EnvironmentResponseSchema);
 
 export const CreateResourceBodySchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 255 }),
-  description: Type.Optional(Type.String()),
+  description: Type.Optional(Type.String({ maxLength: 2000 })),
   typeId: Type.String({ format: "uuid" }),
 });
 
@@ -118,15 +118,15 @@ export type CreateResourceBody = Static<typeof CreateResourceBodySchema>;
 
 export const UpdateResourceBodySchema = Type.Object({
   name: Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
-  description: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  description: Type.Optional(Type.Union([Type.String({ maxLength: 2000 }), Type.Null()])),
   typeId: Type.Optional(Type.String({ format: "uuid" })),
 });
 
 export type UpdateResourceBody = Static<typeof UpdateResourceBodySchema>;
 
 export const ResourceParamsSchema = Type.Object({
-  productId: Type.String(),
-  id: Type.String(),
+  productId: Type.String({ format: "uuid" }),
+  id: Type.String({ format: "uuid" }),
 });
 
 export type ResourceParams = Static<typeof ResourceParamsSchema>;
@@ -153,8 +153,8 @@ export const ResourcesResponseSchema = Type.Array(ResourceResponseSchema);
 
 export const CreateRunbookBodySchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 255 }),
-  description: Type.Optional(Type.String()),
-  link: Type.String({ minLength: 1, pattern: "^https?://" }),
+  description: Type.Optional(Type.String({ maxLength: 2000 })),
+  link: Type.String({ minLength: 1, maxLength: 2000, pattern: "^https?://" }),
   status: Type.Optional(RunbookStatusSchema),
 });
 
@@ -162,16 +162,16 @@ export type CreateRunbookBody = Static<typeof CreateRunbookBodySchema>;
 
 export const UpdateRunbookBodySchema = Type.Object({
   name: Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
-  description: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-  link: Type.Optional(Type.String({ minLength: 1, pattern: "^https?://" })),
+  description: Type.Optional(Type.Union([Type.String({ maxLength: 2000 }), Type.Null()])),
+  link: Type.Optional(Type.String({ minLength: 1, maxLength: 2000, pattern: "^https?://" })),
   status: Type.Optional(RunbookStatusSchema),
 });
 
 export type UpdateRunbookBody = Static<typeof UpdateRunbookBodySchema>;
 
 export const RunbookParamsSchema = Type.Object({
-  productId: Type.String(),
-  id: Type.String(),
+  productId: Type.String({ format: "uuid" }),
+  id: Type.String({ format: "uuid" }),
 });
 
 export type RunbookParams = Static<typeof RunbookParamsSchema>;
@@ -195,7 +195,7 @@ export const RunbooksResponseSchema = Type.Array(RunbookResponseSchema);
 
 export const CreateFinalActionBodySchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 255 }),
-  description: Type.Optional(Type.String()),
+  description: Type.Optional(Type.String({ maxLength: 2000 })),
   order: Type.Optional(Type.Number({ minimum: 0 })),
   isOther: Type.Optional(Type.Boolean()),
 });
@@ -204,7 +204,7 @@ export type CreateFinalActionBody = Static<typeof CreateFinalActionBodySchema>;
 
 export const UpdateFinalActionBodySchema = Type.Object({
   name: Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
-  description: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  description: Type.Optional(Type.Union([Type.String({ maxLength: 2000 }), Type.Null()])),
   order: Type.Optional(Type.Number({ minimum: 0 })),
   isOther: Type.Optional(Type.Boolean()),
 });
@@ -212,8 +212,8 @@ export const UpdateFinalActionBodySchema = Type.Object({
 export type UpdateFinalActionBody = Static<typeof UpdateFinalActionBodySchema>;
 
 export const FinalActionParamsSchema = Type.Object({
-  productId: Type.String(),
-  id: Type.String(),
+  productId: Type.String({ format: "uuid" }),
+  id: Type.String({ format: "uuid" }),
 });
 
 export type FinalActionParams = Static<typeof FinalActionParamsSchema>;
@@ -237,23 +237,23 @@ export const FinalActionsResponseSchema = Type.Array(FinalActionResponseSchema);
 
 export const CreateAlarmBodySchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 255 }),
-  description: Type.Optional(Type.String()),
-  runbookId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  description: Type.Optional(Type.String({ maxLength: 2000 })),
+  runbookId: Type.Optional(Type.Union([Type.String({ format: "uuid" }), Type.Null()])),
 });
 
 export type CreateAlarmBody = Static<typeof CreateAlarmBodySchema>;
 
 export const UpdateAlarmBodySchema = Type.Object({
   name: Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
-  description: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-  runbookId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  description: Type.Optional(Type.Union([Type.String({ maxLength: 2000 }), Type.Null()])),
+  runbookId: Type.Optional(Type.Union([Type.String({ format: "uuid" }), Type.Null()])),
 });
 
 export type UpdateAlarmBody = Static<typeof UpdateAlarmBodySchema>;
 
 export const AlarmParamsSchema = Type.Object({
-  productId: Type.String(),
-  id: Type.String(),
+  productId: Type.String({ format: "uuid" }),
+  id: Type.String({ format: "uuid" }),
 });
 
 export type AlarmParams = Static<typeof AlarmParamsSchema>;
@@ -283,21 +283,21 @@ export const AlarmsResponseSchema = Type.Array(AlarmResponseSchema);
 
 export const CreateDownstreamBodySchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 255 }),
-  description: Type.Optional(Type.String()),
+  description: Type.Optional(Type.String({ maxLength: 2000 })),
 });
 
 export type CreateDownstreamBody = Static<typeof CreateDownstreamBodySchema>;
 
 export const UpdateDownstreamBodySchema = Type.Object({
   name: Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
-  description: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  description: Type.Optional(Type.Union([Type.String({ maxLength: 2000 }), Type.Null()])),
 });
 
 export type UpdateDownstreamBody = Static<typeof UpdateDownstreamBodySchema>;
 
 export const DownstreamParamsSchema = Type.Object({
-  productId: Type.String(),
-  id: Type.String(),
+  productId: Type.String({ format: "uuid" }),
+  id: Type.String({ format: "uuid" }),
 });
 
 export type DownstreamParams = Static<typeof DownstreamParamsSchema>;
@@ -334,9 +334,9 @@ const TimeConstraintSchema = Type.Object({
 });
 
 export const CreateIgnoredAlarmBodySchema = Type.Object({
-  alarmId: Type.String(),
-  environmentId: Type.String(),
-  reason: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  alarmId: Type.String({ format: "uuid" }),
+  environmentId: Type.String({ format: "uuid" }),
+  reason: Type.Optional(Type.Union([Type.String({ maxLength: 2000 }), Type.Null()])),
   isActive: Type.Optional(Type.Boolean()),
   validity: Type.Optional(Type.Array(TimeConstraintSchema)),
   exclusions: Type.Optional(Type.Array(TimeConstraintSchema)),
@@ -345,9 +345,9 @@ export const CreateIgnoredAlarmBodySchema = Type.Object({
 export type CreateIgnoredAlarmBody = Static<typeof CreateIgnoredAlarmBodySchema>;
 
 export const UpdateIgnoredAlarmBodySchema = Type.Object({
-  alarmId: Type.Optional(Type.String()),
-  environmentId: Type.Optional(Type.String()),
-  reason: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  alarmId: Type.Optional(Type.String({ format: "uuid" })),
+  environmentId: Type.Optional(Type.String({ format: "uuid" })),
+  reason: Type.Optional(Type.Union([Type.String({ maxLength: 2000 }), Type.Null()])),
   isActive: Type.Optional(Type.Boolean()),
   validity: Type.Optional(Type.Array(TimeConstraintSchema)),
   exclusions: Type.Optional(Type.Array(TimeConstraintSchema)),
@@ -356,8 +356,8 @@ export const UpdateIgnoredAlarmBodySchema = Type.Object({
 export type UpdateIgnoredAlarmBody = Static<typeof UpdateIgnoredAlarmBodySchema>;
 
 export const IgnoredAlarmParamsSchema = Type.Object({
-  productId: Type.String(),
-  id: Type.String(),
+  productId: Type.String({ format: "uuid" }),
+  id: Type.String({ format: "uuid" }),
 });
 
 export type IgnoredAlarmParams = Static<typeof IgnoredAlarmParamsSchema>;

@@ -15,6 +15,7 @@ import { requirePermission } from "../../lib/require-permission.js";
 import { buildDiff } from "../../services/system-event.service.js";
 import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
 import { HttpError } from "../../utils/http-errors.js";
+import { validateRegexPattern } from "../../utils/validate-regex.js";
 import {
   CreateProductBodySchema,
   UpdateProductBodySchema,
@@ -569,6 +570,13 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           return HttpError.notFound(reply, "Product");
         }
 
+        if (request.body.onCallAlarmPattern) {
+          const regexError = validateRegexPattern(request.body.onCallAlarmPattern);
+          if (regexError) {
+            return HttpError.badRequest(reply, `onCallAlarmPattern: ${regexError}`);
+          }
+        }
+
         const environment = await prisma.environment.create({
           data: {
             name:                request.body.name,
@@ -632,8 +640,15 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const existingEnv = await prisma.environment.findUnique({
-          where: { id: request.params.id },
+        if (request.body.onCallAlarmPattern) {
+          const regexError = validateRegexPattern(request.body.onCallAlarmPattern);
+          if (regexError) {
+            return HttpError.badRequest(reply, `onCallAlarmPattern: ${regexError}`);
+          }
+        }
+
+        const existingEnv = await prisma.environment.findFirst({
+          where: { id: request.params.id, productId: request.params.productId },
           select: { name: true, description: true, order: true, slackChannelId: true, defaultAwsAccountId: true, defaultAwsRegion: true, onCallAlarmPattern: true },
         });
 
@@ -710,8 +725,8 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const envToDelete = await prisma.environment.findUnique({
-          where: { id: request.params.id },
+        const envToDelete = await prisma.environment.findFirst({
+          where: { id: request.params.id, productId: request.params.productId },
           select: { name: true },
         });
 
@@ -889,8 +904,8 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const existingRes = await prisma.resource.findUnique({
-          where: { id: request.params.id },
+        const existingRes = await prisma.resource.findFirst({
+          where: { id: request.params.id, productId: request.params.productId },
           select: { name: true, description: true, typeId: true },
         });
 
@@ -961,8 +976,8 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const resToDelete = await prisma.resource.findUnique({
-          where: { id: request.params.id },
+        const resToDelete = await prisma.resource.findFirst({
+          where: { id: request.params.id, productId: request.params.productId },
           select: { name: true },
         });
 
@@ -1139,8 +1154,8 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const existingRunbook = await prisma.runbook.findUnique({
-          where: { id: request.params.id },
+        const existingRunbook = await prisma.runbook.findFirst({
+          where: { id: request.params.id, productId: request.params.productId },
           select: { name: true, description: true, link: true, status: true },
         });
 
@@ -1211,8 +1226,8 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const runbookToDelete = await prisma.runbook.findUnique({
-          where: { id: request.params.id },
+        const runbookToDelete = await prisma.runbook.findFirst({
+          where: { id: request.params.id, productId: request.params.productId },
           select: { name: true },
         });
 
@@ -1389,8 +1404,8 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const existingFa = await prisma.finalAction.findUnique({
-          where: { id: request.params.id },
+        const existingFa = await prisma.finalAction.findFirst({
+          where: { id: request.params.id, productId: request.params.productId },
           select: { name: true, description: true, order: true, isOther: true },
         });
 
@@ -1461,8 +1476,8 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const faToDelete = await prisma.finalAction.findUnique({
-          where: { id: request.params.id },
+        const faToDelete = await prisma.finalAction.findFirst({
+          where: { id: request.params.id, productId: request.params.productId },
           select: { name: true },
         });
 
@@ -1718,8 +1733,8 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     async (request, reply) => {
       try {
         // Fetch name before deletion for audit
-        const alarmToDelete = await prisma.alarm.findUnique({
-          where: { id: request.params.id },
+        const alarmToDelete = await prisma.alarm.findFirst({
+          where: { id: request.params.id, productId: request.params.productId },
           select: { name: true },
         });
 
@@ -1890,8 +1905,8 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const existingDs = await prisma.downstream.findUnique({
-          where: { id: request.params.id },
+        const existingDs = await prisma.downstream.findFirst({
+          where: { id: request.params.id, productId: request.params.productId },
           select: { name: true, description: true },
         });
 
@@ -1958,8 +1973,8 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const dsToDelete = await prisma.downstream.findUnique({
-          where: { id: request.params.id },
+        const dsToDelete = await prisma.downstream.findFirst({
+          where: { id: request.params.id, productId: request.params.productId },
           select: { name: true },
         });
 
@@ -2275,8 +2290,8 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
     async (request, reply) => {
       try {
         // Fetch name before deletion for audit
-        const ignoredAlarmToDelete = await prisma.ignoredAlarm.findUnique({
-          where: { id: request.params.id },
+        const ignoredAlarmToDelete = await prisma.ignoredAlarm.findFirst({
+          where: { id: request.params.id, productId: request.params.productId },
           include: { alarm: { select: { name: true } } },
         });
 

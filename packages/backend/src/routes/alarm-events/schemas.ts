@@ -51,7 +51,7 @@ export type AlarmEventResponse = Static<typeof AlarmEventResponseSchema>;
 // ─── Params ───────────────────────────────────────────────────────────────────
 
 export const AlarmEventParamsSchema = Type.Object({
-  id: Type.String(),
+  id: Type.String({ format: "uuid" }),
 });
 
 export type AlarmEventParams = Static<typeof AlarmEventParamsSchema>;
@@ -76,14 +76,14 @@ export type AlarmEventsQuery = Static<typeof AlarmEventsQuerySchema>;
 // ─── Create ───────────────────────────────────────────────────────────────────
 
 export const CreateAlarmEventBodySchema = Type.Object({
-  name:          Type.String({ minLength: 1 }),
+  name:          Type.String({ minLength: 1, maxLength: 500 }),
   firedAt:       Type.String({ format: "date-time" }),
-  productId:     Type.String({ minLength: 1 }),
-  environmentId: Type.String({ minLength: 1 }),
-  awsRegion:     Type.String({ minLength: 1 }),
-  awsAccountId:  Type.String({ minLength: 1 }),
-  description:   Type.Optional(Type.Union([Type.String(), Type.Null()])),
-  reason:        Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  productId:     Type.String({ format: "uuid" }),
+  environmentId: Type.String({ format: "uuid" }),
+  awsRegion:     Type.String({ minLength: 1, maxLength: 100 }),
+  awsAccountId:  Type.String({ minLength: 1, maxLength: 100 }),
+  description:   Type.Optional(Type.Union([Type.String({ maxLength: 5000 }), Type.Null()])),
+  reason:        Type.Optional(Type.Union([Type.String({ maxLength: 2000 }), Type.Null()])),
 });
 
 export type CreateAlarmEventBody = Static<typeof CreateAlarmEventBodySchema>;
@@ -92,10 +92,10 @@ export type CreateAlarmEventBody = Static<typeof CreateAlarmEventBodySchema>;
 
 // firedAt, name, awsRegion, awsAccountId sono immutabili (dati originali AWS)
 export const UpdateAlarmEventBodySchema = Type.Object({
-  description: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-  reason:      Type.Optional(Type.Union([Type.String(), Type.Null()])),
-  alarmId:     Type.Optional(Type.Union([Type.String(), Type.Null()])),
-  analysisId:  Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  description: Type.Optional(Type.Union([Type.String({ maxLength: 5000 }), Type.Null()])),
+  reason:      Type.Optional(Type.Union([Type.String({ maxLength: 2000 }), Type.Null()])),
+  alarmId:     Type.Optional(Type.Union([Type.String({ format: "uuid" }), Type.Null()])),
+  analysisId:  Type.Optional(Type.Union([Type.String({ format: "uuid" }), Type.Null()])),
 });
 
 export type UpdateAlarmEventBody = Static<typeof UpdateAlarmEventBodySchema>;

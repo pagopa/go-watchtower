@@ -29,9 +29,9 @@ export type IgnoreReasonParams = Static<typeof IgnoreReasonParamsSchema>;
 // ─── Create ────────────────────────────────────────────────────────────────
 
 export const CreateIgnoreReasonBodySchema = Type.Object({
-  code:          Type.String({ minLength: 1, pattern: IGNORE_REASON_CODE_PATTERN }),
-  label:         Type.String({ minLength: 1 }),
-  description:   Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  code:          Type.String({ minLength: 1, maxLength: 100, pattern: IGNORE_REASON_CODE_PATTERN }),
+  label:         Type.String({ minLength: 1, maxLength: 255 }),
+  description:   Type.Optional(Type.Union([Type.String({ maxLength: 2000 }), Type.Null()])),
   sortOrder:     Type.Optional(Type.Integer({ minimum: 0, default: 0 })),
   detailsSchema: Type.Optional(Type.Union([Type.Record(Type.String(), Type.Unknown()), Type.Null()])),
 });
@@ -41,8 +41,8 @@ export type CreateIgnoreReasonBody = Static<typeof CreateIgnoreReasonBodySchema>
 // ─── Update ────────────────────────────────────────────────────────────────
 
 export const UpdateIgnoreReasonBodySchema = Type.Object({
-  label:         Type.Optional(Type.String({ minLength: 1 })),
-  description:   Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  label:         Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
+  description:   Type.Optional(Type.Union([Type.String({ maxLength: 2000 }), Type.Null()])),
   sortOrder:     Type.Optional(Type.Integer({ minimum: 0 })),
   detailsSchema: Type.Optional(Type.Union([Type.Record(Type.String(), Type.Unknown()), Type.Null()])),
 });
