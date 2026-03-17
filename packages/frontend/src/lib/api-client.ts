@@ -851,6 +851,8 @@ export interface AlarmEventsFilters {
   awsRegion?: string
   dateFrom?: string
   dateTo?: string
+  hasAnalysis?: 'true' | 'false'
+  name?: string
   page?: number
   pageSize?: number
 }

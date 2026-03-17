@@ -82,7 +82,7 @@ export async function alarmEventRoutes(app: FastifyInstance) {
       },
     },
     async (request, reply) => {
-      const { productId, environmentId, alarmId, analysisId, awsAccountId, awsRegion, dateFrom, dateTo, page = 1, pageSize = 20 } = request.query;
+      const { productId, environmentId, alarmId, analysisId, awsAccountId, awsRegion, dateFrom, dateTo, hasAnalysis, name, page = 1, pageSize = 20 } = request.query;
 
       const where = {
         ...(productId     && { productId }),
@@ -97,6 +97,9 @@ export async function alarmEventRoutes(app: FastifyInstance) {
             ...(dateTo   && { lte: new Date(dateTo) }),
           },
         }),
+        ...(hasAnalysis === 'true'  && { analysisId: { not: null } }),
+        ...(hasAnalysis === 'false' && { analysisId: null }),
+        ...(name && { name: { contains: name, mode: 'insensitive' as const } }),
       };
 
       const [totalItems, data] = await Promise.all([

@@ -481,7 +481,10 @@ export function AlarmEventGroupedView({
     ...(filters.environmentIds.length > 0 && { environmentId: filters.environmentIds }),
     ...(filters.awsAccountId  && { awsAccountId:  filters.awsAccountId }),
     ...(filters.awsRegion     && { awsRegion:      filters.awsRegion }),
-  }), [dateFrom, dateTo, filters.environmentIds, filters.awsAccountId, filters.awsRegion])
+    ...(filters.hasAnalysis === 'with'    && { hasAnalysis: 'true' as const }),
+    ...(filters.hasAnalysis === 'without' && { hasAnalysis: 'false' as const }),
+    ...(filters.alarmName && { name: filters.alarmName }),
+  }), [dateFrom, dateTo, filters.environmentIds, filters.awsAccountId, filters.awsRegion, filters.hasAnalysis, filters.alarmName])
 
   const isToday = referenceDate === todayUTC()
 

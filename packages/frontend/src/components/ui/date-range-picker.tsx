@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback } from 'react'
 import { formatJsDate, isSameDay } from '@go-watchtower/shared'
 import { CalendarIcon, X } from 'lucide-react'
 import type { DateRange } from 'react-day-picker'
@@ -47,22 +47,20 @@ export function DateRangePicker({
 
   const hasPresets = presets && presets.length > 0
 
-  // Track whether range is complete to reset on next click
-  const rangeCompleteRef = useRef(false)
-  useEffect(() => {
-    rangeCompleteRef.current = !!(value?.from && value?.to)
-  }, [value?.from, value?.to])
-
   const handleCalendarSelect = useCallback(
     (_range: DateRange | undefined, triggerDate: Date) => {
-      if (rangeCompleteRef.current) {
-        // Range was complete — restart from the clicked day
+      // Treat range as complete only when both ends exist and differ.
+      // Same-day selections (from === to) are intermediate — let
+      // react-day-picker complete the range on the next click.
+      const rangeComplete =
+        !!(value?.from && value?.to) && !isSameDay(value.from, value.to)
+      if (rangeComplete) {
         onChange({ from: triggerDate, to: undefined })
       } else {
         onChange(_range)
       }
     },
-    [onChange],
+    [onChange, value?.from, value?.to],
   )
 
   return (

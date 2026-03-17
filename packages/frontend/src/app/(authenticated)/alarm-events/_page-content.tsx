@@ -96,6 +96,8 @@ const DEFAULT_FILTERS: AlarmEventFiltersState = {
   awsRegion:    '',
   dateFrom:     '',
   dateTo:       '',
+  hasAnalysis:  '',
+  alarmName:    '',
 }
 
 const ALARM_EVENT_COLUMNS = COLUMN_REGISTRY.alarmEvents
@@ -320,10 +322,14 @@ function AlarmEventsPageContent() {
     ...(filters.awsRegion    && { awsRegion:    filters.awsRegion }),
     ...(filters.dateFrom     && { dateFrom:     filters.dateFrom }),
     ...(filters.dateTo       && { dateTo:       filters.dateTo }),
+    ...(filters.hasAnalysis === 'with'    && { hasAnalysis: 'true' as const }),
+    ...(filters.hasAnalysis === 'without' && { hasAnalysis: 'false' as const }),
+    ...(filters.alarmName && { name: filters.alarmName }),
   }), [
     page, pageSize,
     filters.environmentIds, filters.awsAccountId,
     filters.awsRegion, filters.dateFrom, filters.dateTo,
+    filters.hasAnalysis, filters.alarmName,
   ])
 
   const {
@@ -613,32 +619,32 @@ function AlarmEventsPageContent() {
       />
 
       {/* Results Bar */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+      <div className="flex items-center justify-between rounded-lg border bg-card px-4 py-2.5">
+        {/* Left: status block */}
+        <div className="flex items-center gap-4">
           {viewMode === 'list' && pagination && (
-            <p>
-              <span className="font-medium tabular-nums text-foreground">{pagination.totalItems}</span>
-              {' '}allarmi trovati
-            </p>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-lg font-semibold tabular-nums leading-none text-foreground">{pagination.totalItems}</span>
+              <span className="text-xs text-muted-foreground">allarmi</span>
+            </div>
           )}
-          {eventsUpdatedAt > 0 && (
-            <span className="text-xs text-muted-foreground/60">
-              agg. {new Date(eventsUpdatedAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-            </span>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 p-0"
+          <button
+            type="button"
             onClick={() => refetchEvents()}
             disabled={eventsFetching}
-            title="Aggiorna dati"
+            className="group flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${eventsFetching ? 'animate-spin' : ''}`} />
-          </Button>
+            <RefreshCw className={`h-3 w-3 ${eventsFetching ? 'animate-spin' : 'group-hover:text-foreground'}`} />
+            {eventsUpdatedAt > 0 && (
+              <span className="tabular-nums">
+                {new Date(eventsUpdatedAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </span>
+            )}
+          </button>
         </div>
+
+        {/* Right: controls */}
         <div className="flex items-center gap-2">
-          {/* View mode dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="gap-1.5">

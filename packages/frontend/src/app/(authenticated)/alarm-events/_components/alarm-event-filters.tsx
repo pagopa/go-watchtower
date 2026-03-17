@@ -17,6 +17,8 @@ export interface AlarmEventFiltersState {
   awsRegion: string
   dateFrom: string
   dateTo: string
+  hasAnalysis: '' | 'with' | 'without'
+  alarmName: string
 }
 
 /** Product with its environments, used to build grouped multi-select. */
@@ -62,6 +64,81 @@ const ALARM_DATE_PRESETS: DateRangePreset[] = [
   { label: 'Mese',      range: () => ({ from: startOfMonth(new Date()), to: eod(new Date()) }) },
 ]
 
+// ─── Active filter chips (collapsed header) ──────────────────────────────────
+
+interface FilterChip {
+  key: string
+  label: string
+}
+
+function buildActiveChips(
+  filters: AlarmEventFiltersState,
+  productEnvironments: ProductWithEnvironments[],
+): FilterChip[] {
+  const chips: FilterChip[] = []
+
+  if (filters.environmentIds.length > 0) {
+    // Build a envId → "Prodotto\Ambiente" lookup
+    const envLabelMap = new Map<string, string>()
+    for (const pe of productEnvironments) {
+      for (const env of pe.environments) {
+        envLabelMap.set(env.id, `${pe.product.name}\\${env.name}`)
+      }
+    }
+    if (filters.environmentIds.length <= 2) {
+      for (const envId of filters.environmentIds) {
+        const label = envLabelMap.get(envId) ?? envId
+        chips.push({ key: `env:${envId}`, label })
+      }
+    } else {
+      chips.push({ key: 'env', label: `${filters.environmentIds.length} ambienti` })
+    }
+  }
+
+  if (filters.dateFrom || filters.dateTo) {
+    if (filters.dateFrom && filters.dateTo) {
+      chips.push({
+        key: 'date',
+        label: `${formatJsDate(new Date(filters.dateFrom), 'dd MMM')} – ${formatJsDate(new Date(filters.dateTo), 'dd MMM')}`,
+      })
+    } else if (filters.dateFrom) {
+      chips.push({ key: 'date', label: `Da ${formatJsDate(new Date(filters.dateFrom), 'dd MMM')}` })
+    }
+  }
+
+  if (filters.hasAnalysis === 'with') {
+    chips.push({ key: 'analysis', label: 'Con analisi' })
+  } else if (filters.hasAnalysis === 'without') {
+    chips.push({ key: 'analysis', label: 'Senza analisi' })
+  }
+
+  if (filters.alarmName) {
+    const name = filters.alarmName.length > 18 ? filters.alarmName.slice(0, 18) + '\u2026' : filters.alarmName
+    chips.push({ key: 'name', label: name })
+  }
+
+  if (filters.awsRegion) {
+    chips.push({ key: 'region', label: filters.awsRegion })
+  }
+
+  if (filters.awsAccountId) {
+    const acc = filters.awsAccountId.length > 12
+      ? '\u2026' + filters.awsAccountId.slice(-8)
+      : filters.awsAccountId
+    chips.push({ key: 'account', label: acc })
+  }
+
+  return chips
+}
+
+// ─── Segmented toggle options ─────────────────────────────────────────────────
+
+const ANALYSIS_OPTIONS = [
+  { value: '' as const, label: 'Tutti' },
+  { value: 'with' as const, label: 'Con' },
+  { value: 'without' as const, label: 'Senza' },
+]
+
 // ─── Main component ──────────────────────────────────────────────────────────
 
 export function AlarmEventFilters({
@@ -76,41 +153,79 @@ export function AlarmEventFilters({
     onFilterChange({ ...filters, [key]: value })
   }
 
-  // Debounced aws fields
+  // Debounced text fields
   const [awsAccountIdLocal, setAwsAccountIdLocal] = useState(filters.awsAccountId)
   const [awsRegionLocal, setAwsRegionLocal] = useState(filters.awsRegion)
+  const [alarmNameLocal, setAlarmNameLocal] = useState(filters.alarmName)
   const awsAccountTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const awsRegionTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const alarmNameTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     return () => {
       if (awsAccountTimer.current) clearTimeout(awsAccountTimer.current)
       if (awsRegionTimer.current) clearTimeout(awsRegionTimer.current)
+      if (alarmNameTimer.current) clearTimeout(alarmNameTimer.current)
     }
   }, [])
 
   const handleAwsAccountChange = (value: string) => {
     setAwsAccountIdLocal(value)
     if (awsAccountTimer.current) clearTimeout(awsAccountTimer.current)
-    awsAccountTimer.current = setTimeout(() => {
-      updateFilter('awsAccountId', value)
-    }, 400)
+    awsAccountTimer.current = setTimeout(() => updateFilter('awsAccountId', value), 400)
   }
 
   const handleAwsRegionChange = (value: string) => {
     setAwsRegionLocal(value)
     if (awsRegionTimer.current) clearTimeout(awsRegionTimer.current)
-    awsRegionTimer.current = setTimeout(() => {
-      updateFilter('awsRegion', value)
-    }, 400)
+    awsRegionTimer.current = setTimeout(() => updateFilter('awsRegion', value), 400)
+  }
+
+  const handleAlarmNameChange = (value: string) => {
+    setAlarmNameLocal(value)
+    if (alarmNameTimer.current) clearTimeout(alarmNameTimer.current)
+    alarmNameTimer.current = setTimeout(() => updateFilter('alarmName', value), 400)
   }
 
   const handleReset = () => {
     if (awsAccountTimer.current) { clearTimeout(awsAccountTimer.current); awsAccountTimer.current = null }
     if (awsRegionTimer.current) { clearTimeout(awsRegionTimer.current); awsRegionTimer.current = null }
+    if (alarmNameTimer.current) { clearTimeout(alarmNameTimer.current); alarmNameTimer.current = null }
     setAwsAccountIdLocal('')
     setAwsRegionLocal('')
+    setAlarmNameLocal('')
     onReset()
+  }
+
+  const handleRemoveChip = (key: string) => {
+    const updated = { ...filters }
+    if (key.startsWith('env:')) {
+      const envId = key.slice(4)
+      updated.environmentIds = updated.environmentIds.filter((id) => id !== envId)
+      onFilterChange(updated)
+      return
+    }
+    switch (key) {
+      case 'env': updated.environmentIds = []; break
+      case 'date': updated.dateFrom = ''; updated.dateTo = ''; break
+      case 'analysis': updated.hasAnalysis = ''; break
+      case 'name':
+        if (alarmNameTimer.current) { clearTimeout(alarmNameTimer.current); alarmNameTimer.current = null }
+        setAlarmNameLocal('')
+        updated.alarmName = ''
+        break
+      case 'region':
+        if (awsRegionTimer.current) { clearTimeout(awsRegionTimer.current); awsRegionTimer.current = null }
+        setAwsRegionLocal('')
+        updated.awsRegion = ''
+        break
+      case 'account':
+        if (awsAccountTimer.current) { clearTimeout(awsAccountTimer.current); awsAccountTimer.current = null }
+        setAwsAccountIdLocal('')
+        updated.awsAccountId = ''
+        break
+    }
+    onFilterChange(updated)
   }
 
   const dateRange = useMemo(
@@ -128,18 +243,26 @@ export function AlarmEventFilters({
     filters.awsAccountId,
     filters.awsRegion,
     filters.dateFrom || filters.dateTo,
+    filters.hasAnalysis,
+    filters.alarmName,
   ].filter(Boolean).length
+
+  const activeChips = useMemo(
+    () => buildActiveChips(filters, productEnvironments),
+    [filters, productEnvironments],
+  )
 
   return (
     <div className="rounded-lg border">
-      {/* Collapsible header */}
+      {/* ── Header ── */}
       <button
         type="button"
         onClick={onToggleCollapsed}
-        className="flex w-full items-center justify-between p-4 text-sm font-medium hover:bg-muted/50 transition-colors"
+        className="flex w-full items-center gap-3 px-4 py-3 text-sm font-medium hover:bg-muted/50 transition-colors"
       >
-        <div className="flex items-center gap-2">
-          <SlidersHorizontal className="h-4 w-4" />
+        {/* Left: icon + label + count */}
+        <div className="flex items-center gap-2 shrink-0">
+          <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
           <span>Filtri</span>
           {activeFilterCount > 0 && (
             <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground">
@@ -147,26 +270,111 @@ export function AlarmEventFilters({
             </span>
           )}
         </div>
-        <ChevronDown className={cn('h-4 w-4 transition-transform duration-200', !collapsed && 'rotate-180')} />
+
+        {/* Center: active filter chips (collapsed only) */}
+        {collapsed && activeChips.length > 0 && (
+          <div className="flex flex-1 items-center gap-1.5 overflow-hidden min-w-0">
+            {activeChips.map((chip) => (
+              <span
+                key={chip.key}
+                className="inline-flex shrink-0 items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+              >
+                <span className="truncate max-w-[200px]">{chip.label}</span>
+                <X
+                  className="h-3 w-3 shrink-0 cursor-pointer opacity-60 hover:opacity-100 hover:text-foreground transition-opacity"
+                  onClick={(e) => { e.stopPropagation(); handleRemoveChip(chip.key) }}
+                />
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Right: reset + chevron */}
+        <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+          {collapsed && activeFilterCount > 0 && (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={(e) => { e.stopPropagation(); handleReset() }}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); handleReset() } }}
+              className="inline-flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+              title="Pulisci filtri"
+            >
+              <X className="h-3.5 w-3.5" />
+            </span>
+          )}
+          <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform duration-200', !collapsed && 'rotate-180')} />
+        </div>
       </button>
 
+      {/* ── Expanded panel ── */}
       {!collapsed && (
-        <div className="animate-in fade-in slide-in-from-top-1 duration-150 space-y-4 border-t px-4 pb-4 pt-4">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="animate-in fade-in slide-in-from-top-1 duration-150 border-t px-4 pb-4 pt-4 space-y-4">
 
-            {/* Environment multi-select (grouped by product) — spans 2 cols */}
-            <div className="space-y-2 sm:col-span-2">
-              <Label>Ambiente</Label>
+          {/* Row 1 — primary scope filters */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Ambiente</Label>
               <EnvironmentMultiSelect
                 productEnvironments={productEnvironments}
                 selected={filters.environmentIds}
                 onChange={(ids) => updateFilter('environmentIds', ids)}
               />
             </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Periodo</Label>
+              <DateRangePicker
+                value={dateRange}
+                onChange={handleDateRangeChange}
+                presets={ALARM_DATE_PRESETS}
+                className="w-full"
+              />
+            </div>
+          </div>
 
-            {/* AWS Region */}
-            <div className="space-y-2">
-              <Label htmlFor="filter-aws-region">Region AWS</Label>
+          {/* Row 2 — detail filters */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+
+            {/* Analisi collegata — segmented toggle */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Analisi collegata</Label>
+              <div className="flex h-9 items-center rounded-md border border-input bg-muted/40 p-0.5">
+                {ANALYSIS_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => updateFilter('hasAnalysis', opt.value)}
+                    className={cn(
+                      'flex-1 rounded-[5px] px-2 py-1 text-xs font-medium transition-all',
+                      filters.hasAnalysis === opt.value
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Nome allarme */}
+            <div className="space-y-1.5">
+              <Label htmlFor="filter-alarm-name" className="text-xs text-muted-foreground">Nome allarme</Label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="filter-alarm-name"
+                  placeholder="Cerca allarme..."
+                  value={alarmNameLocal}
+                  onChange={(e) => handleAlarmNameChange(e.target.value)}
+                  className="pl-8 text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Region AWS */}
+            <div className="space-y-1.5">
+              <Label htmlFor="filter-aws-region" className="text-xs text-muted-foreground">Region AWS</Label>
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -179,9 +387,9 @@ export function AlarmEventFilters({
               </div>
             </div>
 
-            {/* AWS Account ID */}
-            <div className="space-y-2">
-              <Label htmlFor="filter-aws-account">Account AWS</Label>
+            {/* Account AWS */}
+            <div className="space-y-1.5">
+              <Label htmlFor="filter-aws-account" className="text-xs text-muted-foreground">Account AWS</Label>
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -194,26 +402,22 @@ export function AlarmEventFilters({
               </div>
             </div>
 
-            {/* Date range picker with presets — spans 2 cols */}
-            <div className="space-y-2 sm:col-span-2">
-              <Label>Periodo</Label>
-              <DateRangePicker
-                value={dateRange}
-                onChange={handleDateRangeChange}
-                presets={ALARM_DATE_PRESETS}
-                className="w-full"
-              />
+          </div>
+
+          {/* Footer — reset (only when filters are active) */}
+          {activeFilterCount > 0 && (
+            <div className="flex justify-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-destructive"
+                onClick={handleReset}
+              >
+                <X className="h-3 w-3" />
+                Pulisci filtri
+              </Button>
             </div>
-
-          </div>
-
-          {/* Reset */}
-          <div className="flex justify-end">
-            <Button variant="outline" size="sm" onClick={handleReset}>
-              <X className="mr-2 h-4 w-4" />
-              Pulisci filtri
-            </Button>
-          </div>
+          )}
         </div>
       )}
     </div>
