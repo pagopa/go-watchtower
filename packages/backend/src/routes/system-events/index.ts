@@ -34,6 +34,7 @@ export async function systemEventRoutes(fastify: FastifyInstance): Promise<void>
         const {
           action,
           resource,
+          resourceId,
           userId,
           dateFrom,
           dateTo,
@@ -52,6 +53,10 @@ export async function systemEventRoutes(fastify: FastifyInstance): Promise<void>
 
         if (resource) {
           where.resource = resource;
+        }
+
+        if (resourceId) {
+          where.resourceId = resourceId;
         }
 
         if (userId) {

@@ -337,11 +337,12 @@ function EnvironmentBlock({ env, days, today, isWeekend, totals }: {
       {/* Environment header */}
       <tr className="border-t-2 border-border/60">
         <td
-          colSpan={days.length + 2}
           className="sticky left-0 z-10 bg-muted/50 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-foreground/70"
         >
           {env.environmentName}
         </td>
+        <td colSpan={days.length} className="bg-muted/50" />
+        <td className="sticky right-0 z-10 bg-muted/50 border-l" />
       </tr>
       {/* Metric rows */}
       {ROW_DEFS.map((def) => {

@@ -9,9 +9,10 @@ export { ErrorResponseSchema };
 export const SystemEventsQuerySchema = Type.Object({
   action: Type.Optional(Type.Array(Type.String())),
   resource: Type.Optional(Type.String()),
+  resourceId: Type.Optional(Type.String()),
   userId: Type.Optional(Type.String()),
-  dateFrom: Type.Optional(Type.String({ format: "date-time" })),
-  dateTo: Type.Optional(Type.String({ format: "date-time" })),
+  dateFrom: Type.Optional(Type.String()),
+  dateTo: Type.Optional(Type.String()),
   page: Type.Optional(Type.Integer({ minimum: 1, default: 1 })),
   limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 200, default: 50 })),
   sortBy: Type.Optional(

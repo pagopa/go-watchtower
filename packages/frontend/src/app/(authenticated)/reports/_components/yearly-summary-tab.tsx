@@ -150,6 +150,9 @@ export function YearlySummaryTab({ products }: YearlySummaryTabProps) {
     )
   }, [data])
 
+  const prodAnalyzable = totals ? totals.prodAnalysisOccurrences - totals.prodIgnorableOccurrences : 0
+  const totalAnalyzable = totals ? totals.totalAnalysisOccurrences - totals.totalIgnorableOccurrences : 0
+
   const totalCoverage = totals && totals.prodAlarmEvents > 0
     ? Math.round((totals.prodAnalysisOccurrences / totals.prodAlarmEvents) * 10000) / 100
     : 0
@@ -170,31 +173,39 @@ export function YearlySummaryTab({ products }: YearlySummaryTabProps) {
 
   const handleExportCsv = useCallback(() => {
     if (!data) return
-    const rows = data.months.map((m) => ({
-      month: MONTH_NAMES[m.month - 1],
-      prodAlarmEvents: m.prodAlarmEvents,
-      prodAnalysisOccurrences: m.prodAnalysisOccurrences,
-      prodIgnorableOccurrences: m.prodIgnorableOccurrences,
-      prodOnCallAlarmEvents: m.prodOnCallAlarmEvents,
-      prodIgnorablePercent: m.prodIgnorablePercent,
-      prodCoveragePercent: m.prodCoveragePercent,
-      totalAlarmEvents: m.totalAlarmEvents,
-      totalAnalysisOccurrences: m.totalAnalysisOccurrences,
-      totalIgnorableOccurrences: m.totalIgnorableOccurrences,
-      totalOnCallAlarmEvents: m.totalOnCallAlarmEvents,
-      totalIgnorablePercent: m.totalIgnorablePercent,
-      totalCoveragePercent: m.totalCoveragePercent,
-    }))
+    const rows = data.months.map((m) => {
+      const prodAnalyzable = m.prodAnalysisOccurrences - m.prodIgnorableOccurrences
+      const totalAnalyzableM = m.totalAnalysisOccurrences - m.totalIgnorableOccurrences
+      return {
+        month: MONTH_NAMES[m.month - 1],
+        prodAlarmEvents: m.prodAlarmEvents,
+        prodAnalysisOccurrences: m.prodAnalysisOccurrences,
+        prodAnalyzableOccurrences: prodAnalyzable,
+        prodIgnorableOccurrences: m.prodIgnorableOccurrences,
+        prodOnCallAlarmEvents: m.prodOnCallAlarmEvents,
+        prodIgnorablePercent: m.prodIgnorablePercent,
+        prodCoveragePercent: m.prodCoveragePercent,
+        totalAlarmEvents: m.totalAlarmEvents,
+        totalAnalysisOccurrences: m.totalAnalysisOccurrences,
+        totalAnalyzableOccurrences: totalAnalyzableM,
+        totalIgnorableOccurrences: m.totalIgnorableOccurrences,
+        totalOnCallAlarmEvents: m.totalOnCallAlarmEvents,
+        totalIgnorablePercent: m.totalIgnorablePercent,
+        totalCoveragePercent: m.totalCoveragePercent,
+      }
+    })
     downloadCsv(rows, [
       { key: 'month', label: 'Mese' },
       { key: 'prodAlarmEvents', label: 'Allarmi Prod' },
       { key: 'prodAnalysisOccurrences', label: 'Analisi Prod (occ.)' },
+      { key: 'prodAnalyzableOccurrences', label: 'Analizzabili Prod (occ.)' },
       { key: 'prodIgnorableOccurrences', label: 'Ignorate Prod (occ.)' },
       { key: 'prodOnCallAlarmEvents', label: 'On-Call Prod' },
       { key: 'prodIgnorablePercent', label: 'Ign. % Prod' },
       { key: 'prodCoveragePercent', label: 'Copertura Prod %' },
       { key: 'totalAlarmEvents', label: 'Allarmi Totali' },
       { key: 'totalAnalysisOccurrences', label: 'Analisi Totali (occ.)' },
+      { key: 'totalAnalyzableOccurrences', label: 'Analizzabili Totali (occ.)' },
       { key: 'totalIgnorableOccurrences', label: 'Ignorate Totali (occ.)' },
       { key: 'totalOnCallAlarmEvents', label: 'On-Call Totali' },
       { key: 'totalIgnorablePercent', label: 'Ign. % Totale' },
@@ -322,66 +333,100 @@ export function YearlySummaryTab({ products }: YearlySummaryTabProps) {
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse text-sm">
-                    {/* Grouped header */}
+                    {/* Hierarchical header — 3 rows */}
                     <thead>
-                      {/* Group row */}
+                      {/* Row 1: Top-level groups */}
                       <tr className="border-b bg-muted/40">
-                        <th className="w-24 px-3 py-2" />
+                        <th rowSpan={3} className="sticky left-0 z-20 bg-card px-3 py-2 text-left text-xs font-medium text-muted-foreground align-bottom w-24">
+                          Mese
+                        </th>
                         <th
-                          colSpan={6}
+                          colSpan={7}
                           className="px-3 py-1.5 text-center text-[11px] font-semibold uppercase tracking-widest text-amber-700 dark:text-amber-400 border-x border-amber-200/40 dark:border-amber-800/30 bg-amber-500/[0.04]"
                         >
                           Produzione
                         </th>
                         <th
-                          colSpan={6}
+                          colSpan={7}
                           className="px-3 py-1.5 text-center text-[11px] font-semibold uppercase tracking-widest text-sky-700 dark:text-sky-400 border-l-2 border-border border-r border-sky-200/40 dark:border-sky-800/30 bg-sky-500/[0.04]"
                         >
                           Tutti gli ambienti
                         </th>
                       </tr>
-                      {/* Column labels — order: Allarmi, Analisi, Ignorate, On-Call, Ign. %, Copertura */}
+                      {/* Row 2: Sub-groups + standalone columns (rowSpan=2) */}
                       <tr className="border-b bg-muted/20">
-                        <th className="sticky left-0 z-10 bg-card px-3 py-2 text-left text-xs font-medium text-muted-foreground">
-                          Mese
-                        </th>
                         {/* ── Produzione ── */}
-                        <HeaderCell tip="Allarmi scattati in produzione (conteggio business-day)">
+                        <HeaderCell rowSpan={2} tip="Allarmi scattati in produzione (conteggio business-day)">
                           Allarmi
                         </HeaderCell>
-                        <HeaderCell tip="Somma occorrenze analisi (completate + ignorate) in ambienti di produzione">
-                          Analisi
-                        </HeaderCell>
-                        <HeaderCell tip="Somma occorrenze analisi da ignorare in produzione" muted>
-                          Ignorate
-                        </HeaderCell>
-                        <HeaderCell tip="Allarmi on-call scattati in produzione">
+                        <th colSpan={3} className="px-2 py-1 text-center bg-muted/30 border-x border-border/30">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 cursor-help border-b border-dotted border-muted-foreground/20">
+                                Analisi
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-72 text-xs">
+                              Totale analisi = Analizzabili + Ignorate
+                            </TooltipContent>
+                          </Tooltip>
+                        </th>
+                        <HeaderCell rowSpan={2} tip="Allarmi on-call scattati in produzione (sottoinsieme delle analizzabili)" subtitle="di analizzab.">
                           On-Call
                         </HeaderCell>
-                        <HeaderCell tip="Percentuale analisi ignorate sul totale analisi di produzione" muted>
+                        <HeaderCell rowSpan={2} tip="Percentuale analisi ignorate sul totale analisi di produzione" subtitle="su analisi" muted>
                           Ign. %
                         </HeaderCell>
-                        <HeaderCell tip="Analisi / Allarmi scattati in produzione">
+                        <HeaderCell rowSpan={2} tip="(Analizzabili + Ignorate) / Allarmi scattati in produzione">
                           Copertura
                         </HeaderCell>
                         {/* ── Tutti gli ambienti ── */}
-                        <HeaderCell tip="Allarmi scattati in tutti i prodotti e ambienti (conteggio business-day)" className="border-l-2 border-border">
+                        <HeaderCell rowSpan={2} tip="Allarmi scattati in tutti i prodotti e ambienti (conteggio business-day)" className="border-l-2 border-border">
                           Allarmi
                         </HeaderCell>
-                        <HeaderCell tip="Somma occorrenze analisi per tutti i prodotti e ambienti">
-                          Analisi
-                        </HeaderCell>
-                        <HeaderCell tip="Somma occorrenze analisi da ignorare per tutti i prodotti e ambienti" muted>
-                          Ignorate
-                        </HeaderCell>
-                        <HeaderCell tip="Allarmi on-call scattati in tutti gli ambienti">
+                        <th colSpan={3} className="px-2 py-1 text-center bg-muted/30 border-x border-border/30">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 cursor-help border-b border-dotted border-muted-foreground/20">
+                                Analisi
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-72 text-xs">
+                              Totale analisi = Analizzabili + Ignorate
+                            </TooltipContent>
+                          </Tooltip>
+                        </th>
+                        <HeaderCell rowSpan={2} tip="Allarmi on-call in tutti gli ambienti (sottoinsieme delle analizzabili)" subtitle="di analizzab.">
                           On-Call
                         </HeaderCell>
-                        <HeaderCell tip="Percentuale analisi ignorate sul totale analisi" muted>
+                        <HeaderCell rowSpan={2} tip="Percentuale analisi ignorate sul totale analisi" subtitle="su analisi" muted>
                           Ign. %
                         </HeaderCell>
-                        <HeaderCell tip="Analisi totali / Allarmi totali scattati">
+                        <HeaderCell rowSpan={2} tip="(Analizzabili + Ignorate) / Allarmi totali scattati">
                           Copertura
+                        </HeaderCell>
+                      </tr>
+                      {/* Row 3: Analisi sub-column labels */}
+                      <tr className="border-b bg-muted/10">
+                        {/* ── Produzione — Analisi breakdown ── */}
+                        <HeaderCell tip="Somma occorrenze analisi (analizzabili + ignorate) in produzione" className="border-l border-border/30">
+                          Totale
+                        </HeaderCell>
+                        <HeaderCell tip="Occorrenze analisi di tipo analizzabile in produzione">
+                          Analizzab.
+                        </HeaderCell>
+                        <HeaderCell tip="Occorrenze analisi da ignorare in produzione" muted className="border-r border-border/30">
+                          Ignorate
+                        </HeaderCell>
+                        {/* ── Tutti — Analisi breakdown ── */}
+                        <HeaderCell tip="Somma occorrenze analisi (analizzabili + ignorate) per tutti gli ambienti" className="border-l border-border/30">
+                          Totale
+                        </HeaderCell>
+                        <HeaderCell tip="Occorrenze analisi di tipo analizzabile per tutti gli ambienti">
+                          Analizzab.
+                        </HeaderCell>
+                        <HeaderCell tip="Occorrenze analisi da ignorare per tutti gli ambienti" muted className="border-r border-border/30">
+                          Ignorate
                         </HeaderCell>
                       </tr>
                     </thead>
@@ -405,10 +450,13 @@ export function YearlySummaryTab({ products }: YearlySummaryTabProps) {
                         <td className="px-3 py-2.5 text-right tabular-nums text-sm font-bold">
                           {fmtNum(totals.prodAlarmEvents)}
                         </td>
-                        <td className="px-3 py-2.5 text-right tabular-nums text-sm font-bold">
+                        <td className="px-3 py-2.5 text-right tabular-nums text-sm font-bold border-l border-border/20">
                           {fmtNum(totals.prodAnalysisOccurrences)}
                         </td>
-                        <td className="px-3 py-2.5 text-right tabular-nums text-sm font-medium text-muted-foreground">
+                        <td className="px-3 py-2.5 text-right tabular-nums text-sm font-bold">
+                          {fmtNum(prodAnalyzable)}
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-sm font-medium text-muted-foreground border-r border-border/20">
                           {fmtNum(totals.prodIgnorableOccurrences)}
                         </td>
                         <td className="px-3 py-2.5 text-right tabular-nums text-sm font-bold">
@@ -424,10 +472,13 @@ export function YearlySummaryTab({ products }: YearlySummaryTabProps) {
                         <td className="px-3 py-2.5 text-right tabular-nums text-sm font-bold border-l-2 border-border">
                           {fmtNum(totals.totalAlarmEvents)}
                         </td>
-                        <td className="px-3 py-2.5 text-right tabular-nums text-sm font-bold">
+                        <td className="px-3 py-2.5 text-right tabular-nums text-sm font-bold border-l border-border/20">
                           {fmtNum(totals.totalAnalysisOccurrences)}
                         </td>
-                        <td className="px-3 py-2.5 text-right tabular-nums text-sm font-medium text-muted-foreground">
+                        <td className="px-3 py-2.5 text-right tabular-nums text-sm font-bold">
+                          {fmtNum(totalAnalyzable)}
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-sm font-medium text-muted-foreground border-r border-border/20">
                           {fmtNum(totals.totalIgnorableOccurrences)}
                         </td>
                         <td className="px-3 py-2.5 text-right tabular-nums text-sm font-bold">
@@ -462,14 +513,16 @@ export function YearlySummaryTab({ products }: YearlySummaryTabProps) {
 
 // ─── Table subcomponents ─────────────────────────────────────────────────────
 
-function HeaderCell({ children, tip, muted, className }: {
+function HeaderCell({ children, tip, muted, className, rowSpan, subtitle }: {
   children: React.ReactNode
   tip: string
   muted?: boolean
   className?: string
+  rowSpan?: number
+  subtitle?: string
 }) {
   return (
-    <th className={cn('px-3 py-2 text-right', className)}>
+    <th className={cn('px-3 py-2 text-right', rowSpan && 'align-bottom', className)} rowSpan={rowSpan}>
       <Tooltip>
         <TooltipTrigger asChild>
           <span className={cn(
@@ -483,6 +536,9 @@ function HeaderCell({ children, tip, muted, className }: {
           {tip}
         </TooltipContent>
       </Tooltip>
+      {subtitle && (
+        <div className="text-[10px] font-normal text-muted-foreground/50 leading-tight mt-0.5">{subtitle}</div>
+      )}
     </th>
   )
 }
@@ -494,6 +550,9 @@ function MonthRow({ m, isCurrentMonth, isFutureMonth }: {
 }) {
   const hasData = m.prodAlarmEvents > 0 || m.prodAnalysisOccurrences > 0 || m.totalAnalysisOccurrences > 0 || m.totalAlarmEvents > 0
   const dimmed = isFutureMonth && !hasData
+
+  const prodAnalyzable = m.prodAnalysisOccurrences - m.prodIgnorableOccurrences
+  const totalAnalyzable = m.totalAnalysisOccurrences - m.totalIgnorableOccurrences
 
   return (
     <tr className={cn(
@@ -517,14 +576,17 @@ function MonthRow({ m, isCurrentMonth, isFutureMonth }: {
           )}
         </span>
       </td>
-      {/* ── Produzione: Allarmi, Analisi, Ignorate, On-Call, Ign. %, Copertura ── */}
+      {/* ── Produzione ── */}
       <td className="px-3 py-2 text-right tabular-nums text-sm font-medium">
         {hasData ? fmtNum(m.prodAlarmEvents) : <Dash />}
       </td>
-      <td className="px-3 py-2 text-right tabular-nums text-sm">
+      <td className="px-3 py-2 text-right tabular-nums text-sm border-l border-border/20">
         {hasData ? fmtNum(m.prodAnalysisOccurrences) : <Dash />}
       </td>
-      <td className="px-3 py-2 text-right tabular-nums text-sm text-muted-foreground">
+      <td className="px-3 py-2 text-right tabular-nums text-sm">
+        {hasData ? fmtNum(prodAnalyzable) : <Dash />}
+      </td>
+      <td className="px-3 py-2 text-right tabular-nums text-sm text-muted-foreground border-r border-border/20">
         {hasData ? fmtNum(m.prodIgnorableOccurrences) : <Dash />}
       </td>
       <td className="px-3 py-2 text-right tabular-nums text-sm font-medium">
@@ -536,14 +598,17 @@ function MonthRow({ m, isCurrentMonth, isFutureMonth }: {
       <td className="px-3 py-2">
         <CoverageBar value={m.prodCoveragePercent} hasData={m.prodAlarmEvents > 0} />
       </td>
-      {/* ── Tutti: Allarmi, Analisi, Ignorate, On-Call, Ign. %, Copertura ── */}
+      {/* ── Tutti gli ambienti ── */}
       <td className="px-3 py-2 text-right tabular-nums text-sm font-medium border-l-2 border-border">
         {hasData ? fmtNum(m.totalAlarmEvents) : <Dash />}
       </td>
-      <td className="px-3 py-2 text-right tabular-nums text-sm">
+      <td className="px-3 py-2 text-right tabular-nums text-sm border-l border-border/20">
         {hasData ? fmtNum(m.totalAnalysisOccurrences) : <Dash />}
       </td>
-      <td className="px-3 py-2 text-right tabular-nums text-sm text-muted-foreground">
+      <td className="px-3 py-2 text-right tabular-nums text-sm">
+        {hasData ? fmtNum(totalAnalyzable) : <Dash />}
+      </td>
+      <td className="px-3 py-2 text-right tabular-nums text-sm text-muted-foreground border-r border-border/20">
         {hasData ? fmtNum(m.totalIgnorableOccurrences) : <Dash />}
       </td>
       <td className="px-3 py-2 text-right tabular-nums text-sm font-medium">

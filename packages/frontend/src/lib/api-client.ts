@@ -812,6 +812,7 @@ export interface UpdateRolePermissionsData {
 export interface SystemEventsFilters {
   action?: string[]
   resource?: string
+  resourceId?: string
   userId?: string
   dateFrom?: string
   dateTo?: string

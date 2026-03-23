@@ -3,7 +3,7 @@
 import { useState, useMemo, useRef, useCallback, useEffect, Fragment } from 'react'
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
-import { formatRelativeTimeFromDate, formatAbsoluteDateTime } from '@go-watchtower/shared'
+import { formatAbsoluteDateTime } from '@go-watchtower/shared'
 import {
   ChevronLeft,
   ChevronRight,
@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -33,12 +34,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 import {
   Table,
   TableBody,
@@ -273,29 +268,6 @@ function resolveResourceLink(event: SystemEvent): string | null {
   }
 }
 
-// ─── Relative time ────────────────────────────────────────────────────────────
-
-function RelativeTime({ dateStr }: { dateStr: string }) {
-  const date = new Date(dateStr)
-  const relative = formatRelativeTimeFromDate(date)
-  const absolute = formatAbsoluteDateTime(date)
-
-  return (
-    <TooltipProvider delayDuration={300}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span className="cursor-default tabular-nums text-sm text-muted-foreground whitespace-nowrap hover:text-foreground transition-colors">
-            {relative}
-          </span>
-        </TooltipTrigger>
-        <TooltipContent side="right" className="font-mono text-xs">
-          {absolute}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  )
-}
-
 // ─── Action badge ─────────────────────────────────────────────────────────────
 
 function ActionBadge({ action }: { action: string }) {
@@ -350,7 +322,11 @@ function ResourceCell({ event }: { event: SystemEvent }) {
 function SystemEventCell({ columnId, event }: { columnId: string; event: SystemEvent }) {
   switch (columnId) {
     case 'quando':
-      return <RelativeTime dateStr={event.createdAt} />
+      return (
+        <span className="tabular-nums text-sm text-muted-foreground whitespace-nowrap">
+          {formatAbsoluteDateTime(new Date(event.createdAt))}
+        </span>
+      )
     case 'azione':
       return <ActionBadge action={event.action} />
     case 'risorsa':
@@ -707,6 +683,7 @@ export function SystemEventsPage() {
   const hasActiveFilters = Boolean(
     (filters.action && filters.action.length > 0) ||
     filters.resource ||
+    filters.resourceId ||
     filters.userId ||
     filters.dateFrom ||
     filters.dateTo
@@ -715,6 +692,7 @@ export function SystemEventsPage() {
   const activeFilterCount =
     (filters.action?.length ? 1 : 0) +
     (filters.resource ? 1 : 0) +
+    (filters.resourceId ? 1 : 0) +
     (filters.userId ? 1 : 0) +
     (filters.dateFrom ? 1 : 0) +
     (filters.dateTo ? 1 : 0)
@@ -771,7 +749,7 @@ export function SystemEventsPage() {
           )}
         </div>
 
-        <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           {/* Action multiselect */}
           <div className="space-y-1.5">
             <Label className="text-sm text-muted-foreground">Azione</Label>
@@ -821,6 +799,17 @@ export function SystemEventsPage() {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Resource ID */}
+          <div className="space-y-1.5">
+            <Label className="text-sm text-muted-foreground">ID Risorsa</Label>
+            <Input
+              value={filters.resourceId ?? ''}
+              onChange={(e) => updateFilters({ resourceId: e.target.value || undefined })}
+              placeholder="UUID risorsa"
+              className="h-9 text-sm font-mono"
+            />
           </div>
 
           {/* Date from */}

@@ -556,6 +556,7 @@ function AlarmEventsPageContent() {
       environmentId: event.environment.id,
       occurrences:  1,
       analysisType: 'IGNORABLE' as const,
+      status: 'COMPLETED' as const,
     })
     setAnalysisFormOpen(true)
   }, [])
