@@ -50,7 +50,7 @@ import { qk } from '@/lib/query-keys'
 import { invalidate } from '@/lib/query-invalidation'
 import { validateAnalysis, assessQuality, type ValidationResult, type QualityResult } from '@/lib/analysis-validation'
 import { ValidationDetailPanel } from '@/components/analysis/validation-detail-panel'
-import { isWorkingHoursSetting, isOnCallHoursSetting, romeDateToISO } from '@go-watchtower/shared'
+import { isWorkingHoursSetting, isOnCallHoursSetting } from '@go-watchtower/shared'
 import { AnalysisFilters, type AnalysisFiltersState } from './_components/analysis-filters'
 import type { AnalysisFormData } from './_components/analysis-form-dialog'
 import { AnalysisDetailPanel } from './_components/analysis-detail-panel'
@@ -87,19 +87,19 @@ import { formatDate } from './_lib/constants'
 
 const DEFAULT_FILTERS: AnalysisFiltersState = {
   search: '',
-  analysisType: '',
-  status: '',
-  environmentId: '',
-  operatorId: '',
-  alarmId: '',
-  finalActionId: '',
+  analysisTypes: [],
+  statuses: [],
+  environmentIds: [],
+  operatorIds: [],
+  alarmIds: [],
+  finalActionIds: [],
   isOnCall: undefined,
   dateFrom: '',
   dateTo: '',
-  ignoreReasonCode: '',
-  runbookId: '',
-  resourceId: '',
-  downstreamId: '',
+  ignoreReasonCodes: [],
+  runbookIds: [],
+  resourceIds: [],
+  downstreamIds: [],
   traceId: '',
 }
 
@@ -402,27 +402,27 @@ function AnalysesPageContent() {
     sortOrder,
     ...(effectiveProductId && { productId: effectiveProductId }),
     ...(filters.search && { search: filters.search }),
-    ...(filters.analysisType && { analysisType: filters.analysisType }),
-    ...(filters.status && { status: filters.status }),
-    ...(filters.environmentId && { environmentId: filters.environmentId }),
-    ...(filters.operatorId && { operatorId: filters.operatorId }),
-    ...(filters.alarmId && { alarmId: filters.alarmId }),
-    ...(filters.finalActionId && { finalActionId: filters.finalActionId }),
+    ...(filters.analysisTypes.length > 0 && { analysisType: filters.analysisTypes }),
+    ...(filters.statuses.length > 0 && { status: filters.statuses }),
+    ...(filters.environmentIds.length > 0 && { environmentId: filters.environmentIds }),
+    ...(filters.operatorIds.length > 0 && { operatorId: filters.operatorIds }),
+    ...(filters.alarmIds.length > 0 && { alarmId: filters.alarmIds }),
+    ...(filters.finalActionIds.length > 0 && { finalActionId: filters.finalActionIds }),
     ...(filters.isOnCall !== undefined && { isOnCall: filters.isOnCall }),
-    ...(filters.dateFrom && { dateFrom: romeDateToISO(filters.dateFrom, '00:00:00') }),
-    ...(filters.dateTo && { dateTo: romeDateToISO(filters.dateTo, '23:59:59') }),
-    ...(filters.ignoreReasonCode && { ignoreReasonCode: filters.ignoreReasonCode }),
-    ...(filters.runbookId && { runbookId: filters.runbookId }),
-    ...(filters.resourceId && { resourceId: filters.resourceId }),
-    ...(filters.downstreamId && { downstreamId: filters.downstreamId }),
+    ...(filters.dateFrom && { dateFrom: filters.dateFrom }),
+    ...(filters.dateTo && { dateTo: filters.dateTo }),
+    ...(filters.ignoreReasonCodes.length > 0 && { ignoreReasonCode: filters.ignoreReasonCodes }),
+    ...(filters.runbookIds.length > 0 && { runbookId: filters.runbookIds }),
+    ...(filters.resourceIds.length > 0 && { resourceId: filters.resourceIds }),
+    ...(filters.downstreamIds.length > 0 && { downstreamId: filters.downstreamIds }),
     ...(filters.traceId && { traceId: filters.traceId }),
   }), [
     page, pageSize, sortBy, sortOrder, effectiveProductId,
-    filters.search, filters.analysisType, filters.status,
-    filters.environmentId, filters.operatorId, filters.alarmId,
-    filters.finalActionId, filters.isOnCall, filters.dateFrom, filters.dateTo,
-    filters.ignoreReasonCode, filters.runbookId, filters.resourceId,
-    filters.downstreamId, filters.traceId,
+    filters.search, filters.analysisTypes, filters.statuses,
+    filters.environmentIds, filters.operatorIds, filters.alarmIds,
+    filters.finalActionIds, filters.isOnCall, filters.dateFrom, filters.dateTo,
+    filters.ignoreReasonCodes, filters.runbookIds, filters.resourceIds,
+    filters.downstreamIds, filters.traceId,
   ])
 
   const {

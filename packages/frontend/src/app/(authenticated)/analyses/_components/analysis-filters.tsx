@@ -1,20 +1,15 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useMemo } from 'react'
 import { Search, X, ChevronDown, SlidersHorizontal, Settings2 } from 'lucide-react'
+import { formatJsDate, subDays, startOfMonth } from '@go-watchtower/shared'
+import type { DateRange } from 'react-day-picker'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { DateTimePicker } from '@/components/ui/date-time-picker'
+import { DateRangePicker, type DateRangePreset } from '@/components/ui/date-range-picker'
 import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Combobox } from '@/components/ui/combobox'
+import { MultiSelectCombobox } from '@/components/ui/multi-select-combobox'
+import { useDebouncedInput } from '@/hooks/use-debounced-input'
 import type {
   Environment,
   Alarm,
@@ -29,24 +24,23 @@ import type {
 } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
 import { ANALYSIS_TYPE_LABELS, ANALYSIS_STATUS_LABELS } from '../_lib/constants'
-import { ALL_VALUE } from '@/lib/constants'
 
 export interface AnalysisFiltersState {
   search: string
-  analysisType: string
-  status: string
-  environmentId: string
-  operatorId: string
-  alarmId: string
-  finalActionId: string
+  analysisTypes: string[]
+  statuses: string[]
+  environmentIds: string[]
+  operatorIds: string[]
+  alarmIds: string[]
+  finalActionIds: string[]
   isOnCall: boolean | undefined
   dateFrom: string
   dateTo: string
   // Advanced filters
-  ignoreReasonCode: string
-  runbookId: string
-  resourceId: string
-  downstreamId: string
+  ignoreReasonCodes: string[]
+  runbookIds: string[]
+  resourceIds: string[]
+  downstreamIds: string[]
   traceId: string
 }
 
@@ -66,6 +60,173 @@ interface AnalysisFiltersProps {
   onToggleCollapsed?: () => void
 }
 
+// ─── Date helpers ─────────────────────────────────────────────────────────────
+
+function filtersToRange(dateFrom: string, dateTo: string): DateRange | undefined {
+  if (!dateFrom && !dateTo) return undefined
+  return {
+    from: dateFrom ? new Date(dateFrom) : undefined,
+    to: dateTo ? new Date(dateTo) : undefined,
+  }
+}
+
+function rangeToFilters(range: DateRange | undefined): { dateFrom: string; dateTo: string } {
+  if (!range?.from) return { dateFrom: '', dateTo: '' }
+  const dateFrom = formatJsDate(range.from, "yyyy-MM-dd'T'00:00")
+  const dateTo = range.to ? formatJsDate(range.to, "yyyy-MM-dd'T'23:59") : ''
+  return { dateFrom, dateTo }
+}
+
+function sod(d: Date): Date { d.setHours(0, 0, 0, 0); return d }
+function eod(d: Date): Date { d.setHours(23, 59, 59, 999); return d }
+
+const DATE_PRESETS: DateRangePreset[] = [
+  { label: 'Oggi',      range: () => ({ from: sod(new Date()), to: eod(new Date()) }) },
+  { label: 'Ieri',      range: () => ({ from: sod(subDays(new Date(), 1)), to: eod(subDays(new Date(), 1)) }) },
+  { label: '7 giorni',  range: () => ({ from: sod(subDays(new Date(), 6)), to: eod(new Date()) }) },
+  { label: '30 giorni', range: () => ({ from: sod(subDays(new Date(), 29)), to: eod(new Date()) }) },
+  { label: 'Mese',      range: () => ({ from: startOfMonth(new Date()), to: eod(new Date()) }) },
+]
+
+// ─── Active filter chips (collapsed header) ──────────────────────────────────
+
+interface FilterChip {
+  key: string
+  label: string
+}
+
+function buildActiveChips(
+  filters: AnalysisFiltersState,
+  environments: Environment[] | undefined,
+  alarms: Alarm[] | undefined,
+  finalActions: FinalAction[] | undefined,
+  users: AnalysisAuthor[] | undefined,
+  ignoreReasons: IgnoreReason[] | undefined,
+  _runbooks: Runbook[] | undefined,
+  _resources: ProductResource[] | undefined,
+  _downstreams: Downstream[] | undefined,
+): FilterChip[] {
+  const chips: FilterChip[] = []
+
+  // Environments
+  if (filters.environmentIds.length > 0) {
+    if (filters.environmentIds.length <= 2 && environments) {
+      for (const id of filters.environmentIds) {
+        const env = environments.find((e) => e.id === id)
+        chips.push({ key: `env:${id}`, label: env?.name ?? id })
+      }
+    } else {
+      chips.push({ key: 'env', label: `${filters.environmentIds.length} ambienti` })
+    }
+  }
+
+  // Date range
+  if (filters.dateFrom || filters.dateTo) {
+    if (filters.dateFrom && filters.dateTo) {
+      chips.push({
+        key: 'date',
+        label: `${formatJsDate(new Date(filters.dateFrom), 'dd MMM')} – ${formatJsDate(new Date(filters.dateTo), 'dd MMM')}`,
+      })
+    } else if (filters.dateFrom) {
+      chips.push({ key: 'date', label: `Da ${formatJsDate(new Date(filters.dateFrom), 'dd MMM')}` })
+    }
+  }
+
+  // Alarms
+  if (filters.alarmIds.length > 0) {
+    if (filters.alarmIds.length <= 2 && alarms) {
+      for (const id of filters.alarmIds) {
+        const alarm = alarms.find((a) => a.id === id)
+        const name = alarm?.name ?? id
+        chips.push({ key: `alarm:${id}`, label: name.length > 20 ? name.slice(0, 20) + '\u2026' : name })
+      }
+    } else {
+      chips.push({ key: 'alarm', label: `${filters.alarmIds.length} allarmi` })
+    }
+  }
+
+  // Analysis types
+  if (filters.analysisTypes.length > 0) {
+    const labels = filters.analysisTypes.map((t) => ANALYSIS_TYPE_LABELS[t as AnalysisType] ?? t)
+    chips.push({ key: 'type', label: labels.join(', ') })
+  }
+
+  // Statuses
+  if (filters.statuses.length > 0) {
+    const labels = filters.statuses.map((s) => ANALYSIS_STATUS_LABELS[s as AnalysisStatus] ?? s)
+    chips.push({ key: 'status', label: labels.join(', ') })
+  }
+
+  // Final actions
+  if (filters.finalActionIds.length > 0) {
+    if (filters.finalActionIds.length === 1 && finalActions) {
+      const fa = finalActions.find((f) => f.id === filters.finalActionIds[0])
+      chips.push({ key: 'fa', label: fa?.name ?? filters.finalActionIds[0] })
+    } else {
+      chips.push({ key: 'fa', label: `${filters.finalActionIds.length} azioni finali` })
+    }
+  }
+
+  // On-call
+  if (filters.isOnCall !== undefined) {
+    chips.push({ key: 'oncall', label: 'Reperibilità' })
+  }
+
+  // Operators
+  if (filters.operatorIds.length > 0) {
+    if (filters.operatorIds.length === 1 && users) {
+      const u = users.find((u) => u.id === filters.operatorIds[0])
+      chips.push({ key: 'operator', label: u?.name ?? filters.operatorIds[0] })
+    } else {
+      chips.push({ key: 'operator', label: `${filters.operatorIds.length} operatori` })
+    }
+  }
+
+  // Search
+  if (filters.search) {
+    const s = filters.search.length > 18 ? filters.search.slice(0, 18) + '\u2026' : filters.search
+    chips.push({ key: 'search', label: s })
+  }
+
+  // Advanced
+  if (filters.ignoreReasonCodes.length > 0) {
+    if (filters.ignoreReasonCodes.length === 1 && ignoreReasons) {
+      const r = ignoreReasons.find((r) => r.code === filters.ignoreReasonCodes[0])
+      chips.push({ key: 'ignore', label: r?.label ?? filters.ignoreReasonCodes[0] })
+    } else {
+      chips.push({ key: 'ignore', label: `${filters.ignoreReasonCodes.length} motivi ignore` })
+    }
+  }
+  if (filters.runbookIds.length > 0) chips.push({ key: 'runbook', label: `${filters.runbookIds.length} runbook` })
+  if (filters.resourceIds.length > 0) chips.push({ key: 'resource', label: `${filters.resourceIds.length} risorse` })
+  if (filters.downstreamIds.length > 0) chips.push({ key: 'downstream', label: `${filters.downstreamIds.length} downstream` })
+  if (filters.traceId) chips.push({ key: 'trace', label: `Trace: ${filters.traceId.slice(0, 12)}\u2026` })
+
+  return chips
+}
+
+// ─── On-call toggle options ──────────────────────────────────────────────────
+
+const ONCALL_OPTIONS = [
+  { value: 'all' as const, label: 'Tutti' },
+  { value: 'yes' as const, label: 'Sì' },
+  { value: 'no' as const, label: 'No' },
+]
+
+function onCallToSegment(v: boolean | undefined): 'all' | 'yes' | 'no' {
+  if (v === true) return 'yes'
+  if (v === false) return 'no'
+  return 'all'
+}
+
+function segmentToOnCall(v: 'all' | 'yes' | 'no'): boolean | undefined {
+  if (v === 'yes') return true
+  if (v === 'no') return false
+  return undefined
+}
+
+// ─── Main component ──────────────────────────────────────────────────────────
+
 export function AnalysisFilters({
   filters,
   onFilterChange,
@@ -81,74 +242,74 @@ export function AnalysisFilters({
   collapsed = false,
   onToggleCollapsed,
 }: AnalysisFiltersProps) {
-  const updateFilter = (key: keyof AnalysisFiltersState, value: string | boolean | undefined) => {
+  const updateFilter = <K extends keyof AnalysisFiltersState>(key: K, value: AnalysisFiltersState[K]) => {
     onFilterChange({ ...filters, [key]: value })
   }
 
-  // Debounced search — useState for prev-value tracking (React 19 safe)
-  const [searchLocal, setSearchLocal] = useState(filters.search)
-  const [prevSearch, setPrevSearch] = useState(filters.search)
-  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // Debounced traceId
-  const [traceIdLocal, setTraceIdLocal] = useState(filters.traceId)
-  const [prevTraceId, setPrevTraceId] = useState(filters.traceId)
-  const traceIdTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // Sync local debounced values when parent swaps filters (product switch)
-  if (prevSearch !== filters.search) {
-    setPrevSearch(filters.search)
-    setSearchLocal(filters.search)
-  }
-  if (prevTraceId !== filters.traceId) {
-    setPrevTraceId(filters.traceId)
-    setTraceIdLocal(filters.traceId)
-  }
-
-  useEffect(() => {
-    return () => {
-      if (searchTimer.current) clearTimeout(searchTimer.current)
-      if (traceIdTimer.current) clearTimeout(traceIdTimer.current)
-    }
-  }, [])
-
-  const handleSearchChange = (value: string) => {
-    setSearchLocal(value)
-    if (searchTimer.current) clearTimeout(searchTimer.current)
-    searchTimer.current = setTimeout(() => {
-      updateFilter('search', value)
-    }, 400)
-  }
-
-  const handleTraceIdChange = (value: string) => {
-    setTraceIdLocal(value)
-    if (traceIdTimer.current) clearTimeout(traceIdTimer.current)
-    traceIdTimer.current = setTimeout(() => {
-      updateFilter('traceId', value)
-    }, 400)
-  }
+  const search  = useDebouncedInput(filters.search, (v) => updateFilter('search', v))
+  const traceId = useDebouncedInput(filters.traceId, (v) => updateFilter('traceId', v))
 
   const handleReset = () => {
-    if (searchTimer.current) {
-      clearTimeout(searchTimer.current)
-      searchTimer.current = null
-    }
-    if (traceIdTimer.current) {
-      clearTimeout(traceIdTimer.current)
-      traceIdTimer.current = null
-    }
-    setSearchLocal('')
-    setTraceIdLocal('')
+    search.reset()
+    traceId.reset()
     onReset()
   }
 
-  // Advanced filters section — force open when advanced filters are active,
-  // otherwise respect user toggle
+  const handleRemoveChip = (key: string) => {
+    const updated = { ...filters }
+    if (key.startsWith('env:')) {
+      const envId = key.slice(4)
+      updated.environmentIds = updated.environmentIds.filter((id) => id !== envId)
+      onFilterChange(updated)
+      return
+    }
+    if (key.startsWith('alarm:')) {
+      const alarmId = key.slice(6)
+      updated.alarmIds = updated.alarmIds.filter((id) => id !== alarmId)
+      onFilterChange(updated)
+      return
+    }
+    switch (key) {
+      case 'env': updated.environmentIds = []; break
+      case 'date': updated.dateFrom = ''; updated.dateTo = ''; break
+      case 'alarm': updated.alarmIds = []; break
+      case 'type': updated.analysisTypes = []; break
+      case 'status': updated.statuses = []; break
+      case 'fa': updated.finalActionIds = []; break
+      case 'oncall': updated.isOnCall = undefined; break
+      case 'operator': updated.operatorIds = []; break
+      case 'search':
+        search.reset()
+        updated.search = ''
+        break
+      case 'ignore': updated.ignoreReasonCodes = []; break
+      case 'runbook': updated.runbookIds = []; break
+      case 'resource': updated.resourceIds = []; break
+      case 'downstream': updated.downstreamIds = []; break
+      case 'trace':
+        traceId.reset()
+        updated.traceId = ''
+        break
+    }
+    onFilterChange(updated)
+  }
+
+  const dateRange = useMemo(
+    () => filtersToRange(filters.dateFrom, filters.dateTo),
+    [filters.dateFrom, filters.dateTo],
+  )
+
+  const handleDateRangeChange = (range: DateRange | undefined) => {
+    const { dateFrom, dateTo } = rangeToFilters(range)
+    onFilterChange({ ...filters, dateFrom, dateTo })
+  }
+
+  // Advanced filters section
   const hasAdvancedFilters = !!(
-    filters.ignoreReasonCode ||
-    filters.runbookId ||
-    filters.resourceId ||
-    filters.downstreamId ||
+    filters.ignoreReasonCodes.length > 0 ||
+    filters.runbookIds.length > 0 ||
+    filters.resourceIds.length > 0 ||
+    filters.downstreamIds.length > 0 ||
     filters.traceId
   )
   const [advancedToggle, setAdvancedToggle] = useState(false)
@@ -156,40 +317,44 @@ export function AnalysisFilters({
 
   const basicFilterCount = [
     filters.search,
-    filters.analysisType,
-    filters.status,
-    filters.environmentId,
-    filters.operatorId,
-    filters.alarmId,
-    filters.finalActionId,
-    filters.isOnCall !== undefined ? 'on' : '',
-    filters.dateFrom,
-    filters.dateTo,
+    filters.analysisTypes.length > 0,
+    filters.statuses.length > 0,
+    filters.environmentIds.length > 0,
+    filters.operatorIds.length > 0,
+    filters.alarmIds.length > 0,
+    filters.finalActionIds.length > 0,
+    filters.isOnCall !== undefined,
+    filters.dateFrom || filters.dateTo,
   ].filter(Boolean).length
 
   const advancedFilterCount = [
-    filters.ignoreReasonCode,
-    filters.runbookId,
-    filters.resourceId,
-    filters.downstreamId,
+    filters.ignoreReasonCodes.length > 0,
+    filters.runbookIds.length > 0,
+    filters.resourceIds.length > 0,
+    filters.downstreamIds.length > 0,
     filters.traceId,
   ].filter(Boolean).length
 
   const activeFilterCount = basicFilterCount + advancedFilterCount
 
-  // Whether any product-scoped advanced filters are available
   const hasProductScopedAdvanced = !!(resources || downstreams || runbooks)
+
+  const activeChips = useMemo(
+    () => buildActiveChips(filters, environments, alarms, finalActions, users, ignoreReasons, runbooks, resources, downstreams),
+    [filters, environments, alarms, finalActions, users, ignoreReasons, runbooks, resources, downstreams],
+  )
 
   return (
     <div className="rounded-lg border">
-      {/* Collapsible header */}
+      {/* ── Header ── */}
       <button
         type="button"
         onClick={onToggleCollapsed}
-        className="flex w-full items-center justify-between p-4 text-sm font-medium hover:bg-muted/50 transition-colors"
+        className="flex w-full items-center gap-3 px-4 py-3 text-sm font-medium hover:bg-muted/50 transition-colors"
       >
-        <div className="flex items-center gap-2">
-          <SlidersHorizontal className="h-4 w-4" />
+        {/* Left: icon + label + count */}
+        <div className="flex items-center gap-2 shrink-0">
+          <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
           <span>Filtri</span>
           {activeFilterCount > 0 && (
             <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground">
@@ -197,201 +362,189 @@ export function AnalysisFilters({
             </span>
           )}
         </div>
-        <ChevronDown className={cn('h-4 w-4 transition-transform duration-200', !collapsed && 'rotate-180')} />
+
+        {/* Center: active filter chips (collapsed only) */}
+        {collapsed && activeChips.length > 0 && (
+          <div className="flex flex-1 items-center gap-1.5 overflow-hidden min-w-0">
+            {activeChips.map((chip) => (
+              <span
+                key={chip.key}
+                className="inline-flex shrink-0 items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+              >
+                <span className="truncate max-w-[200px]">{chip.label}</span>
+                <X
+                  className="h-3 w-3 shrink-0 cursor-pointer opacity-60 hover:opacity-100 hover:text-foreground transition-opacity"
+                  onClick={(e) => { e.stopPropagation(); handleRemoveChip(chip.key) }}
+                />
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Right: reset + chevron */}
+        <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+          {collapsed && activeFilterCount > 0 && (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={(e) => { e.stopPropagation(); handleReset() }}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); handleReset() } }}
+              className="inline-flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+              title="Pulisci filtri"
+            >
+              <X className="h-3.5 w-3.5" />
+            </span>
+          )}
+          <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform duration-200', !collapsed && 'rotate-180')} />
+        </div>
       </button>
 
+      {/* ── Expanded panel ── */}
       {!collapsed && (
-        <div className="animate-in fade-in slide-in-from-top-1 duration-150 space-y-4 border-t px-4 pb-4 pt-4">
+        <div className="animate-in fade-in slide-in-from-top-1 duration-150 border-t px-4 pb-4 pt-4 space-y-4">
 
-          {/* ── Basic filters ──────────────────────────────────────────────── */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {/* Search */}
-            <div className="space-y-2">
-              <Label htmlFor="filter-search">Ricerca</Label>
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="filter-search"
-                  placeholder="Cerca nei dettagli..."
-                  value={searchLocal}
-                  onChange={(e) => handleSearchChange(e.target.value)}
-                  className="pl-8"
+          {/* Row 1 — Ambiente + Periodo */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            {environments && (
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Ambiente</Label>
+                <MultiSelectCombobox showTags={false}
+                  options={environments.map((e) => ({ value: e.id, label: e.name }))}
+                  value={filters.environmentIds}
+                  onValueChange={(ids) => updateFilter('environmentIds', ids)}
+                  placeholder="Tutti gli ambienti"
+                  searchPlaceholder="Cerca ambiente..."
+                  emptyMessage="Nessun ambiente trovato."
                 />
               </div>
-            </div>
-
-            {/* Analysis Type */}
-            <div className="space-y-2">
-              <Label>Tipo analisi</Label>
-              <Select
-                value={filters.analysisType || ALL_VALUE}
-                onValueChange={(val) => updateFilter('analysisType', val === ALL_VALUE ? '' : val)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Tutti" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_VALUE}>Tutti</SelectItem>
-                  {(Object.keys(ANALYSIS_TYPE_LABELS) as AnalysisType[]).map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {ANALYSIS_TYPE_LABELS[type]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Status */}
-            <div className="space-y-2">
-              <Label>Stato</Label>
-              <Select
-                value={filters.status || ALL_VALUE}
-                onValueChange={(val) => updateFilter('status', val === ALL_VALUE ? '' : val)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Tutti" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_VALUE}>Tutti</SelectItem>
-                  {(Object.keys(ANALYSIS_STATUS_LABELS) as AnalysisStatus[]).map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {ANALYSIS_STATUS_LABELS[status]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Operator */}
-            <div className="space-y-2">
-              <Label>Operatore</Label>
-              <Select
-                value={filters.operatorId || ALL_VALUE}
-                onValueChange={(val) => updateFilter('operatorId', val === ALL_VALUE ? '' : val)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Tutti" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_VALUE}>Tutti</SelectItem>
-                  {users?.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Date From */}
-            <div className="space-y-2">
-              <Label>Data da</Label>
-              <DateTimePicker
-                value={filters.dateFrom}
-                onChange={(v) => updateFilter('dateFrom', v)}
-                dateOnly
-                showNow
-              />
-            </div>
-
-            {/* Date To */}
-            <div className="space-y-2">
-              <Label>Data a</Label>
-              <DateTimePicker
-                value={filters.dateTo}
-                onChange={(v) => updateFilter('dateTo', v)}
-                dateOnly
-                showNow
-              />
-            </div>
-
-            {/* Environment (only when product is selected) */}
-            {environments && (
-              <div className="space-y-2">
-                <Label>Ambiente</Label>
-                <Select
-                  value={filters.environmentId || ALL_VALUE}
-                  onValueChange={(val) => updateFilter('environmentId', val === ALL_VALUE ? '' : val)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Tutti" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL_VALUE}>Tutti</SelectItem>
-                    {environments.map((env) => (
-                      <SelectItem key={env.id} value={env.id}>
-                        {env.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
             )}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Periodo</Label>
+              <DateRangePicker
+                value={dateRange}
+                onChange={handleDateRangeChange}
+                presets={DATE_PRESETS}
+                className="w-full"
+              />
+            </div>
+          </div>
 
-            {/* Alarm (only when product is selected) */}
+          {/* Row 2 — Allarme, Tipo analisi, Stato analisi, Azione finale, Reperibilità */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {/* Allarme (multi, with search) */}
             {alarms && (
-              <div className="space-y-2">
-                <Label>Allarme</Label>
-                <Combobox
-                  options={[
-                    { value: ALL_VALUE, label: 'Tutti' },
-                    ...alarms.map((alarm) => ({ value: alarm.id, label: alarm.name })),
-                  ]}
-                  value={filters.alarmId || ALL_VALUE}
-                  onValueChange={(val) => updateFilter('alarmId', val === ALL_VALUE || val === '' ? '' : val)}
-                  placeholder="Tutti"
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Allarme</Label>
+                <MultiSelectCombobox showTags={false}
+                  options={alarms.map((a) => ({ value: a.id, label: a.name }))}
+                  value={filters.alarmIds}
+                  onValueChange={(ids) => updateFilter('alarmIds', ids)}
+                  placeholder="Tutti gli allarmi"
                   searchPlaceholder="Cerca allarme..."
                   emptyMessage="Nessun allarme trovato."
                 />
               </div>
             )}
 
-            {/* Final Action (only when product is selected) */}
-            {finalActions && (
-              <div className="space-y-2">
-                <Label>Azione Finale</Label>
-                <Select
-                  value={filters.finalActionId || ALL_VALUE}
-                  onValueChange={(val) => updateFilter('finalActionId', val === ALL_VALUE ? '' : val)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Tutti" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL_VALUE}>Tutti</SelectItem>
-                    {finalActions.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-          </div>
-
-          {/* On-Call + Reset row */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Switch
-                id="filter-oncall"
-                checked={filters.isOnCall === true}
-                onCheckedChange={(checked) =>
-                  updateFilter('isOnCall', checked ? true : undefined)
-                }
+            {/* Tipo analisi (multi) */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Tipo analisi</Label>
+              <MultiSelectCombobox showTags={false}
+                options={(Object.keys(ANALYSIS_TYPE_LABELS) as AnalysisType[]).map((type) => ({
+                  value: type,
+                  label: ANALYSIS_TYPE_LABELS[type],
+                }))}
+                value={filters.analysisTypes}
+                onValueChange={(vals) => updateFilter('analysisTypes', vals)}
+                placeholder="Tutti i tipi"
+                searchPlaceholder="Cerca tipo..."
+                emptyMessage="Nessun tipo trovato."
               />
-              <Label htmlFor="filter-oncall" className="cursor-pointer">
-                Solo reperibilità
-              </Label>
             </div>
 
-            <Button variant="outline" size="sm" onClick={handleReset}>
-              <X className="mr-2 h-4 w-4" />
-              Pulisci filtri
-            </Button>
+            {/* Stato analisi (multi) */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Stato analisi</Label>
+              <MultiSelectCombobox showTags={false}
+                options={(Object.keys(ANALYSIS_STATUS_LABELS) as AnalysisStatus[]).map((status) => ({
+                  value: status,
+                  label: ANALYSIS_STATUS_LABELS[status],
+                }))}
+                value={filters.statuses}
+                onValueChange={(vals) => updateFilter('statuses', vals)}
+                placeholder="Tutti gli stati"
+                searchPlaceholder="Cerca stato..."
+                emptyMessage="Nessuno stato trovato."
+              />
+            </div>
+
+            {/* Azione finale (multi) */}
+            {finalActions && (
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Azione finale</Label>
+                <MultiSelectCombobox showTags={false}
+                  options={finalActions.map((fa) => ({ value: fa.id, label: fa.name }))}
+                  value={filters.finalActionIds}
+                  onValueChange={(ids) => updateFilter('finalActionIds', ids)}
+                  placeholder="Tutte le azioni"
+                  searchPlaceholder="Cerca azione..."
+                  emptyMessage="Nessuna azione trovata."
+                />
+              </div>
+            )}
+
+            {/* Operatore (multi) */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Operatore</Label>
+              <MultiSelectCombobox showTags={false}
+                options={(users ?? []).map((u) => ({ value: u.id, label: u.name }))}
+                value={filters.operatorIds}
+                onValueChange={(ids) => updateFilter('operatorIds', ids)}
+                placeholder="Tutti gli operatori"
+                searchPlaceholder="Cerca operatore..."
+                emptyMessage="Nessun operatore trovato."
+              />
+            </div>
+
+            {/* Reperibilità — segmented toggle */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Reperibilità</Label>
+              <div className="flex h-9 items-center rounded-md border border-input bg-muted/40 p-0.5">
+                {ONCALL_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => updateFilter('isOnCall', segmentToOnCall(opt.value))}
+                    className={cn(
+                      'flex-1 rounded-[5px] px-2 py-1 text-xs font-medium transition-all',
+                      onCallToSegment(filters.isOnCall) === opt.value
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Ricerca */}
+            <div className="space-y-1.5">
+              <Label htmlFor="filter-search" className="text-xs text-muted-foreground">Ricerca</Label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="filter-search"
+                  placeholder="Cerca nei dettagli..."
+                  value={search.value}
+                  onChange={(e) => search.onChange(e.target.value)}
+                  className="pl-8 text-sm"
+                />
+              </div>
+            </div>
           </div>
 
-          {/* ── Advanced filters toggle ─────────────────────────────────── */}
+          {/* ── Advanced filters toggle ─────────────────────────────────────── */}
           <div className="border-t pt-3">
             <button
               type="button"
@@ -411,88 +564,72 @@ export function AnalysisFilters({
             {advancedOpen && (
               <div className="animate-in fade-in slide-in-from-top-1 duration-150 mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
-                {/* Ignore Reason */}
+                {/* Motivazione ignore (multi) */}
                 {ignoreReasons && ignoreReasons.length > 0 && (
-                  <div className="space-y-2">
-                    <Label>Motivazione ignore</Label>
-                    <Select
-                      value={filters.ignoreReasonCode || ALL_VALUE}
-                      onValueChange={(val) => updateFilter('ignoreReasonCode', val === ALL_VALUE ? '' : val)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Tutte" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={ALL_VALUE}>Tutte</SelectItem>
-                        {ignoreReasons.map((r) => (
-                          <SelectItem key={r.code} value={r.code}>
-                            {r.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Motivazione ignore</Label>
+                    <MultiSelectCombobox showTags={false}
+                      options={ignoreReasons.map((r) => ({ value: r.code, label: r.label }))}
+                      value={filters.ignoreReasonCodes}
+                      onValueChange={(codes) => updateFilter('ignoreReasonCodes', codes)}
+                      placeholder="Tutte le motivazioni"
+                      searchPlaceholder="Cerca motivazione..."
+                      emptyMessage="Nessuna motivazione trovata."
+                    />
                   </div>
                 )}
 
                 {/* Trace ID */}
-                <div className="space-y-2">
-                  <Label htmlFor="filter-traceid">ID Tracciamento</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="filter-traceid" className="text-xs text-muted-foreground">ID Tracciamento</Label>
                   <Input
                     id="filter-traceid"
                     placeholder="Cerca trace ID esatto..."
-                    value={traceIdLocal}
-                    onChange={(e) => handleTraceIdChange(e.target.value)}
+                    value={traceId.value}
+                    onChange={(e) => traceId.onChange(e.target.value)}
+                    className="text-sm"
                   />
                 </div>
 
-                {/* Runbook (only when product is selected) */}
+                {/* Runbook (multi, with search) */}
                 {runbooks && (
-                  <div className="space-y-2">
-                    <Label>Runbook</Label>
-                    <Combobox
-                      options={[
-                        { value: ALL_VALUE, label: 'Tutti' },
-                        ...runbooks.map((r) => ({ value: r.id, label: r.name })),
-                      ]}
-                      value={filters.runbookId || ALL_VALUE}
-                      onValueChange={(val) => updateFilter('runbookId', val === ALL_VALUE || val === '' ? '' : val)}
-                      placeholder="Tutti"
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Runbook</Label>
+                    <MultiSelectCombobox showTags={false}
+                      options={runbooks.map((r) => ({ value: r.id, label: r.name }))}
+                      value={filters.runbookIds}
+                      onValueChange={(ids) => updateFilter('runbookIds', ids)}
+                      placeholder="Tutti i runbook"
                       searchPlaceholder="Cerca runbook..."
                       emptyMessage="Nessun runbook trovato."
                     />
                   </div>
                 )}
 
-                {/* Resource (only when product is selected) */}
+                {/* Risorsa (multi, with search) */}
                 {resources && (
-                  <div className="space-y-2">
-                    <Label>Risorsa</Label>
-                    <Combobox
-                      options={[
-                        { value: ALL_VALUE, label: 'Tutti' },
-                        ...resources.map((m) => ({ value: m.id, label: m.name })),
-                      ]}
-                      value={filters.resourceId || ALL_VALUE}
-                      onValueChange={(val) => updateFilter('resourceId', val === ALL_VALUE || val === '' ? '' : val)}
-                      placeholder="Tutti"
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Risorsa</Label>
+                    <MultiSelectCombobox showTags={false}
+                      options={resources.map((m) => ({ value: m.id, label: m.name }))}
+                      value={filters.resourceIds}
+                      onValueChange={(ids) => updateFilter('resourceIds', ids)}
+                      placeholder="Tutte le risorse"
                       searchPlaceholder="Cerca risorsa..."
                       emptyMessage="Nessuna risorsa trovata."
                     />
                   </div>
                 )}
 
-                {/* Downstream (only when product is selected) */}
+                {/* Downstream (multi, with search) */}
                 {downstreams && (
-                  <div className="space-y-2">
-                    <Label>Downstream</Label>
-                    <Combobox
-                      options={[
-                        { value: ALL_VALUE, label: 'Tutti' },
-                        ...downstreams.map((d) => ({ value: d.id, label: d.name })),
-                      ]}
-                      value={filters.downstreamId || ALL_VALUE}
-                      onValueChange={(val) => updateFilter('downstreamId', val === ALL_VALUE || val === '' ? '' : val)}
-                      placeholder="Tutti"
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Downstream</Label>
+                    <MultiSelectCombobox showTags={false}
+                      options={downstreams.map((d) => ({ value: d.id, label: d.name }))}
+                      value={filters.downstreamIds}
+                      onValueChange={(ids) => updateFilter('downstreamIds', ids)}
+                      placeholder="Tutti i downstream"
                       searchPlaceholder="Cerca downstream..."
                       emptyMessage="Nessun downstream trovato."
                     />
@@ -510,6 +647,20 @@ export function AnalysisFilters({
             )}
           </div>
 
+          {/* Footer — reset (only when filters are active) */}
+          {activeFilterCount > 0 && (
+            <div className="flex justify-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-destructive"
+                onClick={handleReset}
+              >
+                <X className="h-3 w-3" />
+                Pulisci filtri
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -127,6 +127,11 @@ function formatAnalysisResponse(analysis: AnalysisWithRelations) {
   };
 }
 
+/** Normalise a scalar-or-array query param into the appropriate Prisma filter. */
+function singleOrIn<T>(value: T | T[]): T | { in: T[] } {
+  return Array.isArray(value) ? { in: value } : value;
+}
+
 function buildAnalysisWhereClause(
   query: AlarmAnalysisQuery | AllAnalysesQuery,
   productId?: string
@@ -136,23 +141,32 @@ function buildAnalysisWhereClause(
   if (productId) where.productId = productId;
   else if ("productId" in query && query.productId) where.productId = query.productId;
 
-  if (query.analysisType) where.analysisType = query.analysisType;
-  if (query.status) where.status = query.status;
+  if (query.analysisType) where.analysisType = singleOrIn(query.analysisType);
+  if (query.status) where.status = singleOrIn(query.status);
   if (query.isOnCall !== undefined) where.isOnCall = query.isOnCall;
-  if (query.operatorId) where.operatorId = query.operatorId;
+  if (query.operatorId) where.operatorId = singleOrIn(query.operatorId);
   if (query.createdById) where.createdById = query.createdById;
-  if (query.environmentId) where.environmentId = query.environmentId;
-  if (query.alarmId) where.alarmId = query.alarmId;
-  if (query.finalActionId) where.finalActions = { some: { finalActionId: query.finalActionId } };
+  if (query.environmentId) where.environmentId = singleOrIn(query.environmentId);
+  if (query.alarmId) where.alarmId = singleOrIn(query.alarmId);
+  if (query.finalActionId) {
+    const ids = Array.isArray(query.finalActionId) ? query.finalActionId : [query.finalActionId];
+    where.finalActions = { some: { finalActionId: { in: ids } } };
+  }
   if (query.dateFrom || query.dateTo) {
     where.analysisDate = {};
     if (query.dateFrom) where.analysisDate.gte = new Date(query.dateFrom);
     if (query.dateTo) where.analysisDate.lte = new Date(query.dateTo);
   }
-  if (query.ignoreReasonCode) where.ignoreReasonCode = query.ignoreReasonCode;
-  if (query.runbookId) where.runbookId = query.runbookId;
-  if (query.resourceId) where.resources = { some: { resourceId: query.resourceId } };
-  if (query.downstreamId) where.downstreams = { some: { downstreamId: query.downstreamId } };
+  if (query.ignoreReasonCode) where.ignoreReasonCode = singleOrIn(query.ignoreReasonCode);
+  if (query.runbookId) where.runbookId = singleOrIn(query.runbookId);
+  if (query.resourceId) {
+    const ids = Array.isArray(query.resourceId) ? query.resourceId : [query.resourceId];
+    where.resources = { some: { resourceId: { in: ids } } };
+  }
+  if (query.downstreamId) {
+    const ids = Array.isArray(query.downstreamId) ? query.downstreamId : [query.downstreamId];
+    where.downstreams = { some: { downstreamId: { in: ids } } };
+  }
   if (query.traceId) {
     // PostgreSQL JSONB @> containment: check if trackingIds array contains
     // an object with the given traceId. Prisma maps array_contains to @>.

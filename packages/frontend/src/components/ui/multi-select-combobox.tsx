@@ -27,6 +27,8 @@ interface MultiSelectComboboxProps {
   searchPlaceholder?: string
   emptyMessage?: string
   disabled?: boolean
+  /** Show selected items as tags below the trigger (default: true). */
+  showTags?: boolean
 }
 
 export function MultiSelectCombobox({
@@ -37,6 +39,7 @@ export function MultiSelectCombobox({
   searchPlaceholder = 'Cerca...',
   emptyMessage = 'Nessun risultato.',
   disabled = false,
+  showTags = true,
 }: MultiSelectComboboxProps) {
   const [open, setOpen] = React.useState(false)
   const listId = React.useId()
@@ -114,7 +117,7 @@ export function MultiSelectCombobox({
       </Popover>
 
       {/* Selected tags */}
-      {selectedOptions.length > 0 && (
+      {showTags && selectedOptions.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {selectedOptions.map((option) => (
             <Badge key={option.value} variant="secondary" className="gap-1 pr-1">

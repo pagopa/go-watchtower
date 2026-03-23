@@ -487,22 +487,22 @@ export interface AlarmAnalysisFilters {
   sortBy?: string
   sortOrder?: string
   search?: string
-  analysisType?: string
-  status?: string
+  analysisType?: string | string[]
+  status?: string | string[]
   isOnCall?: boolean
-  operatorId?: string
-  environmentId?: string
-  alarmId?: string
-  finalActionId?: string
+  operatorId?: string | string[]
+  environmentId?: string | string[]
+  alarmId?: string | string[]
+  finalActionId?: string | string[]
   productId?: string
   createdById?: string
   dateFrom?: string
   dateTo?: string
   // Advanced filters
-  ignoreReasonCode?: string
-  runbookId?: string
-  resourceId?: string
-  downstreamId?: string
+  ignoreReasonCode?: string | string[]
+  runbookId?: string | string[]
+  resourceId?: string | string[]
+  downstreamId?: string | string[]
   traceId?: string
 }
 
@@ -971,11 +971,11 @@ export const api = {
   // Analyses
   getAllAnalyses: (filters?: AlarmAnalysisFilters) =>
     request<PaginatedResponse<AlarmAnalysis>>('/api/analyses', {
-      params: filters as Record<string, string | number | boolean | undefined>,
+      params: filters as Record<string, string | number | boolean | string[] | undefined>,
     }),
   getAnalyses: (productId: string, filters?: AlarmAnalysisFilters) =>
     request<PaginatedResponse<AlarmAnalysis>>(`/api/products/${productId}/analyses`, {
-      params: filters as Record<string, string | number | boolean | undefined>,
+      params: filters as Record<string, string | number | boolean | string[] | undefined>,
     }),
   getAnalysis: (productId: string, id: string) =>
     request<AlarmAnalysis>(`/api/products/${productId}/analyses/${id}`),
