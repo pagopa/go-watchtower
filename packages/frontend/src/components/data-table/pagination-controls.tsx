@@ -21,7 +21,7 @@ interface PaginationControlsProps {
 
 export function PaginationControls({
   page, totalPages, pageSize, onPageChange, onPageSizeChange,
-  pageSizeOptions = [10, 20, 50, 100, 200],
+  pageSizeOptions = [10, 20, 50, 100, 200, 400, 1000],
 }: PaginationControlsProps) {
   if (totalPages <= 1) return null
 

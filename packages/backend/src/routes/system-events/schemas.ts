@@ -14,7 +14,7 @@ export const SystemEventsQuerySchema = Type.Object({
   dateFrom: Type.Optional(Type.String()),
   dateTo: Type.Optional(Type.String()),
   page: Type.Optional(Type.Integer({ minimum: 1, default: 1 })),
-  limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 200, default: 50 })),
+  limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 1000, default: 50 })),
   sortBy: Type.Optional(
     Type.Union([
       Type.Literal("createdAt"),

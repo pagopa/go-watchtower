@@ -964,9 +964,13 @@ export function SystemEventsPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="25">25 / pag.</SelectItem>
+                    <SelectItem value="10">10 / pag.</SelectItem>
+                    <SelectItem value="20">20 / pag.</SelectItem>
                     <SelectItem value="50">50 / pag.</SelectItem>
                     <SelectItem value="100">100 / pag.</SelectItem>
+                    <SelectItem value="200">200 / pag.</SelectItem>
+                    <SelectItem value="400">400 / pag.</SelectItem>
+                    <SelectItem value="1000">1000 / pag.</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

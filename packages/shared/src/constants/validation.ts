@@ -19,7 +19,7 @@ export const ValidationConstraints = {
   /** Dimensione di pagina minima. */
   PAGE_SIZE_MIN: 1,
   /** Dimensione di pagina massima. */
-  PAGE_SIZE_MAX: 200,
+  PAGE_SIZE_MAX: 1000,
   /** Dimensione di pagina di default. */
   PAGE_SIZE_DEFAULT: 20,
 } as const;
