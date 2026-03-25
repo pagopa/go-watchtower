@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -73,15 +73,14 @@ function ResourceTypeDialog({
     defaultValues: { name: '', sortOrder: 0 },
   })
 
-  const handleOpenChange = useCallback((value: boolean) => {
-    if (value) {
+  useEffect(() => {
+    if (open) {
       reset({
         name:      editItem?.name ?? '',
         sortOrder: editItem?.sortOrder ?? 0,
       })
     }
-    onOpenChange(value)
-  }, [editItem, reset, onOpenChange])
+  }, [open, editItem, reset])
 
   const handleSave = (data: ResourceTypeFormData) => {
     if (isEdit) {
@@ -92,8 +91,8 @@ function ResourceTypeDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-md" isDirty={isDirty} onDirtyClose={() => handleOpenChange(false)}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md" isDirty={isDirty} onDirtyClose={() => onOpenChange(false)}>
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Modifica tipo risorsa' : 'Nuovo tipo risorsa'}</DialogTitle>
           <DialogDescription>

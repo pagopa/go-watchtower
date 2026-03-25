@@ -42,8 +42,8 @@
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
     "@types/node": "^25.5.0",
-    "@types/pg": "8.11.11",
-    "csv-parse": "^6.1.0",
+    "@types/pg": "8.11.15",
+    "csv-parse": "^6.2.1",
     "prisma": "^7.5.0"
   }
 }

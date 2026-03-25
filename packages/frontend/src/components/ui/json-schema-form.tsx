@@ -8,7 +8,7 @@
  * Required fields are validated by the parent Zod schema via ignoreDetails.
  */
 
-import { Controller, type Control } from 'react-hook-form'
+import { Controller, type Control, type FieldValues } from 'react-hook-form'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -23,7 +23,7 @@ import type { IgnoreReasonDetailsSchema, IgnoreReasonFieldDef } from '@/lib/api-
 
 interface DynamicIgnoreDetailsFormProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  control: Control<any>
+  control: Control<FieldValues>
   schema: IgnoreReasonDetailsSchema
   disabled?: boolean
   preview?: boolean
@@ -66,7 +66,7 @@ function DynamicField({
   def: IgnoreReasonFieldDef
   required: boolean
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  control: Control<any>
+  control: Control<FieldValues>
   disabled?: boolean
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   errors?: Record<string, any>

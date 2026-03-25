@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm, useWatch, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -232,8 +232,8 @@ function ReasonDialog({
     defaultValues: { code: '', label: '', description: '', sortOrder: 0, detailsSchema: '' },
   })
 
-  const handleOpenChange = useCallback((value: boolean) => {
-    if (value) {
+  useEffect(() => {
+    if (open) {
       reset({
         code:          editItem?.code ?? '',
         label:         editItem?.label ?? '',
@@ -244,8 +244,7 @@ function ReasonDialog({
           : '',
       })
     }
-    onOpenChange(value)
-  }, [editItem, reset, onOpenChange])
+  }, [open, editItem, reset])
 
   const schemaText = useWatch({ control, name: 'detailsSchema' }) ?? ''
 
@@ -269,7 +268,7 @@ function ReasonDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Modifica motivo' : 'Nuovo motivo di esclusione'}</DialogTitle>

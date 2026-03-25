@@ -583,7 +583,7 @@ export function AnalysisFormDialog({
                   {selectedIgnoreReason?.detailsSchema && (
                     <div className="sm:col-span-2">
                       <DynamicIgnoreDetailsForm
-                        control={control}
+                        control={fvControl}
                         schema={selectedIgnoreReason.detailsSchema}
                         disabled={isPending}
                         errors={errors}
