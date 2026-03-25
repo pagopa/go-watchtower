@@ -19,7 +19,6 @@ function createPrismaClient(): PrismaClient {
     idleTimeoutMillis: 30_000,            // 30s idle before closing
     statement_timeout: 30_000,            // 30s max query execution
     max: parseInt(process.env["DATABASE_POOL_MAX"] || "10", 10),
-    min: 2,                               // keep warm connections ready
   });
   const adapter = new PrismaPg(pool);
 

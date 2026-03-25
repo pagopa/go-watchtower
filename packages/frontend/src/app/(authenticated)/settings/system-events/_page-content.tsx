@@ -344,13 +344,254 @@ function SystemEventCell({ columnId, event }: { columnId: string; event: SystemE
 
 // ─── Metadata panel ───────────────────────────────────────────────────────────
 
+/** Format a single metadata value for display. */
+function formatMetaValue(value: unknown): string {
+  if (value === null || value === undefined) return '—'
+  if (typeof value === 'boolean') return value ? 'Sì' : 'No'
+  if (typeof value === 'string') return value || '(vuoto)'
+  if (typeof value === 'number') return String(value)
+  return JSON.stringify(value, null, 2)
+}
+
+/** True if the value is complex (object/array) and should use a <pre> block. */
+function isComplexValue(value: unknown): boolean {
+  return value !== null && typeof value === 'object'
+}
+
+/** Render a single value — inline for primitives, <pre> for complex objects. */
+function MetaValueDisplay({ value, className }: { value: unknown; className?: string }) {
+  if (isComplexValue(value)) {
+    return (
+      <pre className={cn('font-mono text-xs whitespace-pre-wrap break-all', className)}>
+        {JSON.stringify(value, null, 2)}
+      </pre>
+    )
+  }
+  return <span className={cn('text-xs', className)}>{formatMetaValue(value)}</span>
+}
+
+/** True when value looks like a buildDiff entry: { before: ..., after: ... }. */
+function isDiffEntry(value: unknown): value is { before: unknown; after: unknown } {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    'before' in (value as Record<string, unknown>) &&
+    'after' in (value as Record<string, unknown>)
+  )
+}
+
+/** Renders the `changes` object — supports both diff format { field: { before, after } } and flat format { field: value }. */
+function ChangesTable({ changes }: { changes: Record<string, unknown> }) {
+  const entries = Object.entries(changes)
+  if (entries.length === 0) return null
+
+  const hasDiffEntries = entries.some(([, v]) => isDiffEntry(v))
+
+  if (hasDiffEntries) {
+    return (
+      <div className="space-y-1.5">
+        <p className="text-muted-foreground font-medium uppercase tracking-wider text-[10px]">Modifiche</p>
+        <div className="rounded-lg border overflow-hidden">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-muted/40 border-b">
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground w-[28%]">Campo</th>
+                <th className="text-left px-3 py-2 font-medium text-red-600 dark:text-red-400 w-[36%]">Prima</th>
+                <th className="text-left px-3 py-2 font-medium text-emerald-600 dark:text-emerald-400 w-[36%]">Dopo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map(([field, value]) => {
+                if (isDiffEntry(value)) {
+                  return (
+                    <tr key={field} className="border-b last:border-0">
+                      <td className="px-3 py-2 font-mono text-muted-foreground align-top">{field}</td>
+                      <td className="px-3 py-2 align-top bg-red-500/[0.03] dark:bg-red-500/[0.06]">
+                        <MetaValueDisplay value={value.before} className="text-red-700 dark:text-red-300" />
+                      </td>
+                      <td className="px-3 py-2 align-top bg-emerald-500/[0.03] dark:bg-emerald-500/[0.06]">
+                        <MetaValueDisplay value={value.after} className="text-emerald-700 dark:text-emerald-300" />
+                      </td>
+                    </tr>
+                  )
+                }
+                // Non-diff entry mixed in with diff entries — span across both value columns
+                return (
+                  <tr key={field} className="border-b last:border-0">
+                    <td className="px-3 py-2 font-mono text-muted-foreground align-top">{field}</td>
+                    <td className="px-3 py-2 align-top" colSpan={2}>
+                      <MetaValueDisplay value={value} />
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )
+  }
+
+  // All flat values — simple two-column table
+  return (
+    <div className="space-y-1.5">
+      <p className="text-muted-foreground font-medium uppercase tracking-wider text-[10px]">Modifiche</p>
+      <div className="rounded-lg border overflow-hidden">
+        <table className="w-full text-xs">
+          <tbody>
+            {entries.map(([field, value]) => (
+              <tr key={field} className="border-b last:border-0">
+                <td className="px-3 py-2 font-mono text-muted-foreground align-top w-[30%] bg-muted/20">{field}</td>
+                <td className="px-3 py-2 align-top">
+                  <MetaValueDisplay value={value} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+/** Renders the `created` object as a field-value list. */
+function CreatedDetails({ created }: { created: Record<string, unknown> }) {
+  const entries = Object.entries(created).filter(
+    ([, v]) => v !== null && v !== undefined && v !== '',
+  )
+  if (entries.length === 0) return null
+
+  return (
+    <div className="space-y-1.5">
+      <p className="text-muted-foreground font-medium uppercase tracking-wider text-[10px]">Dettagli creazione</p>
+      <div className="rounded-lg border overflow-hidden">
+        <table className="w-full text-xs">
+          <tbody>
+            {entries.map(([field, value]) => (
+              <tr key={field} className="border-b last:border-0">
+                <td className="px-3 py-2 font-mono text-muted-foreground align-top w-[30%] bg-muted/20">{field}</td>
+                <td className="px-3 py-2 align-top">
+                  <MetaValueDisplay value={value} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+/** Keys handled by dedicated sections — everything else is shown in "Proprietà". */
+const STRUCTURED_META_KEYS = new Set(['changes', 'created', 'diff', 'before', 'after'])
+
+/**
+ * Extracts previous{X}/new{X} pairs from metadata into diff entries,
+ * and returns the remaining unpaired properties.
+ */
+function extractInlineDiffs(meta: Record<string, unknown>) {
+  const diffs: { field: string; before: unknown; after: unknown }[] = []
+  const consumed = new Set<string>()
+
+  for (const key of Object.keys(meta)) {
+    if (STRUCTURED_META_KEYS.has(key) || consumed.has(key)) continue
+
+    const prevMatch = key.match(/^previous(.+)$/)
+    if (prevMatch) {
+      const fieldName = prevMatch[1]
+      // lowercase first letter: previousStatus → status
+      const normalised = fieldName.charAt(0).toLowerCase() + fieldName.slice(1)
+      const newKey = `new${fieldName}`
+      if (newKey in meta) {
+        diffs.push({ field: normalised, before: meta[key], after: meta[newKey] })
+        consumed.add(key)
+        consumed.add(newKey)
+      }
+    }
+  }
+
+  const rest = Object.entries(meta).filter(
+    ([key, value]) => !STRUCTURED_META_KEYS.has(key) && !consumed.has(key) && value !== null && value !== undefined,
+  )
+
+  return { diffs, rest }
+}
+
+/** Renders extra metadata properties not covered by changes/created/diff sections. */
+function MetaProperties({ meta }: { meta: Record<string, unknown> }) {
+  const { diffs, rest } = extractInlineDiffs(meta)
+  if (diffs.length === 0 && rest.length === 0) return null
+
+  return (
+    <>
+      {/* Inline diffs from previous{X}/new{X} pairs */}
+      {diffs.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-muted-foreground font-medium uppercase tracking-wider text-[10px]">Modifiche</p>
+          <div className="rounded-lg border overflow-hidden">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-muted/40 border-b">
+                  <th className="text-left px-3 py-2 font-medium text-muted-foreground w-[28%]">Campo</th>
+                  <th className="text-left px-3 py-2 font-medium text-red-600 dark:text-red-400 w-[36%]">Prima</th>
+                  <th className="text-left px-3 py-2 font-medium text-emerald-600 dark:text-emerald-400 w-[36%]">Dopo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {diffs.map(({ field, before, after }) => (
+                  <tr key={field} className="border-b last:border-0">
+                    <td className="px-3 py-2 font-mono text-muted-foreground align-top">{field}</td>
+                    <td className="px-3 py-2 align-top bg-red-500/[0.03] dark:bg-red-500/[0.06]">
+                      <MetaValueDisplay value={before} className="text-red-700 dark:text-red-300" />
+                    </td>
+                    <td className="px-3 py-2 align-top bg-emerald-500/[0.03] dark:bg-emerald-500/[0.06]">
+                      <MetaValueDisplay value={after} className="text-emerald-700 dark:text-emerald-300" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Remaining flat properties */}
+      {rest.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-muted-foreground font-medium uppercase tracking-wider text-[10px]">Proprietà</p>
+          <div className="rounded-lg border overflow-hidden">
+            <table className="w-full text-xs">
+              <tbody>
+                {rest.map(([key, value]) => (
+                  <tr key={key} className="border-b last:border-0">
+                    <td className="px-3 py-2 font-mono text-muted-foreground align-top w-[30%] bg-muted/20">{key}</td>
+                    <td className="px-3 py-2 align-top">
+                      <MetaValueDisplay value={value} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
 function MetadataPanel({ event }: { event: SystemEvent }) {
   const [jsonOpen, setJsonOpen] = useState(false)
   const meta = event.metadata
-  const hasDiff = metaGet(meta, 'diff') !== undefined
-  const hasBefore = metaGet(meta, 'before') !== undefined
-  const hasAfter = metaGet(meta, 'after') !== undefined
   const hasAnyMeta = Object.keys(meta).length > 0
+
+  const changes = metaGet(meta, 'changes') as Record<string, { before: unknown; after: unknown }> | undefined
+  const created = metaGet(meta, 'created') as Record<string, unknown> | undefined
+
+  // Legacy format: diff.before / diff.after or top-level before/after
+  const legacyDiff = metaGet(meta, 'diff') as Record<string, unknown> | undefined
+  const legacyBefore = metaGet(meta, 'before') as Record<string, unknown> | undefined
+  const legacyAfter = metaGet(meta, 'after') as Record<string, unknown> | undefined
+  const hasLegacyDiff = legacyDiff !== undefined || (legacyBefore !== undefined && legacyAfter !== undefined)
 
   const link = resolveResourceLink(event)
 
@@ -392,20 +633,34 @@ function MetadataPanel({ event }: { event: SystemEvent }) {
         </div>
       </div>
 
-      {hasAnyMeta && (hasDiff || (hasBefore && hasAfter)) && (
+      {/* Extra metadata properties (e.g. previousStatus/newStatus, reason, productId) */}
+      <MetaProperties meta={meta} />
+
+      {/* Field-by-field changes table (current format) */}
+      {changes && Object.keys(changes).length > 0 && (
+        <ChangesTable changes={changes} />
+      )}
+
+      {/* Created object details */}
+      {created && typeof created === 'object' && (
+        <CreatedDetails created={created} />
+      )}
+
+      {/* Legacy diff format (before/after) fallback */}
+      {!changes && hasLegacyDiff && (
         <div className="space-y-1.5">
           <p className="text-muted-foreground font-medium uppercase tracking-wider text-[10px]">Modifiche</p>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <p className="text-[10px] font-medium text-red-600 dark:text-red-400 uppercase tracking-wider">Prima</p>
               <pre className="rounded border border-red-200/60 bg-red-500/5 p-2.5 font-mono text-xs overflow-x-auto dark:border-red-800/40">
-                {JSON.stringify(hasDiff ? metaGet(meta, 'diff', 'before') : metaGet(meta, 'before'), null, 2)}
+                {JSON.stringify(legacyDiff ? metaGet(meta, 'diff', 'before') : legacyBefore, null, 2)}
               </pre>
             </div>
             <div className="space-y-1">
               <p className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Dopo</p>
               <pre className="rounded border border-emerald-200/60 bg-emerald-500/5 p-2.5 font-mono text-xs overflow-x-auto dark:border-emerald-800/40">
-                {JSON.stringify(hasDiff ? metaGet(meta, 'diff', 'after') : metaGet(meta, 'after'), null, 2)}
+                {JSON.stringify(legacyDiff ? metaGet(meta, 'diff', 'after') : legacyAfter, null, 2)}
               </pre>
             </div>
           </div>
