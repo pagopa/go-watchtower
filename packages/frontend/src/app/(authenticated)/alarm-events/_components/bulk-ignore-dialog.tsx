@@ -39,7 +39,7 @@ import {
 import { qk } from '@/lib/query-keys'
 import { invalidate } from '@/lib/query-invalidation'
 import { DateTimePicker } from '@/components/ui/date-time-picker'
-import { DynamicIgnoreDetailsForm } from '@/components/ui/json-schema-form'
+import { DynamicIgnoreDetailsForm, buildIgnoreDetailsZodSchema } from '@/components/ui/json-schema-form'
 import { useForm, type FieldValues } from 'react-hook-form'
 import { isoToRomeLocal, romeLocalToISO } from '../../analyses/_components/analysis-form-schemas'
 
@@ -102,7 +102,7 @@ export function BulkIgnoreDialog({
   )
 
   // Form per i dettagli dinamici dello schema
-  const { control, reset: resetDetails, getValues } = useForm()
+  const { control, reset: resetDetails, getValues, setError, formState: { errors: detailsErrors } } = useForm()
 
   // Raggruppa gli eventi selezionati
   const { grouped, skipped } = useMemo(() => {
@@ -147,6 +147,23 @@ export function BulkIgnoreDialog({
       skipped: skippedEvents,
     }
   }, [selectedEvents])
+
+  const handleBulkSubmit = () => {
+    // Validate dynamic ignore details before starting the mutation
+    if (selectedReason?.detailsSchema) {
+      const formValues = getValues()
+      const detailsZod = buildIgnoreDetailsZodSchema(selectedReason.detailsSchema)
+      const result = detailsZod.safeParse(formValues?.ignoreDetails)
+      if (!result.success) {
+        for (const issue of result.error.issues) {
+          const field = issue.path[0] as string
+          setError(`ignoreDetails.${field}`, { message: issue.message })
+        }
+        return
+      }
+    }
+    bulkMutation.mutate()
+  }
 
   const bulkMutation = useMutation({
     mutationFn: async () => {
@@ -288,6 +305,7 @@ export function BulkIgnoreDialog({
               control={control as unknown as import('react-hook-form').Control<FieldValues>}
               schema={selectedReason.detailsSchema}
               disabled={bulkMutation.isPending}
+              errors={detailsErrors}
             />
           )}
         </div>
@@ -296,7 +314,7 @@ export function BulkIgnoreDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={bulkMutation.isPending}>
             Annulla
           </Button>
-          <Button onClick={() => bulkMutation.mutate()} disabled={!canSubmit}>
+          <Button onClick={handleBulkSubmit} disabled={!canSubmit}>
             {bulkMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Crea {grouped.length} analisi
           </Button>

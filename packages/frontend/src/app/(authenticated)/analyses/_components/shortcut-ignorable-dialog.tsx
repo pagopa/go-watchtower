@@ -48,7 +48,7 @@ import {
   LastAlarmField,
   ProductSelectorCard,
 } from './analysis-form-fields'
-import { DynamicIgnoreDetailsForm } from '@/components/ui/json-schema-form'
+import { DynamicIgnoreDetailsForm, buildIgnoreDetailsZodSchema } from '@/components/ui/json-schema-form'
 
 interface ShortcutIgnorableDialogProps {
   open: boolean
@@ -122,6 +122,7 @@ export function ShortcutIgnorableDialog({
     reset,
     control,
     setValue,
+    setError,
     getValues,
     formState: { errors: typedErrors, isDirty },
   } = useForm({
@@ -178,8 +179,23 @@ export function ShortcutIgnorableDialog({
   }
 
   const handleFormSubmit = useCallback((data: FieldValues) => {
-    const now = toDatetimeLocal(new Date().toISOString())
     const typedData = data as ShortcutIgnorableData
+
+    // Validate dynamic ignore details against the JSON schema
+    if (selectedReason?.detailsSchema) {
+      const detailsZod = buildIgnoreDetailsZodSchema(selectedReason.detailsSchema)
+      const result = detailsZod.safeParse(typedData.ignoreDetails)
+      if (!result.success) {
+        for (const issue of result.error.issues) {
+          const field = issue.path[0] as string
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          setError(`ignoreDetails.${field}` as any, { message: issue.message })
+        }
+        return
+      }
+    }
+
+    const now = toDatetimeLocal(new Date().toISOString())
     onSubmit({
       alarmId: typedData.alarmId,
       analysisType: 'IGNORABLE',
@@ -196,7 +212,7 @@ export function ShortcutIgnorableDialog({
       status: 'COMPLETED',
       runbookId: selectedRunbookId || undefined,
     })
-  }, [onSubmit, session?.user?.id, selectedRunbookId])
+  }, [onSubmit, session?.user?.id, selectedRunbookId, selectedReason?.detailsSchema, setError])
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!isDirty || v) handleOpenChange(v) }}>

@@ -55,7 +55,6 @@ import {
   useDateValidation,
   type AnalysisFormData,
 } from './analysis-form-schemas'
-
 import {
   AlarmField,
   EnvironmentField,
@@ -69,7 +68,7 @@ import {
   TrackingIdsField,
   LinksField,
 } from './analysis-form-fields'
-import { DynamicIgnoreDetailsForm } from '@/components/ui/json-schema-form'
+import { DynamicIgnoreDetailsForm, buildIgnoreDetailsZodSchema } from '@/components/ui/json-schema-form'
 
 import { ANALYSIS_TYPE_LABELS, ANALYSIS_STATUS_LABELS } from '../_lib/constants'
 import { IgnoredAlarmWarningBanner } from './ignored-alarm-warning'
@@ -250,6 +249,7 @@ export function AnalysisFormDialog({
     control,
     watch,
     setValue,
+    setError,
     getValues,
     formState: { errors: typedErrors, isDirty },
   } = useForm<AnalysisFormData>({
@@ -401,6 +401,21 @@ export function AnalysisFormDialog({
 
   const handleFormSubmit = (data: AnalysisFormData) => {
     if (hasDateErrors) return
+
+    // Validate dynamic ignore details against the JSON schema
+    if (data.analysisType === 'IGNORABLE' && selectedIgnoreReason?.detailsSchema) {
+      const detailsZod = buildIgnoreDetailsZodSchema(selectedIgnoreReason.detailsSchema)
+      const result = detailsZod.safeParse(data.ignoreDetails)
+      if (!result.success) {
+        for (const issue of result.error.issues) {
+          const field = issue.path[0] as string
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          setError(`ignoreDetails.${field}` as any, { message: issue.message })
+        }
+        return
+      }
+    }
+
     onSubmit({
       ...data,
       // analysisDate is entered as Rome local time → convert to UTC ISO
