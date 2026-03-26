@@ -70,6 +70,7 @@ export const qk = {
     alarmRanking:      (filters: object) => [REPORTS, 'alarm-ranking', filters] as const,
     monthlyKpi:        (productId: string, year: number, month: number) => [REPORTS, 'monthly-kpi', productId, year, month] as const,
     yearlySummary:     (year: number, productId?: string) => [REPORTS, 'yearly-summary', year, productId] as const,
+    mttaTrend:         (filters: object) => [REPORTS, 'mtta-trend', filters] as const,
   },
 
   // ── Products & sub-resources ─────────────────────────────────────────────

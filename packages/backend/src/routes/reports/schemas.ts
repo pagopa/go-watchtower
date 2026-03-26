@@ -118,3 +118,29 @@ export const MonthlyKpiResponseSchema = Type.Object({
   environments: Type.Array(MonthlyKpiEnvironmentSchema),
 });
 
+// ============================================================================
+// MTTA Trend Query & Response
+// ============================================================================
+
+export const MttaTrendQuerySchema = Type.Object({
+  productId: Type.Optional(Type.String()),
+  dateFrom: Type.Optional(Type.String()),
+  dateTo: Type.Optional(Type.String()),
+  granularity: Type.Optional(Type.Union([
+    Type.Literal("weekly"),
+    Type.Literal("monthly"),
+  ])),
+});
+
+export type MttaTrendQuery = Static<typeof MttaTrendQuerySchema>;
+
+const MttaTrendItemSchema = Type.Object({
+  period: Type.String(),
+  avgMttaMs: Type.Union([Type.Number(), Type.Null()]),
+  medianMttaMs: Type.Union([Type.Number(), Type.Null()]),
+  analysisCount: Type.Integer(),
+  totalOccurrences: Type.Integer(),
+});
+
+export const MttaTrendResponseSchema = Type.Array(MttaTrendItemSchema);
+

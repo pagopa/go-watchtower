@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Users, BarChart3, CalendarDays, CalendarRange } from 'lucide-react'
+import { Users, BarChart3, CalendarDays, CalendarRange, TrendingDown } from 'lucide-react'
 import { usePermissions } from '@/hooks/use-permissions'
 import { api, type Product } from '@/lib/api-client'
 import { qk } from '@/lib/query-keys'
@@ -30,6 +30,11 @@ const YearlySummaryTab = dynamic(
   { ssr: false, loading: () => <Skeleton className="h-64 w-full" /> }
 )
 
+const MttaTrendTab = dynamic(
+  () => import('./_components/mtta-trend-tab').then(m => m.MttaTrendTab),
+  { ssr: false, loading: () => <Skeleton className="h-64 w-full" /> }
+)
+
 const REPORTS = [
   {
     id: 'operators',
@@ -54,6 +59,12 @@ const REPORTS = [
     label: 'Riepilogo Annuale',
     description: 'Metriche mensili produzione e totali',
     icon: CalendarRange,
+  },
+  {
+    id: 'mtta-trend',
+    label: 'Trend MTTA',
+    description: 'Andamento MTTA medio e mediano nel tempo',
+    icon: TrendingDown,
   },
 ] as const
 
@@ -135,6 +146,9 @@ export function ReportsPageContent() {
             )}
             {activeReport === 'yearly-summary' && (
               <YearlySummaryTab products={products} />
+            )}
+            {activeReport === 'mtta-trend' && (
+              <MttaTrendTab products={products} />
             )}
           </div>
         </>

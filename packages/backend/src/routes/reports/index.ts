@@ -12,10 +12,13 @@ import {
   MonthlyKpiResponseSchema,
   YearlySummaryQuerySchema,
   YearlySummaryResponseSchema,
+  MttaTrendQuerySchema,
+  MttaTrendResponseSchema,
   ErrorResponseSchema,
   type ReportQuery,
   type MonthlyKpiQuery,
   type YearlySummaryQuery,
+  type MttaTrendQuery,
 } from "./schemas.js";
 
 function buildWhereClause(query: ReportQuery): Prisma.AlarmAnalysisWhereInput {
@@ -698,6 +701,94 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Failed to generate yearly summary report";
+        HttpError.internal(reply, message);
+      }
+    }
+  );
+
+  // ============================================================================
+  // MTTA TREND REPORT
+  // ============================================================================
+
+  app.get<{ Querystring: MttaTrendQuery }>(
+    "/reports/mtta-trend",
+    {
+      onRequest: [app.authenticate, requirePermission(SystemComponent.ALARM_ANALYSIS, "read")],
+      schema: {
+        tags: ["reports"],
+        summary: "MTTA trend over time — average and median per period",
+        security: [{ bearerAuth: [] }],
+        querystring: MttaTrendQuerySchema,
+        response: {
+          200: MttaTrendResponseSchema,
+          403: ErrorResponseSchema,
+          500: ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const { productId, dateFrom, dateTo, granularity = "weekly" } = request.query;
+
+        const truncFn = granularity === "monthly"
+          ? "DATE_TRUNC('month', analysis_date)"
+          : "DATE_TRUNC('week', analysis_date)";
+
+        const conditions: string[] = ["first_alarm_at IS NOT NULL"];
+        const params: unknown[] = [];
+        let paramIdx = 1;
+
+        if (productId) {
+          conditions.push(`product_id = $${paramIdx++}`);
+          params.push(productId);
+        }
+        if (dateFrom) {
+          conditions.push(`analysis_date >= $${paramIdx++}`);
+          params.push(new Date(dateFrom));
+        }
+        if (dateTo) {
+          conditions.push(`analysis_date <= $${paramIdx++}`);
+          params.push(new Date(dateTo));
+        }
+
+        const whereSQL = conditions.join(" AND ");
+
+        const rows = await prisma.$queryRawUnsafe<
+          Array<{
+            period: Date;
+            avg_mtta_ms: number | null;
+            median_mtta_ms: number | null;
+            analysis_count: bigint;
+            total_occurrences: bigint;
+          }>
+        >(
+          `SELECT
+             ${truncFn} AS period,
+             AVG(EXTRACT(EPOCH FROM (analysis_date - first_alarm_at)) * 1000) AS avg_mtta_ms,
+             PERCENTILE_CONT(0.5) WITHIN GROUP (
+               ORDER BY EXTRACT(EPOCH FROM (analysis_date - first_alarm_at)) * 1000
+             ) AS median_mtta_ms,
+             COUNT(*)::bigint AS analysis_count,
+             COALESCE(SUM(occurrences), 0)::bigint AS total_occurrences
+           FROM alarm_analyses
+           WHERE ${whereSQL}
+           GROUP BY ${truncFn}
+           ORDER BY period`,
+          ...params
+        );
+
+        const result = rows.map((r) => ({
+          period: r.period.toISOString().split("T")[0],
+          avgMttaMs: r.avg_mtta_ms != null ? Number(r.avg_mtta_ms) : null,
+          medianMttaMs: r.median_mtta_ms != null ? Number(r.median_mtta_ms) : null,
+          analysisCount: Number(r.analysis_count),
+          totalOccurrences: Number(r.total_occurrences),
+        }));
+
+        reply.send(result);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Failed to generate MTTA trend report";
         HttpError.internal(reply, message);
       }
     }

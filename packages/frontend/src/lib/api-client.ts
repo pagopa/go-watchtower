@@ -848,6 +848,22 @@ export interface AlarmDetailData {
   }>
 }
 
+// MTTA Trend Types
+export interface MttaTrendFilters {
+  productId?: string
+  dateFrom?: string
+  dateTo?: string
+  granularity?: 'weekly' | 'monthly'
+}
+
+export interface MttaTrendItem {
+  period: string
+  avgMttaMs: number | null
+  medianMttaMs: number | null
+  analysisCount: number
+  totalOccurrences: number
+}
+
 export interface CreateRoleData {
   name: string
   description?: string
@@ -1084,6 +1100,10 @@ export const api = {
   getYearlySummary: (year: number, productId?: string) =>
     request<YearlySummaryData>('/api/reports/yearly-summary', {
       params: { year, ...(productId ? { productId } : {}) },
+    }),
+  getMttaTrend: (filters?: MttaTrendFilters) =>
+    request<MttaTrendItem[]>('/api/reports/mtta-trend', {
+      params: filters as Record<string, string | number | boolean | undefined>,
     }),
 
   // Alarm Detail
