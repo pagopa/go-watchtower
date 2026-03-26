@@ -54,6 +54,8 @@ function LinkedAlarmEvents({ analysis }: { analysis: AlarmAnalysis }) {
               <th className="px-3 py-2 text-left font-medium">Data scatto</th>
               <th className="px-3 py-2 text-left font-medium">Nome</th>
               <th className="px-3 py-2 text-left font-medium">Ambiente</th>
+              <th className="px-3 py-2 text-left font-medium">Presa in carico</th>
+              <th className="px-3 py-2 text-left font-medium">Risolto</th>
               <th className="px-3 py-2 w-10" />
             </tr>
           </thead>
@@ -65,6 +67,12 @@ function LinkedAlarmEvents({ analysis }: { analysis: AlarmAnalysis }) {
                 </td>
                 <td className="px-3 py-2 truncate max-w-[200px]">{event.name}</td>
                 <td className="px-3 py-2 text-muted-foreground">{event.environment.name}</td>
+                <td className="px-3 py-2 font-mono text-xs tabular-nums text-muted-foreground">
+                  {event.linkedAt ? formatDateTimeUTC(event.linkedAt) : '—'}
+                </td>
+                <td className="px-3 py-2 font-mono text-xs tabular-nums text-muted-foreground">
+                  {event.resolvedAt ? formatDateTimeUTC(event.resolvedAt) : '—'}
+                </td>
                 <td className="px-1 py-1">
                   <button
                     type="button"

@@ -48,6 +48,7 @@ const AlarmKpiSchema = Type.Object({
   totalAnalyses: Type.Integer(),
   totalOccurrences: Type.Integer(),
   avgMttaMs: Type.Union([Type.Number(), Type.Null()]),
+  avgMttrMs: Type.Union([Type.Number(), Type.Null()]),
   ignorableRatio: Type.Number(),
 });
 
@@ -55,6 +56,13 @@ const OccurrenceTrendItemSchema = Type.Object({
   date: Type.String(),
   count: Type.Integer(),
   occurrences: Type.Integer(),
+});
+
+const MttaTrendItemSchema = Type.Object({
+  date: Type.String(),
+  avgMttaMs: Type.Union([Type.Number(), Type.Null()]),
+  avgMttrMs: Type.Union([Type.Number(), Type.Null()]),
+  eventCount: Type.Integer(),
 });
 
 const EnvironmentBreakdownItemSchema = Type.Object({
@@ -106,6 +114,7 @@ export const AlarmDetailResponseSchema = Type.Object({
   alarm: AlarmInfoSchema,
   kpi: AlarmKpiSchema,
   occurrenceTrend: Type.Array(OccurrenceTrendItemSchema),
+  mttaTrend: Type.Array(MttaTrendItemSchema),
   byEnvironment: Type.Array(EnvironmentBreakdownItemSchema),
   byOperator: Type.Array(OperatorBreakdownItemSchema),
   recentAnalyses: Type.Array(RecentAnalysisItemSchema),

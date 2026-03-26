@@ -52,6 +52,8 @@ function formatResponse(event: {
   awsAccountId: string;
   alarmId: string | null;
   analysisId: string | null;
+  linkedAt: Date | null;
+  resolvedAt: Date | null;
   createdAt: Date;
   product: { id: string; name: string };
   environment: { id: string; name: string };
@@ -59,8 +61,10 @@ function formatResponse(event: {
 }) {
   return {
     ...event,
-    firedAt:   event.firedAt.toISOString(),
-    createdAt: event.createdAt.toISOString(),
+    firedAt:    event.firedAt.toISOString(),
+    linkedAt:   event.linkedAt?.toISOString() ?? null,
+    resolvedAt: event.resolvedAt?.toISOString() ?? null,
+    createdAt:  event.createdAt.toISOString(),
   };
 }
 
@@ -347,41 +351,65 @@ export async function alarmEventRoutes(app: FastifyInstance) {
 
       // Apply link + optional analysis updates in a single transaction
       const updated = await prisma.$transaction(async (tx) => {
+        // When linking, determine linked/resolved timestamps
+        const eventData: Record<string, unknown> = { analysisId }
+        if (analysisId) {
+          eventData.linkedAt = new Date()
+          eventData.resolvedAt = null
+        } else {
+          // Unlinking: clear both timestamps
+          eventData.linkedAt = null
+          eventData.resolvedAt = null
+        }
+
         const event = await tx.alarmEvent.update({
           where: { id: request.params.id },
-          data: { analysisId },
+          data: eventData,
           include,
         });
 
-        // Apply analysis updates if linking (not unlinking) and updates are requested
-        if (analysisId && updates && canUpdateAnalysis) {
+        // When linking, fetch the analysis to check status and apply optional updates
+        if (analysisId) {
           const analysis = await tx.alarmAnalysis.findUnique({
             where: { id: analysisId },
             select: { id: true, occurrences: true, lastAlarmAt: true, status: true, alarm: { select: { name: true } } },
           });
 
           if (analysis) {
-            const data: Record<string, unknown> = {};
+            // Apply optional analysis updates first (may reopen analysis)
+            let analysisReopened = false
+            if (updates && canUpdateAnalysis) {
+              const data: Record<string, unknown> = {};
 
-            if (updates.incrementOccurrences) {
-              data.occurrences = analysis.occurrences + 1;
-            }
-            if (updates.lastAlarmAt && new Date(updates.lastAlarmAt).getTime() > analysis.lastAlarmAt.getTime()) {
-              data.lastAlarmAt = new Date(updates.lastAlarmAt);
-            }
-            if (updates.reopenAnalysis && analysis.status === AnalysisStatuses.COMPLETED) {
-              data.status = AnalysisStatuses.IN_PROGRESS;
+              if (updates.incrementOccurrences) {
+                data.occurrences = analysis.occurrences + 1;
+              }
+              if (updates.lastAlarmAt && new Date(updates.lastAlarmAt).getTime() > analysis.lastAlarmAt.getTime()) {
+                data.lastAlarmAt = new Date(updates.lastAlarmAt);
+              }
+              if (updates.reopenAnalysis && analysis.status === AnalysisStatuses.COMPLETED) {
+                data.status = AnalysisStatuses.IN_PROGRESS;
+                analysisReopened = true
+              }
+
+              if (Object.keys(data).length > 0) {
+                await tx.alarmAnalysis.update({ where: { id: analysisId }, data });
+
+                request.auditEvents.push({
+                  action:        SystemEventActions.ANALYSIS_UPDATED,
+                  resource:      SystemEventResources.ALARM_ANALYSES,
+                  resourceId:    analysis.id,
+                  resourceLabel: analysis.alarm.name,
+                  metadata:      { changes: data, via: "link-analysis" },
+                });
+              }
             }
 
-            if (Object.keys(data).length > 0) {
-              await tx.alarmAnalysis.update({ where: { id: analysisId }, data });
-
-              request.auditEvents.push({
-                action:        SystemEventActions.ANALYSIS_UPDATED,
-                resource:      SystemEventResources.ALARM_ANALYSES,
-                resourceId:    analysis.id,
-                resourceLabel: analysis.alarm.name,
-                metadata:      { changes: data, via: "link-analysis" },
+            // If analysis is COMPLETED and NOT being reopened, mark the event as immediately resolved
+            if (analysis.status === AnalysisStatuses.COMPLETED && !analysisReopened) {
+              await tx.alarmEvent.update({
+                where: { id: request.params.id },
+                data: { resolvedAt: new Date() },
               });
             }
           }

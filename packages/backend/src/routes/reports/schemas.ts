@@ -138,8 +138,10 @@ const MttaTrendItemSchema = Type.Object({
   period: Type.String(),
   avgMttaMs: Type.Union([Type.Number(), Type.Null()]),
   medianMttaMs: Type.Union([Type.Number(), Type.Null()]),
-  analysisCount: Type.Integer(),
-  totalOccurrences: Type.Integer(),
+  avgMttrMs: Type.Union([Type.Number(), Type.Null()]),
+  medianMttrMs: Type.Union([Type.Number(), Type.Null()]),
+  eventCount: Type.Integer(),
+  resolvedCount: Type.Integer(),
 });
 
 export const MttaTrendResponseSchema = Type.Array(MttaTrendItemSchema);

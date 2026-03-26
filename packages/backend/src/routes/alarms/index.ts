@@ -104,7 +104,7 @@ export async function alarmRoutes(fastify: FastifyInstance): Promise<void> {
           byEnvironment,
           byOperator,
           occurrenceTrendRaw,
-          mttaRaw,
+          mttaMttrDailyRaw,
           recentAnalyses,
           topResourcesRaw,
           topDownstreamsRaw,
@@ -156,13 +156,40 @@ export async function alarmRoutes(fastify: FastifyInstance): Promise<void> {
             ...sqlParams
           ),
 
-          // Average MTTA
-          prisma.$queryRawUnsafe<Array<{ mtta_ms: number | null }>>(
-            `SELECT AVG(EXTRACT(EPOCH FROM (analysis_date - first_alarm_at)) * 1000) as mtta_ms
-             FROM alarm_analyses
-             WHERE ${whereSQL} AND first_alarm_at IS NOT NULL`,
-            ...sqlParams
-          ),
+          // Daily MTTA/MTTR trend — single scan on alarm_events
+          // KPI averages are computed in JS from the daily rows (avoids 2 extra queries)
+          (() => {
+            const evtConditions: string[] = ["alarm_id = $1", "linked_at IS NOT NULL"];
+            let evtIdx = 2;
+            if (dateFrom) evtConditions.push(`linked_at >= $${evtIdx++}`);
+            if (dateTo)   evtConditions.push(`linked_at <= $${evtIdx++}`);
+            return prisma.$queryRawUnsafe<
+              Array<{
+                date: string;
+                avg_mtta_ms: number | null;
+                avg_mttr_ms: number | null;
+                event_count: bigint;
+                resolved_count: bigint;
+                sum_mtta_ms: number | null;
+                sum_mttr_ms: number | null;
+              }>
+            >(
+              `SELECT DATE(linked_at)::text AS date,
+                      AVG(EXTRACT(EPOCH FROM (linked_at - fired_at)) * 1000) AS avg_mtta_ms,
+                      AVG(EXTRACT(EPOCH FROM (resolved_at - fired_at)) * 1000)
+                        FILTER (WHERE resolved_at IS NOT NULL) AS avg_mttr_ms,
+                      COUNT(*)::bigint AS event_count,
+                      COUNT(resolved_at)::bigint AS resolved_count,
+                      SUM(EXTRACT(EPOCH FROM (linked_at - fired_at)) * 1000) AS sum_mtta_ms,
+                      SUM(EXTRACT(EPOCH FROM (resolved_at - fired_at)) * 1000)
+                        FILTER (WHERE resolved_at IS NOT NULL) AS sum_mttr_ms
+               FROM alarm_events
+               WHERE ${evtConditions.join(" AND ")}
+               GROUP BY DATE(linked_at)
+               ORDER BY date`,
+              ...sqlParams
+            );
+          })(),
 
           // Recent analyses (last 20)
           prisma.alarmAnalysis.findMany({
@@ -268,7 +295,22 @@ export async function alarmRoutes(fastify: FastifyInstance): Promise<void> {
           totalCount > 0
             ? Math.round((ignorableCount / totalCount) * 10000) / 100
             : 0;
-        const avgMttaMs = mttaRaw[0]?.mtta_ms != null ? Number(mttaRaw[0].mtta_ms) : null;
+
+        // Derive MTTA/MTTR averages from daily rows (avoids extra DB queries)
+        let totalEvents = 0;
+        let totalResolved = 0;
+        let sumMtta = 0;
+        let sumMttr = 0;
+        for (const r of mttaMttrDailyRaw) {
+          const evtCount = Number(r.event_count);
+          const resCount = Number(r.resolved_count);
+          totalEvents += evtCount;
+          totalResolved += resCount;
+          if (r.sum_mtta_ms != null) sumMtta += Number(r.sum_mtta_ms);
+          if (r.sum_mttr_ms != null) sumMttr += Number(r.sum_mttr_ms);
+        }
+        const avgMttaMs = totalEvents > 0 ? sumMtta / totalEvents : null;
+        const avgMttrMs = totalResolved > 0 ? sumMttr / totalResolved : null;
 
         // ── Assemble response ───────────────────────────────────────────
         reply.send({
@@ -292,13 +334,20 @@ export async function alarmRoutes(fastify: FastifyInstance): Promise<void> {
           kpi: {
             totalAnalyses: totalCount,
             totalOccurrences,
-            avgMttaMs: avgMttaMs,
+            avgMttaMs,
+            avgMttrMs,
             ignorableRatio,
           },
           occurrenceTrend: occurrenceTrendRaw.map((r) => ({
             date: r.date,
             count: Number(r.count),
             occurrences: Number(r.occurrences),
+          })),
+          mttaTrend: mttaMttrDailyRaw.map((r) => ({
+            date: r.date,
+            avgMttaMs: r.avg_mtta_ms != null ? Number(r.avg_mtta_ms) : null,
+            avgMttrMs: r.avg_mttr_ms != null ? Number(r.avg_mttr_ms) : null,
+            eventCount: Number(r.event_count),
           })),
           byEnvironment: byEnvironment
             .map((r) => ({

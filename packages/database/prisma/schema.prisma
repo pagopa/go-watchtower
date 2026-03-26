@@ -445,7 +445,9 @@ model AlarmEvent {
   productId      String   @map("product_id") @db.Uuid
   environmentId  String   @map("environment_id") @db.Uuid
   alarmId        String?  @map("alarm_id") @db.Uuid
-  analysisId     String?  @map("analysis_id") @db.Uuid
+  analysisId     String?   @map("analysis_id") @db.Uuid
+  linkedAt       DateTime? @map("linked_at")
+  resolvedAt     DateTime? @map("resolved_at")
   // Identificatore univoco del messaggio Slack sorgente — formato "{channelId}/{ts}".
   // Usato per prevenire duplicati quando lo script di ingestione rilegge messaggi già processati.
   slackMessageId String?  @unique @map("slack_message_id")

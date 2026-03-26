@@ -7,22 +7,11 @@ import {
 } from 'recharts'
 import { formatDuration } from '@go-watchtower/shared'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import type { MttaTrendItem } from '@/lib/api-client'
 
 const COLORS = {
-  mttaAvg: 'hsl(var(--chart-1, 220 70% 50%))',
-  mttaMedian: 'hsl(var(--chart-2, 160 60% 45%))',
-  mttrAvg: 'hsl(var(--chart-4, 280 65% 55%))',
-  mttrMedian: 'hsl(var(--chart-5, 340 70% 50%))',
+  mtta: 'hsl(var(--chart-1, 220 70% 50%))',
+  mttr: 'hsl(var(--chart-4, 280 65% 55%))',
   bar: 'hsl(var(--chart-3, 30 80% 55%))',
-}
-
-function formatPeriodShort(period: string, granularity: 'weekly' | 'monthly'): string {
-  const d = new Date(period + 'T00:00:00')
-  if (granularity === 'monthly') {
-    return d.toLocaleDateString('it-IT', { month: 'short', year: '2-digit' })
-  }
-  return d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })
 }
 
 function msToHours(ms: number | null): number | null {
@@ -31,16 +20,22 @@ function msToHours(ms: number | null): number | null {
 }
 
 interface Props {
-  data: MttaTrendItem[]
-  granularity: 'weekly' | 'monthly'
+  data: Array<{
+    date: string
+    avgMttaMs: number | null
+    avgMttrMs: number | null
+    eventCount: number
+  }>
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
+  const d = new Date(label + 'T00:00:00')
+  const formatted = d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' })
   return (
     <div className="rounded-lg border bg-background p-3 shadow-md text-sm space-y-1">
-      <p className="font-medium">{label}</p>
+      <p className="font-medium">{formatted}</p>
       {payload.map((entry: { name: string; value: number; color: string; dataKey: string }) => (
         <div key={entry.dataKey} className="flex items-center gap-2">
           <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
@@ -56,29 +51,31 @@ function CustomTooltip({ active, payload, label }: any) {
   )
 }
 
-const MttaTrendChart = memo(function MttaTrendChart({ data, granularity }: Props) {
+const MttaMttrTrendChart = memo(function MttaMttrTrendChart({ data }: Props) {
   const chartData = useMemo(() =>
-    data.map((d) => ({
-      period: formatPeriodShort(d.period, granularity),
-      'MTTA Medio': msToHours(d.avgMttaMs),
-      'MTTA Mediano': msToHours(d.medianMttaMs),
-      'MTTR Medio': msToHours(d.avgMttrMs),
-      'MTTR Mediano': msToHours(d.medianMttrMs),
-      eventi: d.eventCount,
-    })),
-    [data, granularity]
+    data.map((d) => {
+      const dt = new Date(d.date + 'T00:00:00')
+      return {
+        date: d.date,
+        label: dt.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' }),
+        'MTTA Medio': msToHours(d.avgMttaMs),
+        'MTTR Medio': msToHours(d.avgMttrMs),
+        eventi: d.eventCount,
+      }
+    }),
+    [data]
   )
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Trend MTTA / MTTR nel tempo</CardTitle>
+        <CardTitle className="text-base">Trend MTTA / MTTR giornaliero</CardTitle>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={350}>
+        <ResponsiveContainer width="100%" height={300}>
           <ComposedChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="period" tick={{ fontSize: 11 }} />
+            <XAxis dataKey="label" tick={{ fontSize: 11 }} />
             <YAxis
               yAxisId="time"
               allowDecimals
@@ -105,39 +102,19 @@ const MttaTrendChart = memo(function MttaTrendChart({ data, granularity }: Props
               yAxisId="time"
               type="monotone"
               dataKey="MTTA Medio"
-              stroke={COLORS.mttaAvg}
+              stroke={COLORS.mtta}
               strokeWidth={2}
-              dot={{ r: 3 }}
+              dot={{ r: 2 }}
               name="MTTA Medio"
             />
             <Line
               yAxisId="time"
               type="monotone"
-              dataKey="MTTA Mediano"
-              stroke={COLORS.mttaMedian}
-              strokeWidth={2}
-              strokeDasharray="5 5"
-              dot={{ r: 3 }}
-              name="MTTA Mediano"
-            />
-            <Line
-              yAxisId="time"
-              type="monotone"
               dataKey="MTTR Medio"
-              stroke={COLORS.mttrAvg}
+              stroke={COLORS.mttr}
               strokeWidth={2}
-              dot={{ r: 3 }}
+              dot={{ r: 2 }}
               name="MTTR Medio"
-            />
-            <Line
-              yAxisId="time"
-              type="monotone"
-              dataKey="MTTR Mediano"
-              stroke={COLORS.mttrMedian}
-              strokeWidth={2}
-              strokeDasharray="5 5"
-              dot={{ r: 3 }}
-              name="MTTR Mediano"
             />
           </ComposedChart>
         </ResponsiveContainer>
@@ -146,4 +123,4 @@ const MttaTrendChart = memo(function MttaTrendChart({ data, granularity }: Props
   )
 })
 
-export default MttaTrendChart
+export default MttaMttrTrendChart

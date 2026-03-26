@@ -7,7 +7,7 @@ import { getPermissionScope } from "../../services/permission.service.js";
 import { requirePermission } from "../../lib/require-permission.js";
 import { buildDiff } from "../../services/system-event.service.js";
 import { scoreAnalysis } from "../../services/analysis-scoring.service.js";
-import { SystemEventActions, SystemEventResources, inferLinkType } from "@go-watchtower/shared";
+import { SystemEventActions, SystemEventResources, AnalysisStatuses, inferLinkType } from "@go-watchtower/shared";
 import type { AnalysisLink, TrackingEntry, IgnoreReasonDetailsSchema } from "@go-watchtower/shared";
 import { HttpError } from "../../utils/http-errors.js";
 import { toJsonInput, fromJson, fromJsonOr } from "../../utils/json-cast.js";
@@ -886,6 +886,17 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
             data: updateData,
             include: analysisInclude,
           });
+
+          // When status transitions to COMPLETED, set resolved_at on linked events that don't have it yet
+          if (
+            request.body.status === AnalysisStatuses.COMPLETED &&
+            existing.status !== AnalysisStatuses.COMPLETED
+          ) {
+            await tx.alarmEvent.updateMany({
+              where: { analysisId: id, resolvedAt: null },
+              data: { resolvedAt: new Date() },
+            });
+          }
 
           return updated;
         });

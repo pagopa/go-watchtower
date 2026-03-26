@@ -73,21 +73,25 @@ export function MttaTrendTab({ products }: MttaTrendTabProps) {
       period: formatPeriod(item.period, granularity),
       avgMtta: formatDuration(item.avgMttaMs),
       medianMtta: formatDuration(item.medianMttaMs),
-      analysisCount: item.analysisCount,
-      totalOccurrences: item.totalOccurrences,
+      avgMttr: formatDuration(item.avgMttrMs),
+      medianMttr: formatDuration(item.medianMttrMs),
+      eventCount: item.eventCount,
+      resolvedCount: item.resolvedCount,
     }))
     downloadCsv(rows, [
       { key: 'period', label: 'Periodo' },
       { key: 'avgMtta', label: 'MTTA Medio' },
       { key: 'medianMtta', label: 'MTTA Mediano' },
-      { key: 'analysisCount', label: 'Analisi' },
-      { key: 'totalOccurrences', label: 'Occorrenze' },
-    ], 'mtta-trend')
+      { key: 'avgMttr', label: 'MTTR Medio' },
+      { key: 'medianMttr', label: 'MTTR Mediano' },
+      { key: 'eventCount', label: 'Eventi' },
+      { key: 'resolvedCount', label: 'Risolti' },
+    ], 'mtta-mttr-trend')
   }, [data, granularity])
 
   const handleExportJson = useCallback(() => {
     if (!data) return
-    downloadJson(data, 'mtta-trend')
+    downloadJson(data, 'mtta-mttr-trend')
   }, [data])
 
   return (
@@ -158,8 +162,10 @@ export function MttaTrendTab({ products }: MttaTrendTabProps) {
                   <TableHead>Periodo</TableHead>
                   <TableHead className="text-right">MTTA Medio</TableHead>
                   <TableHead className="text-right">MTTA Mediano</TableHead>
-                  <TableHead className="text-right">Analisi</TableHead>
-                  <TableHead className="text-right">Occorrenze</TableHead>
+                  <TableHead className="text-right">MTTR Medio</TableHead>
+                  <TableHead className="text-right">MTTR Mediano</TableHead>
+                  <TableHead className="text-right">Eventi</TableHead>
+                  <TableHead className="text-right">Risolti</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -168,8 +174,10 @@ export function MttaTrendTab({ products }: MttaTrendTabProps) {
                     <TableCell className="font-medium">{formatPeriod(item.period, granularity)}</TableCell>
                     <TableCell className="text-right font-mono text-sm">{formatDuration(item.avgMttaMs)}</TableCell>
                     <TableCell className="text-right font-mono text-sm">{formatDuration(item.medianMttaMs)}</TableCell>
-                    <TableCell className="text-right">{item.analysisCount}</TableCell>
-                    <TableCell className="text-right">{item.totalOccurrences}</TableCell>
+                    <TableCell className="text-right font-mono text-sm">{formatDuration(item.avgMttrMs)}</TableCell>
+                    <TableCell className="text-right font-mono text-sm">{formatDuration(item.medianMttrMs)}</TableCell>
+                    <TableCell className="text-right">{item.eventCount}</TableCell>
+                    <TableCell className="text-right">{item.resolvedCount}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

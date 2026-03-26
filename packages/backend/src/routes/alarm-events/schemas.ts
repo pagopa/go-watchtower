@@ -33,6 +33,8 @@ export const AlarmEventResponseSchema = Type.Object({
   alarmId:       Type.Union([Type.String(), Type.Null()]),
   alarm:         Type.Union([EmbeddedAlarmSchema, Type.Null()]),
   analysisId:    Type.Union([Type.String(), Type.Null()]),
+  linkedAt:      Type.Union([Type.String({ format: "date-time" }), Type.Null()]),
+  resolvedAt:    Type.Union([Type.String({ format: "date-time" }), Type.Null()]),
   createdAt:     Type.String({ format: "date-time" }),
 });
 

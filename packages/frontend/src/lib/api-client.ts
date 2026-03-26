@@ -812,9 +812,11 @@ export interface AlarmDetailData {
     totalAnalyses: number
     totalOccurrences: number
     avgMttaMs: number | null
+    avgMttrMs: number | null
     ignorableRatio: number
   }
   occurrenceTrend: Array<{ date: string; count: number; occurrences: number }>
+  mttaTrend: Array<{ date: string; avgMttaMs: number | null; avgMttrMs: number | null; eventCount: number }>
   byEnvironment: Array<{
     environmentId: string
     environmentName: string
@@ -860,8 +862,10 @@ export interface MttaTrendItem {
   period: string
   avgMttaMs: number | null
   medianMttaMs: number | null
-  analysisCount: number
-  totalOccurrences: number
+  avgMttrMs: number | null
+  medianMttrMs: number | null
+  eventCount: number
+  resolvedCount: number
 }
 
 export interface CreateRoleData {
@@ -914,6 +918,8 @@ export interface AlarmEvent {
     runbook: { id: string; name: string; link: string } | null
   } | null
   analysisId: string | null
+  linkedAt: string | null
+  resolvedAt: string | null
   createdAt: string
 }
 

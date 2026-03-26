@@ -62,8 +62,8 @@ const REPORTS = [
   },
   {
     id: 'mtta-trend',
-    label: 'Trend MTTA',
-    description: 'Andamento MTTA medio e mediano nel tempo',
+    label: 'Trend MTTA/MTTR',
+    description: 'Andamento tempi di presa in carico e risoluzione',
     icon: TrendingDown,
   },
 ] as const

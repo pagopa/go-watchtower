@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query'
 import { startOfMonth, subMonths } from '@go-watchtower/shared'
 import type { DateRange } from 'react-day-picker'
 import {
-  FileBarChart, Hash, Clock, EyeOff, ArrowLeft,
+  FileBarChart, Hash, Clock, Timer, EyeOff, ArrowLeft,
   BookOpen, ExternalLink,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
@@ -19,6 +19,7 @@ import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { api, type AlarmDetailData } from '@/lib/api-client'
 import { qk } from '@/lib/query-keys'
 import { OccurrenceTrendChart } from './_components/occurrence-trend-chart'
+import { MttaMttrTrendChart } from './_components/mtta-mttr-trend-chart'
 import { EnvironmentBreakdownChart } from './_components/environment-breakdown-chart'
 import { OperatorBreakdownChart } from './_components/operator-breakdown-chart'
 import { RecentAnalysesTable } from './_components/recent-analyses-table'
@@ -66,8 +67,8 @@ function KpiCard({
 
 function KpiSkeleton() {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {Array.from({ length: 4 }).map((_, i) => (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      {Array.from({ length: 5 }).map((_, i) => (
         <Card key={i}>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -167,10 +168,11 @@ export function AlarmDetailPageContent() {
       {isLoading ? (
         <KpiSkeleton />
       ) : data ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <KpiCard title="Analisi Totali" value={data.kpi.totalAnalyses} icon={FileBarChart} />
           <KpiCard title="Occorrenze Totali" value={data.kpi.totalOccurrences} icon={Hash} />
           <KpiCard title="MTTA Medio" value={formatDuration(data.kpi.avgMttaMs)} icon={Clock} />
+          <KpiCard title="MTTR Medio" value={formatDuration(data.kpi.avgMttrMs)} icon={Timer} />
           <KpiCard title="% Ignorabili" value={`${data.kpi.ignorableRatio}%`} icon={EyeOff} />
         </div>
       ) : null}
@@ -184,8 +186,11 @@ export function AlarmDetailPageContent() {
         </div>
       ) : data ? (
         <>
-          {/* Full-width trend chart */}
+          {/* Full-width trend charts */}
           <OccurrenceTrendChart data={data.occurrenceTrend} />
+          {data.mttaTrend?.length > 0 && (
+            <MttaMttrTrendChart data={data.mttaTrend} />
+          )}
 
           {/* Two-column breakdown charts */}
           <div className="grid gap-6 md:grid-cols-2">

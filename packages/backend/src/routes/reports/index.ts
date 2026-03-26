@@ -731,10 +731,10 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
         const { productId, dateFrom, dateTo, granularity = "weekly" } = request.query;
 
         const truncFn = granularity === "monthly"
-          ? "DATE_TRUNC('month', analysis_date)"
-          : "DATE_TRUNC('week', analysis_date)";
+          ? "DATE_TRUNC('month', linked_at)"
+          : "DATE_TRUNC('week', linked_at)";
 
-        const conditions: string[] = ["first_alarm_at IS NOT NULL"];
+        const conditions: string[] = ["linked_at IS NOT NULL"];
         const params: unknown[] = [];
         let paramIdx = 1;
 
@@ -743,11 +743,11 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
           params.push(productId);
         }
         if (dateFrom) {
-          conditions.push(`analysis_date >= $${paramIdx++}`);
+          conditions.push(`linked_at >= $${paramIdx++}`);
           params.push(new Date(dateFrom));
         }
         if (dateTo) {
-          conditions.push(`analysis_date <= $${paramIdx++}`);
+          conditions.push(`linked_at <= $${paramIdx++}`);
           params.push(new Date(dateTo));
         }
 
@@ -758,19 +758,26 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
             period: Date;
             avg_mtta_ms: number | null;
             median_mtta_ms: number | null;
-            analysis_count: bigint;
-            total_occurrences: bigint;
+            avg_mttr_ms: number | null;
+            median_mttr_ms: number | null;
+            event_count: bigint;
+            resolved_count: bigint;
           }>
         >(
           `SELECT
              ${truncFn} AS period,
-             AVG(EXTRACT(EPOCH FROM (analysis_date - first_alarm_at)) * 1000) AS avg_mtta_ms,
+             AVG(EXTRACT(EPOCH FROM (linked_at - fired_at)) * 1000) AS avg_mtta_ms,
              PERCENTILE_CONT(0.5) WITHIN GROUP (
-               ORDER BY EXTRACT(EPOCH FROM (analysis_date - first_alarm_at)) * 1000
+               ORDER BY EXTRACT(EPOCH FROM (linked_at - fired_at)) * 1000
              ) AS median_mtta_ms,
-             COUNT(*)::bigint AS analysis_count,
-             COALESCE(SUM(occurrences), 0)::bigint AS total_occurrences
-           FROM alarm_analyses
+             AVG(EXTRACT(EPOCH FROM (resolved_at - fired_at)) * 1000)
+               FILTER (WHERE resolved_at IS NOT NULL) AS avg_mttr_ms,
+             PERCENTILE_CONT(0.5) WITHIN GROUP (
+               ORDER BY EXTRACT(EPOCH FROM (resolved_at - fired_at)) * 1000
+             ) FILTER (WHERE resolved_at IS NOT NULL) AS median_mttr_ms,
+             COUNT(*)::bigint AS event_count,
+             COUNT(resolved_at)::bigint AS resolved_count
+           FROM alarm_events
            WHERE ${whereSQL}
            GROUP BY ${truncFn}
            ORDER BY period`,
@@ -781,14 +788,16 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
           period: r.period.toISOString().split("T")[0],
           avgMttaMs: r.avg_mtta_ms != null ? Number(r.avg_mtta_ms) : null,
           medianMttaMs: r.median_mtta_ms != null ? Number(r.median_mtta_ms) : null,
-          analysisCount: Number(r.analysis_count),
-          totalOccurrences: Number(r.total_occurrences),
+          avgMttrMs: r.avg_mttr_ms != null ? Number(r.avg_mttr_ms) : null,
+          medianMttrMs: r.median_mttr_ms != null ? Number(r.median_mttr_ms) : null,
+          eventCount: Number(r.event_count),
+          resolvedCount: Number(r.resolved_count),
         }));
 
         reply.send(result);
       } catch (error) {
         const message =
-          error instanceof Error ? error.message : "Failed to generate MTTA trend report";
+          error instanceof Error ? error.message : "Failed to generate MTTA/MTTR trend report";
         HttpError.internal(reply, message);
       }
     }
