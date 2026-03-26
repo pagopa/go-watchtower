@@ -18,6 +18,7 @@ import { resourceTypeRoutes } from "./routes/resource-types/index.js";
 import { alarmEventRoutes } from "./routes/alarm-events/index.js";
 import { systemEventRoutes } from "./routes/system-events/index.js";
 import { settingRoutes } from "./routes/settings/index.js";
+import { alarmRoutes } from "./routes/alarms/index.js";
 import { healthRoutes } from "./routes/health.js";
 
 function getLoggerConfig(): FastifyServerOptions["logger"] {
@@ -66,6 +67,7 @@ export async function buildApp() {
   await app.register(alarmEventRoutes, { prefix: "/api" });
   await app.register(systemEventRoutes, { prefix: "/api" });
   await app.register(settingRoutes, { prefix: "/api" });
+  await app.register(alarmRoutes, { prefix: "/api" });
 
   return app;
 }

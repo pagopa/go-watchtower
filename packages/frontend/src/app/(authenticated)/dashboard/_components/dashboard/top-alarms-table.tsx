@@ -1,6 +1,7 @@
 'use client'
 
 import { memo } from 'react'
+import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -50,7 +51,14 @@ export const TopAlarmsTable = memo(function TopAlarmsTable({ data }: TopAlarmsTa
             {data.map((alarm, i) => (
               <TableRow key={alarm.alarmId}>
                 <TableCell className="font-medium text-muted-foreground">{i + 1}</TableCell>
-                <TableCell className="font-medium">{alarm.alarmName}</TableCell>
+                <TableCell className="font-medium">
+                  <Link
+                    href={`/alarms/${alarm.productId}/${alarm.alarmId}`}
+                    className="hover:underline hover:text-primary transition-colors"
+                  >
+                    {alarm.alarmName}
+                  </Link>
+                </TableCell>
                 <TableCell className="text-right">
                   <Badge variant="secondary">{alarm.count}</Badge>
                 </TableCell>

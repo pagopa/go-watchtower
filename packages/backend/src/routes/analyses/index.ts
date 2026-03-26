@@ -1174,7 +1174,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
           prisma.environment.findMany({ where: { id: { in: environmentIds } }, select: { id: true, name: true } }),
           prisma.user.findMany({ where: { id: { in: operatorIds } }, select: { id: true, name: true } }),
           alarmIds.length > 0
-            ? prisma.alarm.findMany({ where: { id: { in: alarmIds } }, select: { id: true, name: true } })
+            ? prisma.alarm.findMany({ where: { id: { in: alarmIds } }, select: { id: true, name: true, productId: true } })
             : Promise.resolve([]),
           dailyEnvIds.length > 0
             ? prisma.environment.findMany({ where: { id: { in: dailyEnvIds } }, select: { id: true, name: true } })
@@ -1188,7 +1188,7 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
         const productMap = new Map(products.map((p: { id: string; name: string }) => [p.id, p.name]));
         const envMap = new Map(environments.map((e: { id: string; name: string }) => [e.id, e.name]));
         const opMap = new Map(operators.map((o: { id: string; name: string }) => [o.id, o.name]));
-        const alarmMap = new Map(alarms.map((a: { id: string; name: string }) => [a.id, a.name]));
+        const alarmMap = new Map(alarms.map((a: { id: string; name: string; productId: string }) => [a.id, a]));
         const dailyEnvMap = new Map(dailyEnvs.map((e: { id: string; name: string }) => [e.id, e.name]));
 
         // Assemble results
@@ -1226,11 +1226,15 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
           count: r._count.id,
         }));
 
-        const topAlarms = topAlarmsRaw.map((r: { alarmId: string; _count: { id: number } }) => ({
-          alarmId: r.alarmId,
-          alarmName: alarmMap.get(r.alarmId) || "Unknown",
-          count: r._count.id,
-        }));
+        const topAlarms = topAlarmsRaw.map((r: { alarmId: string; _count: { id: number } }) => {
+          const alarm = alarmMap.get(r.alarmId);
+          return {
+            alarmId: r.alarmId,
+            alarmName: alarm?.name || "Unknown",
+            productId: alarm?.productId || "",
+            count: r._count.id,
+          };
+        });
 
         // Pivot on-call data
         const onCallTrendMap = new Map<string, { onCall: number; normal: number }>();

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
 import { startOfMonth } from '@go-watchtower/shared'
 import type { DateRange } from 'react-day-picker'
@@ -150,7 +151,14 @@ export function AlarmRankingTab({ products }: AlarmRankingTabProps) {
                   <TableCell className="text-center font-medium text-muted-foreground">
                     {index + 1}
                   </TableCell>
-                  <TableCell className="font-medium">{item.alarmName}</TableCell>
+                  <TableCell className="font-medium">
+                    <Link
+                      href={`/alarms/${item.productId}/${item.alarmId}`}
+                      className="hover:underline hover:text-primary transition-colors"
+                    >
+                      {item.alarmName}
+                    </Link>
+                  </TableCell>
                   <TableCell className="text-muted-foreground">{item.productName}</TableCell>
                   <TableCell className="text-right">{item.totalAnalyses}</TableCell>
                   <TableCell className="text-right font-medium">{item.totalOccurrences}</TableCell>

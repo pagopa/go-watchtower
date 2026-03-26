@@ -16,6 +16,7 @@
 // ─── Root constants ──────────────────────────────────────────────────────────
 // Kept private so consumers always go through the `qk` object.
 
+const ALARMS       = 'alarms'       as const
 const ANALYSES     = 'analyses'     as const
 const ALARM_EVENTS = 'alarm-events' as const
 const REPORTS      = 'reports'      as const
@@ -32,6 +33,13 @@ const PREFERENCES     = 'preferences'     as const
 // ─── Registry ────────────────────────────────────────────────────────────────
 
 export const qk = {
+  // ── Alarms ──────────────────────────────────────────────────────────────
+  alarms: {
+    root:   [ALARMS] as const,
+    detail: (productId: string, alarmId: string, filters?: object) =>
+      [ALARMS, 'detail', productId, alarmId, filters] as const,
+  },
+
   // ── Analyses ─────────────────────────────────────────────────────────────
   analyses: {
     root:       [ANALYSES] as const,

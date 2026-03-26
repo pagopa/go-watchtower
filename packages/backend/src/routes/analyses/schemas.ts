@@ -338,6 +338,7 @@ export const CountByAnalysisTypeSchema = Type.Object({
 const TopAlarmSchema = Type.Object({
   alarmId: Type.String(),
   alarmName: Type.String(),
+  productId: Type.String(),
   count: Type.Integer(),
 });
 

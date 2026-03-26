@@ -709,6 +709,7 @@ export interface AnalysisStats {
   topAlarms: Array<{
     alarmId: string
     alarmName: string
+    productId: string
     count: number
   }>
   onCallTrend: Array<{
@@ -788,6 +789,63 @@ export interface YearlySummaryMonth {
 export interface YearlySummaryData {
   year: number
   months: YearlySummaryMonth[]
+}
+
+// Alarm Detail Types
+export interface AlarmDetailFilters {
+  dateFrom?: string
+  dateTo?: string
+}
+
+export interface AlarmDetailData {
+  alarm: {
+    id: string
+    name: string
+    description: string | null
+    productId: string
+    productName: string
+    runbook: { id: string; name: string; link: string; status: string } | null
+    createdAt: string
+    updatedAt: string
+  }
+  kpi: {
+    totalAnalyses: number
+    totalOccurrences: number
+    avgMttaMs: number | null
+    ignorableRatio: number
+  }
+  occurrenceTrend: Array<{ date: string; count: number; occurrences: number }>
+  byEnvironment: Array<{
+    environmentId: string
+    environmentName: string
+    analysisCount: number
+    occurrences: number
+  }>
+  byOperator: Array<{
+    operatorId: string
+    operatorName: string
+    analysisCount: number
+    occurrences: number
+  }>
+  recentAnalyses: Array<{
+    id: string
+    analysisDate: string
+    status: string
+    analysisType: string
+    operatorName: string
+    environmentName: string
+    occurrences: number
+    conclusionNotes: string | null
+  }>
+  topResources: Array<{ resourceId: string; resourceName: string; count: number }>
+  topDownstreams: Array<{ downstreamId: string; downstreamName: string; count: number }>
+  ignoredAlarms: Array<{
+    id: string
+    environmentId: string
+    environmentName: string
+    isActive: boolean
+    reason: string | null
+  }>
 }
 
 export interface CreateRoleData {
@@ -1026,6 +1084,12 @@ export const api = {
   getYearlySummary: (year: number, productId?: string) =>
     request<YearlySummaryData>('/api/reports/yearly-summary', {
       params: { year, ...(productId ? { productId } : {}) },
+    }),
+
+  // Alarm Detail
+  getAlarmDetail: (productId: string, alarmId: string, filters?: AlarmDetailFilters) =>
+    request<AlarmDetailData>(`/api/alarms/${productId}/${alarmId}/detail`, {
+      params: filters as Record<string, string | number | boolean | undefined>,
     }),
 
   // Users
