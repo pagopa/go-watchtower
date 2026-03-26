@@ -44,13 +44,10 @@ export const parseOpsgenie: ParserFn = (
   // ── Extract region label ─────────────────────────────────────────────
   const regionLabelMatch = title.match(/" in (.+?)$/);
   const regionLabel = regionLabelMatch?.[1];
-  let awsRegion: string | null = null;
 
-  if (regionLabel) {
-    awsRegion = resolveRegion(regionLabel, defaults.defaultAwsRegion);
-  } else {
-    awsRegion = defaults.defaultAwsRegion ?? null;
-  }
+  const awsRegion: string | null = regionLabel
+    ? resolveRegion(regionLabel, defaults.defaultAwsRegion)
+    : defaults.defaultAwsRegion ?? null;
 
   if (!awsRegion) {
     console.warn("[opsgenie] Could not resolve AWS region from title:", title);
@@ -58,26 +55,15 @@ export const parseOpsgenie: ParserFn = (
   }
 
   // ── Extract firedAt ──────────────────────────────────────────────────
-  // Pattern: [value (DD/MM/YY HH:MM:SS)] in the text body
-  const tsMatch = text.match(
-    /\[[\d.eE+-]+ \((\d{2}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2})\)\]/,
-  );
-  let firedAt: Date;
-
-  if (tsMatch?.[1]) {
-    firedAt = parseOpsgenieDate(tsMatch[1]);
-  } else {
-    // Fall back to message ts
-    const tsSeconds = Number(message.ts);
-    firedAt = !isNaN(tsSeconds) ? new Date(tsSeconds * 1000) : new Date();
-    console.warn("[opsgenie] No timestamp found in text, using message ts");
-  }
+  // Use the Slack message timestamp (epoch seconds, always UTC).
+  const tsSeconds = Number(message.ts);
+  const firedAt = !isNaN(tsSeconds) ? new Date(tsSeconds * 1000) : new Date();
 
   // ── Extract description and reason ───────────────────────────────────
-  let description: string | null = null;
   let reason: string | null = null;
 
   const thresholdIdx = text.indexOf("\nThreshold Crossed:");
+  let description: string | null;
   if (thresholdIdx !== -1) {
     const descPart = text.substring(0, thresholdIdx).trim();
     description = descPart || null;
@@ -103,22 +89,3 @@ export const parseOpsgenie: ParserFn = (
   };
 };
 
-/**
- * Parses Opsgenie date format: `DD/MM/YY HH:MM:SS` (all UTC).
- * Example: "04/03/26 13:05:00" -> day=4, month=March, year=2026
- */
-function parseOpsgenieDate(s: string): Date {
-  const [datePart, timePart] = s.split(" ");
-  const [dd, mm, yy] = (datePart ?? "").split("/");
-  const [hh, min, sec] = (timePart ?? "").split(":");
-  return new Date(
-    Date.UTC(
-      2000 + Number(yy),
-      Number(mm) - 1,
-      Number(dd),
-      Number(hh),
-      Number(min),
-      Number(sec),
-    ),
-  );
-}
