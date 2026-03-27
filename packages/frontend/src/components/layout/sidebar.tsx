@@ -34,6 +34,11 @@ import { useState, useCallback } from 'react'
 import { api, type Product } from '@/lib/api-client'
 import { qk } from '@/lib/query-keys'
 
+interface NavChild {
+  title: string
+  href: string
+}
+
 interface NavItem {
   title: string
   href: string
@@ -41,6 +46,7 @@ interface NavItem {
   resource?: string
   action?: 'read' | 'write' | 'delete'
   expandable?: boolean
+  children?: NavChild[]
 }
 
 interface NavGroup {
@@ -58,6 +64,13 @@ const navGroups: NavGroup[] = [
         icon: LayoutDashboard,
       },
       {
+        title: 'Allarmi scattati',
+        href: '/alarm-events',
+        icon: BellRing,
+        resource: 'ALARM_EVENT',
+        action: 'read',
+      },
+      {
         title: 'Analisi',
         href: '/analyses',
         icon: ClipboardList,
@@ -66,18 +79,19 @@ const navGroups: NavGroup[] = [
         expandable: true,
       },
       {
-        title: 'Allarmi scattati',
-        href: '/alarm-events',
-        icon: BellRing,
-        resource: 'ALARM_EVENT',
-        action: 'read',
-      },
-      {
         title: 'Report',
         href: '/reports',
         icon: FileBarChart,
         resource: 'ALARM_ANALYSIS',
         action: 'read',
+        expandable: true,
+        children: [
+          { title: 'KPI Mensili', href: '/reports/monthly-kpi' },
+          { title: 'Riepilogo Annuale', href: '/reports/yearly-summary' },
+          { title: 'Classifica allarmi', href: '/reports/alarms' },
+          { title: 'Trend MTTA/MTTR', href: '/reports/mtta-trend' },
+          { title: 'Carico operatori', href: '/reports/operators' },
+        ],
       },
     ],
   },
@@ -177,6 +191,7 @@ export function Sidebar() {
   const { preferences, updatePreferences } = usePreferences()
   const collapsed = preferences.sidebarCollapsed ?? false
   const [analysisExpanded, setAnalysisExpanded] = useState(true)
+  const [reportsExpanded, setReportsExpanded] = useState(true)
 
   const toggleCollapsed = () => updatePreferences({ sidebarCollapsed: !collapsed })
 
@@ -195,12 +210,22 @@ export function Sidebar() {
       return can(item.resource as Parameters<typeof can>[0], item.action)
     })
 
+  // Expansion state per expandable item (keyed by href)
+  const expandState: Record<string, [boolean, () => void]> = {
+    '/analyses': [analysisExpanded, () => setAnalysisExpanded(!analysisExpanded)],
+    '/reports':  [reportsExpanded, () => setReportsExpanded(!reportsExpanded)],
+  }
+
   const renderItem = useCallback((item: NavItem) => {
     const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
     const Icon = item.icon
 
-    // Expandable item (Analisi with product sub-items)
+    // Expandable item with static children or dynamic product sub-nav
     if (item.expandable && !collapsed) {
+      const [expanded, toggle] = expandState[item.href] ?? [true, () => {}]
+      const hasProductSubNav = !item.children && products && products.length > 0
+      const hasStaticChildren = item.children && item.children.length > 0
+
       return (
         <div key={item.href}>
           <div className="flex items-center">
@@ -220,20 +245,41 @@ export function Sidebar() {
               variant="ghost"
               size="icon"
               className="h-7 w-7 shrink-0"
-              onClick={() => setAnalysisExpanded(!analysisExpanded)}
+              onClick={toggle}
             >
               <ChevronDown
                 className={cn(
                   'h-4 w-4 transition-transform',
-                  !analysisExpanded && '-rotate-90'
+                  !expanded && '-rotate-90'
                 )}
               />
             </Button>
           </div>
-          {analysisExpanded && products && products.length > 0 && (
+          {expanded && hasProductSubNav && (
             <Suspense fallback={null}>
-              <ProductSubNav products={products} pathname={pathname} />
+              <ProductSubNav products={products!} pathname={pathname} />
             </Suspense>
+          )}
+          {expanded && hasStaticChildren && (
+            <div className="ml-6 mt-1 space-y-0.5 border-l pl-3">
+              {item.children!.map((child) => {
+                const isChildActive = pathname === child.href
+                return (
+                  <Link
+                    key={child.href}
+                    href={child.href}
+                    className={cn(
+                      'block rounded-md px-2 py-1.5 text-xs font-medium transition-colors',
+                      isChildActive
+                        ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                        : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                    )}
+                  >
+                    {child.title}
+                  </Link>
+                )
+              })}
+            </div>
           )}
         </div>
       )
@@ -265,7 +311,7 @@ export function Sidebar() {
     }
 
     return <div key={item.href}>{linkContent}</div>
-  }, [pathname, collapsed, analysisExpanded, products])
+  }, [pathname, collapsed, analysisExpanded, reportsExpanded, products])
 
   return (
     <TooltipProvider delayDuration={0}>

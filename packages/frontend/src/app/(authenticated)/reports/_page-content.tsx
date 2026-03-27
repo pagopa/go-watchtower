@@ -1,157 +1,81 @@
 'use client'
 
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Users, BarChart3, CalendarDays, CalendarRange, TrendingDown } from 'lucide-react'
+import Link from 'next/link'
+import { Users, BarChart3, CalendarDays, CalendarRange, TrendingDown, ArrowRight } from 'lucide-react'
 import { usePermissions } from '@/hooks/use-permissions'
-import { api, type Product } from '@/lib/api-client'
-import { qk } from '@/lib/query-keys'
-import { cn } from '@/lib/utils'
-import dynamic from 'next/dynamic'
-import { Skeleton } from '@/components/ui/skeleton'
-
-const OperatorWorkloadTab = dynamic(
-  () => import('./_components/operator-workload-tab').then(m => m.OperatorWorkloadTab),
-  { ssr: false, loading: () => <Skeleton className="h-64 w-full" /> }
-)
-
-const AlarmRankingTab = dynamic(
-  () => import('./_components/alarm-ranking-tab').then(m => m.AlarmRankingTab),
-  { ssr: false, loading: () => <Skeleton className="h-64 w-full" /> }
-)
-
-const MonthlyKpiTab = dynamic(
-  () => import('./_components/monthly-kpi-tab').then(m => m.MonthlyKpiTab),
-  { ssr: false, loading: () => <Skeleton className="h-64 w-full" /> }
-)
-
-const YearlySummaryTab = dynamic(
-  () => import('./_components/yearly-summary-tab').then(m => m.YearlySummaryTab),
-  { ssr: false, loading: () => <Skeleton className="h-64 w-full" /> }
-)
-
-const MttaTrendTab = dynamic(
-  () => import('./_components/mtta-trend-tab').then(m => m.MttaTrendTab),
-  { ssr: false, loading: () => <Skeleton className="h-64 w-full" /> }
-)
 
 const REPORTS = [
   {
-    id: 'operators',
-    label: 'Carico operatori',
-    description: 'Analisi per operatore, suddivise per ambiente',
-    icon: Users,
-  },
-  {
-    id: 'alarms',
-    label: 'Classifica allarmi',
-    description: 'Allarmi ordinati per frequenza e occorrenze',
-    icon: BarChart3,
-  },
-  {
-    id: 'monthly-kpi',
+    href: '/reports/monthly-kpi',
     label: 'KPI Mensili',
     description: 'Conteggi giornalieri per ambiente e mese',
     icon: CalendarDays,
   },
   {
-    id: 'yearly-summary',
+    href: '/reports/yearly-summary',
     label: 'Riepilogo Annuale',
     description: 'Metriche mensili produzione e totali',
     icon: CalendarRange,
   },
   {
-    id: 'mtta-trend',
+    href: '/reports/alarms',
+    label: 'Classifica allarmi',
+    description: 'Allarmi ordinati per frequenza e occorrenze',
+    icon: BarChart3,
+  },
+  {
+    href: '/reports/mtta-trend',
     label: 'Trend MTTA/MTTR',
     description: 'Andamento tempi di presa in carico e risoluzione',
     icon: TrendingDown,
   },
+  {
+    href: '/reports/operators',
+    label: 'Carico operatori',
+    description: 'Analisi per operatore, suddivise per ambiente',
+    icon: Users,
+  },
 ] as const
 
-type ReportId = typeof REPORTS[number]['id']
-
 export function ReportsPageContent() {
-  const { can, isLoading: permissionsLoading } = usePermissions()
-  const canReadAnalyses = permissionsLoading || can('ALARM_ANALYSIS', 'read')
-
-  const [activeReport, setActiveReport] = useState<ReportId>('operators')
-
-  const { data: products } = useQuery<Product[]>({
-    queryKey: qk.products.list,
-    queryFn: api.getProducts,
-    enabled: canReadAnalyses,
-  })
+  const { can, isLoading } = usePermissions()
+  const canRead = isLoading || can('ALARM_ANALYSIS', 'read')
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Report</h1>
         <p className="text-muted-foreground">
-          Report dettagliati su operatori e allarmi
+          Seleziona un report per visualizzarlo
         </p>
       </div>
 
-      {canReadAnalyses && (
-        <>
-          {/* Report selector */}
-          <div className="flex gap-2 flex-wrap">
-            {REPORTS.map((report) => {
-              const Icon = report.icon
-              const isActive = activeReport === report.id
-              return (
-                <button
-                  key={report.id}
-                  onClick={() => setActiveReport(report.id)}
-                  className={cn(
-                    'group flex items-center gap-3 rounded-lg border px-4 py-3 text-left transition-all',
-                    isActive
-                      ? 'border-primary bg-primary/5 shadow-sm'
-                      : 'border-border/50 bg-card hover:border-border hover:bg-accent/50',
-                  )}
-                >
-                  <div className={cn(
-                    'flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-colors',
-                    isActive
-                      ? 'bg-primary/10 text-primary'
-                      : 'bg-muted text-muted-foreground group-hover:text-foreground',
-                  )}>
-                    <Icon className="h-4 w-4" />
+      {canRead && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {REPORTS.map((report) => {
+            const Icon = report.icon
+            return (
+              <Link
+                key={report.href}
+                href={report.href}
+                className="group flex flex-col gap-3 rounded-lg border border-border/50 bg-card p-5 transition-all hover:border-border hover:bg-accent/50 hover:shadow-sm"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-md bg-muted text-muted-foreground transition-colors group-hover:bg-primary/10 group-hover:text-primary">
+                    <Icon className="h-5 w-5" />
                   </div>
-                  <div className="min-w-0">
-                    <div className={cn(
-                      'text-sm font-medium leading-tight',
-                      isActive ? 'text-primary' : 'text-foreground',
-                    )}>
-                      {report.label}
-                    </div>
-                    <div className="text-xs text-muted-foreground leading-tight mt-0.5 hidden sm:block">
-                      {report.description}
-                    </div>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground/0 transition-all group-hover:text-muted-foreground group-hover:translate-x-0.5" />
+                </div>
+                <div>
+                  <div className="text-sm font-semibold">{report.label}</div>
+                  <div className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                    {report.description}
                   </div>
-                </button>
-              )
-            })}
-          </div>
-
-          {/* Active report content */}
-          <div>
-            {activeReport === 'operators' && (
-              <OperatorWorkloadTab products={products} />
-            )}
-            {activeReport === 'alarms' && (
-              <AlarmRankingTab products={products} />
-            )}
-            {activeReport === 'monthly-kpi' && (
-              <MonthlyKpiTab products={products} />
-            )}
-            {activeReport === 'yearly-summary' && (
-              <YearlySummaryTab products={products} />
-            )}
-            {activeReport === 'mtta-trend' && (
-              <MttaTrendTab products={products} />
-            )}
-          </div>
-        </>
+                </div>
+              </Link>
+            )
+          })}
+        </div>
       )}
     </div>
   )
