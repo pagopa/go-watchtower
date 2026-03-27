@@ -91,6 +91,7 @@ const navGroups: NavGroup[] = [
           { title: 'Classifica allarmi', href: '/reports/alarms' },
           { title: 'Trend MTTA/MTTR', href: '/reports/mtta-trend' },
           { title: 'Carico operatori', href: '/reports/operators' },
+          { title: 'Timesheet', href: '/reports/daily-activity' },
         ],
       },
     ],

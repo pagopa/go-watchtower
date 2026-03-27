@@ -14,11 +14,14 @@ import {
   YearlySummaryResponseSchema,
   MttaTrendQuerySchema,
   MttaTrendResponseSchema,
+  DailyActivityQuerySchema,
+  DailyActivityResponseSchema,
   ErrorResponseSchema,
   type ReportQuery,
   type MonthlyKpiQuery,
   type YearlySummaryQuery,
   type MttaTrendQuery,
+  type DailyActivityQuery,
 } from "./schemas.js";
 
 function buildWhereClause(query: ReportQuery): Prisma.AlarmAnalysisWhereInput {
@@ -798,6 +801,160 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Failed to generate MTTA/MTTR trend report";
+        HttpError.internal(reply, message);
+      }
+    }
+  );
+
+  // ============================================================================
+  // DAILY ACTIVITY REPORT (Diario Operatori)
+  // ============================================================================
+
+  app.get<{ Querystring: DailyActivityQuery }>(
+    "/reports/daily-activity",
+    {
+      onRequest: [app.authenticate, requirePermission(SystemComponent.ALARM_ANALYSIS, "read")],
+      schema: {
+        tags: ["reports"],
+        summary: "Daily activity report — per-operator analysis counts by day, type, and product",
+        security: [{ bearerAuth: [] }],
+        querystring: DailyActivityQuerySchema,
+        response: {
+          200: DailyActivityResponseSchema,
+          403: ErrorResponseSchema,
+          500: ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const { productId, year, month } = request.query;
+
+        const dateFrom = new Date(Date.UTC(year, month - 1, 1));
+        const dateTo = new Date(Date.UTC(year, month, 1)); // exclusive upper bound
+        const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+
+        // ── Raw SQL: group by operator, day, analysis_type, product ──────────
+        const conditions: string[] = [
+          "status = 'COMPLETED'",
+          `analysis_date >= $1`,
+          `analysis_date < $2`,
+        ];
+        const params: unknown[] = [dateFrom, dateTo];
+        let paramIdx = 3;
+
+        if (productId) {
+          conditions.push(`product_id = $${paramIdx++}`);
+          params.push(productId);
+        }
+
+        const whereSQL = conditions.join(" AND ");
+
+        const rows = await prisma.$queryRawUnsafe<
+          Array<{
+            operator_id: string;
+            day: number;
+            analysis_type: string;
+            product_id: string;
+            count: bigint;
+          }>
+        >(
+          `SELECT
+             operator_id,
+             EXTRACT(DAY FROM analysis_date AT TIME ZONE 'UTC')::int AS day,
+             analysis_type,
+             product_id,
+             COUNT(*)::bigint AS count
+           FROM alarm_analyses
+           WHERE ${whereSQL}
+           GROUP BY operator_id, day, analysis_type, product_id`,
+          ...params
+        );
+
+        if (rows.length === 0) {
+          return reply.send({ year, month, daysInMonth, operators: [] });
+        }
+
+        // ── Name resolution ──────────────────────────────────────────────────
+        const operatorIds = [...new Set(rows.map((r) => r.operator_id))];
+        const productIds = [...new Set(rows.map((r) => r.product_id))];
+
+        const [operators, products] = await Promise.all([
+          prisma.user.findMany({
+            where: { id: { in: operatorIds } },
+            select: { id: true, name: true },
+          }),
+          prisma.product.findMany({
+            where: { id: { in: productIds } },
+            select: { id: true, name: true },
+          }),
+        ]);
+
+        const opMap = new Map(operators.map((o) => [o.id, o.name]));
+        const prodMap = new Map(products.map((p) => [p.id, p.name]));
+
+        // ── Assemble nested structure ────────────────────────────────────────
+        // operator → day → { total, analyzable, ignorable, products: { productId → count } }
+        type DayBucket = {
+          total: number;
+          analyzable: number;
+          ignorable: number;
+          productCounts: Map<string, number>;
+        };
+        const opDays = new Map<string, Map<string, DayBucket>>();
+
+        for (const r of rows) {
+          const cnt = Number(r.count);
+          const dayKey = String(r.day);
+
+          if (!opDays.has(r.operator_id)) opDays.set(r.operator_id, new Map());
+          const days = opDays.get(r.operator_id)!;
+
+          if (!days.has(dayKey)) days.set(dayKey, { total: 0, analyzable: 0, ignorable: 0, productCounts: new Map() });
+          const bucket = days.get(dayKey)!;
+
+          bucket.total += cnt;
+          if (r.analysis_type === "ANALYZABLE") bucket.analyzable += cnt;
+          else if (r.analysis_type === "IGNORABLE") bucket.ignorable += cnt;
+
+          bucket.productCounts.set(
+            r.product_id,
+            (bucket.productCounts.get(r.product_id) ?? 0) + cnt
+          );
+        }
+
+        const result = operatorIds.map((opId) => {
+          const days = opDays.get(opId) ?? new Map<string, DayBucket>();
+          let monthTotal = 0;
+
+          const byDay: Record<string, { total: number; analyzable: number; ignorable: number; products: Array<{ productId: string; productName: string; count: number }> }> = {};
+
+          for (const [dayKey, bucket] of days) {
+            monthTotal += bucket.total;
+            byDay[dayKey] = {
+              total: bucket.total,
+              analyzable: bucket.analyzable,
+              ignorable: bucket.ignorable,
+              products: Array.from(bucket.productCounts.entries()).map(([pid, count]) => ({
+                productId: pid,
+                productName: prodMap.get(pid) ?? "Unknown",
+                count,
+              })),
+            };
+          }
+
+          return {
+            operatorId: opId,
+            operatorName: opMap.get(opId) ?? "Unknown",
+            byDay,
+            monthTotal,
+          };
+        }).sort((a, b) => b.monthTotal - a.monthTotal);
+
+        reply.send({ year, month, daysInMonth, operators: result });
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Failed to generate daily activity report";
         HttpError.internal(reply, message);
       }
     }

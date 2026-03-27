@@ -71,6 +71,7 @@ export const qk = {
     monthlyKpi:        (productId: string, year: number, month: number) => [REPORTS, 'monthly-kpi', productId, year, month] as const,
     yearlySummary:     (year: number, productId?: string) => [REPORTS, 'yearly-summary', year, productId] as const,
     mttaTrend:         (filters: object) => [REPORTS, 'mtta-trend', filters] as const,
+    dailyActivity:     (year: number, month: number, productId?: string) => [REPORTS, 'daily-activity', year, month, productId] as const,
   },
 
   // ── Products & sub-resources ─────────────────────────────────────────────

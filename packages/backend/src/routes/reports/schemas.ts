@@ -146,3 +146,42 @@ const MttaTrendItemSchema = Type.Object({
 
 export const MttaTrendResponseSchema = Type.Array(MttaTrendItemSchema);
 
+// ============================================================================
+// Daily Activity Query & Response
+// ============================================================================
+
+export const DailyActivityQuerySchema = Type.Object({
+  productId: Type.Optional(Type.String()),
+  year: Type.Integer({ minimum: 2020, maximum: 2100 }),
+  month: Type.Integer({ minimum: 1, maximum: 12 }),
+});
+
+export type DailyActivityQuery = Static<typeof DailyActivityQuerySchema>;
+
+const DayProductBreakdownSchema = Type.Object({
+  productId: Type.String(),
+  productName: Type.String(),
+  count: Type.Integer(),
+});
+
+const DayActivitySchema = Type.Object({
+  total: Type.Integer(),
+  analyzable: Type.Integer(),
+  ignorable: Type.Integer(),
+  products: Type.Array(DayProductBreakdownSchema),
+});
+
+const OperatorDailyActivitySchema = Type.Object({
+  operatorId: Type.String(),
+  operatorName: Type.String(),
+  byDay: Type.Record(Type.String(), DayActivitySchema),
+  monthTotal: Type.Integer(),
+});
+
+export const DailyActivityResponseSchema = Type.Object({
+  year: Type.Integer(),
+  month: Type.Integer(),
+  daysInMonth: Type.Integer(),
+  operators: Type.Array(OperatorDailyActivitySchema),
+});
+

@@ -870,6 +870,40 @@ export interface MttaTrendItem {
   resolvedCount: number
 }
 
+// Daily Activity Types
+export interface DailyActivityFilters {
+  productId?: string
+  year: number
+  month: number
+}
+
+export interface DayProductBreakdown {
+  productId: string
+  productName: string
+  count: number
+}
+
+export interface DayActivity {
+  total: number
+  analyzable: number
+  ignorable: number
+  products: DayProductBreakdown[]
+}
+
+export interface OperatorDailyActivity {
+  operatorId: string
+  operatorName: string
+  byDay: Record<string, DayActivity>
+  monthTotal: number
+}
+
+export interface DailyActivityData {
+  year: number
+  month: number
+  daysInMonth: number
+  operators: OperatorDailyActivity[]
+}
+
 export interface CreateRoleData {
   name: string
   description?: string
@@ -1112,6 +1146,10 @@ export const api = {
   getMttaTrend: (filters?: MttaTrendFilters) =>
     request<MttaTrendItem[]>('/api/reports/mtta-trend', {
       params: filters as Record<string, string | number | boolean | undefined>,
+    }),
+  getDailyActivity: (filters: DailyActivityFilters) =>
+    request<DailyActivityData>('/api/reports/daily-activity', {
+      params: filters as unknown as Record<string, string | number | boolean | undefined>,
     }),
 
   // Alarm Detail

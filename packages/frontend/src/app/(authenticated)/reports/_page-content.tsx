@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Users, BarChart3, CalendarDays, CalendarRange, TrendingDown, ArrowRight } from 'lucide-react'
+import { Users, BarChart3, CalendarDays, CalendarRange, TrendingDown, CalendarClock, ArrowRight } from 'lucide-react'
 import { usePermissions } from '@/hooks/use-permissions'
 
 const REPORTS = [
@@ -34,6 +34,12 @@ const REPORTS = [
     label: 'Carico operatori',
     description: 'Analisi per operatore, suddivise per ambiente',
     icon: Users,
+  },
+  {
+    href: '/reports/daily-activity',
+    label: 'Timesheet',
+    description: 'Attività giornaliera degli operatori per mese e prodotto',
+    icon: CalendarClock,
   },
 ] as const
 
