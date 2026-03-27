@@ -101,7 +101,7 @@ export async function* fetchMessagePages(
     });
 
     const batch = (response.messages ?? []).filter(
-      (m) => !m.thread_ts || m.thread_ts === m.ts,
+      (m) => !m.thread_ts || m.thread_ts === m.ts || m.subtype === "thread_broadcast",
     );
 
     if (batch.length > 0) {
