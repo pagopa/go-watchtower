@@ -1,6 +1,6 @@
 'use client'
 
-import { Ban, ChevronDown, Link2, X } from 'lucide-react'
+import { AlertTriangle, Ban, ChevronDown, Link2, Unlink, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -9,10 +9,14 @@ import {
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu'
 
+type SelectionLinkState = 'all-unlinked' | 'all-linked' | 'mixed' | 'empty'
+
 interface SelectionToolbarProps {
   selectedCount: number
+  selectionLinkState: SelectionLinkState
   onBulkIgnore: () => void
   onBulkAssociate: () => void
+  onBulkUnlink: () => void
   canBulkAssociate: boolean
   onClearSelection: () => void
   canWriteAnalysis: boolean
@@ -20,8 +24,10 @@ interface SelectionToolbarProps {
 
 export function SelectionToolbar({
   selectedCount,
+  selectionLinkState,
   onBulkIgnore,
   onBulkAssociate,
+  onBulkUnlink,
   canBulkAssociate,
   onClearSelection,
   canWriteAnalysis,
@@ -44,8 +50,8 @@ export function SelectionToolbar({
         {/* Separator */}
         <div className="mx-1 h-5 w-px bg-border" />
 
-        {/* Actions dropdown */}
-        {canWriteAnalysis && (
+        {/* Actions — vary by selection link state */}
+        {canWriteAnalysis && selectionLinkState === 'all-unlinked' && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button size="sm" className="h-8 gap-1.5 rounded-full text-xs">
@@ -70,6 +76,24 @@ export function SelectionToolbar({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+        )}
+
+        {canWriteAnalysis && selectionLinkState === 'all-linked' && (
+          <Button
+            size="sm"
+            className="h-8 gap-1.5 rounded-full text-xs"
+            onClick={onBulkUnlink}
+          >
+            <Unlink className="h-3.5 w-3.5" />
+            Scollega da analisi
+          </Button>
+        )}
+
+        {selectionLinkState === 'mixed' && (
+          <span className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            <span>Seleziona solo eventi collegati o solo scollegati</span>
+          </span>
         )}
 
         {/* Deselect */}
