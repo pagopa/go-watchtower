@@ -12,12 +12,12 @@
   },
   "dependencies": {
     "@go-watchtower/database": "workspace:*",
-    "@slack/web-api": "^7.0.0"
+    "@slack/web-api": "^7.15.0"
   },
   "devDependencies": {
-    "@types/aws-lambda": "^8.10.0",
-    "@types/node": "^25.0.0",
+    "@types/aws-lambda": "^8.10.161",
+    "@types/node": "^25.5.0",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.2"
   }
 }

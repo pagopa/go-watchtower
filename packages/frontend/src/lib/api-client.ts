@@ -479,6 +479,8 @@ export interface AlarmAnalysis {
   qualityScore: number | null
   scoredAt: string | null
   linkedEventsCount: number
+  avgMttaMs: number | null
+  avgMttrMs: number | null
 }
 
 export interface AlarmAnalysisFilters {

@@ -124,6 +124,8 @@ function formatAnalysisResponse(analysis: AnalysisWithRelations) {
     qualityScore:    analysis.qualityScore ?? null,
     scoredAt:        analysis.scoredAt ? analysis.scoredAt.toISOString() : null,
     linkedEventsCount: analysis._count.alarmEvents,
+    avgMttaMs: null as number | null,
+    avgMttrMs: null as number | null,
   };
 }
 
@@ -410,19 +412,40 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       try {
-        const analysis = await prisma.alarmAnalysis.findFirst({
-          where: {
-            id: request.params.id,
-            productId: request.params.productId,
-          },
-          include: analysisInclude,
-        });
+        const [analysis, mttaRow] = await Promise.all([
+          prisma.alarmAnalysis.findFirst({
+            where: {
+              id: request.params.id,
+              productId: request.params.productId,
+            },
+            include: analysisInclude,
+          }),
+          prisma.$queryRawUnsafe<
+            Array<{ avg_mtta_ms: number | null; avg_mttr_ms: number | null }>
+          >(
+            `SELECT
+               AVG(EXTRACT(EPOCH FROM (linked_at - fired_at)) * 1000) AS avg_mtta_ms,
+               AVG(EXTRACT(EPOCH FROM (resolved_at - fired_at)) * 1000)
+                 FILTER (WHERE resolved_at IS NOT NULL) AS avg_mttr_ms
+             FROM alarm_events
+             WHERE analysis_id = $1
+               AND linked_at IS NOT NULL`,
+            request.params.id
+          ),
+        ]);
 
         if (!analysis) {
           return HttpError.notFound(reply, "Analysis");
         }
 
-        reply.send(formatAnalysisResponse(analysis));
+        const response = formatAnalysisResponse(analysis);
+        const row = mttaRow[0];
+        if (row) {
+          response.avgMttaMs = row.avg_mtta_ms != null ? Number(row.avg_mtta_ms) : null;
+          response.avgMttrMs = row.avg_mttr_ms != null ? Number(row.avg_mttr_ms) : null;
+        }
+
+        reply.send(response);
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Failed to fetch analysis";

@@ -6,7 +6,6 @@ import {
   formatDateTimeRome,
   formatDateTimeUTC,
   formatDateTimeDual,
-  computeMTTA,
 } from '@go-watchtower/shared'
 import type { AnalysisStatus, DualDateTime } from '@go-watchtower/shared'
 
@@ -18,7 +17,6 @@ export {
   formatDateTimeRome,
   formatDateTimeUTC,
   formatDateTimeDual,
-  computeMTTA,
 }
 export type { DualDateTime }
 

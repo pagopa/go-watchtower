@@ -19,6 +19,7 @@ import { sanitizeUrl } from '@/lib/sanitize-url'
 import { usePreferences } from '@/hooks/use-preferences'
 import { UnlinkAlarmEventDialog } from '../../alarm-events/_components/unlink-alarm-event-dialog'
 import { IgnoredAlarmDetailsDialog } from './ignored-alarm-warning'
+import { formatDuration } from '@go-watchtower/shared'
 import {
   ANALYSIS_TYPE_LABELS,
   ANALYSIS_STATUS_LABELS,
@@ -26,8 +27,15 @@ import {
   formatDateTimeRome,
   formatDateTimeUTC,
   formatDateTimeDual,
-  computeMTTA,
 } from '../_lib/constants'
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function timeDelta(end: string | null, start: string): string {
+  if (!end) return '—'
+  const ms = new Date(end).getTime() - new Date(start).getTime()
+  return ms > 0 ? formatDuration(ms) : '—'
+}
 
 // ─── Linked alarm events sub-section ──────────────────────────────────────────
 
@@ -56,6 +64,8 @@ function LinkedAlarmEvents({ analysis }: { analysis: AlarmAnalysis }) {
               <th className="px-3 py-2 text-left font-medium">Ambiente</th>
               <th className="px-3 py-2 text-left font-medium">Presa in carico</th>
               <th className="px-3 py-2 text-left font-medium">Risolto</th>
+              <th className="px-3 py-2 text-left font-medium">TTA</th>
+              <th className="px-3 py-2 text-left font-medium">TTR</th>
               <th className="px-3 py-2 w-10" />
             </tr>
           </thead>
@@ -72,6 +82,12 @@ function LinkedAlarmEvents({ analysis }: { analysis: AlarmAnalysis }) {
                 </td>
                 <td className="px-3 py-2 font-mono text-xs tabular-nums text-muted-foreground">
                   {event.resolvedAt ? formatDateTimeUTC(event.resolvedAt) : '—'}
+                </td>
+                <td className="px-3 py-2 font-mono text-xs tabular-nums text-muted-foreground">
+                  {timeDelta(event.linkedAt, event.firedAt)}
+                </td>
+                <td className="px-3 py-2 font-mono text-xs tabular-nums text-muted-foreground">
+                  {timeDelta(event.resolvedAt, event.firedAt)}
                 </td>
                 <td className="px-1 py-1">
                   <button
@@ -404,7 +420,7 @@ const DEFAULT_PANEL_WIDTH = 640
 // ─── Main panel ───────────────────────────────────────────────────────────────
 
 export function AnalysisDetailPanel({
-  analysis,
+  analysis: listAnalysis,
   open,
   onClose,
   onEdit,
@@ -414,6 +430,15 @@ export function AnalysisDetailPanel({
   isLocked = false,
   lockDays,
 }: AnalysisDetailPanelProps) {
+  // Fetch full detail (includes avgMttaMs/avgMttrMs computed from linked events)
+  const { data: detailAnalysis } = useQuery<AlarmAnalysis>({
+    queryKey: listAnalysis ? qk.analyses.detail(listAnalysis.productId, listAnalysis.id) : ['noop'],
+    queryFn: () => api.getAnalysis(listAnalysis!.productId, listAnalysis!.id),
+    enabled: !!listAnalysis && open,
+    staleTime: 30_000,
+  })
+  const analysis = detailAnalysis ?? listAnalysis
+
   const { validation, quality } = useAnalysisScores(analysis)
   const [validationExpanded, setValidationExpanded] = useState(false)
   const { preferences, updatePreferences } = usePreferences()
@@ -808,7 +833,12 @@ export function AnalysisDetailPanel({
                 <Field label="Ambiente">{analysis.environment.name}</Field>
                 <Field label="MTTA">
                   <span className="tabular-nums font-medium">
-                    {computeMTTA(analysis.analysisDate, analysis.firstAlarmAt)}
+                    {analysis.avgMttaMs != null ? formatDuration(analysis.avgMttaMs) : '—'}
+                  </span>
+                </Field>
+                <Field label="MTTR">
+                  <span className="tabular-nums font-medium">
+                    {analysis.avgMttrMs != null ? formatDuration(analysis.avgMttrMs) : '—'}
                   </span>
                 </Field>
                 <Field label="Primo allarme">
