@@ -354,7 +354,7 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
           prisma.$queryRaw<Array<{ environment_id: string; day: number; completed: bigint; ignored: bigint }>>`
             SELECT
               environment_id,
-              EXTRACT(DAY FROM analysis_date AT TIME ZONE 'UTC')::int AS day,
+              EXTRACT(DAY FROM analysis_date AT TIME ZONE 'Europe/Rome')::int AS day,
               COALESCE(SUM(occurrences) FILTER (
                 WHERE status = 'COMPLETED' AND analysis_type = 'ANALYZABLE'
               ), 0)::bigint AS completed,
@@ -861,7 +861,7 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
         >(
           `SELECT
              operator_id,
-             EXTRACT(DAY FROM analysis_date AT TIME ZONE 'UTC')::int AS day,
+             EXTRACT(DAY FROM analysis_date AT TIME ZONE 'Europe/Rome')::int AS day,
              analysis_type,
              product_id,
              COUNT(*)::bigint AS count

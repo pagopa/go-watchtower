@@ -100,6 +100,8 @@ export const UpdateAlarmEventBodySchema = Type.Object({
   reason:      Type.Optional(Type.Union([Type.String({ maxLength: 2000 }), Type.Null()])),
   alarmId:     Type.Optional(Type.Union([Type.String({ format: "uuid" }), Type.Null()])),
   analysisId:  Type.Optional(Type.Union([Type.String({ format: "uuid" }), Type.Null()])),
+  linkedAt:    Type.Optional(Type.Union([Type.String({ format: "date-time" }), Type.Null()])),
+  resolvedAt:  Type.Optional(Type.Union([Type.String({ format: "date-time" }), Type.Null()])),
 });
 
 export type UpdateAlarmEventBody = Static<typeof UpdateAlarmEventBodySchema>;

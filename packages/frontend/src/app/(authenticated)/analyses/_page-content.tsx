@@ -676,6 +676,15 @@ function AnalysesPageContent() {
             <p>
               <span className="font-medium tabular-nums text-foreground">{pagination.totalItems}</span>
               {' '}analisi trovate
+              {analyses && analyses.length > 0 && (
+                <>
+                  {' '}&middot;{' '}
+                  <span className="font-medium tabular-nums text-foreground">
+                    {analyses.reduce((sum, a) => sum + (a.occurrences ?? 0), 0)}
+                  </span>
+                  {' '}occorrenze
+                </>
+              )}
             </p>
           )}
           {analysesUpdatedAt > 0 && (

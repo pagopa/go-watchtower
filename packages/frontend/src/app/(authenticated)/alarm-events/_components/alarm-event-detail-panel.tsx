@@ -1,19 +1,21 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { X, Pencil, Trash2, Copy, Check, BellRing, Cloud, Info, BookOpen, ExternalLink, PhoneCall, FileSearch, Unlink } from 'lucide-react'
+import { X, Pencil, Trash2, Copy, Check, BellRing, Cloud, Info, BookOpen, ExternalLink, PhoneCall, FileSearch, Unlink, OctagonAlert } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { api, type AlarmEvent, type AlarmAnalysis } from '@/lib/api-client'
+import { api, type AlarmEvent, type AlarmAnalysis, type IgnoredAlarm } from '@/lib/api-client'
 import { qk } from '@/lib/query-keys'
 import { invalidate } from '@/lib/query-invalidation'
 import { sanitizeUrl } from '@/lib/sanitize-url'
 import { usePreferences } from '@/hooks/use-preferences'
+import { matchIgnoredAlarm } from '@go-watchtower/shared'
 import { ANALYSIS_STATUS_LABELS, ANALYSIS_TYPE_LABELS } from '../../analyses/_lib/constants'
+import { IgnoredAlarmDetailsDialog } from '../../analyses/_components/ignored-alarm-warning'
 import { UnlinkAlarmEventDialog } from './unlink-alarm-event-dialog'
 
 // ─── Linked analysis section ──────────────────────────────────────────────────
@@ -225,6 +227,27 @@ export function AlarmEventDetailPanel({
 }: AlarmEventDetailPanelProps) {
   const { preferences, updatePreferences } = usePreferences()
   const [dragWidth, setDragWidth] = useState<number | null>(null)
+  const [showIgnoredDetails, setShowIgnoredDetails] = useState(false)
+
+  // Fetch ignored alarm rules for the event's product
+  const { data: ignoredAlarms } = useQuery<IgnoredAlarm[]>({
+    queryKey: qk.products.ignoredAlarms(event?.product.id ?? ''),
+    queryFn: () => api.getIgnoredAlarms(event!.product.id),
+    enabled: open && !!event?.alarmId,
+    staleTime: 60_000,
+  })
+
+  const ignoredMatch = useMemo((): IgnoredAlarm | null => {
+    if (!event?.alarmId || !ignoredAlarms || ignoredAlarms.length === 0) return null
+    const match = matchIgnoredAlarm({
+      alarmId: event.alarmId,
+      environmentId: event.environment.id,
+      firstAlarmAt: event.firedAt,
+      ignoredAlarms,
+    })
+    if (!match) return null
+    return ignoredAlarms.find((ia) => ia.id === match.id) ?? null
+  }, [event?.alarmId, event?.environment.id, event?.firedAt, ignoredAlarms])
 
   const panelWidth = dragWidth ?? preferences.detailPanelWidth ?? DEFAULT_PANEL_WIDTH
 
@@ -442,6 +465,42 @@ export function AlarmEventDetailPanel({
                   </div>
                 )}
 
+                {/* ── Avviso allarme ignorato ──────────────────────────── */}
+                {ignoredMatch && (
+                  <div className={cn(
+                    'flex items-start gap-3 rounded-xl border px-4 py-3.5',
+                    'border-amber-400/30 bg-amber-50/60 dark:border-amber-500/20 dark:bg-amber-950/25',
+                  )}>
+                    <OctagonAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-amber-900 dark:text-amber-200 leading-snug">
+                        Allarme da ignorare
+                      </p>
+                      <p className="mt-0.5 text-xs text-amber-800/70 dark:text-amber-300/70 leading-relaxed">
+                        Questo allarme è configurato come &ldquo;da ignorare&rdquo; per{' '}
+                        <span className="font-semibold">{ignoredMatch.environment.name}</span>.
+                        {ignoredMatch.reason && (
+                          <> Motivo: {ignoredMatch.reason}</>
+                        )}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowIgnoredDetails(true)}
+                      className={cn(
+                        'shrink-0 h-7 gap-1.5 text-xs font-semibold',
+                        'text-amber-700 hover:text-amber-900 hover:bg-amber-100/80',
+                        'dark:text-amber-400 dark:hover:text-amber-200 dark:hover:bg-amber-900/40',
+                      )}
+                    >
+                      Dettagli
+                      <ExternalLink className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
+
                 {/* ── AWS ───────────────────────────────────────────────── */}
                 <div className="space-y-4">
                   <SectionHeader label="AWS" icon={Cloud} />
@@ -512,6 +571,14 @@ export function AlarmEventDetailPanel({
           </>
         )}
       </div>
+
+      {ignoredMatch && (
+        <IgnoredAlarmDetailsDialog
+          ignoredAlarm={ignoredMatch}
+          open={showIgnoredDetails}
+          onOpenChange={setShowIgnoredDetails}
+        />
+      )}
     </>
   )
 }

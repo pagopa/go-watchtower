@@ -990,6 +990,8 @@ export interface UpdateAlarmEventData {
   reason?: string | null
   alarmId?: string | null
   analysisId?: string | null
+  linkedAt?: string | null
+  resolvedAt?: string | null
 }
 
 // API methods

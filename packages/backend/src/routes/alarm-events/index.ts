@@ -241,7 +241,7 @@ export async function alarmEventRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const existing = await prisma.alarmEvent.findUnique({
         where: { id: request.params.id },
-        select: { id: true, name: true, description: true, reason: true, alarmId: true, analysisId: true },
+        select: { id: true, name: true, description: true, reason: true, alarmId: true, analysisId: true, linkedAt: true, resolvedAt: true },
       });
 
       if (!existing) {
@@ -255,6 +255,8 @@ export async function alarmEventRoutes(app: FastifyInstance) {
       if (request.body.reason !== undefined)      data.reason      = request.body.reason || null;
       if (request.body.alarmId !== undefined)     data.alarmId     = request.body.alarmId || null;
       if (request.body.analysisId !== undefined)  data.analysisId  = request.body.analysisId || null;
+      if (request.body.linkedAt !== undefined)    data.linkedAt    = request.body.linkedAt ? new Date(request.body.linkedAt) : null;
+      if (request.body.resolvedAt !== undefined)  data.resolvedAt  = request.body.resolvedAt ? new Date(request.body.resolvedAt) : null;
 
       const updated = await prisma.alarmEvent.update({
         where: { id: request.params.id },
@@ -267,7 +269,7 @@ export async function alarmEventRoutes(app: FastifyInstance) {
         resource:      SystemEventResources.ALARM_EVENTS,
         resourceId:    updated.id,
         resourceLabel: updated.name,
-        metadata:      { changes: buildDiff(existing, updated, ["description", "reason", "alarmId", "analysisId"]) },
+        metadata:      { changes: buildDiff(existing, updated, ["description", "reason", "alarmId", "analysisId", "linkedAt", "resolvedAt"]) },
       });
 
       return reply.send(formatResponse(updated));

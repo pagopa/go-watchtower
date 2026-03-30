@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
   X, Pencil, Trash2, ExternalLink, Copy, Check, Unlink,
   Bell, FileText, ListChecks, Info, ShieldCheck, Zap,
@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAnalysisScores } from '@/hooks/use-analysis-scores'
+import { usePermissions } from '@/hooks/use-permissions'
 import { api, type AlarmAnalysis, type AlarmEvent, type PaginatedResponse } from '@/lib/api-client'
 import { invalidate } from '@/lib/query-invalidation'
 import { qk } from '@/lib/query-keys'
@@ -20,6 +21,7 @@ import { usePreferences } from '@/hooks/use-preferences'
 import { UnlinkAlarmEventDialog } from '../../alarm-events/_components/unlink-alarm-event-dialog'
 import { IgnoredAlarmDetailsDialog } from './ignored-alarm-warning'
 import { formatDuration } from '@go-watchtower/shared'
+import { isoToUTCLocal, utcLocalToISO } from './analysis-form-schemas'
 import {
   ANALYSIS_TYPE_LABELS,
   ANALYSIS_STATUS_LABELS,
@@ -37,10 +39,99 @@ function timeDelta(end: string | null, start: string): string {
   return ms > 0 ? formatDuration(ms) : '—'
 }
 
+// ─── Editable date cell ──────────────────────────────────────────────────────
+
+function EditableDateCell({
+  value,
+  eventId,
+  field,
+  onSaved,
+}: {
+  value: string | null
+  eventId: string
+  field: 'linkedAt' | 'resolvedAt'
+  onSaved: () => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [localValue, setLocalValue] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const mutation = useMutation({
+    mutationFn: (newValue: string | null) =>
+      api.updateAlarmEvent(eventId, { [field]: newValue }),
+    onSuccess: () => {
+      setEditing(false)
+      onSaved()
+    },
+  })
+
+  const startEditing = useCallback(() => {
+    setLocalValue(value ? isoToUTCLocal(value) : '')
+    setEditing(true)
+  }, [value])
+
+  useEffect(() => {
+    if (editing && inputRef.current) inputRef.current.focus()
+  }, [editing])
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1">
+        <input
+          ref={inputRef}
+          type="datetime-local"
+          step="1"
+          value={localValue}
+          onChange={(e) => setLocalValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setEditing(false)
+            if (e.key === 'Enter') {
+              mutation.mutate(localValue ? utcLocalToISO(localValue) : null)
+            }
+          }}
+          className="h-6 rounded border border-border bg-background px-1 font-mono text-xs tabular-nums text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          disabled={mutation.isPending}
+        />
+        <button
+          type="button"
+          onClick={() => mutation.mutate(localValue ? utcLocalToISO(localValue) : null)}
+          className="inline-flex h-5 w-5 items-center justify-center rounded text-emerald-500 hover:bg-emerald-500/10"
+          disabled={mutation.isPending}
+        >
+          <Check className="h-3 w-3" />
+        </button>
+        <button
+          type="button"
+          onClick={() => setEditing(false)}
+          className="inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-muted"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={startEditing}
+      className="group/edit inline-flex items-center gap-1 rounded px-0.5 -mx-0.5 hover:bg-muted/60 transition-colors"
+      title="Clicca per modificare"
+    >
+      <span className="font-mono text-xs tabular-nums text-muted-foreground">
+        {value ? formatDateTimeUTC(value) : '—'}
+      </span>
+      <Pencil className="h-2.5 w-2.5 text-muted-foreground/0 group-hover/edit:text-muted-foreground/50 transition-colors" />
+    </button>
+  )
+}
+
 // ─── Linked alarm events sub-section ──────────────────────────────────────────
 
 function LinkedAlarmEvents({ analysis }: { analysis: AlarmAnalysis }) {
   const queryClient = useQueryClient()
+  const { can } = usePermissions()
+  const canEditDates = can('ALARM_EVENT', 'write')
   const [unlinkEvent, setUnlinkEvent] = useState<AlarmEvent | null>(null)
 
   const { data } = useQuery<PaginatedResponse<AlarmEvent>>({
@@ -55,12 +146,14 @@ function LinkedAlarmEvents({ analysis }: { analysis: AlarmAnalysis }) {
   return (
     <section className="space-y-4">
       <SectionHeader label="Alarm Events collegati" icon={Zap} count={analysis.linkedEventsCount} />
+      <TooltipProvider delayDuration={100}>
       <div className="rounded-lg border border-border overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/30 text-xs text-muted-foreground">
-              <th className="px-3 py-2 text-left font-medium">Data scatto</th>
-              <th className="px-3 py-2 text-left font-medium">Nome</th>
+              <th className="px-3 py-2 w-8" />
+              <th className="px-3 py-2 text-left font-medium">Data scatto (UTC)</th>
+              <th className="px-3 py-2 text-left font-medium">Data scatto (locale)</th>
               <th className="px-3 py-2 text-left font-medium">Ambiente</th>
               <th className="px-3 py-2 text-left font-medium">Presa in carico</th>
               <th className="px-3 py-2 text-left font-medium">Risolto</th>
@@ -72,16 +165,48 @@ function LinkedAlarmEvents({ analysis }: { analysis: AlarmAnalysis }) {
           <tbody>
             {events.map((event) => (
               <tr key={event.id} className="group border-b border-border/50 last:border-0">
+                <td className="px-3 py-2">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-3.5 w-3.5 text-muted-foreground/50" />
+                    </TooltipTrigger>
+                    <TooltipContent side="right">{event.name}</TooltipContent>
+                  </Tooltip>
+                </td>
                 <td className="px-3 py-2 font-mono text-xs tabular-nums text-muted-foreground">
                   {formatDateTimeUTC(event.firedAt)}
                 </td>
-                <td className="px-3 py-2 truncate max-w-[200px]">{event.name}</td>
-                <td className="px-3 py-2 text-muted-foreground">{event.environment.name}</td>
                 <td className="px-3 py-2 font-mono text-xs tabular-nums text-muted-foreground">
-                  {event.linkedAt ? formatDateTimeUTC(event.linkedAt) : '—'}
+                  {formatDateTimeRome(event.firedAt)}
                 </td>
-                <td className="px-3 py-2 font-mono text-xs tabular-nums text-muted-foreground">
-                  {event.resolvedAt ? formatDateTimeUTC(event.resolvedAt) : '—'}
+                <td className="px-3 py-2 text-muted-foreground">{event.environment.name}</td>
+                <td className="px-3 py-2">
+                  {canEditDates ? (
+                    <EditableDateCell
+                      value={event.linkedAt}
+                      eventId={event.id}
+                      field="linkedAt"
+                      onSaved={() => invalidate(queryClient, 'alarmEvents', 'analyses')}
+                    />
+                  ) : (
+                    <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                      {event.linkedAt ? formatDateTimeUTC(event.linkedAt) : '—'}
+                    </span>
+                  )}
+                </td>
+                <td className="px-3 py-2">
+                  {canEditDates ? (
+                    <EditableDateCell
+                      value={event.resolvedAt}
+                      eventId={event.id}
+                      field="resolvedAt"
+                      onSaved={() => invalidate(queryClient, 'alarmEvents', 'analyses')}
+                    />
+                  ) : (
+                    <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                      {event.resolvedAt ? formatDateTimeUTC(event.resolvedAt) : '—'}
+                    </span>
+                  )}
                 </td>
                 <td className="px-3 py-2 font-mono text-xs tabular-nums text-muted-foreground">
                   {timeDelta(event.linkedAt, event.firedAt)}
@@ -104,6 +229,7 @@ function LinkedAlarmEvents({ analysis }: { analysis: AlarmAnalysis }) {
           </tbody>
         </table>
       </div>
+      </TooltipProvider>
 
       <UnlinkAlarmEventDialog
         open={!!unlinkEvent}
