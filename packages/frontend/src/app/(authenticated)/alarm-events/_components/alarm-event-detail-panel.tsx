@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { X, Pencil, Trash2, Copy, Check, BellRing, Cloud, Info, BookOpen, ExternalLink, PhoneCall, FileSearch, Unlink, OctagonAlert } from 'lucide-react'
+import { X, Pencil, Trash2, Copy, Check, BellRing, Cloud, Info, BookOpen, ExternalLink, PhoneCall, FileSearch, Unlink, OctagonAlert, AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,7 @@ import { matchIgnoredAlarm } from '@go-watchtower/shared'
 import { ANALYSIS_STATUS_LABELS, ANALYSIS_TYPE_LABELS } from '../../analyses/_lib/constants'
 import { IgnoredAlarmDetailsDialog } from '../../analyses/_components/ignored-alarm-warning'
 import { UnlinkAlarmEventDialog } from './unlink-alarm-event-dialog'
+import { isHighPriorityEvent } from '../_helpers/cell-renderers'
 
 // ─── Linked analysis section ──────────────────────────────────────────────────
 
@@ -360,6 +361,11 @@ export function AlarmEventDetailPanel({
                   <span className="inline-flex items-center gap-1 rounded bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
                     <PhoneCall className="h-2.5 w-2.5" />
                     on-call
+                  </span>
+                ) : isHighPriorityEvent(event) ? (
+                  <span className="inline-flex items-center gap-1 rounded bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                    <AlertTriangle className="h-2.5 w-2.5" />
+                    priorità alta
                   </span>
                 ) : (
                   <span className="inline-flex items-center rounded border border-border/50 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground/50">

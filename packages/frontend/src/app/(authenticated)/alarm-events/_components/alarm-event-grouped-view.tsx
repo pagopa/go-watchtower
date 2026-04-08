@@ -14,7 +14,7 @@ import {
   Table, TableBody, TableCell, TableHeader, TableRow,
 } from '@/components/ui/table'
 import { ResizableTableHead } from '@/components/ui/resizable-table-head'
-import { AlarmEventCell } from '../_helpers/cell-renderers'
+import { AlarmEventCell, isHighPriorityEvent } from '../_helpers/cell-renderers'
 import type { AlarmEventOnCallViewProps } from './alarm-event-oncall-view'
 import {
   todayUTC,
@@ -167,7 +167,9 @@ const EventRow = forwardRef<HTMLTableRowElement, {
               ? 'analysis-row-lingering hover:bg-muted/30'
               : isOnCall
                 ? 'bg-rose-500/[0.04] hover:bg-rose-500/[0.06] transition-colors border-l-[3px] border-l-rose-500/60'
-                : 'transition-colors hover:bg-muted/30')
+                : isHighPriorityEvent(event)
+                  ? 'bg-amber-500/[0.04] hover:bg-amber-500/[0.06] transition-colors border-l-[3px] border-l-amber-500/60'
+                  : 'transition-colors hover:bg-muted/30')
       }
       onClick={(e) => {
         if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('input[type="checkbox"]')) return

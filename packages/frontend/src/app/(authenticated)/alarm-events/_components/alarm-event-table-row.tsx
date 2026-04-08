@@ -7,7 +7,7 @@ import {
 } from '@/components/ui/table'
 import type { ColumnDef } from '@/hooks/use-column-settings'
 import type { AlarmEvent } from '@/lib/api-client'
-import { AlarmEventCell } from '../_helpers/cell-renderers'
+import { AlarmEventCell, isHighPriorityEvent } from '../_helpers/cell-renderers'
 import { AlarmEventRowActions } from './alarm-event-row-actions'
 
 type EmbeddedAlarm = NonNullable<AlarmEvent['alarm']>
@@ -67,7 +67,9 @@ export const AlarmEventTableRow = memo(function AlarmEventTableRow({
               ? 'analysis-row-lingering hover:bg-muted/30'
               : isOnCall
                 ? 'bg-rose-500/[0.04] hover:bg-rose-500/[0.06] transition-colors border-l-[3px] border-l-rose-500/60'
-                : 'transition-colors hover:bg-muted/30')
+                : isHighPriorityEvent(event)
+                  ? 'bg-amber-500/[0.04] hover:bg-amber-500/[0.06] transition-colors border-l-[3px] border-l-amber-500/60'
+                  : 'transition-colors hover:bg-muted/30')
       }
       onClick={(e) => {
         if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('input[type="checkbox"]')) return

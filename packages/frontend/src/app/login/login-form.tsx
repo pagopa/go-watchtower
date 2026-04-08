@@ -164,6 +164,7 @@ function LoginFormContent() {
                 alt="Watchtower"
                 width={148}
                 height={148}
+                className="h-auto"
                 priority
               />
             </div>

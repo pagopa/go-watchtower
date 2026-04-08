@@ -241,6 +241,7 @@ export function BulkAssociateAnalysisDialog({
       representative?.alarmId ?? null,
       ownOnly ? currentUserId ?? null : null,
     ),
+    staleTime: 0,
     queryFn: () => {
       const e = representative!
       const oneMonthAgo = new Date()

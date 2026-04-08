@@ -214,6 +214,7 @@ export function AssociateAnalysisDialog({
 
   const analysesQuery = useQuery({
     queryKey: qk.analyses.forLink(event?.product.id ?? null, event?.environment.id ?? null, event?.alarmId ?? null, ownOnly ? currentUserId ?? null : null),
+    staleTime: 0,
     queryFn: () => {
       const e = event!
       const oneMonthAgo = new Date()
