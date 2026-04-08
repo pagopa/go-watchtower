@@ -24,6 +24,10 @@ import {
   type DailyActivityQuery,
 } from "./schemas.js";
 
+// ── KPI cutover: from April 2026, analyses are attributed to the
+// business day of first_alarm_at rather than analysis_date.
+const KPI_CUTOVER = { year: 2026, month: 4 } as const;
+
 function buildWhereClause(query: ReportQuery): Prisma.AlarmAnalysisWhereInput {
   const where: Prisma.AlarmAnalysisWhereInput = {};
   if (query.productId) where.productId = query.productId;
@@ -327,11 +331,16 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
         const expandedFrom = new Date(dateFrom.getTime() - 4 * 86_400_000);
         const expandedTo = new Date(dateTo.getTime() + 86_400_000);
 
+        // After cutover: attribute analyses to the business day of first_alarm_at
+        // rather than analysis_date, so events and analyses align on the same day.
+        const useAlarmDateAttribution = year > KPI_CUTOVER.year ||
+          (year === KPI_CUTOVER.year && month >= KPI_CUTOVER.month);
+
         // ── Parallel queries ─────────────────────────────────────────────────
         //
-        // 1. Raw alarm events (name + environment_id + fired_at)
+        // 1. Raw alarm events (+ linked analysis info for post-cutover counting)
         // 2. Environments (with onCallAlarmPattern for on-call detection)
-        // 3. Analyses — conditional aggregation (FILTER)
+        // 3. Analyses by analysis_date (only before cutover)
 
         const [alarmEventsRaw, environments, analysisRaw] = await Promise.all([
           // ── 1. Raw alarm events in expanded range ─────────────────────────
@@ -340,7 +349,10 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
               productId,
               firedAt: { gte: expandedFrom, lt: expandedTo },
             },
-            select: { name: true, environmentId: true, firedAt: true },
+            select: {
+              name: true, environmentId: true, firedAt: true,
+              analysis: { select: { status: true, analysisType: true } },
+            },
           }),
 
           // ── 2. Environments (with onCallAlarmPattern) ─────────────────────
@@ -350,23 +362,25 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
             orderBy: [{ order: "asc" }, { name: "asc" }],
           }),
 
-          // ── 3. Analyses — single scan with conditional FILTER aggregation ─
-          prisma.$queryRaw<Array<{ environment_id: string; day: number; completed: bigint; ignored: bigint }>>`
-            SELECT
-              environment_id,
-              EXTRACT(DAY FROM analysis_date AT TIME ZONE 'Europe/Rome')::int AS day,
-              COALESCE(SUM(occurrences) FILTER (
-                WHERE status = 'COMPLETED' AND analysis_type = 'ANALYZABLE'
-              ), 0)::bigint AS completed,
-              COALESCE(SUM(occurrences) FILTER (
-                WHERE status = 'COMPLETED' AND analysis_type = 'IGNORABLE'
-              ), 0)::bigint AS ignored
-            FROM alarm_analyses
-            WHERE product_id = ${productId}
-              AND analysis_date >= ${dateFrom} AND analysis_date < ${dateTo}
-              AND status = 'COMPLETED'
-            GROUP BY environment_id, day
-          `,
+          // ── 3. Analyses by analysis_date (before cutover only) ────────────
+          useAlarmDateAttribution
+            ? Promise.resolve([])
+            : prisma.$queryRaw<Array<{ environment_id: string; day: number; completed: bigint; ignored: bigint }>>`
+                SELECT
+                  environment_id,
+                  EXTRACT(DAY FROM analysis_date AT TIME ZONE 'Europe/Rome')::int AS day,
+                  COALESCE(SUM(occurrences) FILTER (
+                    WHERE status = 'COMPLETED' AND analysis_type = 'ANALYZABLE'
+                  ), 0)::bigint AS completed,
+                  COALESCE(SUM(occurrences) FILTER (
+                    WHERE status = 'COMPLETED' AND analysis_type = 'IGNORABLE'
+                  ), 0)::bigint AS ignored
+                FROM alarm_analyses
+                WHERE product_id = ${productId}
+                  AND analysis_date >= ${dateFrom} AND analysis_date < ${dateTo}
+                  AND status = 'COMPLETED'
+                GROUP BY environment_id, day
+              `,
         ]);
 
         // ── Build on-call regex map per environment ─────────────────────────
@@ -401,15 +415,27 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
           const dayKey = String(assigned.day);
           const bucket = ensure(ev.environmentId);
           bucket.alarmEvents[dayKey] = (bucket.alarmEvents[dayKey] ?? 0) + 1;
+
+          // After cutover: if this alarm event is linked to a completed analysis,
+          // count it as resolved on the same business day as the event itself.
+          if (useAlarmDateAttribution && ev.analysis?.status === 'COMPLETED') {
+            if (ev.analysis.analysisType === 'ANALYZABLE') {
+              bucket.completedAnalyses[dayKey] = (bucket.completedAnalyses[dayKey] ?? 0) + 1;
+            } else if (ev.analysis.analysisType === 'IGNORABLE') {
+              bucket.ignoredAnalyses[dayKey] = (bucket.ignoredAnalyses[dayKey] ?? 0) + 1;
+            }
+          }
         }
 
-        // ── Populate analysis counts ────────────────────────────────────────
-        for (const r of analysisRaw) {
-          const env = ensure(r.environment_id);
-          const completed = Number(r.completed);
-          const ignored = Number(r.ignored);
-          if (completed > 0) env.completedAnalyses[String(r.day)] = completed;
-          if (ignored > 0) env.ignoredAnalyses[String(r.day)] = ignored;
+        // ── Populate analysis counts (before cutover: from analysis_date query)
+        if (!useAlarmDateAttribution) {
+          for (const r of analysisRaw) {
+            const env = ensure(r.environment_id);
+            const completed = Number(r.completed);
+            const ignored = Number(r.ignored);
+            if (completed > 0) env.completedAnalyses[String(r.day)] = completed;
+            if (ignored > 0) env.ignoredAnalyses[String(r.day)] = ignored;
+          }
         }
 
         const result = environments.map((env) => {
@@ -464,6 +490,18 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
         const expandedFrom = new Date(yearStart.getTime() - 4 * 86_400_000);
         const expandedTo = new Date(yearEnd.getTime() + 86_400_000);
 
+        // Analysis attribution cutover: analysis_date before April 2026,
+        // first_alarm_at business day from April 2026 onwards.
+        const cutoverUTC = new Date(romeDateToISO('2026-04-01'));
+        const needsOldAnalysisLogic = year <= KPI_CUTOVER.year;
+        const needsNewAnalysisLogic = year >= KPI_CUTOVER.year;
+        const oldAnalysisEnd = year === KPI_CUTOVER.year ? cutoverUTC : yearEnd;
+        const newAnalysisExpandedFrom = year === KPI_CUTOVER.year
+          ? new Date(cutoverUTC.getTime() - 4 * 86_400_000)
+          : expandedFrom;
+        // For cutover year, new logic only covers months >= 4; for later years, all months.
+        const cutoverMonthFilter = year === KPI_CUTOVER.year ? KPI_CUTOVER.month : 1;
+
         // ── 1. Production environments (order = 0), optionally scoped by product ──
         const prodEnvironments = await prisma.environment.findMany({
           where: { order: 0, ...(productId ? { productId } : {}) },
@@ -474,7 +512,7 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
         const hasProdEnvs = prodEnvIds.length > 0;
 
         // ── 2. Parallel queries ──────────────────────────────────────────────
-        const [prodAlarmsByMonth, totalAlarmsByMonth, prodAnalysisRaw, totalAnalysisRaw] = await Promise.all([
+        const [prodAlarmsByMonth, totalAlarmsByMonth, prodAnalysisOldRaw, totalAnalysisOldRaw, prodAnalysisNewRaw, totalAnalysisNewRaw] = await Promise.all([
           // Alarm events: business-day assignment + aggregation fully in SQL
           // Replicates assignAlarmBusinessDay logic: on-call → calendar day,
           // normal Mon–Fri <18:00 → same day, Mon–Thu ≥18 → +1, Fri ≥18 → +3,
@@ -598,8 +636,8 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
                 GROUP BY month
               `,
 
-          // Production analyses: sum occurrences by month (total + ignorable breakdown)
-          hasProdEnvs
+          // ── Old logic: analysis_date based (before cutover) ─────────────────
+          (needsOldAnalysisLogic && hasProdEnvs)
             ? prisma.$queryRaw<Array<{ month: number; total_occurrences: bigint; ignorable_occurrences: bigint }>>`
                 SELECT
                   EXTRACT(MONTH FROM analysis_date AT TIME ZONE 'Europe/Rome')::int AS month,
@@ -607,36 +645,174 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
                   COALESCE(SUM(occurrences) FILTER (WHERE analysis_type = 'IGNORABLE'), 0)::bigint AS ignorable_occurrences
                 FROM alarm_analyses
                 WHERE environment_id IN (${Prisma.join(prodEnvIds)})
-                  AND analysis_date >= ${yearStart} AND analysis_date < ${yearEnd}
+                  AND analysis_date >= ${yearStart} AND analysis_date < ${oldAnalysisEnd}
                   AND status = 'COMPLETED'
                 GROUP BY month
               `
             : Promise.resolve([]),
 
-          // All analyses: sum occurrences by month (all environments, total + ignorable)
-          productId
+          needsOldAnalysisLogic
+            ? (productId
+                ? prisma.$queryRaw<Array<{ month: number; total_occurrences: bigint; ignorable_occurrences: bigint }>>`
+                    SELECT
+                      EXTRACT(MONTH FROM analysis_date AT TIME ZONE 'Europe/Rome')::int AS month,
+                      COALESCE(SUM(occurrences), 0)::bigint AS total_occurrences,
+                      COALESCE(SUM(occurrences) FILTER (WHERE analysis_type = 'IGNORABLE'), 0)::bigint AS ignorable_occurrences
+                    FROM alarm_analyses
+                    WHERE product_id = ${productId}
+                      AND analysis_date >= ${yearStart} AND analysis_date < ${oldAnalysisEnd}
+                      AND status = 'COMPLETED'
+                    GROUP BY month
+                  `
+                : prisma.$queryRaw<Array<{ month: number; total_occurrences: bigint; ignorable_occurrences: bigint }>>`
+                    SELECT
+                      EXTRACT(MONTH FROM analysis_date AT TIME ZONE 'Europe/Rome')::int AS month,
+                      COALESCE(SUM(occurrences), 0)::bigint AS total_occurrences,
+                      COALESCE(SUM(occurrences) FILTER (WHERE analysis_type = 'IGNORABLE'), 0)::bigint AS ignorable_occurrences
+                    FROM alarm_analyses
+                    WHERE analysis_date >= ${yearStart} AND analysis_date < ${oldAnalysisEnd}
+                      AND status = 'COMPLETED'
+                    GROUP BY month
+                  `)
+            : Promise.resolve([]),
+
+          // ── New logic: alarm events linked to completed analyses (from cutover)
+          // Counts alarm events (by business day) that have a linked completed
+          // analysis, split by analysis_type. Uses INNER JOIN so only resolved
+          // events are counted.
+          (needsNewAnalysisLogic && hasProdEnvs)
             ? prisma.$queryRaw<Array<{ month: number; total_occurrences: bigint; ignorable_occurrences: bigint }>>`
+                WITH rome_events AS (
+                  SELECT
+                    ae.fired_at AT TIME ZONE 'Europe/Rome' AS rome_ts,
+                    aa.analysis_type,
+                    CASE
+                      WHEN e.on_call_alarm_pattern IS NOT NULL
+                        AND ae.name ~ e.on_call_alarm_pattern THEN true
+                      ELSE false
+                    END AS is_on_call
+                  FROM alarm_events ae
+                  JOIN environments e ON e.id = ae.environment_id
+                  JOIN alarm_analyses aa ON aa.id = ae.analysis_id AND aa.status = 'COMPLETED'
+                  WHERE ae.environment_id IN (${Prisma.join(prodEnvIds)})
+                    AND ae.fired_at >= ${newAnalysisExpandedFrom} AND ae.fired_at < ${expandedTo}
+                    AND ae.analysis_id IS NOT NULL
+                ),
+                business_days AS (
+                  SELECT analysis_type,
+                    CASE
+                      WHEN is_on_call THEN rome_ts
+                      WHEN EXTRACT(ISODOW FROM rome_ts) BETWEEN 1 AND 5
+                        AND EXTRACT(HOUR FROM rome_ts) < 18 THEN rome_ts
+                      WHEN EXTRACT(ISODOW FROM rome_ts) BETWEEN 1 AND 4
+                        AND EXTRACT(HOUR FROM rome_ts) >= 18 THEN rome_ts + INTERVAL '1 day'
+                      WHEN EXTRACT(ISODOW FROM rome_ts) = 5
+                        AND EXTRACT(HOUR FROM rome_ts) >= 18 THEN rome_ts + INTERVAL '3 days'
+                      WHEN EXTRACT(ISODOW FROM rome_ts) = 6 THEN rome_ts + INTERVAL '2 days'
+                      WHEN EXTRACT(ISODOW FROM rome_ts) = 7 THEN rome_ts + INTERVAL '1 day'
+                    END AS business_day
+                  FROM rome_events
+                )
                 SELECT
-                  EXTRACT(MONTH FROM analysis_date AT TIME ZONE 'Europe/Rome')::int AS month,
-                  COALESCE(SUM(occurrences), 0)::bigint AS total_occurrences,
-                  COALESCE(SUM(occurrences) FILTER (WHERE analysis_type = 'IGNORABLE'), 0)::bigint AS ignorable_occurrences
-                FROM alarm_analyses
-                WHERE product_id = ${productId}
-                  AND analysis_date >= ${yearStart} AND analysis_date < ${yearEnd}
-                  AND status = 'COMPLETED'
+                  EXTRACT(MONTH FROM business_day)::int AS month,
+                  COUNT(*)::bigint AS total_occurrences,
+                  COUNT(*) FILTER (WHERE analysis_type = 'IGNORABLE')::bigint AS ignorable_occurrences
+                FROM business_days
+                WHERE EXTRACT(YEAR FROM business_day)::int = ${year}
+                  AND EXTRACT(MONTH FROM business_day)::int >= ${cutoverMonthFilter}
                 GROUP BY month
               `
-            : prisma.$queryRaw<Array<{ month: number; total_occurrences: bigint; ignorable_occurrences: bigint }>>`
-                SELECT
-                  EXTRACT(MONTH FROM analysis_date AT TIME ZONE 'Europe/Rome')::int AS month,
-                  COALESCE(SUM(occurrences), 0)::bigint AS total_occurrences,
-                  COALESCE(SUM(occurrences) FILTER (WHERE analysis_type = 'IGNORABLE'), 0)::bigint AS ignorable_occurrences
-                FROM alarm_analyses
-                WHERE analysis_date >= ${yearStart} AND analysis_date < ${yearEnd}
-                  AND status = 'COMPLETED'
-                GROUP BY month
-              `,
+            : Promise.resolve([]),
+
+          needsNewAnalysisLogic
+            ? (productId
+                ? prisma.$queryRaw<Array<{ month: number; total_occurrences: bigint; ignorable_occurrences: bigint }>>`
+                    WITH rome_events AS (
+                      SELECT
+                        ae.fired_at AT TIME ZONE 'Europe/Rome' AS rome_ts,
+                        aa.analysis_type,
+                        CASE
+                          WHEN e.on_call_alarm_pattern IS NOT NULL
+                            AND ae.name ~ e.on_call_alarm_pattern THEN true
+                          ELSE false
+                        END AS is_on_call
+                      FROM alarm_events ae
+                      JOIN environments e ON e.id = ae.environment_id
+                      JOIN alarm_analyses aa ON aa.id = ae.analysis_id AND aa.status = 'COMPLETED'
+                      WHERE ae.product_id = ${productId}
+                        AND ae.fired_at >= ${newAnalysisExpandedFrom} AND ae.fired_at < ${expandedTo}
+                        AND ae.analysis_id IS NOT NULL
+                    ),
+                    business_days AS (
+                      SELECT analysis_type,
+                        CASE
+                          WHEN is_on_call THEN rome_ts
+                          WHEN EXTRACT(ISODOW FROM rome_ts) BETWEEN 1 AND 5
+                            AND EXTRACT(HOUR FROM rome_ts) < 18 THEN rome_ts
+                          WHEN EXTRACT(ISODOW FROM rome_ts) BETWEEN 1 AND 4
+                            AND EXTRACT(HOUR FROM rome_ts) >= 18 THEN rome_ts + INTERVAL '1 day'
+                          WHEN EXTRACT(ISODOW FROM rome_ts) = 5
+                            AND EXTRACT(HOUR FROM rome_ts) >= 18 THEN rome_ts + INTERVAL '3 days'
+                          WHEN EXTRACT(ISODOW FROM rome_ts) = 6 THEN rome_ts + INTERVAL '2 days'
+                          WHEN EXTRACT(ISODOW FROM rome_ts) = 7 THEN rome_ts + INTERVAL '1 day'
+                        END AS business_day
+                      FROM rome_events
+                    )
+                    SELECT
+                      EXTRACT(MONTH FROM business_day)::int AS month,
+                      COUNT(*)::bigint AS total_occurrences,
+                      COUNT(*) FILTER (WHERE analysis_type = 'IGNORABLE')::bigint AS ignorable_occurrences
+                    FROM business_days
+                    WHERE EXTRACT(YEAR FROM business_day)::int = ${year}
+                      AND EXTRACT(MONTH FROM business_day)::int >= ${cutoverMonthFilter}
+                    GROUP BY month
+                  `
+                : prisma.$queryRaw<Array<{ month: number; total_occurrences: bigint; ignorable_occurrences: bigint }>>`
+                    WITH rome_events AS (
+                      SELECT
+                        ae.fired_at AT TIME ZONE 'Europe/Rome' AS rome_ts,
+                        aa.analysis_type,
+                        CASE
+                          WHEN e.on_call_alarm_pattern IS NOT NULL
+                            AND ae.name ~ e.on_call_alarm_pattern THEN true
+                          ELSE false
+                        END AS is_on_call
+                      FROM alarm_events ae
+                      JOIN environments e ON e.id = ae.environment_id
+                      JOIN alarm_analyses aa ON aa.id = ae.analysis_id AND aa.status = 'COMPLETED'
+                      WHERE ae.fired_at >= ${newAnalysisExpandedFrom} AND ae.fired_at < ${expandedTo}
+                        AND ae.analysis_id IS NOT NULL
+                    ),
+                    business_days AS (
+                      SELECT analysis_type,
+                        CASE
+                          WHEN is_on_call THEN rome_ts
+                          WHEN EXTRACT(ISODOW FROM rome_ts) BETWEEN 1 AND 5
+                            AND EXTRACT(HOUR FROM rome_ts) < 18 THEN rome_ts
+                          WHEN EXTRACT(ISODOW FROM rome_ts) BETWEEN 1 AND 4
+                            AND EXTRACT(HOUR FROM rome_ts) >= 18 THEN rome_ts + INTERVAL '1 day'
+                          WHEN EXTRACT(ISODOW FROM rome_ts) = 5
+                            AND EXTRACT(HOUR FROM rome_ts) >= 18 THEN rome_ts + INTERVAL '3 days'
+                          WHEN EXTRACT(ISODOW FROM rome_ts) = 6 THEN rome_ts + INTERVAL '2 days'
+                          WHEN EXTRACT(ISODOW FROM rome_ts) = 7 THEN rome_ts + INTERVAL '1 day'
+                        END AS business_day
+                      FROM rome_events
+                    )
+                    SELECT
+                      EXTRACT(MONTH FROM business_day)::int AS month,
+                      COUNT(*)::bigint AS total_occurrences,
+                      COUNT(*) FILTER (WHERE analysis_type = 'IGNORABLE')::bigint AS ignorable_occurrences
+                    FROM business_days
+                    WHERE EXTRACT(YEAR FROM business_day)::int = ${year}
+                      AND EXTRACT(MONTH FROM business_day)::int >= ${cutoverMonthFilter}
+                    GROUP BY month
+                  `)
+            : Promise.resolve([]),
         ]);
+
+        // Merge old + new analysis results
+        const prodAnalysisRaw = [...prodAnalysisOldRaw, ...prodAnalysisNewRaw];
+        const totalAnalysisRaw = [...totalAnalysisOldRaw, ...totalAnalysisNewRaw];
 
         // ── 3. Lookup maps ──────────────────────────────────────────────────
         const prodAlarmByMonth = new Map<number, number>();
