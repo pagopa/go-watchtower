@@ -19,6 +19,7 @@ import {
   type PaginatedResponse,
   type CreateAlarmEventData,
   type UpdateAlarmEventData,
+  type IgnoredAlarm,
 } from '@/lib/api-client'
 import { AlarmDetailDialog, type AlarmDetailData } from '@/components/alarm-detail-dialog'
 import { usePermissions } from '@/hooks/use-permissions'
@@ -48,7 +49,9 @@ import {
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu'
 import dynamic from 'next/dynamic'
-import { isWorkingHoursSetting, isOnCallHoursSetting } from '@go-watchtower/shared'
+import { isWorkingHoursSetting, isOnCallHoursSetting, matchIgnoredAlarm } from '@go-watchtower/shared'
+import type { NotificationPreferences } from '@go-watchtower/shared'
+import { NotificationCategoryToggle } from '@/components/notification-category-toggle'
 import { AlarmEventFilters, type AlarmEventFiltersState, type ProductWithEnvironments } from './_components/alarm-event-filters'
 import { AlarmEventDetailPanel } from './_components/alarm-event-detail-panel'
 import { AlarmEventDailyView, todayUTC } from './_components/alarm-event-daily-view'
@@ -82,6 +85,8 @@ const AnalysisFormDialog = dynamic(
 import { UnlinkAlarmEventDialog } from './_components/unlink-alarm-event-dialog'
 import { BulkIgnoreDialog } from './_components/bulk-ignore-dialog'
 import { SelectionToolbar } from './_components/selection-toolbar'
+import { NewAlarmsBanner } from './_components/new-alarms-banner'
+import type { NewAlarmSignal } from '@/providers/notification-supervisor'
 
 const BulkAssociateAnalysisDialog = dynamic(
   () => import('./_components/bulk-associate-analysis-dialog').then((m) => ({ default: m.BulkAssociateAnalysisDialog })),
@@ -329,6 +334,28 @@ function AlarmEventsPageContent() {
     return map
   }, [allEnvironments])
 
+  // Ignored alarms across all active products — for inline "ignorable" indicator
+  const { data: allIgnoredAlarms } = useQuery<IgnoredAlarm[]>({
+    queryKey: qk.products.allIgnoredAlarms(activeProductIds),
+    queryFn: async () => {
+      if (!activeProductIds.length) return []
+      const arrays = await Promise.all(activeProductIds.map((id) => api.getIgnoredAlarms(id)))
+      return arrays.flat()
+    },
+    enabled: activeProductIds.length > 0,
+    staleTime: 60_000,
+  })
+
+  const isIgnoredEvent = useCallback((event: AlarmEvent): boolean => {
+    if (!event.alarmId || !allIgnoredAlarms?.length) return false
+    return matchIgnoredAlarm({
+      alarmId: event.alarmId,
+      environmentId: event.environment.id,
+      firstAlarmAt: event.firedAt,
+      ignoredAlarms: allIgnoredAlarms,
+    }) !== null
+  }, [allIgnoredAlarms])
+
   const queryParams = useMemo(() => ({
     page,
     pageSize,
@@ -364,6 +391,15 @@ function AlarmEventsPageContent() {
 
   const events     = eventsResponse?.data
   const pagination = eventsResponse?.pagination
+
+  // New-alarm banner signal written by NotificationSupervisor.
+  // Uses useQuery to subscribe to reactive updates from setQueryData.
+  const { data: newAlarmSignal } = useQuery<NewAlarmSignal>({
+    queryKey: qk.alarmEvents.newAlarmSignal,
+    queryFn: () => undefined as never,   // never fetched — only set by supervisor
+    enabled: false,                      // no automatic fetching
+    staleTime: Infinity,
+  })
 
   // Derive a fresh version of the selected event from the list data when available.
   // This keeps the detail panel in sync after mutations (e.g. unlink analysis).
@@ -542,6 +578,17 @@ function AlarmEventsPageContent() {
     return regex.test(event.name)
   }, [onCallRegexMap])
 
+  // --- Notification config (supervisor runs in layout, toggle here) ---
+
+  const notificationPrefs = preferences.notifications
+
+  const handleNotificationUpdate = useCallback(
+    (prefs: NotificationPreferences) => {
+      updatePreferences({ notifications: prefs })
+    },
+    [updatePreferences],
+  )
+
   // --- Analysis actions from alarm event ---
 
   const handleCreateAnalysisFromEvent = useCallback((event: AlarmEvent) => {
@@ -646,7 +693,10 @@ function AlarmEventsPageContent() {
           )}
           <button
             type="button"
-            onClick={() => refetchEvents()}
+            onClick={() => {
+              queryClient.setQueryData(qk.alarmEvents.newAlarmSignal, { count: 0, detectedAt: 0 })
+              refetchEvents()
+            }}
             disabled={eventsFetching}
             className="group flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
           >
@@ -661,6 +711,11 @@ function AlarmEventsPageContent() {
 
         {/* Right: controls */}
         <div className="flex items-center gap-2">
+          <NotificationCategoryToggle
+            category="ALARM_EVENTS"
+            notificationPrefs={notificationPrefs}
+            onUpdate={handleNotificationUpdate}
+          />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="gap-1.5">
@@ -703,6 +758,11 @@ function AlarmEventsPageContent() {
         </div>
       </div>
 
+      {/* New alarms banner — shown when supervisor detects important alarms */}
+      {newAlarmSignal && newAlarmSignal.count > 0 && (
+        <NewAlarmsBanner signal={newAlarmSignal} onRefresh={() => refetchEvents()} />
+      )}
+
       {/* Daily view */}
       {viewMode === 'daily' && (
         <AlarmEventDailyView
@@ -723,6 +783,7 @@ function AlarmEventsPageContent() {
           onEdit={handleEdit}
           onDelete={handleDelete}
           isOnCallEvent={isOnCallEvent}
+          isIgnoredEvent={isIgnoredEvent}
           onAlarmClick={handleAlarmClick}
           onCreateAnalysis={handleCreateAnalysisFromEvent}
           onCreateIgnorableAnalysis={handleCreateIgnorableAnalysisFromEvent}
@@ -751,6 +812,7 @@ function AlarmEventsPageContent() {
           onEdit={handleEdit}
           onDelete={handleDelete}
           isOnCallEvent={isOnCallEvent}
+          isIgnoredEvent={isIgnoredEvent}
           onAlarmClick={handleAlarmClick}
           onCreateAnalysis={handleCreateAnalysisFromEvent}
           onCreateIgnorableAnalysis={handleCreateIgnorableAnalysisFromEvent}
@@ -779,6 +841,7 @@ function AlarmEventsPageContent() {
           onEdit={handleEdit}
           onDelete={handleDelete}
           isOnCallEvent={isOnCallEvent}
+          isIgnoredEvent={isIgnoredEvent}
           onAlarmClick={handleAlarmClick}
           onCreateAnalysis={handleCreateAnalysisFromEvent}
           onCreateIgnorableAnalysis={handleCreateIgnorableAnalysisFromEvent}
@@ -851,6 +914,7 @@ function AlarmEventsPageContent() {
                       isDetailSelected={event.id === selectedEvent?.id && showDetailPanel}
                       isLingering={event.id === lingeringId && !showDetailPanel}
                       isOnCall={isOnCallEvent(event)}
+                      isIgnored={isIgnoredEvent(event)}
                       visibleColumns={visibleColumns}
                       getWidth={getWidth}
                       canWrite={canWrite}

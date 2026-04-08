@@ -1,14 +1,12 @@
 import { memo } from 'react'
 import Link from 'next/link'
-import { PhoneCall, BookOpen, FileSearch, AlertTriangle } from 'lucide-react'
-import { formatDateTimeUTC } from '@go-watchtower/shared'
+import { PhoneCall, BookOpen, FileSearch, AlertTriangle, EyeOff } from 'lucide-react'
+import { formatDateTimeUTC, isHighPriorityAlarm } from '@go-watchtower/shared'
 import type { AlarmEvent } from '@/lib/api-client'
 
-/** Hardcoded prefix for high-priority alarms (will be configurable like on-call in the future). */
-const HIGH_PRIORITY_PREFIX = 'workday-'
-
+/** Thin wrapper so existing call-sites keep working with an AlarmEvent object. */
 export function isHighPriorityEvent(event: AlarmEvent): boolean {
-  return event.name.startsWith(HIGH_PRIORITY_PREFIX)
+  return isHighPriorityAlarm(event.name)
 }
 
 type EmbeddedAlarm = NonNullable<AlarmEvent['alarm']>
@@ -17,6 +15,7 @@ export interface AlarmEventCellProps {
   columnId: string
   event: AlarmEvent
   isOnCall?: boolean
+  isIgnored?: boolean
   onAlarmClick?: (alarm: EmbeddedAlarm, productId: string) => void
 }
 
@@ -24,6 +23,7 @@ export const AlarmEventCell = memo(function AlarmEventCell({
   columnId,
   event,
   isOnCall,
+  isIgnored,
   onAlarmClick,
 }: AlarmEventCellProps) {
   switch (columnId) {
@@ -47,14 +47,21 @@ export const AlarmEventCell = memo(function AlarmEventCell({
           ? (
             <span className="inline-flex shrink-0 items-center gap-1 rounded bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
               <AlertTriangle className="h-2.5 w-2.5" />
-              priorità alta
+              high
             </span>
           )
-          : (
-            <span className="inline-flex items-center rounded border border-border/50 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground/50">
-              normale
-            </span>
-          )
+          : isIgnored
+            ? (
+              <span className="inline-flex shrink-0 items-center gap-1 rounded border border-dashed border-muted-foreground/30 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground/60">
+                <EyeOff className="h-2.5 w-2.5" />
+                ignorabile
+              </span>
+            )
+            : (
+              <span className="inline-flex items-center rounded border border-border/50 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground/50">
+                normale
+              </span>
+            )
     case 'link':
       if (!event.alarm) return <span className="text-muted-foreground/25 text-sm">—</span>
       return onAlarmClick

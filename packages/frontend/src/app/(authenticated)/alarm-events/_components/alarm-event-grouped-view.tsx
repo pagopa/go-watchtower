@@ -133,6 +133,7 @@ const EventRow = forwardRef<HTMLTableRowElement, {
   onEdit: (e: AlarmEvent) => void
   onDelete: (e: AlarmEvent) => void
   isOnCallEvent?: (e: AlarmEvent) => boolean
+  isIgnoredEvent?: (e: AlarmEvent) => boolean
   onAlarmClick?: (alarm: NonNullable<AlarmEvent['alarm']>, productId: string) => void
   onCreateAnalysis?: (e: AlarmEvent) => void
   onCreateIgnorableAnalysis?: (e: AlarmEvent) => void
@@ -144,7 +145,7 @@ const EventRow = forwardRef<HTMLTableRowElement, {
 }>(function EventRow({
   event, visibleColumns, getWidth, canWrite, canDelete, canWriteAnalysis,
   selectedEventId, showDetailPanel, lingeringId,
-  onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
+  onRowClick, onEdit, onDelete, isOnCallEvent, isIgnoredEvent, onAlarmClick,
   onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
   selection, indented, dataIndex,
 }, ref) {
@@ -152,24 +153,27 @@ const EventRow = forwardRef<HTMLTableRowElement, {
   const isSelected  = event.id === selectedEventId && showDetailPanel
   const isLingering = event.id === lingeringId && !showDetailPanel
   const isOnCall    = isOnCallEvent ? isOnCallEvent(event) : false
+  const isIgnored   = isIgnoredEvent ? isIgnoredEvent(event) : false
 
   return (
     <TableRow
       ref={ref}
       data-index={dataIndex}
       className={
-        'group cursor-pointer border-b border-border/50 ' +
+        'group cursor-pointer border-b border-border/50 border-l-[3px] ' +
         (isChecked
-          ? 'bg-primary/[0.05] hover:bg-primary/[0.08]'
+          ? 'border-l-transparent bg-primary/[0.05] hover:bg-primary/[0.08]'
           : isSelected
-            ? 'analysis-row-selected hover:bg-primary/[0.09]'
+            ? 'border-l-transparent analysis-row-selected hover:bg-primary/[0.09]'
             : isLingering
-              ? 'analysis-row-lingering hover:bg-muted/30'
+              ? 'border-l-transparent analysis-row-lingering hover:bg-muted/30'
               : isOnCall
-                ? 'bg-rose-500/[0.04] hover:bg-rose-500/[0.06] transition-colors border-l-[3px] border-l-rose-500/60'
+                ? 'border-l-rose-500/60 bg-rose-500/[0.04] hover:bg-rose-500/[0.06] transition-colors'
                 : isHighPriorityEvent(event)
-                  ? 'bg-amber-500/[0.04] hover:bg-amber-500/[0.06] transition-colors border-l-[3px] border-l-amber-500/60'
-                  : 'transition-colors hover:bg-muted/30')
+                  ? 'border-l-amber-500/60 bg-amber-500/[0.04] hover:bg-amber-500/[0.06] transition-colors'
+                  : isIgnored
+                    ? 'border-l-transparent opacity-50 transition-colors hover:opacity-70 hover:bg-muted/30'
+                    : 'border-l-transparent transition-colors hover:bg-muted/30')
       }
       onClick={(e) => {
         if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('input[type="checkbox"]')) return
@@ -195,7 +199,7 @@ const EventRow = forwardRef<HTMLTableRowElement, {
               ? { width: `${getWidth(col.id)}px`, ...(indented && idx === 0 ? { paddingLeft: '2rem' } : {}) }
               : (indented && idx === 0 ? { paddingLeft: '2rem' } : undefined)}
           >
-            <AlarmEventCell columnId={col.id} event={event} isOnCall={isOnCall} onAlarmClick={onAlarmClick} />
+            <AlarmEventCell columnId={col.id} event={event} isOnCall={isOnCall} isIgnored={isIgnored} onAlarmClick={onAlarmClick} />
           </TableCell>
         )
       })}
@@ -239,7 +243,7 @@ function GroupedBucketSection({
   visibleColumns, getWidth, totalMinWidth,
   canWrite, canDelete, canWriteAnalysis,
   selectedEventId, showDetailPanel, lingeringId,
-  onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
+  onRowClick, onEdit, onDelete, isOnCallEvent, isIgnoredEvent, onAlarmClick,
   onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
   selection,
 }: {
@@ -259,6 +263,7 @@ function GroupedBucketSection({
   onEdit:          (e: AlarmEvent) => void
   onDelete:        (e: AlarmEvent) => void
   isOnCallEvent?:  (e: AlarmEvent) => boolean
+  isIgnoredEvent?: (e: AlarmEvent) => boolean
   onAlarmClick?:   (alarm: NonNullable<AlarmEvent['alarm']>, productId: string) => void
   onCreateAnalysis?:           (e: AlarmEvent) => void
   onCreateIgnorableAnalysis?:  (e: AlarmEvent) => void
@@ -317,7 +322,7 @@ function GroupedBucketSection({
   const rowProps = {
     visibleColumns, getWidth, canWrite, canDelete, canWriteAnalysis,
     selectedEventId, showDetailPanel, lingeringId,
-    onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
+    onRowClick, onEdit, onDelete, isOnCallEvent, isIgnoredEvent, onAlarmClick,
     onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
     selection,
   }
@@ -464,7 +469,7 @@ export function AlarmEventGroupedView({
   visibleColumns, getWidth, totalMinWidth,
   canWrite, canDelete, canWriteAnalysis,
   selectedEventId, showDetailPanel, lingeringId,
-  onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
+  onRowClick, onEdit, onDelete, isOnCallEvent, isIgnoredEvent, onAlarmClick,
   onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
   selection,
 }: AlarmEventGroupedViewProps) {
@@ -506,7 +511,7 @@ export function AlarmEventGroupedView({
   )
 
   const bucketProps = { visibleColumns, getWidth, totalMinWidth, canWrite, canDelete, canWriteAnalysis,
-    selectedEventId, showDetailPanel, lingeringId, onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
+    selectedEventId, showDetailPanel, lingeringId, onRowClick, onEdit, onDelete, isOnCallEvent, isIgnoredEvent, onAlarmClick,
     onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis, selection }
 
   return (

@@ -365,7 +365,7 @@ export function AlarmEventDetailPanel({
                 ) : isHighPriorityEvent(event) ? (
                   <span className="inline-flex items-center gap-1 rounded bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
                     <AlertTriangle className="h-2.5 w-2.5" />
-                    priorità alta
+                    high
                   </span>
                 ) : (
                   <span className="inline-flex items-center rounded border border-border/50 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground/50">

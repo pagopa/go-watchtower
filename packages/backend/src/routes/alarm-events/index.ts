@@ -86,7 +86,7 @@ export async function alarmEventRoutes(app: FastifyInstance) {
       },
     },
     async (request, reply) => {
-      const { productId, environmentId, alarmId, analysisId, awsAccountId, awsRegion, dateFrom, dateTo, hasAnalysis, name, page = 1, pageSize = 20 } = request.query;
+      const { productId, environmentId, alarmId, analysisId, awsAccountId, awsRegion, dateFrom, dateTo, createdFrom, hasAnalysis, name, sortBy = 'firedAt', page = 1, pageSize = 20 } = request.query;
 
       const where = {
         ...(productId     && { productId }),
@@ -103,6 +103,7 @@ export async function alarmEventRoutes(app: FastifyInstance) {
         }),
         ...(hasAnalysis === 'true'  && { analysisId: { not: null } }),
         ...(hasAnalysis === 'false' && { analysisId: null }),
+        ...(createdFrom && { createdAt: { gt: new Date(createdFrom) } }),
         ...(name && { name: { contains: name, mode: 'insensitive' as const } }),
       };
 
@@ -111,7 +112,7 @@ export async function alarmEventRoutes(app: FastifyInstance) {
         prisma.alarmEvent.findMany({
           where,
           include,
-          orderBy: { firedAt: "desc" },
+          orderBy: { [sortBy]: "desc" },
           skip: (page - 1) * pageSize,
           take: pageSize,
         }),

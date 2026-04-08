@@ -12,6 +12,7 @@ function getGitHash(): string {
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  allowedDevOrigins: ['192.168.178.118', '127.0.0.1'],
   env: {
     NEXT_PUBLIC_APP_VERSION: process.env.npm_package_version ?? '0.0.0',
     NEXT_PUBLIC_BUILD_ID: process.env.BUILD_ID ?? getGitHash(),

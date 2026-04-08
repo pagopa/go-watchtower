@@ -18,6 +18,7 @@ export interface AlarmEventTableRowProps {
   isDetailSelected: boolean
   isLingering: boolean
   isOnCall: boolean
+  isIgnored?: boolean
   visibleColumns: ColumnDef[]
   getWidth: (id: string) => number | undefined
   canWrite: boolean
@@ -40,6 +41,7 @@ export const AlarmEventTableRow = memo(function AlarmEventTableRow({
   isDetailSelected,
   isLingering,
   isOnCall,
+  isIgnored,
   visibleColumns,
   getWidth,
   canWrite,
@@ -58,18 +60,20 @@ export const AlarmEventTableRow = memo(function AlarmEventTableRow({
   return (
     <TableRow
       className={
-        'group cursor-pointer border-b border-border/50 ' +
+        'group cursor-pointer border-b border-border/50 border-l-[3px] ' +
         (isChecked
-          ? 'bg-primary/[0.05] hover:bg-primary/[0.08]'
+          ? 'border-l-transparent bg-primary/[0.05] hover:bg-primary/[0.08]'
           : isDetailSelected
-            ? 'analysis-row-selected hover:bg-primary/[0.09]'
+            ? 'border-l-transparent analysis-row-selected hover:bg-primary/[0.09]'
             : isLingering
-              ? 'analysis-row-lingering hover:bg-muted/30'
+              ? 'border-l-transparent analysis-row-lingering hover:bg-muted/30'
               : isOnCall
-                ? 'bg-rose-500/[0.04] hover:bg-rose-500/[0.06] transition-colors border-l-[3px] border-l-rose-500/60'
+                ? 'border-l-rose-500/60 bg-rose-500/[0.04] hover:bg-rose-500/[0.06] transition-colors'
                 : isHighPriorityEvent(event)
-                  ? 'bg-amber-500/[0.04] hover:bg-amber-500/[0.06] transition-colors border-l-[3px] border-l-amber-500/60'
-                  : 'transition-colors hover:bg-muted/30')
+                  ? 'border-l-amber-500/60 bg-amber-500/[0.04] hover:bg-amber-500/[0.06] transition-colors'
+                  : isIgnored
+                    ? 'border-l-transparent opacity-50 transition-colors hover:opacity-70 hover:bg-muted/30'
+                    : 'border-l-transparent transition-colors hover:bg-muted/30')
       }
       onClick={(e) => {
         if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('input[type="checkbox"]')) return
@@ -93,7 +97,7 @@ export const AlarmEventTableRow = memo(function AlarmEventTableRow({
             className="overflow-hidden py-2.5"
             style={(!isLastDataCol && getWidth(col.id)) ? { width: `${getWidth(col.id)}px` } : undefined}
           >
-            <AlarmEventCell columnId={col.id} event={event} isOnCall={isOnCall} onAlarmClick={onAlarmClick} />
+            <AlarmEventCell columnId={col.id} event={event} isOnCall={isOnCall} isIgnored={isIgnored} onAlarmClick={onAlarmClick} />
           </TableCell>
         )
       })}

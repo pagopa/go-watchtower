@@ -60,6 +60,8 @@ export const qk = {
     oncall:      (params: object) => [ALARM_EVENTS, 'oncall', params] as const,
     grouped:     (params: object) => [ALARM_EVENTS, 'grouped', params] as const,
     forAnalysis: (analysisId: string) => [ALARM_EVENTS, 'for-analysis', analysisId] as const,
+    /** Signal written by NotificationSupervisor when new important alarms are detected. */
+    newAlarmSignal: [ALARM_EVENTS, 'new-alarm-signal'] as const,
   },
 
   // ── Reports ──────────────────────────────────────────────────────────────
@@ -89,6 +91,8 @@ export const qk = {
     filterOptions: (productId: string) => [PRODUCTS, 'filter-options', productId] as const,
     /** Cross-product environments used by alarm-events multi-select filter. */
     allEnvironments: (productIds: string[]) => [PRODUCTS, 'environments-all', productIds] as const,
+    /** Cross-product ignored alarms used by alarm-events ignorable indicator. */
+    allIgnoredAlarms: (productIds: string[]) => [PRODUCTS, 'ignored-alarms-all', productIds] as const,
   },
 
   // ── Users ────────────────────────────────────────────────────────────────

@@ -45,6 +45,15 @@ export type { AnalysisSortField, SortDirection } from './constants/analysis-sort
 export { Themes, THEME_VALUES } from './constants/themes.js';
 export type { Theme } from './constants/themes.js';
 
+export {
+  NOTIFICATION_DEFINITIONS,
+  NOTIFICATION_TYPE_VALUES,
+  NOTIFICATION_CATEGORIES,
+  NOTIFICATION_CATEGORY_LABELS,
+  getTypesForCategory,
+} from './constants/notification-registry.js';
+export type { NotificationDefinition, NotificationType, NotificationCategory } from './constants/notification-registry.js';
+
 // ─── Tipi base ─────────────────────────────────────────────────────────────────
 
 export type { PaginationMeta, PaginatedResponse } from './types/pagination.js';
@@ -58,7 +67,7 @@ export type { IgnoreReasonFieldDef, IgnoreReasonDetailsSchema, IgnoreReason } fr
 export type { ResourceType } from './types/resource-type.js';
 export type { TimeConstraintPeriod, TimeConstraintHours, TimeConstraint } from './types/time-constraint.js';
 export type { PermissionAction, ResourcePermission, RolePermission, UserPermissions } from './types/permissions.js';
-export type { UserPreferences, ColumnSettings } from './types/user-preferences.js';
+export type { UserPreferences, ColumnSettings, NotificationPreferences } from './types/user-preferences.js';
 export type { SystemSetting, GenericSystemSetting, WorkingHoursSystemSetting, OnCallHoursSystemSetting, FkSystemSetting, RoleFkSystemSetting } from './types/system-setting.js';
 export type { WorkingHours } from './types/working-hours.js';
 export type { OnCallHours, OnCallOvernightPattern, OnCallAllDayPattern } from './types/on-call-hours.js';
@@ -78,6 +87,7 @@ export { MONTH_NAMES, MONTH_SHORT_NAMES } from './labels/month-labels.js';
 
 export { isWorkingHoursSetting, isOnCallHoursSetting, isFkSetting, isFkSettingOf } from './utils/setting-guards.js';
 export { classifyEvent } from './utils/classify-event.js';
+export { isHighPriorityAlarm } from './utils/classify-alarm-event.js';
 export type { EventClass } from './utils/classify-event.js';
 export { inferLinkType } from './utils/infer-link-type.js';
 export { buildDiff } from './utils/build-diff.js';

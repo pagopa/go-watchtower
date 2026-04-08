@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useSyncExternalStore } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import { api } from '@/lib/api-client'
 import { useTheme } from 'next-themes'
@@ -25,12 +25,21 @@ export function Header() {
   const { preferences, updatePreferences } = usePreferences()
   const mounted = useSyncExternalStore(() => () => {}, () => true, () => false)
 
-  // Sync theme from saved preferences on first load (cross-device)
+  // Sync theme from saved preferences once on initial load (cross-device).
+  // Uses a ref for setTheme to avoid depending on its identity — next-themes
+  // recreates setTheme on every theme change, which would re-trigger this effect
+  // and call setTheme with a potentially stale preferences.theme (TanStack Query
+  // notifications are deferred via microtask, so preferences.theme can lag behind
+  // the next-themes state by one render).
+  const setThemeRef = useRef(setTheme)
+  useEffect(() => { setThemeRef.current = setTheme })
+  const themeInitRef = useRef(false)
   useEffect(() => {
-    if (preferences.theme) {
-      setTheme(preferences.theme)
+    if (!themeInitRef.current && preferences.theme) {
+      themeInitRef.current = true
+      setThemeRef.current(preferences.theme)
     }
-  }, [preferences.theme, setTheme])
+  }, [preferences.theme])
 
   const toggleTheme = () => {
     const newTheme = resolvedTheme === 'dark' ? 'light' : 'dark'

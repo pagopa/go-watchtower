@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useTheme } from 'next-themes'
 import { useSession } from 'next-auth/react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -8,6 +9,7 @@ import {
   Mail, Shield, CalendarDays, Loader2, Check, Pencil, X,
   Monitor, Sun, Moon, Rows3, PanelLeft, SlidersHorizontal,
   KeyRound, Globe, RotateCcw, Eye, EyeOff, Lock, ChevronDown, ChevronUp,
+  Bell, BellOff,
 } from 'lucide-react'
 import { api, type UserDetail } from '@/lib/api-client'
 import { qk } from '@/lib/query-keys'
@@ -22,8 +24,15 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
-import { AUTH_PROVIDER_LABELS } from '@go-watchtower/shared'
-import type { AuthProvider } from '@go-watchtower/shared'
+import {
+  AUTH_PROVIDER_LABELS,
+  NOTIFICATION_DEFINITIONS,
+  NOTIFICATION_CATEGORIES,
+  NOTIFICATION_CATEGORY_LABELS,
+  getTypesForCategory,
+} from '@go-watchtower/shared'
+import type { AuthProvider, NotificationType } from '@go-watchtower/shared'
+import { useNotificationPermission } from '@/hooks/use-notification-permission'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -324,6 +333,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 export function ProfilePageContent() {
   const { data: session } = useSession()
   const queryClient = useQueryClient()
+  const { setTheme } = useTheme()
   const { preferences, updatePreferences } = usePreferences()
 
   const userId = session?.user?.id ?? ''
@@ -384,9 +394,10 @@ export function ProfilePageContent() {
   // ─── Reset handlers ──────────────────────────────────────────────────────────
 
   const handleResetTheme = useCallback(() => {
+    setTheme('system')
     updatePreferences({ theme: 'system' })
     toast.success('Tema ripristinato a "Sistema"')
-  }, [updatePreferences])
+  }, [setTheme, updatePreferences])
 
   const handleResetPageSize = useCallback(() => {
     updatePreferences({ pageSize: 10 })
@@ -440,6 +451,41 @@ export function ProfilePageContent() {
     })
     toast.success('Nome colonna ripristinato')
   }, [preferences.columnSettings, updatePreferences])
+
+  // ─── Notification preferences ─────────────────────────────────────────────
+  const { permission: notifPermission, request: requestNotifPermission, isSupported: notifSupported } = useNotificationPermission()
+  const notifPrefs = preferences.notifications
+  const notifEnabled = notifPrefs?.enabled ?? false
+
+  const handleToggleNotifMaster = useCallback(async () => {
+    if (notifEnabled) {
+      updatePreferences({ notifications: { enabled: false, types: notifPrefs?.types ?? {} } })
+      return
+    }
+    // Try to request permission if not yet granted (best-effort, save regardless)
+    if (notifSupported && notifPermission !== 'granted') {
+      await requestNotifPermission()
+    }
+    updatePreferences({ notifications: { enabled: true, types: notifPrefs?.types ?? {} } })
+  }, [notifEnabled, notifPrefs, notifSupported, notifPermission, requestNotifPermission, updatePreferences])
+
+  const handleToggleNotifType = useCallback(async (type: NotificationType) => {
+    const currentlyOn = notifEnabled && notifPrefs?.types[type] !== false
+    if (!currentlyOn) {
+      // Try to request permission if not yet granted (best-effort)
+      if (notifSupported && notifPermission !== 'granted') {
+        await requestNotifPermission()
+      }
+      const newTypes = { ...notifPrefs?.types, [type]: true }
+      updatePreferences({ notifications: { enabled: true, types: newTypes } })
+    } else {
+      const newTypes = { ...notifPrefs?.types, [type]: false }
+      const allTypes = Object.keys(NOTIFICATION_DEFINITIONS) as NotificationType[]
+      const anyStillOn = allTypes.some((t) => t === type ? false : (newTypes[t] !== false))
+      updatePreferences({ notifications: { enabled: anyStillOn, types: newTypes } })
+    }
+  }, [notifEnabled, notifPrefs, notifSupported, notifPermission, requestNotifPermission, updatePreferences])
+
 
   // ─── Derived values ──────────────────────────────────────────────────────────
 
@@ -663,6 +709,181 @@ export function ProfilePageContent() {
             </p>
           </div>
         </div>
+      </div>
+
+      {/* ── Notifiche ── */}
+      <div id="notifiche" className="rounded-xl border border-border bg-card p-6">
+        <SectionTitle>Notifiche</SectionTitle>
+        <p className="mb-5 text-sm text-muted-foreground">
+          Ricevi notifiche browser in tempo reale per eventi importanti,
+          anche quando sei su un&apos;altra pagina.
+        </p>
+
+        {/* ── Master toggle + browser status ── */}
+        <div className={cn(
+          'rounded-lg border p-4 transition-colors',
+          notifEnabled
+            ? 'border-primary/20 bg-primary/[0.03]'
+            : 'border-border bg-muted/20',
+        )}>
+          <div className="flex items-center gap-3">
+            <div className={cn(
+              'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors',
+              notifEnabled ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground',
+            )}>
+              {notifEnabled ? <Bell className="h-4.5 w-4.5" /> : <BellOff className="h-4.5 w-4.5" />}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">
+                {notifEnabled ? 'Notifiche attive' : 'Notifiche disattivate'}
+              </p>
+              {notifEnabled && (
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Il supervisore monitora gli allarmi ogni 30 secondi
+                </p>
+              )}
+            </div>
+            <button
+              onClick={handleToggleNotifMaster}
+              className={cn(
+                'relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border transition-colors',
+                notifEnabled
+                  ? 'bg-primary border-primary dark:bg-blue-600 dark:border-blue-600'
+                  : 'bg-zinc-300 border-zinc-300 dark:bg-zinc-600 dark:border-zinc-500',
+              )}
+            >
+              <span className={cn(
+                'inline-block h-4 w-4 rounded-full bg-white shadow-lg transition-transform',
+                notifEnabled ? 'translate-x-6' : 'translate-x-1',
+              )} />
+            </button>
+          </div>
+
+          {/* Browser permission status bar */}
+          {notifEnabled && (
+            <div className={cn(
+              'mt-3 flex items-center gap-2 rounded-md px-3 py-2 text-xs',
+              notifPermission === 'granted'
+                ? 'bg-emerald-500/5 text-emerald-700 dark:text-emerald-400'
+                : notifPermission === 'denied'
+                  ? 'bg-amber-500/5 text-amber-700 dark:text-amber-400'
+                  : 'bg-muted text-muted-foreground',
+            )}>
+              <span className={cn(
+                'h-1.5 w-1.5 rounded-full shrink-0',
+                notifPermission === 'granted'
+                  ? 'bg-emerald-500'
+                  : notifPermission === 'denied'
+                    ? 'bg-amber-500'
+                    : 'bg-muted-foreground/50',
+              )} />
+              <span className="flex-1">
+                {notifPermission === 'granted' && 'Permesso browser concesso — le notifiche verranno inviate'}
+                {notifPermission === 'denied' && (
+                  <>
+                    Permesso browser negato — clicca sull&apos;icona lucchetto (o scudo) nella barra indirizzi,
+                    apri &quot;Impostazioni sito&quot; e imposta Notifiche su &quot;Consenti&quot;, poi ricarica la pagina.
+                  </>
+                )}
+                {notifPermission === 'default' && 'Permesso non ancora richiesto — verrà chiesto al primo evento'}
+              </span>
+              {notifPermission === 'granted' && (
+                <button
+                  className="shrink-0 rounded px-2 py-0.5 text-[11px] font-medium hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                  onClick={() => {
+                    new Notification('Watchtower — Test notifica', {
+                      body: 'Le notifiche browser funzionano correttamente.',
+                      tag: 'watchtower-test',
+                      icon: '/logo1.png',
+                    })
+                  }}
+                >
+                  Invia test
+                </button>
+              )}
+              {notifPermission === 'denied' && (
+                <button
+                  className="shrink-0 rounded px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-400 hover:bg-amber-500/10 transition-colors"
+                  onClick={requestNotifPermission}
+                >
+                  Richiedi permesso
+                </button>
+              )}
+              {notifPermission === 'default' && (
+                <button
+                  className="shrink-0 rounded px-2 py-0.5 text-[11px] font-semibold hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                  onClick={requestNotifPermission}
+                >
+                  Richiedi permesso
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ── Per-category notification types ── */}
+        {notifEnabled && (
+          <div className="mt-5 space-y-4">
+            {NOTIFICATION_CATEGORIES.map((category) => {
+              const types = getTypesForCategory(category)
+              return (
+                <div key={category}>
+                  <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+                    {NOTIFICATION_CATEGORY_LABELS[category] ?? category}
+                  </p>
+                  <div className="space-y-1">
+                    {types.map((type) => {
+                      const def = NOTIFICATION_DEFINITIONS[type]
+                      const isOn = notifPrefs?.types[type] !== false
+                      return (
+                        <div
+                          key={type}
+                          className={cn(
+                            'flex items-center gap-3 rounded-lg border px-3.5 py-2.5 transition-colors cursor-pointer',
+                            isOn
+                              ? 'border-primary/15 bg-primary/[0.02] hover:bg-primary/[0.04]'
+                              : 'border-transparent bg-muted/30 hover:bg-muted/50 opacity-60',
+                          )}
+                          onClick={() => handleToggleNotifType(type)}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium">{def.label}</p>
+                            <p className="mt-0.5 text-xs text-muted-foreground">{def.description}</p>
+                          </div>
+                          <button
+                            className={cn(
+                              'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-colors',
+                              isOn
+                                ? 'bg-primary border-primary dark:bg-blue-600 dark:border-blue-600'
+                                : 'bg-zinc-300 border-zinc-300 dark:bg-zinc-600 dark:border-zinc-500',
+                            )}
+                            tabIndex={-1}
+                          >
+                            <span className={cn(
+                              'inline-block h-3.5 w-3.5 rounded-full bg-white shadow-lg transition-transform',
+                              isOn ? 'translate-x-[18px]' : 'translate-x-0.5',
+                            )} />
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {!notifSupported && (
+          <>
+            <Separator className="my-4" />
+            <div className="rounded-lg bg-muted/40 px-4 py-3">
+              <p className="text-xs text-muted-foreground">
+                Il browser in uso non supporta le notifiche.
+              </p>
+            </div>
+          </>
+        )}
       </div>
 
       {/* ── Impostazioni colonne ── */}

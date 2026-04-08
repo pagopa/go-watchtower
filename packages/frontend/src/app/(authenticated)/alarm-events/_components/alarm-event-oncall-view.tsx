@@ -35,6 +35,7 @@ export interface AlarmEventOnCallViewProps {
   onEdit:          (e: AlarmEvent) => void
   onDelete:        (e: AlarmEvent) => void
   isOnCallEvent?:  (e: AlarmEvent) => boolean
+  isIgnoredEvent?: (e: AlarmEvent) => boolean
   onAlarmClick?:   (alarm: NonNullable<AlarmEvent['alarm']>, productId: string) => void
   onCreateAnalysis?:           (e: AlarmEvent) => void
   onCreateIgnorableAnalysis?:  (e: AlarmEvent) => void
@@ -290,7 +291,7 @@ export function AlarmEventOnCallView({
   visibleColumns, getWidth, totalMinWidth,
   canWrite, canDelete, canWriteAnalysis,
   selectedEventId, showDetailPanel, lingeringId,
-  onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
+  onRowClick, onEdit, onDelete, isOnCallEvent, isIgnoredEvent, onAlarmClick,
   onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
   selection,
 }: AlarmEventOnCallViewProps) {
@@ -330,7 +331,7 @@ export function AlarmEventOnCallView({
   )
 
   const bucketProps = { visibleColumns, getWidth, totalMinWidth, canWrite, canDelete, canWriteAnalysis,
-    selectedEventId, showDetailPanel, lingeringId, onRowClick, onEdit, onDelete, isOnCallEvent, onAlarmClick,
+    selectedEventId, showDetailPanel, lingeringId, onRowClick, onEdit, onDelete, isOnCallEvent, isIgnoredEvent, onAlarmClick,
     onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis, selection }
 
   return (

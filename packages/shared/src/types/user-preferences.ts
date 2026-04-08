@@ -1,10 +1,16 @@
 import type { Theme } from '../constants/themes.js';
+import type { NotificationType } from '../constants/notification-registry.js';
 
 export interface ColumnSettings {
   visible?: string[];
   order?: string[];
   widths?: Record<string, number>;
   renames?: Record<string, string>;
+}
+
+export interface NotificationPreferences {
+  enabled: boolean;
+  types: Partial<Record<NotificationType, boolean>>;
 }
 
 export interface UserPreferences {
@@ -21,4 +27,5 @@ export interface UserPreferences {
   alarmEventViewMode?: 'list' | 'daily' | 'oncall' | 'grouped';
   analysisViewMode?: 'list' | 'daily' | 'oncall';
   detailPanelWidth?: number;
+  notifications?: NotificationPreferences;
 }

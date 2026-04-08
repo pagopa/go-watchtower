@@ -968,8 +968,10 @@ export interface AlarmEventsFilters {
   awsRegion?: string
   dateFrom?: string
   dateTo?: string
+  createdFrom?: string
   hasAnalysis?: 'true' | 'false'
   name?: string
+  sortBy?: 'firedAt' | 'createdAt'
   page?: number
   pageSize?: number
 }

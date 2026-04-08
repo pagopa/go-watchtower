@@ -3,6 +3,7 @@ import { Header } from '@/components/layout/header'
 import { Sidebar } from '@/components/layout/sidebar'
 import { EnvBanner } from '@/components/layout/env-banner'
 import { RouteTracker } from '@/components/layout/route-tracker'
+import { NotificationSupervisor } from '@/providers/notification-supervisor'
 import { Skeleton } from '@/components/ui/skeleton'
 
 export default function AuthenticatedLayout({
@@ -13,6 +14,7 @@ export default function AuthenticatedLayout({
   return (
     <div className="flex h-screen flex-col">
       <EnvBanner />
+      <NotificationSupervisor />
       <div className="flex flex-1 overflow-hidden">
         <RouteTracker />
         <Suspense fallback={<Skeleton className="h-full w-64" />}>
