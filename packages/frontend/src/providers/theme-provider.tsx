@@ -12,6 +12,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     <NextThemesProvider
       attribute="class"
       defaultTheme="system"
+      storageKey="watchtower-theme"
       enableSystem
       disableTransitionOnChange
     >

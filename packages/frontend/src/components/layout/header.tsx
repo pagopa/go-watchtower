@@ -26,11 +26,6 @@ export function Header() {
   const mounted = useSyncExternalStore(() => () => {}, () => true, () => false)
 
   // Sync theme from saved preferences once on initial load (cross-device).
-  // Uses a ref for setTheme to avoid depending on its identity — next-themes
-  // recreates setTheme on every theme change, which would re-trigger this effect
-  // and call setTheme with a potentially stale preferences.theme (TanStack Query
-  // notifications are deferred via microtask, so preferences.theme can lag behind
-  // the next-themes state by one render).
   const setThemeRef = useRef(setTheme)
   useEffect(() => { setThemeRef.current = setTheme })
   const themeInitRef = useRef(false)
