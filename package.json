@@ -20,8 +20,8 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@typescript-eslint/eslint-plugin": "^8.57.2",
-    "@typescript-eslint/parser": "^8.57.2",
+    "@typescript-eslint/eslint-plugin": "^8.58.2",
+    "@typescript-eslint/parser": "^8.58.2",
     "eslint": "^10.1.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",
@@ -29,12 +29,20 @@
     "prettier": "3.8.1",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2",
-    "typescript-eslint": "^8.57.2"
+    "typescript-eslint": "^8.58.2"
   },
   "pnpm": {
     "overrides": {
       "@types/react": "^19.2.14",
       "@types/react-dom": "^19.2.3"
+    },
+    "peerDependencyRules": {
+      "allowedVersions": {
+        "eslint-plugin-import>eslint": ">=10",
+        "eslint-plugin-react-hooks>eslint": ">=10",
+        "eslint-plugin-jsx-a11y>eslint": ">=10",
+        "eslint-plugin-react>eslint": ">=10"
+      }
     }
   }
 }

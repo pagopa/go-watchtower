@@ -535,7 +535,7 @@ export function AnalysisFilters({
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="filter-search"
-                  placeholder="Cerca nei dettagli..."
+                  placeholder="Cerca nei dettagli e tracking ID..."
                   value={search.value}
                   onChange={(e) => search.onChange(e.target.value)}
                   className="pl-8 text-sm"

@@ -178,6 +178,7 @@ function buildAnalysisWhereClause(
     where.OR = [
       { errorDetails: { contains: query.search, mode: "insensitive" } },
       { conclusionNotes: { contains: query.search, mode: "insensitive" } },
+      { trackingIds: { string_contains: query.search, mode: "insensitive" } },
     ];
   }
 
