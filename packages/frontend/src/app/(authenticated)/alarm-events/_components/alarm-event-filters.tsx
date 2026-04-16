@@ -48,8 +48,8 @@ function filtersToRange(dateFrom: string, dateTo: string): DateRange | undefined
 
 function rangeToFilters(range: DateRange | undefined): { dateFrom: string; dateTo: string } {
   if (!range?.from) return { dateFrom: '', dateTo: '' }
-  const dateFrom = formatJsDate(range.from, "yyyy-MM-dd'T'00:00")
-  const dateTo = range.to ? formatJsDate(range.to, "yyyy-MM-dd'T'23:59") : ''
+  const dateFrom = sod(new Date(range.from)).toISOString()
+  const dateTo = range.to ? eod(new Date(range.to)).toISOString() : ''
   return { dateFrom, dateTo }
 }
 
