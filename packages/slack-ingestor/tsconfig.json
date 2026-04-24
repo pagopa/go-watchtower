@@ -5,12 +5,18 @@
     "outDir": "./dist",
     "composite": true,
     "types": ["node"],
+    "ignoreDeprecations": "6.0",
+    "baseUrl": ".",
+    "paths": {
+      "@go-watchtower/shared": ["../shared/src/index.ts"]
+    },
     "exactOptionalPropertyTypes": false,
     "noPropertyAccessFromIndexSignature": false
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"],
   "references": [
+    { "path": "../shared" },
     { "path": "../database" }
   ]
 }

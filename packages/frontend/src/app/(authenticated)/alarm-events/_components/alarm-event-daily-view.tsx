@@ -17,7 +17,7 @@ import {
   Table, TableBody, TableCell, TableHeader, TableRow,
 } from '@/components/ui/table'
 import { ResizableTableHead } from '@/components/ui/resizable-table-head'
-import { AlarmEventCell, isHighPriorityEvent } from '../_helpers/cell-renderers'
+import { AlarmEventCell, isHighEvent } from '../_helpers/cell-renderers'
 import { AlarmEventRowActions } from './alarm-event-row-actions'
 
 import type { WorkingHours } from '@go-watchtower/shared'
@@ -329,7 +329,7 @@ export function BucketSection({
                 ? 'border-l-transparent analysis-row-lingering hover:bg-muted/30'
                 : isOnCall
                   ? 'border-l-rose-500/60 bg-rose-500/[0.04] hover:bg-rose-500/[0.06] transition-colors'
-                  : isHighPriorityEvent(event)
+                  : isHighEvent(event)
                     ? 'border-l-amber-500/60 bg-amber-500/[0.04] hover:bg-amber-500/[0.06] transition-colors'
                     : isIgnored
                       ? 'border-l-transparent opacity-50 transition-colors hover:opacity-70 hover:bg-muted/30'

@@ -3,8 +3,9 @@ import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import { Type } from "@sinclair/typebox";
 import { prisma, SystemComponent, PermissionScope } from "@go-watchtower/database";
 import { buildDiff } from "../../services/system-event.service.js";
+import { resolvePersistedAlarmPriority, toAlarmEventPriorityDto } from "../../services/alarm-priority.service.js";
 import { getPermissionScope } from "../../services/permission.service.js";
-import { SystemEventActions, SystemEventResources, AnalysisStatuses } from "@go-watchtower/shared";
+import { SystemEventActions, SystemEventResources, AnalysisStatuses, normalizeAlertPriorityCode } from "@go-watchtower/shared";
 import { HttpError } from "../../utils/http-errors.js";
 import { requirePermission } from "../../lib/require-permission.js";
 import {
@@ -33,6 +34,18 @@ const include = {
       runbook:     { select: { id: true, name: true, link: true } },
     },
   },
+  priority: {
+    select: {
+      code: true,
+      label: true,
+      rank: true,
+      color: true,
+      icon: true,
+      countsAsOnCall: true,
+      isDefault: true,
+    },
+  },
+  priorityRule: { select: { id: true, name: true } },
 } as const;
 
 type EmbeddedAlarm = {
@@ -52,15 +65,34 @@ function formatResponse(event: {
   awsAccountId: string;
   alarmId: string | null;
   analysisId: string | null;
+  priorityCode: string;
+  priorityRuleId: string | null;
+  priorityResolvedAt: Date | null;
   linkedAt: Date | null;
   resolvedAt: Date | null;
   createdAt: Date;
   product: { id: string; name: string };
   environment: { id: string; name: string };
   alarm: EmbeddedAlarm;
+  priority: {
+    code: string;
+    label: string;
+    rank: number;
+    color: string | null;
+    icon: string | null;
+    countsAsOnCall: boolean;
+    isDefault: boolean;
+  };
+  priorityRule: { id: string; name: string } | null;
 }) {
   return {
     ...event,
+    priority: toAlarmEventPriorityDto({
+      priority: event.priority,
+      priorityRuleId: event.priorityRuleId,
+      priorityRuleName: event.priorityRule?.name ?? null,
+      priorityResolvedAt: event.priorityResolvedAt,
+    }),
     firedAt:    event.firedAt.toISOString(),
     linkedAt:   event.linkedAt?.toISOString() ?? null,
     resolvedAt: event.resolvedAt?.toISOString() ?? null,
@@ -86,7 +118,10 @@ export async function alarmEventRoutes(app: FastifyInstance) {
       },
     },
     async (request, reply) => {
-      const { productId, environmentId, alarmId, analysisId, awsAccountId, awsRegion, dateFrom, dateTo, createdFrom, hasAnalysis, name, sortBy = 'firedAt', page = 1, pageSize = 20 } = request.query;
+      const { productId, environmentId, alarmId, analysisId, awsAccountId, awsRegion, priorityCode, dateFrom, dateTo, createdFrom, hasAnalysis, name, sortBy = 'firedAt', page = 1, pageSize = 20 } = request.query;
+      const priorityCodes = priorityCode
+        ? (Array.isArray(priorityCode) ? priorityCode : [priorityCode]).map(normalizeAlertPriorityCode)
+        : undefined;
 
       const where = {
         ...(productId     && { productId }),
@@ -95,6 +130,7 @@ export async function alarmEventRoutes(app: FastifyInstance) {
         ...(analysisId    && { analysisId }),
         ...(awsAccountId  && { awsAccountId }),
         ...(awsRegion     && { awsRegion }),
+        ...(priorityCodes && { priorityCode: { in: priorityCodes } }),
         ...((dateFrom || dateTo) && {
           firedAt: {
             ...(dateFrom && { gte: new Date(dateFrom) }),
@@ -194,16 +230,27 @@ export async function alarmEventRoutes(app: FastifyInstance) {
         return HttpError.notFound(reply, "Environment");
       }
 
+      const firedAtDate = new Date(firedAt);
+      const priority = await resolvePersistedAlarmPriority({
+        productId,
+        environmentId,
+        alarmName: name,
+        firedAt: firedAtDate,
+      });
+
       const event = await prisma.alarmEvent.create({
         data: {
           name,
-          firedAt:      new Date(firedAt),
+          firedAt:      firedAtDate,
           awsRegion,
           awsAccountId,
           description:  description ?? null,
           reason:       reason ?? null,
           productId,
           environmentId,
+          priorityCode: priority.priorityCode,
+          priorityRuleId: priority.priorityRuleId,
+          priorityResolvedAt: priority.priorityResolvedAt,
         },
         include,
       });
@@ -242,7 +289,22 @@ export async function alarmEventRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const existing = await prisma.alarmEvent.findUnique({
         where: { id: request.params.id },
-        select: { id: true, name: true, description: true, reason: true, alarmId: true, analysisId: true, linkedAt: true, resolvedAt: true },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          reason: true,
+          productId: true,
+          environmentId: true,
+          firedAt: true,
+          alarmId: true,
+          analysisId: true,
+          priorityCode: true,
+          priorityRuleId: true,
+          priorityResolvedAt: true,
+          linkedAt: true,
+          resolvedAt: true,
+        },
       });
 
       if (!existing) {
@@ -259,6 +321,19 @@ export async function alarmEventRoutes(app: FastifyInstance) {
       if (request.body.linkedAt !== undefined)    data.linkedAt    = request.body.linkedAt ? new Date(request.body.linkedAt) : null;
       if (request.body.resolvedAt !== undefined)  data.resolvedAt  = request.body.resolvedAt ? new Date(request.body.resolvedAt) : null;
 
+      if (request.body.alarmId !== undefined) {
+        const priority = await resolvePersistedAlarmPriority({
+          productId: existing.productId,
+          environmentId: existing.environmentId,
+          alarmId: request.body.alarmId || null,
+          alarmName: existing.name,
+          firedAt: existing.firedAt,
+        });
+        data.priorityCode = priority.priorityCode;
+        data.priorityRuleId = priority.priorityRuleId;
+        data.priorityResolvedAt = priority.priorityResolvedAt;
+      }
+
       const updated = await prisma.alarmEvent.update({
         where: { id: request.params.id },
         data,
@@ -270,7 +345,7 @@ export async function alarmEventRoutes(app: FastifyInstance) {
         resource:      SystemEventResources.ALARM_EVENTS,
         resourceId:    updated.id,
         resourceLabel: updated.name,
-        metadata:      { changes: buildDiff(existing, updated, ["description", "reason", "alarmId", "analysisId", "linkedAt", "resolvedAt"]) },
+        metadata:      { changes: buildDiff(existing, updated, ["description", "reason", "alarmId", "analysisId", "priorityCode", "priorityRuleId", "linkedAt", "resolvedAt"]) },
       });
 
       return reply.send(formatResponse(updated));
@@ -296,6 +371,10 @@ export async function alarmEventRoutes(app: FastifyInstance) {
   }>(
     "/alarm-events/:id/link-analysis",
     {
+      // Bulk associate/unlink operations may link hundreds of selected events.
+      // They are authenticated and permission-checked, but should not exhaust
+      // the global read/API rate limit and break the subsequent list reload.
+      config: { rateLimit: false },
       onRequest: [server.authenticate, requirePermission(SystemComponent.ALARM_ANALYSIS, "write")],
       schema: {
         tags: ["Alarm Events"],

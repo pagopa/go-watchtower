@@ -9,6 +9,8 @@ export const SystemEventResources = {
   PRODUCTS:                  'products',
   ALARMS:                    'alarms',
   IGNORED_ALARMS:            'ignored_alarms',
+  ALARM_PRIORITY_RULES:      'alarm_priority_rules',
+  PRIORITY_LEVELS:           'priority_levels',
   USER_PERMISSION_OVERRIDES: 'user_permission_overrides',
   ENVIRONMENTS:              'environments',
   RESOURCES:                 'resources',

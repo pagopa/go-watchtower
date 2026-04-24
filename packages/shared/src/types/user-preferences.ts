@@ -8,9 +8,15 @@ export interface ColumnSettings {
   renames?: Record<string, string>;
 }
 
+export interface PriorityNotificationPreferences {
+  enabledCodes: string[];
+}
+
 export interface NotificationPreferences {
   enabled: boolean;
-  types: Partial<Record<NotificationType, boolean>>;
+  priority?: PriorityNotificationPreferences;
+  // Legacy notification toggles kept for compatibility during migration.
+  types?: Partial<Record<NotificationType | string, boolean>>;
 }
 
 export interface UserPreferences {

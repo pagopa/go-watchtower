@@ -26,6 +26,7 @@ const ROLES        = 'roles'        as const
 const SETTINGS     = 'settings'     as const
 const IGNORE_REASONS  = 'ignore-reasons'  as const
 const RESOURCE_TYPES  = 'resource-types'  as const
+const PRIORITY_LEVELS = 'priority-levels' as const
 const SYSTEM_EVENTS   = 'system-events'   as const
 const PERMISSIONS     = 'permissions'     as const
 const PREFERENCES     = 'preferences'     as const
@@ -87,6 +88,7 @@ export const qk = {
     resources:     (productId: string) => [PRODUCTS, 'resources', productId] as const,
     finalActions:  (productId: string) => [PRODUCTS, 'final-actions', productId] as const,
     ignoredAlarms: (productId: string) => [PRODUCTS, 'ignored-alarms', productId] as const,
+    alarmPriorityRules: (productId: string) => [PRODUCTS, 'alarm-priority-rules', productId] as const,
     downstreams:   (productId: string) => [PRODUCTS, 'downstreams', productId] as const,
     filterOptions: (productId: string) => [PRODUCTS, 'filter-options', productId] as const,
     /** Cross-product environments used by alarm-events multi-select filter. */
@@ -130,6 +132,11 @@ export const qk = {
   resourceTypes: {
     root: [RESOURCE_TYPES] as const,
     list: [RESOURCE_TYPES, 'list'] as const,
+  },
+
+  priorityLevels: {
+    root: [PRIORITY_LEVELS] as const,
+    list: [PRIORITY_LEVELS, 'list'] as const,
   },
 
   // ── System Events ────────────────────────────────────────────────────────

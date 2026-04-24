@@ -1,4 +1,6 @@
 import { prisma } from "@go-watchtower/database";
+import { resolveAlarmPriority } from "@go-watchtower/shared";
+import type { AlertPriorityLevel, AlarmPriorityRule } from "@go-watchtower/shared";
 import { CHANNEL_REGISTRY } from "./config.js";
 import { fetchMessagePages, getHttpWarningStats } from "./slack-client.js";
 import { getCursor, saveCursor } from "./cursor-store.js";
@@ -7,6 +9,83 @@ import { resolveAlarmId } from "./alarm-resolver.js";
 import type { Message, ParsedAlarmEvent } from "./parsers/types.js";
 
 const VERBOSE = process.env["VERBOSE"] === "1" || process.env["DEBUG"] === "1";
+
+function parseJsonArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? value as T[] : [];
+}
+
+async function resolvePersistedPriority(params: {
+  productId: string;
+  environmentId: string;
+  alarmId: string | null;
+  name: string;
+  firedAt: Date;
+}): Promise<{
+  priorityCode: string;
+  priorityRuleId: string | null;
+  priorityResolvedAt: Date;
+}> {
+  const [levelsRaw, rulesRaw] = await Promise.all([
+    prisma.priorityLevel.findMany({
+      orderBy: [{ rank: "desc" }, { code: "asc" }],
+    }),
+    prisma.alarmPriorityRule.findMany({
+      where: { productId: params.productId, isActive: true },
+      orderBy: [{ createdAt: "asc" }],
+    }),
+  ]);
+
+  const levels: AlertPriorityLevel[] = levelsRaw.map((level) => ({
+    code:           level.code,
+    label:          level.label,
+    description:    level.description ?? null,
+    rank:           level.rank,
+    color:          level.color ?? null,
+    icon:           level.icon ?? null,
+    isActive:       level.isActive,
+    isDefault:      level.isDefault,
+    countsAsOnCall: level.countsAsOnCall,
+    defaultNotify:  level.defaultNotify,
+    isSystem:       level.isSystem,
+    createdAt:      level.createdAt.toISOString(),
+    updatedAt:      level.updatedAt.toISOString(),
+  }));
+
+  const rules: AlarmPriorityRule[] = rulesRaw.map((rule) => ({
+    id:            rule.id,
+    productId:     rule.productId,
+    environmentId: rule.environmentId ?? null,
+    priorityCode:  rule.priorityCode,
+    name:          rule.name,
+    matcherType:   rule.matcherType,
+    alarmId:       rule.alarmId ?? null,
+    namePrefix:    rule.namePrefix ?? null,
+    namePattern:   rule.namePattern ?? null,
+    precedence:    rule.precedence,
+    note:          rule.note ?? null,
+    isActive:      rule.isActive,
+    validity:      parseJsonArray(rule.validity),
+    exclusions:    parseJsonArray(rule.exclusions),
+    createdAt:     rule.createdAt.toISOString(),
+    updatedAt:     rule.updatedAt.toISOString(),
+  }));
+
+  const resolved = resolveAlarmPriority({
+    productId:     params.productId,
+    environmentId: params.environmentId,
+    alarmId:       params.alarmId,
+    alarmName:     params.name,
+    firedAt:       params.firedAt,
+    levels,
+    rules,
+  });
+
+  return {
+    priorityCode:       resolved.level.code,
+    priorityRuleId:     resolved.rule?.id ?? null,
+    priorityResolvedAt: new Date(),
+  };
+}
 
 /** Per-channel stats collected during processing. */
 interface ChannelStats {
@@ -112,6 +191,13 @@ async function processChannel(
 
       try {
         const alarmId = await resolveAlarmId(productId, parsed.name);
+        const priority = await resolvePersistedPriority({
+          productId,
+          environmentId,
+          alarmId,
+          name: parsed.name,
+          firedAt: parsed.firedAt,
+        });
 
         await prisma.alarmEvent.create({
           data: {
@@ -124,6 +210,9 @@ async function processChannel(
             productId,
             environmentId,
             alarmId,
+            priorityCode:       priority.priorityCode,
+            priorityRuleId:     priority.priorityRuleId,
+            priorityResolvedAt: priority.priorityResolvedAt,
             slackMessageId: `${channelId}/${ts}`,
           },
         });

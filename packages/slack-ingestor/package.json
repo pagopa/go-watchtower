@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@go-watchtower/database": "workspace:*",
+    "@go-watchtower/shared": "workspace:*",
     "@slack/web-api": "^7.15.1"
   },
   "devDependencies": {

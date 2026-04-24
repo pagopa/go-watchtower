@@ -15,6 +15,7 @@ import {
   type Environment,
   type UserDetail,
   type AlarmAnalysis,
+  type AlertPriorityLevel,
   type CreateAlarmAnalysisData,
   type PaginatedResponse,
   type CreateAlarmEventData,
@@ -102,6 +103,7 @@ import { isoToRomeLocal, isoToUTCLocal } from '../analyses/_components/analysis-
 
 const DEFAULT_FILTERS: AlarmEventFiltersState = {
   environmentIds: [],
+  priorityCodes: [],
   awsAccountId: '',
   awsRegion:    '',
   dateFrom:     '',
@@ -147,10 +149,18 @@ function AlarmEventsPageContent() {
       : typeof saved.environmentId === 'string' && saved.environmentId
         ? [saved.environmentId as string]
         : []
+    const priorityCodes = Array.isArray(saved.priorityCodes)
+      ? saved.priorityCodes as string[]
+      : Array.isArray(saved.priorityCode)
+        ? saved.priorityCode as string[]
+        : typeof saved.priorityCode === 'string' && saved.priorityCode
+          ? [saved.priorityCode as string]
+          : []
     return {
       ...DEFAULT_FILTERS,
       ...saved,
       environmentIds: envIds,
+      priorityCodes,
     } as AlarmEventFiltersState
   }, [filtersOverride, preferences.savedFilters])
 
@@ -308,6 +318,12 @@ function AlarmEventsPageContent() {
     staleTime: 5 * 60 * 1000,
   })
 
+  const { data: priorityLevels = [] } = useQuery<AlertPriorityLevel[]>({
+    queryKey: qk.priorityLevels.list,
+    queryFn: api.getPriorityLevels,
+    staleTime: 5 * 60 * 1000,
+  })
+
   // Build product+environments groups for the multi-select filter
   const productEnvironments = useMemo<ProductWithEnvironments[]>(() => {
     if (!allEnvironments?.length || !activeProducts.length) return []
@@ -321,18 +337,6 @@ function AlarmEventsPageContent() {
       .filter((p) => envsByProduct.has(p.id))
       .map((p) => ({ product: p, environments: envsByProduct.get(p.id)! }))
   }, [activeProducts, allEnvironments])
-
-  // Map environmentId → compiled RegExp for on-call row highlighting
-  const onCallRegexMap = useMemo(() => {
-    if (!allEnvironments?.length) return new Map<string, RegExp>()
-    const map = new Map<string, RegExp>()
-    for (const e of allEnvironments) {
-      if (e.onCallAlarmPattern) {
-        try { map.set(e.id, new RegExp(e.onCallAlarmPattern)) } catch { /* invalid regex, skip */ }
-      }
-    }
-    return map
-  }, [allEnvironments])
 
   // Ignored alarms across all active products — for inline "ignorable" indicator
   const { data: allIgnoredAlarms } = useQuery<IgnoredAlarm[]>({
@@ -360,6 +364,7 @@ function AlarmEventsPageContent() {
     page,
     pageSize,
     ...(filters.environmentIds.length > 0 && { environmentId: filters.environmentIds }),
+    ...(filters.priorityCodes.length > 0 && { priorityCode: filters.priorityCodes }),
     ...(filters.awsAccountId && { awsAccountId: filters.awsAccountId }),
     ...(filters.awsRegion    && { awsRegion:    filters.awsRegion }),
     ...(filters.dateFrom     && { dateFrom:     filters.dateFrom }),
@@ -369,7 +374,7 @@ function AlarmEventsPageContent() {
     ...(filters.alarmName && { name: filters.alarmName }),
   }), [
     page, pageSize,
-    filters.environmentIds, filters.awsAccountId,
+    filters.environmentIds, filters.priorityCodes, filters.awsAccountId,
     filters.awsRegion, filters.dateFrom, filters.dateTo,
     filters.hasAnalysis, filters.alarmName,
   ])
@@ -573,10 +578,8 @@ function AlarmEventsPageContent() {
   }, [])
 
   const isOnCallEvent = useCallback((event: AlarmEvent): boolean => {
-    const regex = onCallRegexMap.get(event.environment.id)
-    if (!regex) return false
-    return regex.test(event.name)
-  }, [onCallRegexMap])
+    return event.priority.countsAsOnCall
+  }, [])
 
   // --- Notification config (supervisor runs in layout, toggle here) ---
 
@@ -602,6 +605,7 @@ function AlarmEventsPageContent() {
       alarmId:      event.alarmId ?? '',
       environmentId: event.environment.id,
       occurrences:  1,
+      isOnCall:     event.priority.countsAsOnCall,
     })
     setAnalysisFormOpen(true)
   }, [])
@@ -617,6 +621,7 @@ function AlarmEventsPageContent() {
       alarmId:      event.alarmId ?? '',
       environmentId: event.environment.id,
       occurrences:  1,
+      isOnCall:     event.priority.countsAsOnCall,
       analysisType: 'IGNORABLE' as const,
       status: 'COMPLETED' as const,
     })
@@ -677,6 +682,7 @@ function AlarmEventsPageContent() {
         onFilterChange={handleFilterChange}
         onReset={handleResetFilters}
         productEnvironments={productEnvironments}
+        priorityLevels={priorityLevels}
         collapsed={filtersCollapsed}
         onToggleCollapsed={handleToggleFiltersCollapsed}
       />
@@ -713,6 +719,7 @@ function AlarmEventsPageContent() {
         <div className="flex items-center gap-2">
           <NotificationCategoryToggle
             category="ALARM_EVENTS"
+            priorityLevels={priorityLevels}
             notificationPrefs={notificationPrefs}
             onUpdate={handleNotificationUpdate}
           />
@@ -981,7 +988,6 @@ function AlarmEventsPageContent() {
         onDelete={handleDelete}
         canWrite={canWrite}
         canDelete={canDelete}
-        isOnCall={resolvedSelectedEvent ? isOnCallEvent(resolvedSelectedEvent) : false}
         onAlarmClick={handleAlarmClick}
       />
 

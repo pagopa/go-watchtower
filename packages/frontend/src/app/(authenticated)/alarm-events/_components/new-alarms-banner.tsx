@@ -14,7 +14,7 @@ interface NewAlarmsBannerProps {
 
 /**
  * Inline banner shown between the Results Bar and the table when the
- * NotificationSupervisor detects new important alarms (on-call or high-priority).
+ * NotificationSupervisor detects new important alarms (on-call or High).
  *
  * Actions:
  *  - "Aggiorna lista" — clears the signal and triggers a list refetch

@@ -339,7 +339,7 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
         // ── Parallel queries ─────────────────────────────────────────────────
         //
         // 1. Raw alarm events (+ linked analysis info for post-cutover counting)
-        // 2. Environments (with onCallAlarmPattern for on-call detection)
+        // 2. Environments
         // 3. Analyses by analysis_date (only before cutover)
 
         const [alarmEventsRaw, environments, analysisRaw] = await Promise.all([
@@ -351,14 +351,15 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
             },
             select: {
               name: true, environmentId: true, firedAt: true,
+              priority: { select: { countsAsOnCall: true } },
               analysis: { select: { status: true, analysisType: true } },
             },
           }),
 
-          // ── 2. Environments (with onCallAlarmPattern) ─────────────────────
+          // ── 2. Environments ────────────────────────────────────────────────
           prisma.environment.findMany({
             where: { productId },
-            select: { id: true, name: true, onCallAlarmPattern: true },
+            select: { id: true, name: true },
             orderBy: [{ order: "asc" }, { name: "asc" }],
           }),
 
@@ -383,14 +384,6 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
               `,
         ]);
 
-        // ── Build on-call regex map per environment ─────────────────────────
-        const onCallRegexMap = new Map<string, RegExp>();
-        for (const env of environments) {
-          if (env.onCallAlarmPattern) {
-            try { onCallRegexMap.set(env.id, new RegExp(env.onCallAlarmPattern)); } catch { /* invalid regex, skip */ }
-          }
-        }
-
         // ── Assign each alarm event to its business day ─────────────────────
         // Uses assignAlarmBusinessDay from @go-watchtower/shared (Intl-based,
         // gestisce DST correttamente).
@@ -405,9 +398,7 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
         };
 
         for (const ev of alarmEventsRaw) {
-          const regex = onCallRegexMap.get(ev.environmentId);
-          const isOnCall = regex ? regex.test(ev.name) : false;
-          const assigned = assignAlarmBusinessDay(ev.firedAt, isOnCall, 'Europe/Rome');
+          const assigned = assignAlarmBusinessDay(ev.firedAt, ev.priority.countsAsOnCall, 'Europe/Rome');
 
           // Skip events whose business day falls outside the target month
           if (assigned.year !== year || assigned.month !== month) continue;
@@ -522,13 +513,9 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
                 WITH rome_events AS (
                   SELECT
                     ae.fired_at AT TIME ZONE 'Europe/Rome' AS rome_ts,
-                    CASE
-                      WHEN e.on_call_alarm_pattern IS NOT NULL
-                        AND ae.name ~ e.on_call_alarm_pattern THEN true
-                      ELSE false
-                    END AS is_on_call
+                    pl.counts_as_on_call AS is_on_call
                   FROM alarm_events ae
-                  JOIN environments e ON e.id = ae.environment_id
+                  JOIN priority_levels pl ON pl.code = ae.priority_code
                   WHERE ae.environment_id IN (${Prisma.join(prodEnvIds)})
                     AND ae.fired_at >= ${expandedFrom} AND ae.fired_at < ${expandedTo}
                 ),
@@ -564,13 +551,9 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
                 WITH rome_events AS (
                   SELECT
                     ae.fired_at AT TIME ZONE 'Europe/Rome' AS rome_ts,
-                    CASE
-                      WHEN e.on_call_alarm_pattern IS NOT NULL
-                        AND ae.name ~ e.on_call_alarm_pattern THEN true
-                      ELSE false
-                    END AS is_on_call
+                    pl.counts_as_on_call AS is_on_call
                   FROM alarm_events ae
-                  JOIN environments e ON e.id = ae.environment_id
+                  JOIN priority_levels pl ON pl.code = ae.priority_code
                   WHERE ae.product_id = ${productId}
                     AND ae.fired_at >= ${expandedFrom} AND ae.fired_at < ${expandedTo}
                 ),
@@ -602,13 +585,9 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
                 WITH rome_events AS (
                   SELECT
                     ae.fired_at AT TIME ZONE 'Europe/Rome' AS rome_ts,
-                    CASE
-                      WHEN e.on_call_alarm_pattern IS NOT NULL
-                        AND ae.name ~ e.on_call_alarm_pattern THEN true
-                      ELSE false
-                    END AS is_on_call
+                    pl.counts_as_on_call AS is_on_call
                   FROM alarm_events ae
-                  JOIN environments e ON e.id = ae.environment_id
+                  JOIN priority_levels pl ON pl.code = ae.priority_code
                   WHERE ae.fired_at >= ${expandedFrom} AND ae.fired_at < ${expandedTo}
                 ),
                 business_days AS (
@@ -686,13 +665,9 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
                   SELECT
                     ae.fired_at AT TIME ZONE 'Europe/Rome' AS rome_ts,
                     aa.analysis_type,
-                    CASE
-                      WHEN e.on_call_alarm_pattern IS NOT NULL
-                        AND ae.name ~ e.on_call_alarm_pattern THEN true
-                      ELSE false
-                    END AS is_on_call
+                    pl.counts_as_on_call AS is_on_call
                   FROM alarm_events ae
-                  JOIN environments e ON e.id = ae.environment_id
+                  JOIN priority_levels pl ON pl.code = ae.priority_code
                   JOIN alarm_analyses aa ON aa.id = ae.analysis_id AND aa.status = 'COMPLETED'
                   WHERE ae.environment_id IN (${Prisma.join(prodEnvIds)})
                     AND ae.fired_at >= ${newAnalysisExpandedFrom} AND ae.fired_at < ${expandedTo}
@@ -731,13 +706,9 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
                       SELECT
                         ae.fired_at AT TIME ZONE 'Europe/Rome' AS rome_ts,
                         aa.analysis_type,
-                        CASE
-                          WHEN e.on_call_alarm_pattern IS NOT NULL
-                            AND ae.name ~ e.on_call_alarm_pattern THEN true
-                          ELSE false
-                        END AS is_on_call
+                        pl.counts_as_on_call AS is_on_call
                       FROM alarm_events ae
-                      JOIN environments e ON e.id = ae.environment_id
+                      JOIN priority_levels pl ON pl.code = ae.priority_code
                       JOIN alarm_analyses aa ON aa.id = ae.analysis_id AND aa.status = 'COMPLETED'
                       WHERE ae.product_id = ${productId}
                         AND ae.fired_at >= ${newAnalysisExpandedFrom} AND ae.fired_at < ${expandedTo}
@@ -772,13 +743,9 @@ export async function reportRoutes(fastify: FastifyInstance): Promise<void> {
                       SELECT
                         ae.fired_at AT TIME ZONE 'Europe/Rome' AS rome_ts,
                         aa.analysis_type,
-                        CASE
-                          WHEN e.on_call_alarm_pattern IS NOT NULL
-                            AND ae.name ~ e.on_call_alarm_pattern THEN true
-                          ELSE false
-                        END AS is_on_call
+                        pl.counts_as_on_call AS is_on_call
                       FROM alarm_events ae
-                      JOIN environments e ON e.id = ae.environment_id
+                      JOIN priority_levels pl ON pl.code = ae.priority_code
                       JOIN alarm_analyses aa ON aa.id = ae.analysis_id AND aa.status = 'COMPLETED'
                       WHERE ae.fired_at >= ${newAnalysisExpandedFrom} AND ae.fired_at < ${expandedTo}
                         AND ae.analysis_id IS NOT NULL

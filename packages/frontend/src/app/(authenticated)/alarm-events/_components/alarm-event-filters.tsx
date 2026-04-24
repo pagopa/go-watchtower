@@ -8,11 +8,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { DateRangePicker, type DateRangePreset } from '@/components/ui/date-range-picker'
 import { Button } from '@/components/ui/button'
-import type { Product, Environment } from '@/lib/api-client'
+import type { Product, Environment, AlertPriorityLevel } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
 
 export interface AlarmEventFiltersState {
   environmentIds: string[]
+  priorityCodes: string[]
   awsAccountId: string
   awsRegion: string
   dateFrom: string
@@ -32,6 +33,7 @@ interface AlarmEventFiltersProps {
   onFilterChange: (filters: AlarmEventFiltersState) => void
   onReset: () => void
   productEnvironments: ProductWithEnvironments[]
+  priorityLevels: AlertPriorityLevel[]
   collapsed?: boolean
   onToggleCollapsed?: () => void
 }
@@ -74,6 +76,7 @@ interface FilterChip {
 function buildActiveChips(
   filters: AlarmEventFiltersState,
   productEnvironments: ProductWithEnvironments[],
+  priorityLevels: AlertPriorityLevel[],
 ): FilterChip[] {
   const chips: FilterChip[] = []
 
@@ -92,6 +95,17 @@ function buildActiveChips(
       }
     } else {
       chips.push({ key: 'env', label: `${filters.environmentIds.length} ambienti` })
+    }
+  }
+
+  if (filters.priorityCodes.length > 0) {
+    const priorityLabelMap = new Map(priorityLevels.map((level) => [level.code, level.label]))
+    if (filters.priorityCodes.length <= 2) {
+      for (const code of filters.priorityCodes) {
+        chips.push({ key: `priority:${code}`, label: priorityLabelMap.get(code) ?? code })
+      }
+    } else {
+      chips.push({ key: 'priority', label: `${filters.priorityCodes.length} priority` })
     }
   }
 
@@ -146,6 +160,7 @@ export function AlarmEventFilters({
   onFilterChange,
   onReset,
   productEnvironments,
+  priorityLevels,
   collapsed = false,
   onToggleCollapsed,
 }: AlarmEventFiltersProps) {
@@ -205,8 +220,15 @@ export function AlarmEventFilters({
       onFilterChange(updated)
       return
     }
+    if (key.startsWith('priority:')) {
+      const code = key.slice(9)
+      updated.priorityCodes = updated.priorityCodes.filter((value) => value !== code)
+      onFilterChange(updated)
+      return
+    }
     switch (key) {
       case 'env': updated.environmentIds = []; break
+      case 'priority': updated.priorityCodes = []; break
       case 'date': updated.dateFrom = ''; updated.dateTo = ''; break
       case 'analysis': updated.hasAnalysis = ''; break
       case 'name':
@@ -240,6 +262,7 @@ export function AlarmEventFilters({
 
   const activeFilterCount = [
     filters.environmentIds.length > 0,
+    filters.priorityCodes.length > 0,
     filters.awsAccountId,
     filters.awsRegion,
     filters.dateFrom || filters.dateTo,
@@ -248,8 +271,8 @@ export function AlarmEventFilters({
   ].filter(Boolean).length
 
   const activeChips = useMemo(
-    () => buildActiveChips(filters, productEnvironments),
-    [filters, productEnvironments],
+    () => buildActiveChips(filters, productEnvironments, priorityLevels),
+    [filters, productEnvironments, priorityLevels],
   )
 
   return (
@@ -333,7 +356,16 @@ export function AlarmEventFilters({
           </div>
 
           {/* Row 2 — detail filters */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Priority</Label>
+              <PriorityMultiSelect
+                priorityLevels={priorityLevels}
+                selected={filters.priorityCodes}
+                onChange={(codes) => updateFilter('priorityCodes', codes)}
+              />
+            </div>
 
             {/* Analisi collegata — segmented toggle */}
             <div className="space-y-1.5">
@@ -418,6 +450,100 @@ export function AlarmEventFilters({
               </Button>
             </div>
           )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PriorityMultiSelect({
+  priorityLevels,
+  selected,
+  onChange,
+}: {
+  priorityLevels: AlertPriorityLevel[]
+  selected: string[]
+  onChange: (values: string[]) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const sortedLevels = useMemo(
+    () => [...priorityLevels].filter((level) => level.isActive).sort((a, b) => b.rank - a.rank),
+    [priorityLevels],
+  )
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (!containerRef.current?.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const toggle = (code: string) => {
+    onChange(
+      selected.includes(code)
+        ? selected.filter((value) => value !== code)
+        : [...selected, code]
+    )
+  }
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <button
+        type="button"
+        className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background hover:bg-accent transition-colors focus:outline-none focus:ring-2 focus:ring-ring"
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span className="truncate text-muted-foreground">
+          {selected.length === 0 ? 'Tutte le priority' : `${selected.length} selezionate`}
+        </span>
+        {selected.length > 0 ? (
+          <span className="ml-1.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
+            {selected.length}
+          </span>
+        ) : (
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full z-50 mt-1.5 w-72 rounded-lg border bg-popover shadow-xl">
+          <div className="max-h-72 overflow-y-auto p-1">
+            {selected.length > 0 && (
+              <button
+                className="w-full rounded px-2 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                onClick={() => onChange([])}
+              >
+                Deseleziona tutto ({selected.length})
+              </button>
+            )}
+            {sortedLevels.map((level) => (
+              <button
+                key={level.code}
+                className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-accent transition-colors"
+                onClick={() => toggle(level.code)}
+              >
+                <div
+                  className={cn(
+                    'h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0 transition-colors',
+                    selected.includes(level.code)
+                      ? 'bg-primary border-primary'
+                      : 'border-muted-foreground/30'
+                  )}
+                >
+                  {selected.includes(level.code) && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm text-foreground">{level.label}</div>
+                  <div className="truncate text-[11px] uppercase tracking-wide text-muted-foreground/60">{level.code}</div>
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>

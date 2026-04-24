@@ -22,6 +22,7 @@ import {
   type UpdateAlarmAnalysisData,
   type IgnoreReason,
   type ProductFilterOptions,
+  type AlertPriorityLevel,
 } from '@/lib/api-client'
 import { usePermissions } from '@/hooks/use-permissions'
 import { useCollapsiblePreference } from '@/hooks/use-collapsible-preference'
@@ -93,6 +94,7 @@ const DEFAULT_FILTERS: AnalysisFiltersState = {
   operatorIds: [],
   alarmIds: [],
   finalActionIds: [],
+  priorityCodes: [],
   isOnCall: undefined,
   dateFrom: '',
   dateTo: '',
@@ -364,6 +366,12 @@ function AnalysesPageContent() {
     queryFn: api.getIgnoreReasons,
     enabled: can('ALARM_ANALYSIS', 'read'),
   })
+  const { data: priorityLevels } = useQuery<AlertPriorityLevel[]>({
+    queryKey: qk.priorityLevels.list,
+    queryFn: api.getPriorityLevels,
+    enabled: can('ALARM_ANALYSIS', 'read'),
+    staleTime: 5 * 60 * 1000,
+  })
 
   // Working hours & on-call hours for daily/oncall views
   const { data: workingHours } = useQuery({
@@ -408,6 +416,7 @@ function AnalysesPageContent() {
     ...(filters.operatorIds.length > 0 && { operatorId: filters.operatorIds }),
     ...(filters.alarmIds.length > 0 && { alarmId: filters.alarmIds }),
     ...(filters.finalActionIds.length > 0 && { finalActionId: filters.finalActionIds }),
+    ...(filters.priorityCodes.length > 0 && { priorityCode: filters.priorityCodes }),
     ...(filters.isOnCall !== undefined && { isOnCall: filters.isOnCall }),
     ...(filters.dateFrom && { dateFrom: filters.dateFrom }),
     ...(filters.dateTo && { dateTo: filters.dateTo }),
@@ -420,7 +429,7 @@ function AnalysesPageContent() {
     page, pageSize, sortBy, sortOrder, effectiveProductId,
     filters.search, filters.analysisTypes, filters.statuses,
     filters.environmentIds, filters.operatorIds, filters.alarmIds,
-    filters.finalActionIds, filters.isOnCall, filters.dateFrom, filters.dateTo,
+    filters.finalActionIds, filters.priorityCodes, filters.isOnCall, filters.dateFrom, filters.dateTo,
     filters.ignoreReasonCodes, filters.runbookIds, filters.resourceIds,
     filters.downstreamIds, filters.traceId,
   ])
@@ -660,6 +669,7 @@ function AnalysesPageContent() {
         environments={!isAllView ? environments : undefined}
         alarms={!isAllView ? alarms : undefined}
         finalActions={!isAllView ? finalActions : undefined}
+        priorityLevels={priorityLevels}
         users={analysisAuthors}
         ignoreReasons={ignoreReasons}
         resources={!isAllView ? resources : undefined}

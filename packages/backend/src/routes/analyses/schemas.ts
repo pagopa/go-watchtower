@@ -94,6 +94,7 @@ export const AllAnalysesQuerySchema = Type.Object({
   runbookId: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())])),
   resourceId: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())])),
   downstreamId: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())])),
+  priorityCode: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())])),
   traceId: Type.Optional(Type.String()),
 });
 
@@ -130,6 +131,7 @@ export const AlarmAnalysisQuerySchema = Type.Object({
   runbookId: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())])),
   resourceId: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())])),
   downstreamId: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())])),
+  priorityCode: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())])),
   traceId: Type.Optional(Type.String()),
 });
 

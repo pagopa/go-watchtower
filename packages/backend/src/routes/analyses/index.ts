@@ -7,7 +7,7 @@ import { getPermissionScope } from "../../services/permission.service.js";
 import { requirePermission } from "../../lib/require-permission.js";
 import { buildDiff } from "../../services/system-event.service.js";
 import { scoreAnalysis } from "../../services/analysis-scoring.service.js";
-import { SystemEventActions, SystemEventResources, AnalysisStatuses, inferLinkType } from "@go-watchtower/shared";
+import { SystemEventActions, SystemEventResources, AnalysisStatuses, inferLinkType, normalizeAlertPriorityCode } from "@go-watchtower/shared";
 import type { AnalysisLink, TrackingEntry, IgnoreReasonDetailsSchema } from "@go-watchtower/shared";
 import { HttpError } from "../../utils/http-errors.js";
 import { toJsonInput, fromJson, fromJsonOr } from "../../utils/json-cast.js";
@@ -168,6 +168,11 @@ function buildAnalysisWhereClause(
   if (query.downstreamId) {
     const ids = Array.isArray(query.downstreamId) ? query.downstreamId : [query.downstreamId];
     where.downstreams = { some: { downstreamId: { in: ids } } };
+  }
+  if ("priorityCode" in query && query.priorityCode) {
+    const codes = (Array.isArray(query.priorityCode) ? query.priorityCode : [query.priorityCode])
+      .map(normalizeAlertPriorityCode);
+    where.alarmEvents = { some: { priorityCode: { in: codes } } };
   }
   if (query.traceId) {
     // PostgreSQL JSONB @> containment: check if trackingIds array contains
@@ -462,6 +467,10 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
   app.post<{ Params: ProductIdParams; Body: CreateAlarmAnalysisBody }>(
     "/products/:productId/analyses",
     {
+      // Bulk ignore operations can create/link hundreds of analyses in one user action.
+      // Keep auth/permission checks, but do not count these authenticated writes against
+      // the global per-minute rate limiter.
+      config: { rateLimit: false },
       onRequest: [app.authenticate, requirePermission(SystemComponent.ALARM_ANALYSIS, "write")],
       schema: {
         tags: ["analyses"],
@@ -650,6 +659,8 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
   app.put<{ Params: AlarmAnalysisParams; Body: UpdateAlarmAnalysisBody }>(
     "/products/:productId/analyses/:id",
     {
+      // Used by bulk unlink to update many analyses after detaching events.
+      config: { rateLimit: false },
       onRequest: [app.authenticate],
       schema: {
         tags: ["analyses"],
@@ -1328,6 +1339,8 @@ export async function analysisRoutes(fastify: FastifyInstance): Promise<void> {
   app.delete<{ Params: AlarmAnalysisParams }>(
     "/products/:productId/analyses/:id",
     {
+      // Used by bulk unlink when an analysis reaches zero occurrences.
+      config: { rateLimit: false },
       onRequest: [app.authenticate],
       schema: {
         tags: ["analyses"],

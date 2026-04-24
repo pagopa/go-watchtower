@@ -6,6 +6,8 @@ export const RESOURCE_LABELS: Record<Resource, string> = {
   ENVIRONMENT:    'Ambienti',
   RESOURCE:       'Risorse',
   IGNORED_ALARM:  'Allarmi ignorati',
+  ALARM_PRIORITY_RULE: 'Regole priority',
+  PRIORITY_LEVEL: 'Livelli priority',
   RUNBOOK:        'Runbook',
   FINAL_ACTION:   'Azioni finali',
   ALARM:          'Allarmi',

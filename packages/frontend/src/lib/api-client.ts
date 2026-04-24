@@ -17,6 +17,9 @@ import type {
   TimeConstraintPeriod,
   TimeConstraintHours,
   TimeConstraint,
+  AlertPriorityLevel,
+  AlarmPriorityRule as SharedAlarmPriorityRule,
+  AlarmEventPriority,
   ResourcePermission,
   RolePermission,
   UserPermissions,
@@ -44,6 +47,9 @@ export type {
   TimeConstraintPeriod,
   TimeConstraintHours,
   TimeConstraint,
+  AlertPriorityLevel,
+  SharedAlarmPriorityRule as AlarmPriorityRuleBase,
+  AlarmEventPriority,
   ResourcePermission,
   RolePermission,
   UserPermissions,
@@ -425,6 +431,67 @@ export interface UpdateIgnoredAlarmData {
   exclusions?: TimeConstraint[]
 }
 
+export interface AlarmPriorityRule extends SharedAlarmPriorityRule {
+  priority: Pick<AlertPriorityLevel, 'code' | 'label' | 'rank' | 'color' | 'icon' | 'countsAsOnCall' | 'isDefault'>
+  environment: RelatedEntity | null
+  alarm: RelatedEntity | null
+}
+
+export interface CreatePriorityLevelData {
+  code: string
+  label: string
+  description?: string | null
+  rank: number
+  color?: string | null
+  icon?: string | null
+  isActive?: boolean
+  isDefault?: boolean
+  countsAsOnCall?: boolean
+  defaultNotify?: boolean
+}
+
+export interface UpdatePriorityLevelData {
+  label?: string
+  description?: string | null
+  rank?: number
+  color?: string | null
+  icon?: string | null
+  isActive?: boolean
+  isDefault?: boolean
+  countsAsOnCall?: boolean
+  defaultNotify?: boolean
+}
+
+export interface CreateAlarmPriorityRuleData {
+  environmentId?: string | null
+  priorityCode: string
+  name: string
+  matcherType: 'ALARM_ID' | 'ALARM_NAME_PREFIX' | 'ALARM_NAME_REGEX'
+  alarmId?: string | null
+  namePrefix?: string | null
+  namePattern?: string | null
+  precedence?: number
+  note?: string | null
+  isActive?: boolean
+  validity?: TimeConstraint[]
+  exclusions?: TimeConstraint[]
+}
+
+export interface UpdateAlarmPriorityRuleData {
+  environmentId?: string | null
+  priorityCode?: string
+  name?: string
+  matcherType?: 'ALARM_ID' | 'ALARM_NAME_PREFIX' | 'ALARM_NAME_REGEX'
+  alarmId?: string | null
+  namePrefix?: string | null
+  namePattern?: string | null
+  precedence?: number
+  note?: string | null
+  isActive?: boolean
+  validity?: TimeConstraint[]
+  exclusions?: TimeConstraint[]
+}
+
 // Alarm Analysis Types
 export interface CreateIgnoreReasonData {
   code: string
@@ -505,6 +572,7 @@ export interface AlarmAnalysisFilters {
   runbookId?: string | string[]
   resourceId?: string | string[]
   downstreamId?: string | string[]
+  priorityCode?: string | string[]
   traceId?: string
 }
 
@@ -953,6 +1021,7 @@ export interface AlarmEvent {
     description: string | null
     runbook: { id: string; name: string; link: string } | null
   } | null
+  priority: AlarmEventPriority
   analysisId: string | null
   linkedAt: string | null
   resolvedAt: string | null
@@ -966,6 +1035,7 @@ export interface AlarmEventsFilters {
   analysisId?: string
   awsAccountId?: string
   awsRegion?: string
+  priorityCode?: string[]
   dateFrom?: string
   dateTo?: string
   createdFrom?: string
@@ -1073,6 +1143,30 @@ export const api = {
     request<IgnoredAlarm>(`/api/products/${productId}/ignored-alarms/${id}`, { method: 'PUT', body: data }),
   deleteIgnoredAlarm: (productId: string, id: string) =>
     request<{ message: string }>(`/api/products/${productId}/ignored-alarms/${id}`, { method: 'DELETE' }),
+
+  // Priority Levels
+  getPriorityLevels: () =>
+    request<AlertPriorityLevel[]>('/api/priority-levels'),
+  getPriorityLevel: (code: string) =>
+    request<AlertPriorityLevel>(`/api/priority-levels/${code}`),
+  createPriorityLevel: (data: CreatePriorityLevelData) =>
+    request<AlertPriorityLevel>('/api/priority-levels', { method: 'POST', body: data }),
+  updatePriorityLevel: (code: string, data: UpdatePriorityLevelData) =>
+    request<AlertPriorityLevel>(`/api/priority-levels/${code}`, { method: 'PATCH', body: data }),
+  deletePriorityLevel: (code: string) =>
+    request<{ message: string }>(`/api/priority-levels/${code}`, { method: 'DELETE' }),
+
+  // Alarm Priority Rules
+  getAlarmPriorityRules: (productId: string) =>
+    request<AlarmPriorityRule[]>(`/api/products/${productId}/alarm-priority-rules`),
+  getAlarmPriorityRule: (productId: string, id: string) =>
+    request<AlarmPriorityRule>(`/api/products/${productId}/alarm-priority-rules/${id}`),
+  createAlarmPriorityRule: (productId: string, data: CreateAlarmPriorityRuleData) =>
+    request<AlarmPriorityRule>(`/api/products/${productId}/alarm-priority-rules`, { method: 'POST', body: data }),
+  updateAlarmPriorityRule: (productId: string, id: string, data: UpdateAlarmPriorityRuleData) =>
+    request<AlarmPriorityRule>(`/api/products/${productId}/alarm-priority-rules/${id}`, { method: 'PUT', body: data }),
+  deleteAlarmPriorityRule: (productId: string, id: string) =>
+    request<{ message: string }>(`/api/products/${productId}/alarm-priority-rules/${id}`, { method: 'DELETE' }),
 
   // Final Actions
   getFinalActions: (productId: string) =>
@@ -1237,4 +1331,3 @@ export const api = {
   updateSetting: (key: string, value: unknown) =>
     request<SystemSetting>(`/api/settings/${key}`, { method: 'PATCH', body: { value } }),
 }
-

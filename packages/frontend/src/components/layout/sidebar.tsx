@@ -19,6 +19,7 @@ import {
   BanIcon,
   BellRing,
   Layers,
+  Flag,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -145,6 +146,13 @@ const navGroups: NavGroup[] = [
         icon: Layers,
         resource: 'SYSTEM_SETTING',
         action: 'write',
+      },
+      {
+        title: 'Priority allarmi',
+        href: '/settings/priority-levels',
+        icon: Flag,
+        resource: 'PRIORITY_LEVEL',
+        action: 'read',
       },
       {
         title: 'Log eventi',

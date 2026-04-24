@@ -17,7 +17,6 @@ import { matchIgnoredAlarm } from '@go-watchtower/shared'
 import { ANALYSIS_STATUS_LABELS, ANALYSIS_TYPE_LABELS } from '../../analyses/_lib/constants'
 import { IgnoredAlarmDetailsDialog } from '../../analyses/_components/ignored-alarm-warning'
 import { UnlinkAlarmEventDialog } from './unlink-alarm-event-dialog'
-import { isHighPriorityEvent } from '../_helpers/cell-renderers'
 
 // ─── Linked analysis section ──────────────────────────────────────────────────
 
@@ -110,7 +109,6 @@ interface AlarmEventDetailPanelProps {
   onDelete: (event: AlarmEvent) => void
   canWrite: boolean
   canDelete: boolean
-  isOnCall?: boolean
   onAlarmClick?: (alarm: NonNullable<AlarmEvent['alarm']>, productId: string) => void
 }
 
@@ -223,7 +221,6 @@ export function AlarmEventDetailPanel({
   onDelete,
   canWrite,
   canDelete,
-  isOnCall,
   onAlarmClick,
 }: AlarmEventDetailPanelProps) {
   const { preferences, updatePreferences } = usePreferences()
@@ -357,20 +354,25 @@ export function AlarmEventDetailPanel({
                   <span className="mx-1.5 text-border">·</span>
                   {event.environment.name}
                 </p>
-                {isOnCall ? (
+                {event.priority.countsAsOnCall ? (
                   <span className="inline-flex items-center gap-1 rounded bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
                     <PhoneCall className="h-2.5 w-2.5" />
-                    on-call
+                    {event.priority.label}
                   </span>
-                ) : isHighPriorityEvent(event) ? (
+                ) : event.priority.rank > 0 ? (
                   <span className="inline-flex items-center gap-1 rounded bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
                     <AlertTriangle className="h-2.5 w-2.5" />
-                    high
+                    {event.priority.label}
                   </span>
                 ) : (
                   <span className="inline-flex items-center rounded border border-border/50 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground/50">
-                    normale
+                    {event.priority.label}
                   </span>
+                )}
+                {event.priority.ruleName && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Regola: <span className="font-medium text-foreground/80">{event.priority.ruleName}</span>
+                  </p>
                 )}
               </div>
               <div className="flex shrink-0 items-center gap-1">
