@@ -1,7 +1,7 @@
-# syntax=docker/dockerfile:1
+# syntax=docker/dockerfile:1@sha256:2780b5c3bab67f1f76c781860de469442999ed1a0d7992a5efdf2cffc0e3d769
 
 # Build stage
-FROM node:25-alpine AS builder
+FROM node:25-alpine@sha256:bdf2cca6fe3dabd014ea60163eca3f0f7015fbd5c7ee1b0e9ccb4ced6eb02ef4 AS builder
 
 # Install pnpm (corepack removed in Node 25)
 RUN npm install -g pnpm@latest --no-fund --no-update-notifier
@@ -30,7 +30,7 @@ RUN pnpm --filter @go-watchtower/database build
 RUN pnpm --filter @go-watchtower/backend build
 
 # Production stage
-FROM node:25-alpine AS runner
+FROM node:25-alpine@sha256:bdf2cca6fe3dabd014ea60163eca3f0f7015fbd5c7ee1b0e9ccb4ced6eb02ef4 AS runner
 
 # Install pnpm (corepack removed in Node 25)
 RUN npm install -g pnpm@latest --no-fund --no-update-notifier
