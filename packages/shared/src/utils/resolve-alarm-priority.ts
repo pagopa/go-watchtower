@@ -32,6 +32,22 @@ const FALLBACK_NORMAL_LEVEL: AlertPriorityLevel = {
   isSystem: true,
 };
 
+type ResolvedLevelContext = {
+  defaultLevel: AlertPriorityLevel;
+  activeLevelMap: Map<string, AlertPriorityLevel>;
+};
+
+type CompiledAlarmPriorityRule = {
+  rule: AlarmPriorityRule;
+  createdAtMs: number | null;
+  specificity: number;
+  nameRegex: RegExp | null;
+  regexValid: boolean;
+};
+
+const levelContextCache = new WeakMap<AlertPriorityLevel[], ResolvedLevelContext>();
+const compiledRuleCache = new WeakMap<AlarmPriorityRule[], CompiledAlarmPriorityRule[]>();
+
 function getDefaultLevel(levels: AlertPriorityLevel[]): AlertPriorityLevel {
   return levels.find((level) => level.isDefault && level.isActive)
     ?? levels.find((level) => level.code === AlertPriorityCodes.NORMAL)
@@ -48,7 +64,70 @@ function getSpecificity(rule: AlarmPriorityRule): number {
   return base + (rule.environmentId ? 10 : 0);
 }
 
-function matchesRule(rule: AlarmPriorityRule, params: ResolveAlarmPriorityParams, firedAt: Date): boolean {
+function parseCreatedAtMs(createdAt?: string): number | null {
+  if (!createdAt) return null;
+
+  const parsed = new Date(createdAt).getTime();
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function getLevelContext(levels: AlertPriorityLevel[]): ResolvedLevelContext {
+  const cached = levelContextCache.get(levels);
+  if (cached) return cached;
+
+  const context = {
+    defaultLevel: getDefaultLevel(levels),
+    activeLevelMap: new Map(
+      levels
+        .filter((level) => level.isActive)
+        .map((level) => [level.code, level] as const),
+    ),
+  };
+
+  levelContextCache.set(levels, context);
+  return context;
+}
+
+function getCompiledRules(rules: AlarmPriorityRule[]): CompiledAlarmPriorityRule[] {
+  const cached = compiledRuleCache.get(rules);
+  if (cached) return cached;
+
+  const compiled = rules.map((rule) => {
+    let nameRegex: RegExp | null = null;
+    let regexValid = true;
+
+    if (rule.matcherType === AlarmPriorityMatcherTypes.ALARM_NAME_REGEX) {
+      if (!rule.namePattern) {
+        regexValid = false;
+      } else {
+        try {
+          nameRegex = new RegExp(rule.namePattern);
+        } catch {
+          regexValid = false;
+        }
+      }
+    }
+
+    return {
+      rule,
+      createdAtMs: parseCreatedAtMs(rule.createdAt),
+      specificity: getSpecificity(rule),
+      nameRegex,
+      regexValid,
+    };
+  });
+
+  compiledRuleCache.set(rules, compiled);
+  return compiled;
+}
+
+function matchesRule(
+  compiledRule: CompiledAlarmPriorityRule,
+  params: ResolveAlarmPriorityParams,
+  firedAt: Date,
+): boolean {
+  const { rule } = compiledRule;
+
   if (!rule.isActive || rule.productId !== params.productId) return false;
   if (rule.environmentId && rule.environmentId !== params.environmentId) return false;
 
@@ -57,12 +136,9 @@ function matchesRule(rule: AlarmPriorityRule, params: ResolveAlarmPriorityParams
   } else if (rule.matcherType === AlarmPriorityMatcherTypes.ALARM_NAME_PREFIX) {
     if (!rule.namePrefix || !params.alarmName.startsWith(rule.namePrefix)) return false;
   } else if (rule.matcherType === AlarmPriorityMatcherTypes.ALARM_NAME_REGEX) {
-    if (!rule.namePattern) return false;
-    try {
-      if (!new RegExp(rule.namePattern).test(params.alarmName)) return false;
-    } catch {
-      return false;
-    }
+    if (!compiledRule.regexValid || !compiledRule.nameRegex) return false;
+    compiledRule.nameRegex.lastIndex = 0;
+    if (!compiledRule.nameRegex.test(params.alarmName)) return false;
   } else {
     return false;
   }
@@ -73,11 +149,27 @@ function matchesRule(rule: AlarmPriorityRule, params: ResolveAlarmPriorityParams
   return true;
 }
 
-function compareCreatedAtAsc(a?: string, b?: string): number {
-  if (!a && !b) return 0;
-  if (!a) return 1;
-  if (!b) return -1;
-  return new Date(a).getTime() - new Date(b).getTime();
+function compareCompiledRules(
+  candidate: CompiledAlarmPriorityRule,
+  current: CompiledAlarmPriorityRule,
+  levelMap: Map<string, AlertPriorityLevel>,
+): number {
+  const specificityDiff = candidate.specificity - current.specificity;
+  if (specificityDiff !== 0) return specificityDiff;
+
+  const precedenceDiff = candidate.rule.precedence - current.rule.precedence;
+  if (precedenceDiff !== 0) return precedenceDiff;
+
+  const rankDiff =
+    (levelMap.get(candidate.rule.priorityCode)?.rank ?? 0)
+    - (levelMap.get(current.rule.priorityCode)?.rank ?? 0);
+  if (rankDiff !== 0) return rankDiff;
+
+  if (candidate.createdAtMs == null && current.createdAtMs == null) return 0;
+  if (candidate.createdAtMs == null) return -1;
+  if (current.createdAtMs == null) return 1;
+
+  return current.createdAtMs - candidate.createdAtMs;
 }
 
 export function resolveAlarmPriority(params: ResolveAlarmPriorityParams): ResolvedAlarmPriority {
@@ -86,34 +178,24 @@ export function resolveAlarmPriority(params: ResolveAlarmPriorityParams): Resolv
     return { level: getDefaultLevel(params.levels), rule: null, matched: false };
   }
 
-  const levelMap = new Map(
-    params.levels
-      .filter((level) => level.isActive)
-      .map((level) => [level.code, level] as const),
-  );
+  const { activeLevelMap, defaultLevel } = getLevelContext(params.levels);
+  const compiledRules = getCompiledRules(params.rules);
 
-  const defaultLevel = getDefaultLevel(params.levels);
+  let selectedRule: CompiledAlarmPriorityRule | null = null;
 
-  const matches = params.rules
-    .filter((rule) => {
-      const level = levelMap.get(rule.priorityCode);
-      if (!level) return false;
-      return matchesRule(rule, params, firedAt);
-    })
-    .sort((a, b) => {
-      const specificityDiff = getSpecificity(b) - getSpecificity(a);
-      if (specificityDiff !== 0) return specificityDiff;
+  for (const compiledRule of compiledRules) {
+    const level = activeLevelMap.get(compiledRule.rule.priorityCode);
+    if (!level) continue;
+    if (!matchesRule(compiledRule, params, firedAt)) continue;
 
-      const precedenceDiff = b.precedence - a.precedence;
-      if (precedenceDiff !== 0) return precedenceDiff;
+    if (
+      !selectedRule
+      || compareCompiledRules(compiledRule, selectedRule, activeLevelMap) > 0
+    ) {
+      selectedRule = compiledRule;
+    }
+  }
 
-      const rankDiff = (levelMap.get(b.priorityCode)?.rank ?? 0) - (levelMap.get(a.priorityCode)?.rank ?? 0);
-      if (rankDiff !== 0) return rankDiff;
-
-      return compareCreatedAtAsc(a.createdAt, b.createdAt);
-    });
-
-  const selectedRule = matches[0];
   if (!selectedRule) {
     return {
       level: defaultLevel,
@@ -123,8 +205,8 @@ export function resolveAlarmPriority(params: ResolveAlarmPriorityParams): Resolv
   }
 
   return {
-    level: levelMap.get(selectedRule.priorityCode) ?? defaultLevel,
-    rule: selectedRule,
+    level: activeLevelMap.get(selectedRule.rule.priorityCode) ?? defaultLevel,
+    rule: selectedRule.rule,
     matched: true,
   };
 }
