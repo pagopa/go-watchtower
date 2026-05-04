@@ -4,7 +4,10 @@ import GoogleProvider from 'next-auth/providers/google'
 import type { JWT } from 'next-auth/jwt'
 
 // API URL for server-side requests (internal Docker network or external)
-const API_URL = process.env.API_URL_INTERNAL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+const publicApiUrl = process.env.NEXT_PUBLIC_API_URL
+const API_URL = process.env.API_URL_INTERNAL ||
+  (publicApiUrl?.startsWith('http://') || publicApiUrl?.startsWith('https://') ? publicApiUrl : undefined) ||
+  'http://localhost:3001'
 
 // Session duration must cover the full refresh-token lifetime (7 days).
 // The NextAuth JWT cookie holds the refresh token — if the cookie expires
@@ -40,6 +43,9 @@ interface ExtendedJWT extends JWT {
   // Counts consecutive network errors during refresh. Used to give the backend
   // time to recover before logging the user out.
   networkErrorCount?: number
+  // True when the last refresh attempt failed for a transient reason. The
+  // session is kept alive so a later poll can retry without forcing re-login.
+  refreshDeferred?: boolean
 }
 
 // Deduplicates concurrent refresh calls for the same refresh token AND
@@ -55,7 +61,8 @@ interface ExtendedJWT extends JWT {
 //   6. With cache: Request B finds the cached result → gets the new tokens → OK
 //
 // Stored on globalThis so they survive Next.js hot-module replacement in dev.
-// In production the module is loaded once so this makes no difference.
+// This is a local optimization; the backend also tolerates duplicate refresh
+// calls because production can have multiple server instances.
 declare global {
   var __authPendingRefreshes: Map<string, Promise<ExtendedJWT | null>> | undefined
   var __authRefreshCache: Map<string, { result: ExtendedJWT | null; expiresAt: number }> | undefined
@@ -64,7 +71,25 @@ const pendingRefreshes: Map<string, Promise<ExtendedJWT | null>> =
   (globalThis.__authPendingRefreshes ??= new Map())
 const refreshCache: Map<string, { result: ExtendedJWT | null; expiresAt: number }> =
   (globalThis.__authRefreshCache ??= new Map())
-const REFRESH_CACHE_TTL_MS = 60_000 // keep result for 60s after resolution
+// Keep the rotated-token result long enough for slow/stale session requests
+// that started with the old JWT cookie. The backend grace is 300s by default.
+const REFRESH_CACHE_TTL_MS = 4 * 60_000
+
+function deferRefreshRetry(token: ExtendedJWT, reason: string): ExtendedJWT | null {
+  const errorCount = (token.networkErrorCount ?? 0) + 1
+  if (errorCount > MAX_NETWORK_ERROR_RETRIES) {
+    console.error(`[auth] ${reason} after ${MAX_NETWORK_ERROR_RETRIES} retries, clearing session`)
+    return null
+  }
+
+  console.warn(`[auth] ${reason} (attempt ${errorCount}/${MAX_NETWORK_ERROR_RETRIES}), retrying in ${NETWORK_ERROR_RETRY_MS / 1000}s`)
+  return {
+    ...token,
+    accessTokenExpires: Date.now() + NETWORK_ERROR_RETRY_MS,
+    networkErrorCount: errorCount,
+    refreshDeferred: true,
+  }
+}
 
 async function refreshAccessToken(token: ExtendedJWT): Promise<ExtendedJWT | null> {
   // If the refresh token itself has expired, don't even try — it would fail
@@ -121,22 +146,16 @@ async function doRefreshAccessToken(token: ExtendedJWT): Promise<ExtendedJWT | n
     // Network error or timeout: backend is temporarily unreachable.
     // Don't log the user out immediately — extend the session and retry later.
     clearTimeout(timeoutId)
-    const errorCount = (token.networkErrorCount ?? 0) + 1
-    if (errorCount > MAX_NETWORK_ERROR_RETRIES) {
-      console.error(`[auth] Backend unreachable after ${MAX_NETWORK_ERROR_RETRIES} retries, clearing session`)
-      return null
-    }
-    console.warn(`[auth] Backend unreachable during token refresh (attempt ${errorCount}/${MAX_NETWORK_ERROR_RETRIES}), retrying in ${NETWORK_ERROR_RETRY_MS / 1000}s`)
-    return {
-      ...token,
-      accessTokenExpires: Date.now() + NETWORK_ERROR_RETRY_MS,
-      networkErrorCount: errorCount,
-    }
+    return deferRefreshRetry(token, 'Backend unreachable during token refresh')
   }
 
   clearTimeout(timeoutId)
 
   if (!response.ok) {
+    if (response.status === 429 || response.status >= 500) {
+      return deferRefreshRetry(token, `Backend returned ${response.status} during token refresh`)
+    }
+
     // Auth error: the token is invalid or expired on the server side.
     // Clear the session so the user is redirected to login.
     console.error(`[auth] Refresh token rejected by server: ${response.status}`)
@@ -151,6 +170,7 @@ async function doRefreshAccessToken(token: ExtendedJWT): Promise<ExtendedJWT | n
     accessTokenExpires: Date.now() + ACCESS_TOKEN_LIFETIME_MS,
     refreshTokenIssuedAt: Date.now(),
     networkErrorCount: 0,
+    refreshDeferred: false,
   }
 }
 
@@ -274,6 +294,8 @@ const authConfig: NextAuthConfig = {
           refreshToken: user.refreshToken,
           accessTokenExpires: Date.now() + ACCESS_TOKEN_LIFETIME_MS,
           refreshTokenIssuedAt: Date.now(),
+          networkErrorCount: 0,
+          refreshDeferred: false,
         } as ExtendedJWT
       }
 
@@ -311,6 +333,7 @@ const authConfig: NextAuthConfig = {
           accessTokenExpires: 0,
           refreshTokenIssuedAt: 0,
           networkErrorCount: 0,
+          refreshDeferred: false,
         } as ExtendedJWT
       }
 
@@ -334,6 +357,7 @@ const authConfig: NextAuthConfig = {
             accessToken: '',
           },
           expired: true,
+          refreshDeferred: false,
         }
       }
 
@@ -347,6 +371,7 @@ const authConfig: NextAuthConfig = {
           roleName: extendedToken.roleName,
           accessToken: extendedToken.accessToken,
         },
+        refreshDeferred: extendedToken.refreshDeferred === true,
       }
     },
   },

@@ -66,7 +66,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       //  - Actual refresh only happens every ~14 min (when the token expires)
       //  - The pendingRefreshes dedup Map + refreshCache in auth.ts prevent
       //    concurrent and near-concurrent refresh calls from triggering
-      //    token-reuse detection on the backend
+      //    extra backend calls in the common single-instance case
+      //  - The backend rotation grace handles duplicates across instances
       //  - After laptop sleep: refetchOnWindowFocus fires first and refreshes
       //    the token; late-arriving requests get the cached result → no reuse
       refetchInterval={4 * 60}

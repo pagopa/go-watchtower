@@ -59,7 +59,10 @@ export type {
   ResourceType,
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || ''
+const API_URL = process.env.NEXT_PUBLIC_API_URL ||
+  (process.env.NODE_ENV === 'development'
+    ? process.env.NEXT_PUBLIC_API_PROXY_PREFIX || '/watchtower-api'
+    : '')
 
 export class ApiClientError extends Error {
   constructor(
@@ -119,36 +122,43 @@ async function doFetch(
 /**
  * Refreshes the session by calling the NextAuth session endpoint.
  * This triggers the JWT callback server-side, which refreshes the
- * access token if expired. Returns the new access token or empty string.
- *
- * @param failedToken - The access token that caused a 401. If the session
- *   endpoint returns the same token, it means the server-side refresh didn't
- *   actually produce a new token (e.g., a network error during backend refresh
- *   caused the JWT callback to return the old token with an extended expiry).
- *   In that case we return '' to signal that the refresh failed.
+ * access token if expired.
  */
-async function refreshSession(failedToken?: string): Promise<string> {
+type RefreshSessionResult =
+  | { status: 'refreshed'; accessToken: string }
+  | { status: 'deferred'; accessToken: string }
+  | { status: 'invalid'; accessToken: '' }
+
+async function refreshSession(failedToken?: string): Promise<RefreshSessionResult> {
   try {
     const { getSession } = await import('next-auth/react')
-    const session = await getSession()
+    const session = await getSession({ broadcast: false })
     const newToken = session?.user?.accessToken ?? ''
+    const refreshDeferred = (session as { refreshDeferred?: boolean } | null)?.refreshDeferred === true
+
+    if (!newToken) {
+      return { status: 'invalid', accessToken: '' }
+    }
+
+    setAccessToken(newToken)
 
     if (failedToken && newToken === failedToken) {
-      return ''
+      return refreshDeferred
+        ? { status: 'deferred', accessToken: newToken }
+        : { status: 'invalid', accessToken: '' }
     }
 
-    if (newToken) {
-      setAccessToken(newToken)
-    }
-    return newToken
+    return refreshDeferred
+      ? { status: 'deferred', accessToken: newToken }
+      : { status: 'refreshed', accessToken: newToken }
   } catch {
-    return ''
+    return { status: 'deferred', accessToken: '' }
   }
 }
 
-let pendingSessionRefresh: Promise<string> | null = null
+let pendingSessionRefresh: Promise<RefreshSessionResult> | null = null
 
-function refreshSessionDeduped(failedToken?: string): Promise<string> {
+function refreshSessionDeduped(failedToken?: string): Promise<RefreshSessionResult> {
   if (!pendingSessionRefresh) {
     pendingSessionRefresh = refreshSession(failedToken).finally(() => {
       pendingSessionRefresh = null
@@ -182,12 +192,17 @@ async function request<T>(
   // On first render the store may be empty (useEffect hasn't fired yet) —
   // just throw so React Query skips the request and retries later.
   let accessToken = getAccessToken()
+  let refreshResult: RefreshSessionResult | null = null
 
   if (!accessToken) {
-    accessToken = await refreshSessionDeduped()
+    refreshResult = await refreshSessionDeduped()
+    accessToken = refreshResult.accessToken
   }
 
   if (!accessToken) {
+    if (refreshResult?.status === 'deferred') {
+      throw new ApiClientError('Session refresh temporarily unavailable', 503)
+    }
     throw new ApiClientError('No access token', 401)
   }
 
@@ -196,9 +211,13 @@ async function request<T>(
   // On 401, the access token has expired server-side.
   // Try to refresh the session and retry ONCE before giving up.
   if (response.status === 401) {
-    const freshToken = await refreshSessionDeduped(accessToken)
-    if (freshToken) {
-      const retryResponse = await doFetch(url, freshToken, init, body)
+    const refreshed = await refreshSessionDeduped(accessToken)
+    if (refreshed.status === 'deferred') {
+      throw new ApiClientError('Session refresh temporarily unavailable', 503)
+    }
+
+    if (refreshed.status === 'refreshed') {
+      const retryResponse = await doFetch(url, refreshed.accessToken, init, body)
       if (!retryResponse.ok) {
         if (retryResponse.status === 401) {
           // Refresh returned a token that was also rejected — force re-auth.

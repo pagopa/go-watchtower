@@ -1,6 +1,11 @@
 import crypto from "node:crypto";
 import { prisma } from "@go-watchtower/database";
 import { env } from "../config/env.js";
+import {
+  deriveRotatedRefreshToken,
+  hashRefreshToken,
+  isRecentRotationReuse,
+} from "./token-rotation.js";
 
 const REFRESH_TOKEN_BYTES = 32;
 
@@ -11,7 +16,7 @@ export interface RefreshTokenData {
 }
 
 function hashToken(token: string): string {
-  return crypto.createHash("sha256").update(token).digest("hex");
+  return hashRefreshToken(token);
 }
 
 function generateRefreshToken(): string {
@@ -55,8 +60,6 @@ export async function validateRefreshToken(
 
   // Check if revoked
   if (refreshToken.revokedAt) {
-    // Token reuse detected - revoke all tokens for this user (security measure)
-    await revokeAllUserTokens(refreshToken.userId);
     return null;
   }
 
@@ -76,47 +79,143 @@ export async function validateRefreshToken(
   };
 }
 
+export interface RotatedRefreshToken {
+  userId: string;
+  refreshToken: string;
+  reusedRecentRotation: boolean;
+}
+
 export async function rotateRefreshToken(
   oldToken: string,
-  data: RefreshTokenData
-): Promise<string | null> {
+  data: Pick<RefreshTokenData, "userAgent" | "ipAddress">
+): Promise<RotatedRefreshToken | null> {
   const tokenHash = hashToken(oldToken);
+  const newToken = deriveRotatedRefreshToken(oldToken, env.JWT_SECRET);
+  const newTokenHash = hashToken(newToken);
+  const now = new Date();
 
   const oldRefreshToken = await prisma.refreshToken.findUnique({
     where: { tokenHash },
+    include: { user: true },
   });
 
-  if (!oldRefreshToken || oldRefreshToken.revokedAt) {
+  if (!oldRefreshToken) {
     return null;
   }
 
-  // Generate new token
-  const newToken = generateRefreshToken();
-  const newTokenHash = hashToken(newToken);
+  if (oldRefreshToken.expiresAt < now || !oldRefreshToken.user.isActive) {
+    return null;
+  }
+
+  if (oldRefreshToken.revokedAt) {
+    if (
+      isRecentRotationReuse(
+        oldRefreshToken,
+        newTokenHash,
+        env.REFRESH_TOKEN_ROTATION_GRACE_SECONDS,
+        now
+      )
+    ) {
+      const replacement = await prisma.refreshToken.findUnique({
+        where: { tokenHash: newTokenHash },
+        include: { user: true },
+      });
+
+      if (
+        !replacement ||
+        replacement.revokedAt ||
+        replacement.expiresAt < now ||
+        !replacement.user.isActive
+      ) {
+        return null;
+      }
+
+      return {
+        userId: replacement.userId,
+        refreshToken: newToken,
+        reusedRecentRotation: true,
+      };
+    }
+
+    // A revoked refresh token can still arrive from a stale NextAuth/JWT
+    // request that was already in flight when another request rotated it.
+    // Reject the stale request, but do not revoke the active replacement:
+    // token-family revocation here creates false logouts in multi-tab/dev
+    // scenarios where the valid token has already been issued.
+    return null;
+  }
+
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + env.REFRESH_TOKEN_EXPIRES_DAYS);
 
-  // Atomic operation: revoke old token and create new one
-  await prisma.$transaction([
-    prisma.refreshToken.update({
-      where: { id: oldRefreshToken.id },
+  const rotationResult = await prisma.$transaction(async (tx) => {
+    const update = await tx.refreshToken.updateMany({
+      where: {
+        id: oldRefreshToken.id,
+        revokedAt: null,
+      },
       data: {
-        revokedAt: new Date(),
+        revokedAt: now,
         replacedBy: newTokenHash,
       },
-    }),
-    prisma.refreshToken.create({
+    });
+
+    if (update.count === 0) {
+      const current = await tx.refreshToken.findUnique({
+        where: { tokenHash },
+        select: { revokedAt: true, replacedBy: true },
+      });
+
+      if (
+        !current ||
+        !isRecentRotationReuse(
+          current,
+          newTokenHash,
+          env.REFRESH_TOKEN_ROTATION_GRACE_SECONDS
+        )
+      ) {
+        return null;
+      }
+
+      const replacement = await tx.refreshToken.findUnique({
+        where: { tokenHash: newTokenHash },
+        select: {
+          revokedAt: true,
+          expiresAt: true,
+          user: { select: { isActive: true } },
+        },
+      });
+
+      return replacement &&
+        !replacement.revokedAt &&
+        replacement.expiresAt >= now &&
+        replacement.user.isActive
+        ? "reused"
+        : null;
+    }
+
+    await tx.refreshToken.create({
       data: {
         tokenHash: newTokenHash,
-        userId: data.userId,
+        userId: oldRefreshToken.userId,
         userAgent: data.userAgent,
         ipAddress: data.ipAddress,
         expiresAt,
       },
-    }),
-  ]);
+    });
 
-  return newToken;
+    return "rotated";
+  });
+
+  if (!rotationResult) {
+    return null;
+  }
+
+  return {
+    userId: oldRefreshToken.userId,
+    refreshToken: newToken,
+    reusedRecentRotation: rotationResult === "reused",
+  };
 }
 
 export async function revokeRefreshToken(token: string): Promise<boolean> {

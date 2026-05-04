@@ -25,7 +25,6 @@ import {
 } from "../../services/auth.service.js";
 import {
   createRefreshToken,
-  validateRefreshToken,
   rotateRefreshToken,
   revokeRefreshToken,
   revokeAllUserTokens,
@@ -33,7 +32,10 @@ import {
   revokeSession,
 } from "../../services/token.service.js";
 import { generateAccessToken } from "../../plugins/jwt.js";
-import { authRateLimitConfig } from "../../plugins/rate-limit.js";
+import {
+  loginRateLimitConfig,
+  refreshRateLimitConfig,
+} from "../../plugins/rate-limit.js";
 import { env } from "../../config/env.js";
 import { logEvent } from "../../services/system-event.service.js";
 import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
@@ -103,7 +105,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
   app.post<{ Body: LoginBody }>(
     "/login",
     {
-      ...authRateLimitConfig,
+      ...loginRateLimitConfig,
       schema: {
         tags: ["auth"],
         summary: "Login with email and password",
@@ -173,7 +175,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
   app.post<{ Body: RefreshBody }>(
     "/refresh",
     {
-      ...authRateLimitConfig,
+      ...refreshRateLimitConfig,
       schema: {
         tags: ["auth"],
         summary: "Refresh access token using refresh token",
@@ -195,31 +197,22 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         return;
       }
 
-      const validation = await validateRefreshToken(tokenToUse);
-      if (!validation) {
+      const clientInfo = getClientInfo(request);
+
+      // Rotate refresh token atomically. The token service also handles
+      // duplicate in-flight refreshes by returning the same deterministic
+      // replacement token during a short grace window.
+      const rotation = await rotateRefreshToken(tokenToUse, clientInfo);
+      if (!rotation) {
         clearTokenCookies(reply);
         HttpError.unauthorized(reply, "Invalid or expired refresh token");
         return;
       }
 
-      const user = await getUserById(validation.userId);
+      const user = await getUserById(rotation.userId);
       if (!user) {
         clearTokenCookies(reply);
         HttpError.unauthorized(reply, "User not found");
-        return;
-      }
-
-      const clientInfo = getClientInfo(request);
-
-      // Rotate refresh token
-      const newRefreshToken = await rotateRefreshToken(tokenToUse, {
-        userId: user.id,
-        ...clientInfo,
-      });
-
-      if (!newRefreshToken) {
-        clearTokenCookies(reply);
-        HttpError.unauthorized(reply, "Token rotation failed");
         return;
       }
 
@@ -230,11 +223,11 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         role: user.roleName,
       });
 
-      setTokenCookies(reply, accessToken, newRefreshToken);
+      setTokenCookies(reply, accessToken, rotation.refreshToken);
 
       reply.send({
         accessToken,
-        refreshToken: newRefreshToken,
+        refreshToken: rotation.refreshToken,
         expiresIn: ACCESS_TOKEN_EXPIRES_IN_SECONDS,
       });
     }

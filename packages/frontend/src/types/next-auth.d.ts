@@ -12,6 +12,8 @@ declare module 'next-auth' {
     } & DefaultSession['user']
     /** Set to true when the refresh token has expired and the session is cleared */
     expired?: boolean
+    /** Set to true when refresh was deferred because the backend was transiently unavailable */
+    refreshDeferred?: boolean
   }
 
   interface User {
@@ -33,5 +35,6 @@ declare module 'next-auth/jwt' {
     accessToken: string
     refreshToken: string
     accessTokenExpires: number
+    refreshDeferred?: boolean
   }
 }

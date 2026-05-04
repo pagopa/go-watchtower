@@ -14,8 +14,8 @@ export async function registerRateLimit(app: FastifyInstance): Promise<void> {
   });
 }
 
-// Stricter rate limit config for auth endpoints
-export const authRateLimitConfig = {
+// Stricter limit for interactive login attempts.
+export const loginRateLimitConfig = {
   config: {
     rateLimit: {
       max: 5, // 5 attempts per minute
@@ -24,3 +24,13 @@ export const authRateLimitConfig = {
   },
 };
 
+// Refresh is called automatically by the frontend and may legitimately arrive
+// in small bursts after tab focus, laptop wake, or parallel data refetches.
+export const refreshRateLimitConfig = {
+  config: {
+    rateLimit: {
+      max: 60,
+      timeWindow: "1 minute",
+    },
+  },
+};
