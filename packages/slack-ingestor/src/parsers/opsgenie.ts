@@ -1,5 +1,6 @@
 import type { ParsedAlarmEvent, ParserFn, Message, ChannelDefaults } from "./types.js";
 import { resolveRegion } from "../region-map.js";
+import { firedAtFromSlackTimestamp } from "./slack-timestamp.js";
 
 /**
  * Parser for Opsgenie legacy attachment messages.
@@ -55,9 +56,7 @@ export const parseOpsgenie: ParserFn = (
   }
 
   // ── Extract firedAt ──────────────────────────────────────────────────
-  // Use the Slack message timestamp (epoch seconds, always UTC).
-  const tsSeconds = Number(message.ts);
-  const firedAt = !isNaN(tsSeconds) ? new Date(tsSeconds * 1000) : new Date();
+  const firedAt = firedAtFromSlackTimestamp(message, "opsgenie");
 
   // ── Extract description and reason ───────────────────────────────────
   let reason: string | null = null;
@@ -88,4 +87,3 @@ export const parseOpsgenie: ParserFn = (
     reason,
   };
 };
-

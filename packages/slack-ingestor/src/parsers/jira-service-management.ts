@@ -1,5 +1,6 @@
 import type { ChannelDefaults, Message, ParsedAlarmEvent, ParserFn } from "./types.js";
 import { resolveRegion } from "../region-map.js";
+import { firedAtFromSlackTimestamp } from "./slack-timestamp.js";
 
 /**
  * Parser for Jira Service Management ChatOps alert cards.
@@ -13,6 +14,10 @@ export const parseJiraServiceManagement: ParserFn = (
   message: Message,
   defaults: ChannelDefaults,
 ): ParsedAlarmEvent | null => {
+  if (!isJiraServiceManagementSource(message)) {
+    return null;
+  }
+
   const texts = collectMessageTexts(message);
   const title = findAlarmTitle(texts);
   if (!title) {
@@ -43,8 +48,11 @@ export const parseJiraServiceManagement: ParserFn = (
 
   const rawDescription = extractDescription(texts);
   const { description, reason } = splitDescriptionAndReason(rawDescription);
-  const tsSeconds = Number(message.ts);
-  const firedAt = !isNaN(tsSeconds) ? new Date(tsSeconds * 1000) : new Date();
+  if (!reason?.includes("Threshold Crossed:")) {
+    return null;
+  }
+
+  const firedAt = firedAtFromSlackTimestamp(message, "jsm");
 
   return {
     name: alarmName,
@@ -72,8 +80,53 @@ type SlackAttachment = {
   text?: string;
   fallback?: string;
   pretext?: string;
+  author_name?: string;
+  footer?: string;
+  service_name?: string;
   blocks?: unknown[];
 };
+
+function isJiraServiceManagementSource(message: Message): boolean {
+  const sourceTexts = collectSourceTexts(message)
+    .map((text) => text.toLowerCase());
+
+  if (sourceTexts.some((text) => text.includes("opsgenie"))) {
+    return false;
+  }
+
+  return sourceTexts.some((text) => (
+    text.includes("jira service management") ||
+    text.includes("jsm chatops")
+  ));
+}
+
+function collectSourceTexts(message: Message): string[] {
+  const texts: string[] = [];
+  const rawMessage = message as Record<string, unknown>;
+
+  pushText(texts, rawMessage["username"]);
+
+  const botProfile = rawMessage["bot_profile"];
+  if (isRecord(botProfile)) {
+    pushText(texts, botProfile["name"]);
+    pushText(texts, botProfile["app_name"]);
+    pushText(texts, botProfile["real_name"]);
+  }
+
+  const attachments = message.attachments as SlackAttachment[] | undefined;
+  for (const attachment of attachments ?? []) {
+    pushText(texts, attachment.author_name);
+    pushText(texts, attachment.footer);
+    pushText(texts, attachment.service_name);
+    pushText(texts, attachment.text);
+    pushText(texts, attachment.fallback);
+    collectBlocksText(attachment.blocks, texts);
+  }
+
+  collectBlocksText(message.blocks as unknown[] | undefined, texts);
+
+  return texts;
+}
 
 function collectMessageTexts(message: Message): string[] {
   const texts: string[] = [];
