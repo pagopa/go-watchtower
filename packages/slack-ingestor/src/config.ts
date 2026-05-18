@@ -1,4 +1,4 @@
-export type ParserId = "amazon-q" | "opsgenie" | "email-sns";
+export type ParserId = "amazon-q" | "opsgenie" | "email-sns" | "jsm";
 
 export interface ChannelConfig {
   /** Human-readable label for logs (e.g. "SEND prod") */
@@ -24,7 +24,7 @@ export interface ChannelConfig {
  * - channelId:           Slack channel ID (visible in channel URL or "Copy link")
  * - productId:           UUID from the go-watchtower products table
  * - environmentId:       UUID from the go-watchtower environments table
- * - parserId:            One of 'amazon-q' | 'opsgenie' | 'email-sns'
+ * - parserId:            One of 'amazon-q' | 'opsgenie' | 'email-sns' | 'jsm'
  * - defaultAwsAccountId: AWS account ID (required; used as fallback or primary depending on parser)
  * - defaultAwsRegion:    Optional fallback region code (e.g. 'eu-south-1')
  *
@@ -47,7 +47,7 @@ export const CHANNEL_REGISTRY: ChannelConfig[] = [
     channelId:           'C0585442Z39',
     productId:           'd0000000-0000-0000-0000-000000000001',
     environmentId:       'e0000000-0000-0000-0001-000000000001',
-    parserId:            'opsgenie',
+    parserId:            'jsm',
     defaultAwsAccountId: '350578575906',
     defaultAwsRegion:    'eu-south-1',
   },
