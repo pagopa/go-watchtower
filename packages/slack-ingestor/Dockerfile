@@ -1,7 +1,7 @@
 FROM public.ecr.aws/lambda/nodejs:22-arm64 AS builder
 
 # Install pnpm
-RUN npm install -g pnpm@latest
+RUN npm install -g pnpm@10.33.2
 
 WORKDIR /build
 
