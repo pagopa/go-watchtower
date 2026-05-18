@@ -20,7 +20,7 @@
   },
   "devDependencies": {
     "@types/luxon": "^3.7.1",
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.3"
   },
   "dependencies": {
     "luxon": "^3.7.2"

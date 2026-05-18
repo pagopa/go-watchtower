@@ -504,7 +504,7 @@ export function DateTimePicker({
           onSelect={handleDaySelect}
           startMonth={new Date(2020, 0)}
           endMonth={new Date(new Date().getFullYear() + 2, 11)}
-          initialFocus
+          autoFocus
           className="w-full"
         />
 
