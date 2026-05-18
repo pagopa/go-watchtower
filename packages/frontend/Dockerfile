@@ -4,7 +4,7 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 # Install pnpm
-RUN npm install -g pnpm@10.33.2 --no-fund --no-update-notifier
+RUN npm install -g pnpm@latest --no-fund --no-update-notifier
 
 # Copy workspace files
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
@@ -18,7 +18,7 @@ RUN pnpm install --frozen-lockfile
 FROM node:25-alpine AS builder
 WORKDIR /app
 
-RUN npm install -g pnpm@10.33.2 --no-fund --no-update-notifier
+RUN npm install -g pnpm@latest --no-fund --no-update-notifier
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/packages/frontend/node_modules ./packages/frontend/node_modules
