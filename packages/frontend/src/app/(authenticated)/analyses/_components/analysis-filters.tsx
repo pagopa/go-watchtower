@@ -21,6 +21,7 @@ import type {
   ProductResource,
   Downstream,
   Runbook,
+  AlertPriorityLevel,
 } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
 import { ANALYSIS_TYPE_LABELS, ANALYSIS_STATUS_LABELS } from '../_lib/constants'
@@ -33,6 +34,7 @@ export interface AnalysisFiltersState {
   operatorIds: string[]
   alarmIds: string[]
   finalActionIds: string[]
+  priorityCodes: string[]
   isOnCall: boolean | undefined
   dateFrom: string
   dateTo: string
@@ -51,6 +53,7 @@ interface AnalysisFiltersProps {
   environments: Environment[] | undefined
   alarms: Alarm[] | undefined
   finalActions: FinalAction[] | undefined
+  priorityLevels: AlertPriorityLevel[] | undefined
   users: AnalysisAuthor[] | undefined
   ignoreReasons: IgnoreReason[] | undefined
   resources: ProductResource[] | undefined
@@ -100,6 +103,7 @@ function buildActiveChips(
   environments: Environment[] | undefined,
   alarms: Alarm[] | undefined,
   finalActions: FinalAction[] | undefined,
+  priorityLevels: AlertPriorityLevel[] | undefined,
   users: AnalysisAuthor[] | undefined,
   ignoreReasons: IgnoreReason[] | undefined,
   _runbooks: Runbook[] | undefined,
@@ -164,6 +168,17 @@ function buildActiveChips(
       chips.push({ key: 'fa', label: fa?.name ?? filters.finalActionIds[0] })
     } else {
       chips.push({ key: 'fa', label: `${filters.finalActionIds.length} azioni finali` })
+    }
+  }
+
+  if (filters.priorityCodes.length > 0) {
+    if (filters.priorityCodes.length <= 2 && priorityLevels) {
+      for (const code of filters.priorityCodes) {
+        const level = priorityLevels.find((item) => item.code === code)
+        chips.push({ key: `priority:${code}`, label: level?.label ?? code })
+      }
+    } else {
+      chips.push({ key: 'priority', label: `${filters.priorityCodes.length} priority` })
     }
   }
 
@@ -234,6 +249,7 @@ export function AnalysisFilters({
   environments,
   alarms,
   finalActions,
+  priorityLevels,
   users,
   ignoreReasons,
   resources,
@@ -269,6 +285,12 @@ export function AnalysisFilters({
       onFilterChange(updated)
       return
     }
+    if (key.startsWith('priority:')) {
+      const priorityCode = key.slice(9)
+      updated.priorityCodes = updated.priorityCodes.filter((code) => code !== priorityCode)
+      onFilterChange(updated)
+      return
+    }
     switch (key) {
       case 'env': updated.environmentIds = []; break
       case 'date': updated.dateFrom = ''; updated.dateTo = ''; break
@@ -276,6 +298,7 @@ export function AnalysisFilters({
       case 'type': updated.analysisTypes = []; break
       case 'status': updated.statuses = []; break
       case 'fa': updated.finalActionIds = []; break
+      case 'priority': updated.priorityCodes = []; break
       case 'oncall': updated.isOnCall = undefined; break
       case 'operator': updated.operatorIds = []; break
       case 'search':
@@ -323,6 +346,7 @@ export function AnalysisFilters({
     filters.operatorIds.length > 0,
     filters.alarmIds.length > 0,
     filters.finalActionIds.length > 0,
+    filters.priorityCodes.length > 0,
     filters.isOnCall !== undefined,
     filters.dateFrom || filters.dateTo,
   ].filter(Boolean).length
@@ -340,8 +364,8 @@ export function AnalysisFilters({
   const hasProductScopedAdvanced = !!(resources || downstreams || runbooks)
 
   const activeChips = useMemo(
-    () => buildActiveChips(filters, environments, alarms, finalActions, users, ignoreReasons, runbooks, resources, downstreams),
-    [filters, environments, alarms, finalActions, users, ignoreReasons, runbooks, resources, downstreams],
+    () => buildActiveChips(filters, environments, alarms, finalActions, priorityLevels, users, ignoreReasons, runbooks, resources, downstreams),
+    [filters, environments, alarms, finalActions, priorityLevels, users, ignoreReasons, runbooks, resources, downstreams],
   )
 
   return (
@@ -489,6 +513,23 @@ export function AnalysisFilters({
                   placeholder="Tutte le azioni"
                   searchPlaceholder="Cerca azione..."
                   emptyMessage="Nessuna azione trovata."
+                />
+              </div>
+            )}
+
+            {priorityLevels && (
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Priority</Label>
+                <MultiSelectCombobox showTags={false}
+                  options={priorityLevels
+                    .filter((level) => level.isActive)
+                    .sort((a, b) => b.rank - a.rank)
+                    .map((level) => ({ value: level.code, label: level.label }))}
+                  value={filters.priorityCodes}
+                  onValueChange={(codes) => updateFilter('priorityCodes', codes)}
+                  placeholder="Tutte le priority"
+                  searchPlaceholder="Cerca priority..."
+                  emptyMessage="Nessuna priority trovata."
                 />
               </div>
             )}

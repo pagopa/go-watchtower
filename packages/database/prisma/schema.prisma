@@ -28,6 +28,8 @@ enum SystemComponent {
   ENVIRONMENT
   RESOURCE
   IGNORED_ALARM
+  ALARM_PRIORITY_RULE
+  PRIORITY_LEVEL
   RUNBOOK
   FINAL_ACTION
   ALARM
@@ -47,6 +49,12 @@ enum PermissionScope {
 enum RunbookStatus {
   DRAFT
   COMPLETE
+}
+
+enum AlarmPriorityMatcherType {
+  ALARM_ID
+  ALARM_NAME_PREFIX
+  ALARM_NAME_REGEX
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -166,6 +174,7 @@ model Product {
   resources    Resource[]
   finalActions FinalAction[]
   ignoredAlarms IgnoredAlarm[]
+  priorityRules AlarmPriorityRule[]
   runbooks      Runbook[]
   alarms        Alarm[]
   downstreams   Downstream[]
@@ -191,6 +200,7 @@ model Environment {
   product       Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
   analyses      AlarmAnalysis[]
   ignoredAlarms IgnoredAlarm[]
+  priorityRules AlarmPriorityRule[]
   alarmEvents   AlarmEvent[]
 
   @@unique([productId, name])
@@ -248,6 +258,30 @@ model IgnoredAlarm {
   @@map("ignored_alarms")
 }
 
+model PriorityLevel {
+  code           String   @id
+  label          String
+  description    String?
+  rank           Int      @default(0)
+  color          String?
+  icon           String?
+  isActive       Boolean  @default(true) @map("is_active")
+  isDefault      Boolean  @default(false) @map("is_default")
+  countsAsOnCall Boolean  @default(false) @map("counts_as_on_call")
+  defaultNotify  Boolean  @default(false) @map("default_notify")
+  isSystem       Boolean  @default(false) @map("is_system")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  rules       AlarmPriorityRule[]
+  alarmEvents AlarmEvent[]
+
+  @@index([isActive])
+  @@index([isDefault])
+  @@index([rank])
+  @@map("priority_levels")
+}
+
 model Alarm {
   id          String   @id @default(uuid(7)) @db.Uuid
   name        String
@@ -261,11 +295,43 @@ model Alarm {
   runbook       Runbook?        @relation(fields: [runbookId], references: [id], onDelete: SetNull)
   analyses      AlarmAnalysis[]
   ignoredAlarms IgnoredAlarm[]
+  priorityRules AlarmPriorityRule[]
   alarmEvents   AlarmEvent[]
 
   @@unique([productId, name])
   @@index([runbookId])
   @@map("alarms")
+}
+
+model AlarmPriorityRule {
+  id            String                   @id @default(uuid(7)) @db.Uuid
+  productId     String                   @map("product_id") @db.Uuid
+  environmentId String?                  @map("environment_id") @db.Uuid
+  priorityCode  String                   @map("priority_code")
+  name          String
+  matcherType   AlarmPriorityMatcherType @map("matcher_type")
+  alarmId       String?                  @map("alarm_id") @db.Uuid
+  namePrefix    String?                  @map("name_prefix")
+  namePattern   String?                  @map("name_pattern")
+  precedence    Int                      @default(0)
+  note          String?
+  isActive      Boolean                  @default(true) @map("is_active")
+  validity      Json                     @default("[]")
+  exclusions    Json                     @default("[]")
+  createdAt     DateTime                 @default(now()) @map("created_at")
+  updatedAt     DateTime                 @updatedAt @map("updated_at")
+
+  product     Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  environment Environment?  @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  priority    PriorityLevel @relation(fields: [priorityCode], references: [code], onDelete: Restrict)
+  alarm       Alarm?        @relation(fields: [alarmId], references: [id], onDelete: Cascade)
+  alarmEvents AlarmEvent[]
+
+  @@index([productId, isActive])
+  @@index([productId, environmentId, isActive])
+  @@index([productId, alarmId, environmentId, isActive])
+  @@index([priorityCode])
+  @@map("alarm_priority_rules")
 }
 
 model Runbook {
@@ -445,7 +511,10 @@ model AlarmEvent {
   productId      String   @map("product_id") @db.Uuid
   environmentId  String   @map("environment_id") @db.Uuid
   alarmId        String?  @map("alarm_id") @db.Uuid
-  analysisId     String?   @map("analysis_id") @db.Uuid
+  analysisId     String?  @map("analysis_id") @db.Uuid
+  priorityCode   String   @default("NORMAL") @map("priority_code")
+  priorityRuleId String?  @map("priority_rule_id") @db.Uuid
+  priorityResolvedAt DateTime? @map("priority_resolved_at")
   linkedAt       DateTime? @map("linked_at")
   resolvedAt     DateTime? @map("resolved_at")
   // Identificatore univoco del messaggio Slack sorgente — formato "{channelId}/{ts}".
@@ -457,6 +526,8 @@ model AlarmEvent {
   environment Environment    @relation(fields: [environmentId], references: [id], onDelete: Restrict)
   alarm       Alarm?         @relation(fields: [alarmId], references: [id], onDelete: SetNull)
   analysis    AlarmAnalysis? @relation(fields: [analysisId], references: [id], onDelete: SetNull)
+  priority    PriorityLevel  @relation(fields: [priorityCode], references: [code], onDelete: Restrict)
+  priorityRule AlarmPriorityRule? @relation(fields: [priorityRuleId], references: [id], onDelete: SetNull)
 
   @@index([firedAt])
   @@index([productId, firedAt])
@@ -465,6 +536,10 @@ model AlarmEvent {
   @@index([awsAccountId])
   @@index([alarmId])
   @@index([analysisId])
+  @@index([priorityCode])
+  @@index([priorityRuleId])
+  @@index([productId, priorityCode, firedAt])
+  @@index([environmentId, priorityCode, firedAt])
   @@map("alarm_events")
 }
 

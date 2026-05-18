@@ -1,4 +1,5 @@
 import type { TimeConstraint } from '../types/time-constraint.js';
+import { matchesTimeConstraints } from './time-constraints.js';
 
 /**
  * Minimal subset of an IgnoredAlarm record needed for matching.
@@ -12,47 +13,6 @@ export interface IgnoredAlarmEntry {
   validity: TimeConstraint[];
   exclusions: TimeConstraint[];
   reason: string | null;
-}
-
-/**
- * Returns true if the UTC datetime satisfies the given TimeConstraint.
- *
- * All specified sub-conditions are ANDed (periods AND weekdays AND hours).
- * A constraint with no sub-conditions always matches.
- */
-function isWithinTimeConstraint(dt: Date, c: TimeConstraint): boolean {
-  const checks: boolean[] = [];
-
-  if (c.periods && c.periods.length > 0) {
-    checks.push(c.periods.some((p) => dt >= new Date(p.start) && dt <= new Date(p.end)));
-  }
-
-  if (c.weekdays && c.weekdays.length > 0) {
-    // Date.getUTCDay(): 0=Sun, 1=Mon, …, 6=Sat — matches WEEKDAY_MIN/WEEKDAY_MAX convention.
-    checks.push(c.weekdays.includes(dt.getUTCDay()));
-  }
-
-  if (c.hours && c.hours.length > 0) {
-    const hh = String(dt.getUTCHours()).padStart(2, '0');
-    const mm = String(dt.getUTCMinutes()).padStart(2, '0');
-    const t = `${hh}:${mm}`;
-    checks.push(c.hours.some((h) => t >= h.start && t <= h.end));
-  }
-
-  // A constraint with no conditions is an unconditional match.
-  if (checks.length === 0) return true;
-
-  // All specified conditions must hold (AND semantics within a constraint).
-  return checks.every((v) => v);
-}
-
-/**
- * Returns true if the UTC datetime matches at least one TimeConstraint in the array.
- * An empty array is treated as "no restriction" (always matches).
- */
-function matchesConstraints(dt: Date, constraints: TimeConstraint[]): boolean {
-  if (constraints.length === 0) return true;
-  return constraints.some((c) => isWithinTimeConstraint(dt, c));
 }
 
 /**
@@ -93,10 +53,10 @@ export function matchIgnoredAlarm(params: {
   if (!entry) return null;
 
   // Validity: must fall within at least one constraint (empty = always valid).
-  if (!matchesConstraints(dt, entry.validity)) return null;
+  if (!matchesTimeConstraints(dt, entry.validity)) return null;
 
   // Exclusions: if the timestamp falls in an exclusion window, it is NOT ignored.
-  if (entry.exclusions.length > 0 && matchesConstraints(dt, entry.exclusions)) return null;
+  if (entry.exclusions.length > 0 && matchesTimeConstraints(dt, entry.exclusions)) return null;
 
   return entry;
 }

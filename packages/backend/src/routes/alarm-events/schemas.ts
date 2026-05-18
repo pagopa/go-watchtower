@@ -20,6 +20,19 @@ export { ErrorResponseSchema, MessageResponseSchema };
 
 // ─── Response ─────────────────────────────────────────────────────────────────
 
+const AlarmEventPrioritySchema = Type.Object({
+  code:           Type.String(),
+  label:          Type.String(),
+  rank:           Type.Integer(),
+  color:          Type.Union([Type.String(), Type.Null()]),
+  icon:           Type.Union([Type.String(), Type.Null()]),
+  countsAsOnCall: Type.Boolean(),
+  isDefault:      Type.Boolean(),
+  ruleId:         Type.Union([Type.String(), Type.Null()]),
+  ruleName:       Type.Union([Type.String(), Type.Null()]),
+  resolvedAt:     Type.Union([Type.String({ format: "date-time" }), Type.Null()]),
+});
+
 export const AlarmEventResponseSchema = Type.Object({
   id:            Type.String(),
   name:          Type.String(),
@@ -32,6 +45,7 @@ export const AlarmEventResponseSchema = Type.Object({
   environment:   RelatedEntitySchema,
   alarmId:       Type.Union([Type.String(), Type.Null()]),
   alarm:         Type.Union([EmbeddedAlarmSchema, Type.Null()]),
+  priority:      AlarmEventPrioritySchema,
   analysisId:    Type.Union([Type.String(), Type.Null()]),
   linkedAt:      Type.Union([Type.String({ format: "date-time" }), Type.Null()]),
   resolvedAt:    Type.Union([Type.String({ format: "date-time" }), Type.Null()]),
@@ -67,6 +81,7 @@ export const AlarmEventsQuerySchema = Type.Object({
   analysisId:    Type.Optional(Type.String()),
   awsAccountId:  Type.Optional(Type.String()),
   awsRegion:     Type.Optional(Type.String()),
+  priorityCode:  Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())])),
   dateFrom:      Type.Optional(Type.String({ format: "date-time" })),
   dateTo:        Type.Optional(Type.String({ format: "date-time" })),
   createdFrom:   Type.Optional(Type.String({ format: "date-time" })),

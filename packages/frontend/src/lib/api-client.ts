@@ -17,6 +17,9 @@ import type {
   TimeConstraintPeriod,
   TimeConstraintHours,
   TimeConstraint,
+  AlertPriorityLevel,
+  AlarmPriorityRule as SharedAlarmPriorityRule,
+  AlarmEventPriority,
   ResourcePermission,
   RolePermission,
   UserPermissions,
@@ -44,6 +47,9 @@ export type {
   TimeConstraintPeriod,
   TimeConstraintHours,
   TimeConstraint,
+  AlertPriorityLevel,
+  SharedAlarmPriorityRule as AlarmPriorityRuleBase,
+  AlarmEventPriority,
   ResourcePermission,
   RolePermission,
   UserPermissions,
@@ -53,7 +59,10 @@ export type {
   ResourceType,
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || ''
+const API_URL = process.env.NEXT_PUBLIC_API_URL ||
+  (process.env.NODE_ENV === 'development'
+    ? process.env.NEXT_PUBLIC_API_PROXY_PREFIX || '/watchtower-api'
+    : '')
 
 export class ApiClientError extends Error {
   constructor(
@@ -113,36 +122,43 @@ async function doFetch(
 /**
  * Refreshes the session by calling the NextAuth session endpoint.
  * This triggers the JWT callback server-side, which refreshes the
- * access token if expired. Returns the new access token or empty string.
- *
- * @param failedToken - The access token that caused a 401. If the session
- *   endpoint returns the same token, it means the server-side refresh didn't
- *   actually produce a new token (e.g., a network error during backend refresh
- *   caused the JWT callback to return the old token with an extended expiry).
- *   In that case we return '' to signal that the refresh failed.
+ * access token if expired.
  */
-async function refreshSession(failedToken?: string): Promise<string> {
+type RefreshSessionResult =
+  | { status: 'refreshed'; accessToken: string }
+  | { status: 'deferred'; accessToken: string }
+  | { status: 'invalid'; accessToken: '' }
+
+async function refreshSession(failedToken?: string): Promise<RefreshSessionResult> {
   try {
     const { getSession } = await import('next-auth/react')
-    const session = await getSession()
+    const session = await getSession({ broadcast: false })
     const newToken = session?.user?.accessToken ?? ''
+    const refreshDeferred = (session as { refreshDeferred?: boolean } | null)?.refreshDeferred === true
+
+    if (!newToken) {
+      return { status: 'invalid', accessToken: '' }
+    }
+
+    setAccessToken(newToken)
 
     if (failedToken && newToken === failedToken) {
-      return ''
+      return refreshDeferred
+        ? { status: 'deferred', accessToken: newToken }
+        : { status: 'invalid', accessToken: '' }
     }
 
-    if (newToken) {
-      setAccessToken(newToken)
-    }
-    return newToken
+    return refreshDeferred
+      ? { status: 'deferred', accessToken: newToken }
+      : { status: 'refreshed', accessToken: newToken }
   } catch {
-    return ''
+    return { status: 'deferred', accessToken: '' }
   }
 }
 
-let pendingSessionRefresh: Promise<string> | null = null
+let pendingSessionRefresh: Promise<RefreshSessionResult> | null = null
 
-function refreshSessionDeduped(failedToken?: string): Promise<string> {
+function refreshSessionDeduped(failedToken?: string): Promise<RefreshSessionResult> {
   if (!pendingSessionRefresh) {
     pendingSessionRefresh = refreshSession(failedToken).finally(() => {
       pendingSessionRefresh = null
@@ -176,12 +192,17 @@ async function request<T>(
   // On first render the store may be empty (useEffect hasn't fired yet) —
   // just throw so React Query skips the request and retries later.
   let accessToken = getAccessToken()
+  let refreshResult: RefreshSessionResult | null = null
 
   if (!accessToken) {
-    accessToken = await refreshSessionDeduped()
+    refreshResult = await refreshSessionDeduped()
+    accessToken = refreshResult.accessToken
   }
 
   if (!accessToken) {
+    if (refreshResult?.status === 'deferred') {
+      throw new ApiClientError('Session refresh temporarily unavailable', 503)
+    }
     throw new ApiClientError('No access token', 401)
   }
 
@@ -190,9 +211,13 @@ async function request<T>(
   // On 401, the access token has expired server-side.
   // Try to refresh the session and retry ONCE before giving up.
   if (response.status === 401) {
-    const freshToken = await refreshSessionDeduped(accessToken)
-    if (freshToken) {
-      const retryResponse = await doFetch(url, freshToken, init, body)
+    const refreshed = await refreshSessionDeduped(accessToken)
+    if (refreshed.status === 'deferred') {
+      throw new ApiClientError('Session refresh temporarily unavailable', 503)
+    }
+
+    if (refreshed.status === 'refreshed') {
+      const retryResponse = await doFetch(url, refreshed.accessToken, init, body)
       if (!retryResponse.ok) {
         if (retryResponse.status === 401) {
           // Refresh returned a token that was also rejected — force re-auth.
@@ -425,6 +450,67 @@ export interface UpdateIgnoredAlarmData {
   exclusions?: TimeConstraint[]
 }
 
+export interface AlarmPriorityRule extends SharedAlarmPriorityRule {
+  priority: Pick<AlertPriorityLevel, 'code' | 'label' | 'rank' | 'color' | 'icon' | 'countsAsOnCall' | 'isDefault'>
+  environment: RelatedEntity | null
+  alarm: RelatedEntity | null
+}
+
+export interface CreatePriorityLevelData {
+  code: string
+  label: string
+  description?: string | null
+  rank: number
+  color?: string | null
+  icon?: string | null
+  isActive?: boolean
+  isDefault?: boolean
+  countsAsOnCall?: boolean
+  defaultNotify?: boolean
+}
+
+export interface UpdatePriorityLevelData {
+  label?: string
+  description?: string | null
+  rank?: number
+  color?: string | null
+  icon?: string | null
+  isActive?: boolean
+  isDefault?: boolean
+  countsAsOnCall?: boolean
+  defaultNotify?: boolean
+}
+
+export interface CreateAlarmPriorityRuleData {
+  environmentId?: string | null
+  priorityCode: string
+  name: string
+  matcherType: 'ALARM_ID' | 'ALARM_NAME_PREFIX' | 'ALARM_NAME_REGEX'
+  alarmId?: string | null
+  namePrefix?: string | null
+  namePattern?: string | null
+  precedence?: number
+  note?: string | null
+  isActive?: boolean
+  validity?: TimeConstraint[]
+  exclusions?: TimeConstraint[]
+}
+
+export interface UpdateAlarmPriorityRuleData {
+  environmentId?: string | null
+  priorityCode?: string
+  name?: string
+  matcherType?: 'ALARM_ID' | 'ALARM_NAME_PREFIX' | 'ALARM_NAME_REGEX'
+  alarmId?: string | null
+  namePrefix?: string | null
+  namePattern?: string | null
+  precedence?: number
+  note?: string | null
+  isActive?: boolean
+  validity?: TimeConstraint[]
+  exclusions?: TimeConstraint[]
+}
+
 // Alarm Analysis Types
 export interface CreateIgnoreReasonData {
   code: string
@@ -505,6 +591,7 @@ export interface AlarmAnalysisFilters {
   runbookId?: string | string[]
   resourceId?: string | string[]
   downstreamId?: string | string[]
+  priorityCode?: string | string[]
   traceId?: string
 }
 
@@ -953,6 +1040,7 @@ export interface AlarmEvent {
     description: string | null
     runbook: { id: string; name: string; link: string } | null
   } | null
+  priority: AlarmEventPriority
   analysisId: string | null
   linkedAt: string | null
   resolvedAt: string | null
@@ -966,6 +1054,7 @@ export interface AlarmEventsFilters {
   analysisId?: string
   awsAccountId?: string
   awsRegion?: string
+  priorityCode?: string[]
   dateFrom?: string
   dateTo?: string
   createdFrom?: string
@@ -1073,6 +1162,30 @@ export const api = {
     request<IgnoredAlarm>(`/api/products/${productId}/ignored-alarms/${id}`, { method: 'PUT', body: data }),
   deleteIgnoredAlarm: (productId: string, id: string) =>
     request<{ message: string }>(`/api/products/${productId}/ignored-alarms/${id}`, { method: 'DELETE' }),
+
+  // Priority Levels
+  getPriorityLevels: () =>
+    request<AlertPriorityLevel[]>('/api/priority-levels'),
+  getPriorityLevel: (code: string) =>
+    request<AlertPriorityLevel>(`/api/priority-levels/${code}`),
+  createPriorityLevel: (data: CreatePriorityLevelData) =>
+    request<AlertPriorityLevel>('/api/priority-levels', { method: 'POST', body: data }),
+  updatePriorityLevel: (code: string, data: UpdatePriorityLevelData) =>
+    request<AlertPriorityLevel>(`/api/priority-levels/${code}`, { method: 'PATCH', body: data }),
+  deletePriorityLevel: (code: string) =>
+    request<{ message: string }>(`/api/priority-levels/${code}`, { method: 'DELETE' }),
+
+  // Alarm Priority Rules
+  getAlarmPriorityRules: (productId: string) =>
+    request<AlarmPriorityRule[]>(`/api/products/${productId}/alarm-priority-rules`),
+  getAlarmPriorityRule: (productId: string, id: string) =>
+    request<AlarmPriorityRule>(`/api/products/${productId}/alarm-priority-rules/${id}`),
+  createAlarmPriorityRule: (productId: string, data: CreateAlarmPriorityRuleData) =>
+    request<AlarmPriorityRule>(`/api/products/${productId}/alarm-priority-rules`, { method: 'POST', body: data }),
+  updateAlarmPriorityRule: (productId: string, id: string, data: UpdateAlarmPriorityRuleData) =>
+    request<AlarmPriorityRule>(`/api/products/${productId}/alarm-priority-rules/${id}`, { method: 'PUT', body: data }),
+  deleteAlarmPriorityRule: (productId: string, id: string) =>
+    request<{ message: string }>(`/api/products/${productId}/alarm-priority-rules/${id}`, { method: 'DELETE' }),
 
   // Final Actions
   getFinalActions: (productId: string) =>
@@ -1237,4 +1350,3 @@ export const api = {
   updateSetting: (key: string, value: unknown) =>
     request<SystemSetting>(`/api/settings/${key}`, { method: 'PATCH', body: { value } }),
 }
-

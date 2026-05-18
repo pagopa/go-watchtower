@@ -156,6 +156,12 @@ const ACTION_CATEGORIES: ActionCategory[] = [
       SystemEventActions.IGNORED_ALARM_CREATED,
       SystemEventActions.IGNORED_ALARM_UPDATED,
       SystemEventActions.IGNORED_ALARM_DELETED,
+      SystemEventActions.PRIORITY_LEVEL_CREATED,
+      SystemEventActions.PRIORITY_LEVEL_UPDATED,
+      SystemEventActions.PRIORITY_LEVEL_DELETED,
+      SystemEventActions.ALARM_PRIORITY_RULE_CREATED,
+      SystemEventActions.ALARM_PRIORITY_RULE_UPDATED,
+      SystemEventActions.ALARM_PRIORITY_RULE_DELETED,
       SystemEventActions.IGNORE_REASON_CREATED,
       SystemEventActions.IGNORE_REASON_UPDATED,
       SystemEventActions.IGNORE_REASON_DELETED,
@@ -247,6 +253,7 @@ function resolveResourceLink(event: SystemEvent): string | null {
     case SystemEventResources.RUNBOOKS:
     case SystemEventResources.FINAL_ACTIONS:
     case SystemEventResources.DOWNSTREAMS:
+    case SystemEventResources.ALARM_PRIORITY_RULES:
     case SystemEventResources.IGNORED_ALARMS: {
       const productId = metaProductId(metadata)
       if (!productId) return null
@@ -255,6 +262,7 @@ function resolveResourceLink(event: SystemEvent): string | null {
         [SystemEventResources.RESOURCES]: 'resources',
         [SystemEventResources.RUNBOOKS]: 'runbooks',
         [SystemEventResources.ALARMS]: 'alarms',
+        [SystemEventResources.ALARM_PRIORITY_RULES]: 'priority-rules',
         [SystemEventResources.DOWNSTREAMS]: 'downstreams',
         [SystemEventResources.FINAL_ACTIONS]: 'final-actions',
         [SystemEventResources.IGNORED_ALARMS]: 'ignored-alarms',
@@ -262,6 +270,9 @@ function resolveResourceLink(event: SystemEvent): string | null {
       const tab = resource ? tabMap[resource] : undefined
       return tab ? `/products/${productId}?tab=${tab}` : `/products/${productId}`
     }
+
+    case SystemEventResources.PRIORITY_LEVELS:
+      return '/settings/priority-levels'
 
     default:
       return null

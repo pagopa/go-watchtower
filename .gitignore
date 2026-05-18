@@ -71,3 +71,4 @@ scripts/deploy-frontend.sh
 scripts/deploy-slack-ingestor.sh
 scripts/migrate-prod.sh
 scripts/db-sync.sh
+docs/evolutions/*

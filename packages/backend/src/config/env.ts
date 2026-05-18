@@ -12,9 +12,23 @@ function optionalEnv(name: string, defaultValue: string): string {
   return process.env[name] ?? defaultValue;
 }
 
+function optionalPositiveIntEnv(name: string, defaultValue: number): number {
+  const value = process.env[name]?.trim();
+  if (!value) {
+    return defaultValue;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    throw new Error(`Invalid positive integer environment variable: ${name}`);
+  }
+
+  return parsed;
+}
+
 export const env = {
   NODE_ENV: optionalEnv("NODE_ENV", "development"),
-  PORT: parseInt(optionalEnv("PORT", "3001"), 10),
+  PORT: optionalPositiveIntEnv("PORT", 3001),
   HOST: optionalEnv("HOST", "0.0.0.0"),
 
   // JWT - Access token (short-lived)
@@ -23,9 +37,13 @@ export const env = {
   ACCESS_TOKEN_EXPIRES_IN: optionalEnv("ACCESS_TOKEN_EXPIRES_IN", "15m"),
 
   // Refresh token (long-lived, stored in DB)
-  REFRESH_TOKEN_EXPIRES_DAYS: parseInt(
-    optionalEnv("REFRESH_TOKEN_EXPIRES_DAYS", "7"),
-    10
+  REFRESH_TOKEN_EXPIRES_DAYS: optionalPositiveIntEnv(
+    "REFRESH_TOKEN_EXPIRES_DAYS",
+    7
+  ),
+  REFRESH_TOKEN_ROTATION_GRACE_SECONDS: optionalPositiveIntEnv(
+    "REFRESH_TOKEN_ROTATION_GRACE_SECONDS",
+    300
   ),
 
   // Google OAuth

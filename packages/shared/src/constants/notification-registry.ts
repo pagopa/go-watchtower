@@ -20,8 +20,8 @@ export const NOTIFICATION_DEFINITIONS = {
   },
   HIGH_PRIORITY_ALARM: {
     category: 'ALARM_EVENTS',
-    label: 'Allarmi priorità alta',
-    description: 'Notifica quando arriva un nuovo allarme priorità alta',
+    label: 'Allarmi High',
+    description: 'Notifica quando arriva un nuovo allarme High',
     defaultEnabled: true,
   },
 } as const satisfies Record<string, NotificationDefinition>;

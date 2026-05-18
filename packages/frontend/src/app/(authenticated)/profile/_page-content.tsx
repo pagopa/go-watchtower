@@ -11,7 +11,7 @@ import {
   KeyRound, Globe, RotateCcw, Eye, EyeOff, Lock, ChevronDown, ChevronUp,
   Bell, BellOff,
 } from 'lucide-react'
-import { api, type UserDetail } from '@/lib/api-client'
+import { api, type UserDetail, type AlertPriorityLevel } from '@/lib/api-client'
 import { qk } from '@/lib/query-keys'
 import type { ColumnSettings } from '@go-watchtower/shared'
 import { formatDateLong as formatDate, getInitials } from '@/lib/format'
@@ -25,13 +25,11 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import {
+  AlertPriorityCodes,
   AUTH_PROVIDER_LABELS,
-  NOTIFICATION_DEFINITIONS,
-  NOTIFICATION_CATEGORIES,
-  NOTIFICATION_CATEGORY_LABELS,
-  getTypesForCategory,
+  normalizeAlertPriorityCode,
 } from '@go-watchtower/shared'
-import type { AuthProvider, NotificationType } from '@go-watchtower/shared'
+import type { AuthProvider } from '@go-watchtower/shared'
 import { useNotificationPermission } from '@/hooks/use-notification-permission'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -41,6 +39,26 @@ const THEME_CONFIG = {
   dark: { label: 'Scuro', icon: Moon },
   system: { label: 'Sistema', icon: Monitor },
 } as const
+
+function getEnabledPriorityCodes(priorityLevels: AlertPriorityLevel[], notifications: Record<string, unknown> | undefined): Set<string> {
+  const prefs = notifications as {
+    priority?: { enabledCodes?: string[] }
+    types?: Record<string, boolean>
+  } | undefined
+
+  if (prefs?.priority?.enabledCodes) {
+    return new Set(prefs.priority.enabledCodes.map(normalizeAlertPriorityCode))
+  }
+
+  const legacy = new Set<string>()
+  if (prefs?.types) {
+    if (prefs.types.ON_CALL_ALARM !== false) legacy.add(AlertPriorityCodes.ON_CALL)
+    if (prefs.types.HIGH_PRIORITY_ALARM !== false) legacy.add(AlertPriorityCodes.HIGH)
+    if (legacy.size > 0) return legacy
+  }
+
+  return new Set(priorityLevels.filter((level) => level.defaultNotify).map((level) => level.code))
+}
 
 // ─── Column analysis ──────────────────────────────────────────────────────────
 
@@ -454,37 +472,60 @@ export function ProfilePageContent() {
 
   // ─── Notification preferences ─────────────────────────────────────────────
   const { permission: notifPermission, request: requestNotifPermission, isSupported: notifSupported } = useNotificationPermission()
+  const { data: priorityLevels = [] } = useQuery<AlertPriorityLevel[]>({
+    queryKey: qk.priorityLevels.list,
+    queryFn: api.getPriorityLevels,
+    staleTime: 5 * 60_000,
+  })
   const notifPrefs = preferences.notifications
   const notifEnabled = notifPrefs?.enabled ?? false
+  const enabledPriorityCodes = getEnabledPriorityCodes(priorityLevels, notifPrefs as Record<string, unknown> | undefined)
 
   const handleToggleNotifMaster = useCallback(async () => {
     if (notifEnabled) {
-      updatePreferences({ notifications: { enabled: false, types: notifPrefs?.types ?? {} } })
+      updatePreferences({
+        notifications: {
+          enabled: false,
+          priority: { enabledCodes: [...enabledPriorityCodes] },
+          types: notifPrefs?.types,
+        },
+      })
       return
     }
-    // Try to request permission if not yet granted (best-effort, save regardless)
     if (notifSupported && notifPermission !== 'granted') {
       await requestNotifPermission()
     }
-    updatePreferences({ notifications: { enabled: true, types: notifPrefs?.types ?? {} } })
-  }, [notifEnabled, notifPrefs, notifSupported, notifPermission, requestNotifPermission, updatePreferences])
+    const nextCodes = enabledPriorityCodes.size > 0
+      ? [...enabledPriorityCodes]
+      : priorityLevels.filter((level) => level.defaultNotify).map((level) => level.code)
+    updatePreferences({
+      notifications: {
+        enabled: true,
+        priority: { enabledCodes: nextCodes },
+        types: notifPrefs?.types,
+      },
+    })
+  }, [enabledPriorityCodes, notifEnabled, notifPrefs?.types, notifPermission, notifSupported, priorityLevels, requestNotifPermission, updatePreferences])
 
-  const handleToggleNotifType = useCallback(async (type: NotificationType) => {
-    const currentlyOn = notifEnabled && notifPrefs?.types[type] !== false
+  const handleTogglePriorityCode = useCallback(async (code: string) => {
+    const nextCodes = new Set(enabledPriorityCodes)
+    const currentlyOn = notifEnabled && nextCodes.has(code)
     if (!currentlyOn) {
-      // Try to request permission if not yet granted (best-effort)
       if (notifSupported && notifPermission !== 'granted') {
         await requestNotifPermission()
       }
-      const newTypes = { ...notifPrefs?.types, [type]: true }
-      updatePreferences({ notifications: { enabled: true, types: newTypes } })
+      nextCodes.add(code)
     } else {
-      const newTypes = { ...notifPrefs?.types, [type]: false }
-      const allTypes = Object.keys(NOTIFICATION_DEFINITIONS) as NotificationType[]
-      const anyStillOn = allTypes.some((t) => t === type ? false : (newTypes[t] !== false))
-      updatePreferences({ notifications: { enabled: anyStillOn, types: newTypes } })
+      nextCodes.delete(code)
     }
-  }, [notifEnabled, notifPrefs, notifSupported, notifPermission, requestNotifPermission, updatePreferences])
+    updatePreferences({
+      notifications: {
+        enabled: nextCodes.size > 0,
+        priority: { enabledCodes: [...nextCodes] },
+        types: notifPrefs?.types,
+      },
+    })
+  }, [enabledPriorityCodes, notifEnabled, notifPermission, notifPrefs?.types, notifSupported, requestNotifPermission, updatePreferences])
 
 
   // ─── Derived values ──────────────────────────────────────────────────────────
@@ -821,56 +862,54 @@ export function ProfilePageContent() {
           )}
         </div>
 
-        {/* ── Per-category notification types ── */}
+        {/* ── Priority notification types ── */}
         {notifEnabled && (
           <div className="mt-5 space-y-4">
-            {NOTIFICATION_CATEGORIES.map((category) => {
-              const types = getTypesForCategory(category)
-              return (
-                <div key={category}>
-                  <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/50">
-                    {NOTIFICATION_CATEGORY_LABELS[category] ?? category}
-                  </p>
-                  <div className="space-y-1">
-                    {types.map((type) => {
-                      const def = NOTIFICATION_DEFINITIONS[type]
-                      const isOn = notifPrefs?.types[type] !== false
-                      return (
-                        <div
-                          key={type}
-                          className={cn(
-                            'flex items-center gap-3 rounded-lg border px-3.5 py-2.5 transition-colors cursor-pointer',
-                            isOn
-                              ? 'border-primary/15 bg-primary/[0.02] hover:bg-primary/[0.04]'
-                              : 'border-transparent bg-muted/30 hover:bg-muted/50 opacity-60',
-                          )}
-                          onClick={() => handleToggleNotifType(type)}
-                        >
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium">{def.label}</p>
-                            <p className="mt-0.5 text-xs text-muted-foreground">{def.description}</p>
-                          </div>
-                          <button
-                            className={cn(
-                              'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-colors',
-                              isOn
-                                ? 'bg-primary border-primary dark:bg-blue-600 dark:border-blue-600'
-                                : 'bg-zinc-300 border-zinc-300 dark:bg-zinc-600 dark:border-zinc-500',
-                            )}
-                            tabIndex={-1}
-                          >
-                            <span className={cn(
-                              'inline-block h-3.5 w-3.5 rounded-full bg-white shadow-lg transition-transform',
-                              isOn ? 'translate-x-[18px]' : 'translate-x-0.5',
-                            )} />
-                          </button>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )
-            })}
+            <div>
+              <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+                Allarmi scattati
+              </p>
+              <div className="space-y-1">
+                {[...priorityLevels].filter((level) => level.isActive).sort((a, b) => b.rank - a.rank).map((level) => {
+                  const isOn = enabledPriorityCodes.has(level.code)
+                  return (
+                    <div
+                      key={level.code}
+                      className={cn(
+                        'flex items-center gap-3 rounded-lg border px-3.5 py-2.5 transition-colors cursor-pointer',
+                        isOn
+                          ? 'border-primary/15 bg-primary/[0.02] hover:bg-primary/[0.04]'
+                          : 'border-transparent bg-muted/30 hover:bg-muted/50 opacity-60',
+                      )}
+                      onClick={() => void handleTogglePriorityCode(level.code)}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium">{level.label}</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          Codice {level.code}
+                          {level.countsAsOnCall ? ' · conta come on-call' : ''}
+                          {level.defaultNotify ? ' · attiva di default' : ''}
+                        </p>
+                      </div>
+                      <button
+                        className={cn(
+                          'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-colors',
+                          isOn
+                            ? 'bg-primary border-primary dark:bg-blue-600 dark:border-blue-600'
+                            : 'bg-zinc-300 border-zinc-300 dark:bg-zinc-600 dark:border-zinc-500',
+                        )}
+                        tabIndex={-1}
+                      >
+                        <span className={cn(
+                          'inline-block h-3.5 w-3.5 rounded-full bg-white shadow-lg transition-transform',
+                          isOn ? 'translate-x-[18px]' : 'translate-x-0.5',
+                        )} />
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
           </div>
         )}
 

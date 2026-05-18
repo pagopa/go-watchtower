@@ -33,6 +33,8 @@ const PERMISSIONS: Record<keyof typeof ROLE_IDS, Record<SystemComponent, Tuple>>
     ENVIRONMENT:    [ALL,  NONE, NONE],
     RESOURCE:       [ALL,  NONE, NONE],
     IGNORED_ALARM:  [ALL,  NONE, NONE],
+    ALARM_PRIORITY_RULE: [ALL, NONE, NONE],
+    PRIORITY_LEVEL: [ALL, NONE, NONE],
     RUNBOOK:        [ALL,  NONE, NONE],
     FINAL_ACTION:   [ALL,  NONE, NONE],
     ALARM:          [ALL,  NONE, NONE],
@@ -47,6 +49,8 @@ const PERMISSIONS: Record<keyof typeof ROLE_IDS, Record<SystemComponent, Tuple>>
     ENVIRONMENT:    [ALL,  NONE, NONE],
     RESOURCE:       [ALL,  NONE, NONE],
     IGNORED_ALARM:  [ALL,  NONE, NONE],
+    ALARM_PRIORITY_RULE: [ALL, NONE, NONE],
+    PRIORITY_LEVEL: [ALL, NONE, NONE],
     RUNBOOK:        [ALL,  NONE, NONE],
     FINAL_ACTION:   [ALL,  NONE, NONE],
     ALARM:          [ALL,  NONE, NONE],
@@ -61,6 +65,8 @@ const PERMISSIONS: Record<keyof typeof ROLE_IDS, Record<SystemComponent, Tuple>>
     ENVIRONMENT:    [ALL,  NONE, NONE],
     RESOURCE:       [ALL,  NONE, NONE],
     IGNORED_ALARM:  [ALL,  ALL,  NONE],
+    ALARM_PRIORITY_RULE: [ALL, ALL, NONE],
+    PRIORITY_LEVEL: [ALL, NONE, NONE],
     RUNBOOK:        [ALL,  ALL,  NONE],
     FINAL_ACTION:   [ALL,  ALL,  NONE],
     ALARM:          [ALL,  ALL,  NONE],
@@ -75,6 +81,8 @@ const PERMISSIONS: Record<keyof typeof ROLE_IDS, Record<SystemComponent, Tuple>>
     ENVIRONMENT:    [ALL, ALL, ALL],
     RESOURCE:       [ALL, ALL, ALL],
     IGNORED_ALARM:  [ALL, ALL, ALL],
+    ALARM_PRIORITY_RULE: [ALL, ALL, ALL],
+    PRIORITY_LEVEL: [ALL, ALL, ALL],
     RUNBOOK:        [ALL, ALL, ALL],
     FINAL_ACTION:   [ALL, ALL, ALL],
     ALARM:          [ALL, ALL, ALL],
@@ -214,6 +222,72 @@ const RESOURCE_TYPE_IDS = {
   CRONJOB:     "d0000000-0000-0000-0000-000000000004",
 } as const;
 
+async function seedPriorityLevels() {
+  console.log("\n🚦 Seeding priority levels...");
+
+  const levels = [
+    {
+      code:           "NORMAL",
+      label:          "Normale",
+      description:    "Priorità operativa standard applicata quando nessuna regola specifica fa match.",
+      rank:           0,
+      color:          "zinc",
+      icon:           "minus",
+      isActive:       true,
+      isDefault:      true,
+      countsAsOnCall: false,
+      defaultNotify:  false,
+      isSystem:       true,
+    },
+    {
+      code:           "HIGH",
+      label:          "High",
+      description:    "Priorità operativa elevata per allarmi che richiedono attenzione rapida.",
+      rank:           50,
+      color:          "amber",
+      icon:           "triangle-alert",
+      isActive:       true,
+      isDefault:      false,
+      countsAsOnCall: false,
+      defaultNotify:  true,
+      isSystem:       true,
+    },
+    {
+      code:           "ON_CALL",
+      label:          "On-Call",
+      description:    "Priorità operativa massima per allarmi di reperibilità.",
+      rank:           100,
+      color:          "rose",
+      icon:           "phone-call",
+      isActive:       true,
+      isDefault:      false,
+      countsAsOnCall: true,
+      defaultNotify:  true,
+      isSystem:       true,
+    },
+  ];
+
+  for (const level of levels) {
+    await prisma.priorityLevel.upsert({
+      where: { code: level.code },
+      update: {
+        label:          level.label,
+        description:    level.description,
+        rank:           level.rank,
+        color:          level.color,
+        icon:           level.icon,
+        isActive:       level.isActive,
+        isDefault:      level.isDefault,
+        countsAsOnCall: level.countsAsOnCall,
+        defaultNotify:  level.defaultNotify,
+        isSystem:       level.isSystem,
+      },
+      create: level,
+    });
+    console.log(`  ✅ ${level.code}`);
+  }
+}
+
 async function seedResourceTypes() {
   console.log("\n📦 Seeding resource types...");
 
@@ -331,6 +405,7 @@ async function main() {
   await seedRoles();
   await seedPermissions();
   await seedIgnoreReasons();
+  await seedPriorityLevels();
   await seedResourceTypes();
   await seedAdmin();
   await seedSystemSettings();

@@ -1,12 +1,12 @@
 import { memo } from 'react'
 import Link from 'next/link'
 import { PhoneCall, BookOpen, FileSearch, AlertTriangle, EyeOff } from 'lucide-react'
-import { formatDateTimeUTC, isHighPriorityAlarm } from '@go-watchtower/shared'
+import { formatDateTimeUTC } from '@go-watchtower/shared'
 import type { AlarmEvent } from '@/lib/api-client'
 
 /** Thin wrapper so existing call-sites keep working with an AlarmEvent object. */
-export function isHighPriorityEvent(event: AlarmEvent): boolean {
-  return isHighPriorityAlarm(event.name)
+export function isHighEvent(event: AlarmEvent): boolean {
+  return event.priority.rank > 0 && !event.priority.countsAsOnCall
 }
 
 type EmbeddedAlarm = NonNullable<AlarmEvent['alarm']>
@@ -40,14 +40,14 @@ export const AlarmEventCell = memo(function AlarmEventCell({
         ? (
           <span className="inline-flex shrink-0 items-center gap-1 rounded bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
             <PhoneCall className="h-2.5 w-2.5" />
-            on-call
+            {event.priority.label}
           </span>
         )
-        : isHighPriorityEvent(event)
+        : event.priority.rank > 0
           ? (
             <span className="inline-flex shrink-0 items-center gap-1 rounded bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
               <AlertTriangle className="h-2.5 w-2.5" />
-              high
+              {event.priority.label}
             </span>
           )
           : isIgnored

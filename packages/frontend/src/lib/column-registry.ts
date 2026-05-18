@@ -24,7 +24,7 @@ export interface ColumnDef {
 export const COLUMN_REGISTRY: Record<string, ColumnDef[]> = {
   alarmEvents: [
     { id: 'firedAt',      label: 'Data scatto',   locked: true,          defaultWidth: 186, minWidth: 130, sortKey: 'firedAt' },
-    { id: 'tipo',         label: 'Tipo',                                 defaultWidth: 122, minWidth: 76 },
+    { id: 'tipo',         label: 'Priority',                             defaultWidth: 122, minWidth: 76 },
     { id: 'link',         label: 'Allarme',                              defaultWidth: 80,  minWidth: 44 },
     { id: 'analysis',     label: 'Analisi',                              defaultWidth: 80,  minWidth: 44 },
     { id: 'name',         label: 'Nome allarme',                         defaultWidth: 510, minWidth: 140 },

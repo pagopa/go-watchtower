@@ -16,6 +16,8 @@ import { reportRoutes } from "./routes/reports/index.js";
 import { ignoreReasonRoutes } from "./routes/ignore-reasons/index.js";
 import { resourceTypeRoutes } from "./routes/resource-types/index.js";
 import { alarmEventRoutes } from "./routes/alarm-events/index.js";
+import { priorityLevelRoutes } from "./routes/priority-levels/index.js";
+import { alarmPriorityRuleRoutes } from "./routes/alarm-priority-rules/index.js";
 import { systemEventRoutes } from "./routes/system-events/index.js";
 import { settingRoutes } from "./routes/settings/index.js";
 import { alarmRoutes } from "./routes/alarms/index.js";
@@ -65,6 +67,8 @@ export async function buildApp() {
   await app.register(ignoreReasonRoutes, { prefix: "/api" });
   await app.register(resourceTypeRoutes, { prefix: "/api" });
   await app.register(alarmEventRoutes, { prefix: "/api" });
+  await app.register(priorityLevelRoutes, { prefix: "/api" });
+  await app.register(alarmPriorityRuleRoutes, { prefix: "/api" });
   await app.register(systemEventRoutes, { prefix: "/api" });
   await app.register(settingRoutes, { prefix: "/api" });
   await app.register(alarmRoutes, { prefix: "/api" });

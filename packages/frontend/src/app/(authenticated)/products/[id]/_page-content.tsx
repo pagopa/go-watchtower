@@ -13,6 +13,7 @@ import {
   BookOpen,
   Bell,
   BellOff,
+  Flag,
   ArrowDownRight,
   CheckCircle2,
   CalendarDays,
@@ -35,6 +36,7 @@ import { AlarmsTab } from './_components/alarms-tab'
 import { DownstreamsTab } from './_components/downstreams-tab'
 import { FinalActionsTab } from './_components/final-actions-tab'
 import { IgnoredAlarmsTab } from './_components/ignored-alarms-tab'
+import { PriorityRulesTab } from './_components/priority-rules-tab'
 
 const TAB_TRIGGER_CLASS =
   'justify-start gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground whitespace-nowrap ' +
@@ -97,11 +99,12 @@ function ProductDetailContent() {
   const canReadDownstreams = permissionsLoading || can('DOWNSTREAM', 'read')
   const canReadFinalActions = permissionsLoading || can('FINAL_ACTION', 'read')
   const canReadIgnoredAlarms = permissionsLoading || can('IGNORED_ALARM', 'read')
+  const canReadPriorityRules = permissionsLoading || can('ALARM_PRIORITY_RULE', 'read')
 
   // Tab configuration — must be before early returns so hooks are stable
   const hasAnyTab =
     canReadEnvironments || canReadResources || canReadRunbooks || canReadAlarms ||
-    canReadDownstreams || canReadFinalActions || canReadIgnoredAlarms
+    canReadDownstreams || canReadFinalActions || canReadIgnoredAlarms || canReadPriorityRules
 
   const firstTab = canReadEnvironments
     ? 'environments'
@@ -111,6 +114,8 @@ function ProductDetailContent() {
         ? 'runbooks'
         : canReadAlarms
           ? 'alarms'
+          : canReadPriorityRules
+            ? 'priority-rules'
           : canReadIgnoredAlarms
             ? 'ignored-alarms'
             : canReadDownstreams
@@ -159,6 +164,12 @@ function ProductDetailContent() {
     queryFn: () => api.getIgnoredAlarms(productId),
     select: (data) => data.length,
     enabled: canReadIgnoredAlarms && productLoaded,
+  })
+  const { data: priorityRuleCount } = useQuery({
+    queryKey: qk.products.alarmPriorityRules(productId),
+    queryFn: () => api.getAlarmPriorityRules(productId),
+    select: (data) => data.length,
+    enabled: canReadPriorityRules && productLoaded,
   })
   const { data: downstreamCount } = useQuery({
     queryKey: qk.products.downstreams(productId),
@@ -354,6 +365,13 @@ function ProductDetailContent() {
                   <TabCount count={ignoredAlarmCount} />
                 </TabsTrigger>
               )}
+              {canReadPriorityRules && (
+                <TabsTrigger value="priority-rules" className={TAB_TRIGGER_CLASS}>
+                  <Flag className="h-4 w-4 shrink-0" />
+                  Priority
+                  <TabCount count={priorityRuleCount} />
+                </TabsTrigger>
+              )}
               {canReadDownstreams && (
                 <TabsTrigger value="downstreams" className={TAB_TRIGGER_CLASS}>
                   <ArrowDownRight className="h-4 w-4 shrink-0" />
@@ -404,6 +422,13 @@ function ProductDetailContent() {
                 <TabsContent value="ignored-alarms" className="mt-0">
                   <div className="rounded-xl border bg-card p-5">
                     <IgnoredAlarmsTab productId={productId} />
+                  </div>
+                </TabsContent>
+              )}
+              {canReadPriorityRules && (
+                <TabsContent value="priority-rules" className="mt-0">
+                  <div className="rounded-xl border bg-card p-5">
+                    <PriorityRulesTab productId={productId} />
                   </div>
                 </TabsContent>
               )}
