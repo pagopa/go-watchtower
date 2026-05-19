@@ -14,7 +14,6 @@
     "test:e2e:debug": "playwright test --debug"
   },
   "dependencies": {
-    "@auth/core": "^0.34.3",
     "@go-watchtower/shared": "workspace:*",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-alert-dialog": "^1.1.15",
