@@ -5,8 +5,9 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
   X, Pencil, Trash2, ExternalLink, Copy, Check, Unlink,
   Bell, FileText, ListChecks, Info, ShieldCheck, Zap,
-  XCircle, AlertCircle, CheckCircle, Circle, ChevronDown, Lock,
+  XCircle, AlertCircle, CheckCircle, Circle, ChevronDown, Lock, Link2,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -763,6 +764,19 @@ export function AnalysisDetailPanel({
                   <Trash2 className="h-3.5 w-3.5 text-destructive" />
                 </Button>
               )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => {
+                  const url = `${window.location.origin}/analyses?productId=${analysis.productId}&analysisId=${analysis.id}`
+                  void navigator.clipboard.writeText(url)
+                  toast.success('Link copiato negli appunti')
+                }}
+                title="Copia link condivisibile"
+              >
+                <Link2 className="h-3.5 w-3.5" />
+              </Button>
               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
                 <X className="h-3.5 w-3.5" />
               </Button>
