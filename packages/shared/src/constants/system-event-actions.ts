@@ -25,6 +25,7 @@ export const SystemEventActions = {
   ANALYSIS_UPDATED:            'ANALYSIS_UPDATED',
   ANALYSIS_DELETED:            'ANALYSIS_DELETED',
   ANALYSIS_STATUS_CHANGED:     'ANALYSIS_STATUS_CHANGED',
+  ANALYSIS_EXPORTED:           'ANALYSIS_EXPORTED',
 
   // Impostazioni di sistema
   SETTING_UPDATED:             'SETTING_UPDATED',

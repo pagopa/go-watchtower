@@ -306,6 +306,39 @@ export const AnalysisAuthorsResponseSchema = Type.Array(AnalysisAuthorSchema);
 export type AnalysisAuthor = Static<typeof AnalysisAuthorSchema>;
 
 // ============================================================================
+// Export Schemas
+// ============================================================================
+
+const ExportFiltersSchema = Type.Object({
+  search: Type.Optional(Type.String()),
+  analysisType: Type.Optional(Type.Union([AnalysisTypeSchema, Type.Array(AnalysisTypeSchema)])),
+  status: Type.Optional(Type.Union([AnalysisStatusSchema, Type.Array(AnalysisStatusSchema)])),
+  isOnCall: Type.Optional(Type.Boolean()),
+  operatorId: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())])),
+  environmentId: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())])),
+  alarmId: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())])),
+  finalActionId: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())])),
+  productId: Type.Optional(Type.String()),
+  createdById: Type.Optional(Type.String()),
+  dateFrom: Type.Optional(Type.String()),
+  dateTo: Type.Optional(Type.String()),
+  ignoreReasonCode: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())])),
+  runbookId: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())])),
+  resourceId: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())])),
+  downstreamId: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())])),
+  priorityCode: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())])),
+  traceId: Type.Optional(Type.String()),
+});
+
+export const ExportRequestSchema = Type.Object({
+  format: Type.Union([Type.Literal("csv"), Type.Literal("json")]),
+  ids: Type.Optional(Type.Array(Type.String({ format: "uuid" }))),
+  filters: Type.Optional(ExportFiltersSchema),
+});
+
+export type ExportRequest = Static<typeof ExportRequestSchema>;
+
+// ============================================================================
 // Analysis Stats Schemas
 // ============================================================================
 

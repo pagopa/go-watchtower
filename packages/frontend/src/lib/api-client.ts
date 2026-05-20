@@ -253,6 +253,51 @@ async function request<T>(
   return response.json()
 }
 
+/**
+ * Variant of request() that returns a Blob (for file downloads).
+ * Reuses the same auth + refresh-on-401 flow as request().
+ */
+async function requestBlob(
+  endpoint: string,
+  options: RequestOptions = {},
+): Promise<Blob> {
+  const { body, params, ...init } = options
+  const url = buildUrl(endpoint, params)
+
+  let accessToken = getAccessToken()
+  if (!accessToken) {
+    const refreshResult = await refreshSessionDeduped()
+    accessToken = refreshResult.accessToken
+  }
+  if (!accessToken) {
+    throw new ApiClientError('No access token', 401)
+  }
+
+  let response = await doFetch(url, accessToken, init, body)
+
+  if (response.status === 401) {
+    const refreshed = await refreshSessionDeduped(accessToken)
+    if (refreshed.status === 'refreshed') {
+      response = await doFetch(url, refreshed.accessToken, init, body)
+    } else if (refreshed.status === 'deferred') {
+      throw new ApiClientError('Session refresh temporarily unavailable', 503)
+    } else {
+      forceReAuth()
+    }
+  }
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: 'An error occurred' }))
+    throw new ApiClientError(
+      error.message || error.error || `HTTP error ${response.status}`,
+      response.status,
+      error,
+    )
+  }
+
+  return response.blob()
+}
+
 // Types
 export interface User {
   id: string
@@ -568,6 +613,12 @@ export interface AlarmAnalysis {
   avgMttaMs: number | null
   avgMttrMs: number | null
   avgMttfMs: number | null
+}
+
+export interface ExportAnalysesRequest {
+  format: 'csv' | 'json'
+  ids?: string[]
+  filters?: Omit<AlarmAnalysisFilters, 'page' | 'pageSize' | 'sortBy' | 'sortOrder'>
 }
 
 export interface AlarmAnalysisFilters {
@@ -1230,6 +1281,8 @@ export const api = {
       params: filters as Record<string, string | number | boolean | undefined>,
     }),
   getAnalysisAuthors: () => request<AnalysisAuthor[]>('/api/analyses/authors'),
+  exportAnalyses: (body: ExportAnalysesRequest) =>
+    requestBlob('/api/analyses/export', { method: 'POST', body }),
   getAnalysisPolicy: () => request<{ editLockDays: number; analysisFutureOffsetMinutes: number }>('/api/analyses/policy'),
   getIgnoreReasons: () => request<IgnoreReason[]>('/api/ignore-reasons'),
   getIgnoreReason: (code: string) => request<IgnoreReason>(`/api/ignore-reasons/${code}`),

@@ -5,6 +5,7 @@ import {
   TableCell,
   TableRow,
 } from '@/components/ui/table'
+import { Checkbox } from '@/components/ui/checkbox'
 import type { ColumnDef } from '@/hooks/use-column-settings'
 import type { AlarmAnalysis } from '@/lib/api-client'
 import type { ValidationResult, QualityResult } from '@/lib/analysis-validation'
@@ -28,6 +29,9 @@ export interface AnalysisTableRowProps {
   onEdit: (analysis: AlarmAnalysis) => void
   onDelete: (analysis: AlarmAnalysis) => void
   onValidationClick: (analysis: AlarmAnalysis) => void
+  selectable?: boolean
+  checkboxSelected?: boolean
+  onToggleCheckbox?: (id: string) => void
 }
 
 export const AnalysisTableRow = memo(function AnalysisTableRow({
@@ -46,6 +50,9 @@ export const AnalysisTableRow = memo(function AnalysisTableRow({
   onEdit,
   onDelete,
   onValidationClick,
+  selectable,
+  checkboxSelected,
+  onToggleCheckbox,
 }: AnalysisTableRowProps) {
   return (
     <TableRow
@@ -58,10 +65,23 @@ export const AnalysisTableRow = memo(function AnalysisTableRow({
             : 'transition-colors hover:bg-muted/30')
       }
       onClick={(e) => {
-        if ((e.target as HTMLElement).closest('button')) return
+        const target = e.target as HTMLElement
+        if (target.closest('button') || target.closest('input[type="checkbox"]')) return
         onRowClick(analysis)
       }}
     >
+      {selectable && (
+        <TableCell
+          className="w-10 py-2.5 align-middle"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Checkbox
+            checked={!!checkboxSelected}
+            onChange={() => onToggleCheckbox?.(analysis.id)}
+            aria-label="Seleziona analisi"
+          />
+        </TableCell>
+      )}
       {visibleColumns.map((col, colIdx) => {
         const isLastDataCol = colIdx === visibleColumns.length - 1
         return (

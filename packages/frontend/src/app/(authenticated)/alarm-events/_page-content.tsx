@@ -172,7 +172,7 @@ function AlarmEventsPageContent() {
   }, [])
 
   const persistFilters = useCallback(
-    (value: Record<string, unknown> | null) => {
+    (value: Record<string, unknown>) => {
       updatePreferences({
         savedFilters: { ...preferences.savedFilters, [FILTER_KEY]: value } as Record<string, Record<string, unknown>>,
       })
@@ -514,7 +514,7 @@ function AlarmEventsPageContent() {
     setPage(1)
     clearSelection()
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    persistFilters(null)
+    persistFilters({})
   }, [clearSelection, persistFilters])
 
 

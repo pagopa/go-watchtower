@@ -80,6 +80,8 @@ import {
 } from "./_components/analysis-filters";
 import type { AnalysisFormData } from "./_components/analysis-form-dialog";
 import { AnalysisDetailPanel } from "./_components/analysis-detail-panel";
+import { ExportAnalysesMenu } from "./_components/export-analyses-menu";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   CreateAnalysisDropdown,
   type ShortcutType,
@@ -307,6 +309,21 @@ function AnalysesPageContent() {
   const [showDetailPanel, setShowDetailPanel] = useState(false);
   const [lingeringId, setLingeringId] = useState<string | null>(null);
   const lingeringTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Selection state for export (persists across pages, reset on filter change)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const toggleSelected = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+  // Reset selection when filters change (productId, search, type, etc.)
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [filters, effectiveProductId]);
 
   useEffect(
     () => () => {
@@ -933,6 +950,17 @@ function AnalysesPageContent() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          {viewMode === "list" && (
+            <ExportAnalysesMenu
+              selectedIds={Array.from(selectedIds)}
+              filteredCount={pagination?.totalItems ?? 0}
+              filters={(() => {
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                const { page: _p, pageSize: _ps, sortBy: _sb, sortOrder: _so, ...rest } = analysisQueryParams
+                return rest
+              })()}
+            />
+          )}
           <ColumnConfigurator
             allColumns={allColumns}
             isVisible={isVisible}
@@ -1050,6 +1078,35 @@ function AnalysesPageContent() {
                   sortOrder={sortOrder}
                   onSort={handleSort}
                   hasActions={canWrite || canDelete}
+                  prependContent={
+                    <th className="w-10 px-3 py-2 align-middle">
+                      <Checkbox
+                        checked={
+                          analyses.length > 0 &&
+                          analyses.every((a) => selectedIds.has(a.id))
+                        }
+                        indeterminate={
+                          analyses.some((a) => selectedIds.has(a.id)) &&
+                          !analyses.every((a) => selectedIds.has(a.id))
+                        }
+                        onChange={() => {
+                          const allSelected = analyses.every((a) =>
+                            selectedIds.has(a.id),
+                          );
+                          setSelectedIds((prev) => {
+                            const next = new Set(prev);
+                            if (allSelected) {
+                              for (const a of analyses) next.delete(a.id);
+                            } else {
+                              for (const a of analyses) next.add(a.id);
+                            }
+                            return next;
+                          });
+                        }}
+                        aria-label="Seleziona tutte le analisi della pagina"
+                      />
+                    </th>
+                  }
                 />
                 <TableBody>
                   {analyses.map((analysis) => (
@@ -1079,6 +1136,9 @@ function AnalysesPageContent() {
                       onEdit={handleEdit}
                       onDelete={handleDelete}
                       onValidationClick={setValidationPanelAnalysis}
+                      selectable
+                      checkboxSelected={selectedIds.has(analysis.id)}
+                      onToggleCheckbox={toggleSelected}
                     />
                   ))}
                 </TableBody>
