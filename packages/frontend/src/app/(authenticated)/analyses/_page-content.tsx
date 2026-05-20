@@ -227,7 +227,7 @@ function AnalysesPageContent() {
 
   // Helper: persist a single product's filters while keeping all other entries.
   const persistFilters = useCallback(
-    (key: string, value: Record<string, unknown> | null) => {
+    (key: string, value: Record<string, unknown>) => {
       updatePreferences({
         savedFilters: { ...savedFiltersRef.current, [key]: value } as Record<
           string,
@@ -729,7 +729,7 @@ function AnalysesPageContent() {
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
     }
-    persistFiltersRef.current(filterKeyRef.current, null);
+    persistFiltersRef.current(filterKeyRef.current, {});
   }, [setFilterOverrides, setPage]);
 
   const handleRowClick = (analysis: AlarmAnalysis) => {
