@@ -170,6 +170,7 @@ export function formatAnalysisListResponse(analysis: AnalysisListRow) {
     linkedEventsCount: analysis._count.alarmEvents,
     avgMttaMs: null as number | null,
     avgMttrMs: null as number | null,
+    avgMttfMs: null as number | null,
   };
 }
 
@@ -219,6 +220,7 @@ export function formatAnalysisResponse(analysis: AnalysisWithRelations) {
     linkedEventsCount: analysis._count.alarmEvents,
     avgMttaMs: null as number | null,
     avgMttrMs: null as number | null,
+    avgMttfMs: null as number | null,
   };
 }
 

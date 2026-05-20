@@ -75,6 +75,8 @@ export function MttaTrendTab({ products }: MttaTrendTabProps) {
       medianMtta: formatDuration(item.medianMttaMs),
       avgMttr: formatDuration(item.avgMttrMs),
       medianMttr: formatDuration(item.medianMttrMs),
+      avgMttf: formatDuration(item.avgMttfMs),
+      medianMttf: formatDuration(item.medianMttfMs),
       eventCount: item.eventCount,
       resolvedCount: item.resolvedCount,
     }))
@@ -84,14 +86,16 @@ export function MttaTrendTab({ products }: MttaTrendTabProps) {
       { key: 'medianMtta', label: 'MTTA Mediano' },
       { key: 'avgMttr', label: 'MTTR Medio' },
       { key: 'medianMttr', label: 'MTTR Mediano' },
+      { key: 'avgMttf', label: 'MTTF Medio' },
+      { key: 'medianMttf', label: 'MTTF Mediano' },
       { key: 'eventCount', label: 'Eventi' },
       { key: 'resolvedCount', label: 'Risolti' },
-    ], 'mtta-mttr-trend')
+    ], 'mtta-mttr-mttf-trend')
   }, [data, granularity])
 
   const handleExportJson = useCallback(() => {
     if (!data) return
-    downloadJson(data, 'mtta-mttr-trend')
+    downloadJson(data, 'mtta-mttr-mttf-trend')
   }, [data])
 
   return (
@@ -164,6 +168,8 @@ export function MttaTrendTab({ products }: MttaTrendTabProps) {
                   <TableHead className="text-right">MTTA Mediano</TableHead>
                   <TableHead className="text-right">MTTR Medio</TableHead>
                   <TableHead className="text-right">MTTR Mediano</TableHead>
+                  <TableHead className="text-right">MTTF Medio</TableHead>
+                  <TableHead className="text-right">MTTF Mediano</TableHead>
                   <TableHead className="text-right">Eventi</TableHead>
                   <TableHead className="text-right">Risolti</TableHead>
                 </TableRow>
@@ -176,6 +182,8 @@ export function MttaTrendTab({ products }: MttaTrendTabProps) {
                     <TableCell className="text-right font-mono text-sm">{formatDuration(item.medianMttaMs)}</TableCell>
                     <TableCell className="text-right font-mono text-sm">{formatDuration(item.avgMttrMs)}</TableCell>
                     <TableCell className="text-right font-mono text-sm">{formatDuration(item.medianMttrMs)}</TableCell>
+                    <TableCell className="text-right font-mono text-sm">{formatDuration(item.avgMttfMs)}</TableCell>
+                    <TableCell className="text-right font-mono text-sm">{formatDuration(item.medianMttfMs)}</TableCell>
                     <TableCell className="text-right">{item.eventCount}</TableCell>
                     <TableCell className="text-right">{item.resolvedCount}</TableCell>
                   </TableRow>

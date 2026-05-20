@@ -57,6 +57,10 @@ export async function registerOperatorWorkloadReportRoute(
         }
 
         const whereSQL = conditions.join(" AND ");
+        // Qualified WHERE for joins: same conditions but on aliased alarm_analyses (aa.*)
+        const whereSQLAa = conditions
+          .map((c) => c.replace(/\b(first_alarm_at|product_id|analysis_date)\b/g, "aa.$1"))
+          .join(" AND ");
 
         const [
           byOperator,
@@ -65,6 +69,8 @@ export async function registerOperatorWorkloadReportRoute(
           byOperatorEnvOnCall,
           mttaByOperator,
           mttaByOperatorEnv,
+          mttfByOperator,
+          mttfByOperatorEnv,
         ] = await Promise.all([
           prisma.alarmAnalysis.groupBy({
             by: ["operatorId"],
@@ -108,6 +114,36 @@ export async function registerOperatorWorkloadReportRoute(
              FROM alarm_analyses
              WHERE ${whereSQL}
              GROUP BY operator_id, environment_id`,
+            ...sqlParams,
+          ),
+          prisma.$queryRawUnsafe<
+            Array<{ operator_id: string; mttf_ms: number | null }>
+          >(
+            `SELECT aa.operator_id,
+                    AVG(EXTRACT(EPOCH FROM (ae.resolved_at - ae.linked_at)) * 1000) AS mttf_ms
+             FROM alarm_analyses aa
+             JOIN alarm_events ae ON ae.analysis_id = aa.id
+             WHERE ${whereSQLAa}
+               AND ae.linked_at IS NOT NULL
+               AND ae.resolved_at IS NOT NULL
+             GROUP BY aa.operator_id`,
+            ...sqlParams,
+          ),
+          prisma.$queryRawUnsafe<
+            Array<{
+              operator_id: string;
+              environment_id: string;
+              mttf_ms: number | null;
+            }>
+          >(
+            `SELECT aa.operator_id, ae.environment_id,
+                    AVG(EXTRACT(EPOCH FROM (ae.resolved_at - ae.linked_at)) * 1000) AS mttf_ms
+             FROM alarm_analyses aa
+             JOIN alarm_events ae ON ae.analysis_id = aa.id
+             WHERE ${whereSQLAa}
+               AND ae.linked_at IS NOT NULL
+               AND ae.resolved_at IS NOT NULL
+             GROUP BY aa.operator_id, ae.environment_id`,
             ...sqlParams,
           ),
         ]);
@@ -172,6 +208,22 @@ export async function registerOperatorWorkloadReportRoute(
           );
         }
 
+        const mttfMap = new Map<string, number | null>();
+        for (const row of mttfByOperator) {
+          mttfMap.set(
+            row.operator_id,
+            row.mttf_ms != null ? Number(row.mttf_ms) : null,
+          );
+        }
+
+        const envMttfMap = new Map<string, number | null>();
+        for (const row of mttfByOperatorEnv) {
+          envMttfMap.set(
+            `${row.operator_id}:${row.environment_id}`,
+            row.mttf_ms != null ? Number(row.mttf_ms) : null,
+          );
+        }
+
         const envEntriesByOperator = new Map<string, typeof byOperatorEnv>();
         for (const entry of byOperatorEnv) {
           const bucket = envEntriesByOperator.get(entry.operatorId);
@@ -195,6 +247,7 @@ export async function registerOperatorWorkloadReportRoute(
               onCallAnalyses: onCallMap.get(row.operatorId) || 0,
               totalOccurrences: row._sum.occurrences || 0,
               mttaMs: mttaMap.get(row.operatorId) ?? null,
+              mttfMs: mttfMap.get(row.operatorId) ?? null,
               byEnvironment: envEntries.map((envEntry) => ({
                 environmentId: envEntry.environmentId,
                 environmentName:
@@ -207,6 +260,10 @@ export async function registerOperatorWorkloadReportRoute(
                 occurrences: envEntry._sum.occurrences || 0,
                 mttaMs:
                   envMttaMap.get(
+                    `${row.operatorId}:${envEntry.environmentId}`,
+                  ) ?? null,
+                mttfMs:
+                  envMttfMap.get(
                     `${row.operatorId}:${envEntry.environmentId}`,
                   ) ?? null,
               })),

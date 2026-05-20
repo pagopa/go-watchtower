@@ -567,6 +567,7 @@ export interface AlarmAnalysis {
   linkedEventsCount: number
   avgMttaMs: number | null
   avgMttrMs: number | null
+  avgMttfMs: number | null
 }
 
 export interface AlarmAnalysisFilters {
@@ -819,6 +820,7 @@ export interface OperatorWorkloadItem {
   onCallAnalyses: number
   totalOccurrences: number
   mttaMs: number | null
+  mttfMs: number | null
   byEnvironment: Array<{
     environmentId: string
     environmentName: string
@@ -826,6 +828,7 @@ export interface OperatorWorkloadItem {
     onCallCount: number
     occurrences: number
     mttaMs: number | null
+    mttfMs: number | null
   }>
 }
 
@@ -902,10 +905,11 @@ export interface AlarmDetailData {
     totalOccurrences: number
     avgMttaMs: number | null
     avgMttrMs: number | null
+    avgMttfMs: number | null
     ignorableRatio: number
   }
   occurrenceTrend: Array<{ date: string; count: number; occurrences: number }>
-  mttaTrend: Array<{ date: string; avgMttaMs: number | null; avgMttrMs: number | null; eventCount: number }>
+  mttaTrend: Array<{ date: string; avgMttaMs: number | null; avgMttrMs: number | null; avgMttfMs: number | null; eventCount: number }>
   byEnvironment: Array<{
     environmentId: string
     environmentName: string
@@ -953,8 +957,11 @@ export interface MttaTrendItem {
   medianMttaMs: number | null
   avgMttrMs: number | null
   medianMttrMs: number | null
+  avgMttfMs: number | null
+  medianMttfMs: number | null
   eventCount: number
   resolvedCount: number
+  fixedCount: number
 }
 
 // Daily Activity Types

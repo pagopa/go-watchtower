@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 const COLORS = {
   mtta: 'hsl(var(--chart-1, 220 70% 50%))',
   mttr: 'hsl(var(--chart-4, 280 65% 55%))',
+  mttf: 'hsl(var(--chart-2, 160 60% 45%))',
   bar: 'hsl(var(--chart-3, 30 80% 55%))',
 }
 
@@ -24,6 +25,7 @@ interface Props {
     date: string
     avgMttaMs: number | null
     avgMttrMs: number | null
+    avgMttfMs: number | null
     eventCount: number
   }>
 }
@@ -60,6 +62,7 @@ const MttaMttrTrendChart = memo(function MttaMttrTrendChart({ data }: Props) {
         label: dt.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' }),
         'MTTA Medio': msToHours(d.avgMttaMs),
         'MTTR Medio': msToHours(d.avgMttrMs),
+        'MTTF Medio': msToHours(d.avgMttfMs),
         eventi: d.eventCount,
       }
     }),
@@ -69,7 +72,7 @@ const MttaMttrTrendChart = memo(function MttaMttrTrendChart({ data }: Props) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Trend MTTA / MTTR giornaliero</CardTitle>
+        <CardTitle className="text-base">Trend MTTA / MTTR / MTTF giornaliero</CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
@@ -115,6 +118,15 @@ const MttaMttrTrendChart = memo(function MttaMttrTrendChart({ data }: Props) {
               strokeWidth={2}
               dot={{ r: 2 }}
               name="MTTR Medio"
+            />
+            <Line
+              yAxisId="time"
+              type="monotone"
+              dataKey="MTTF Medio"
+              stroke={COLORS.mttf}
+              strokeWidth={2}
+              dot={{ r: 2 }}
+              name="MTTF Medio"
             />
           </ComposedChart>
         </ResponsiveContainer>

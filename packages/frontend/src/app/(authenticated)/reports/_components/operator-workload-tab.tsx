@@ -78,6 +78,7 @@ export function OperatorWorkloadTab({ products }: OperatorWorkloadTabProps) {
             onCall: env.onCallCount,
             occurrences: env.occurrences,
             mttaMs: env.mttaMs,
+            mttfMs: env.mttfMs,
           }))
         : [{
             operatorName: op.operatorName,
@@ -87,6 +88,7 @@ export function OperatorWorkloadTab({ products }: OperatorWorkloadTabProps) {
             onCall: op.onCallAnalyses,
             occurrences: op.totalOccurrences,
             mttaMs: op.mttaMs,
+            mttfMs: op.mttfMs,
           }]
     )
     downloadCsv(flat, [
@@ -97,6 +99,7 @@ export function OperatorWorkloadTab({ products }: OperatorWorkloadTabProps) {
       { key: 'onCall', label: 'On-call' },
       { key: 'occurrences', label: 'Occorrenze' },
       { key: 'mttaMs', label: 'MTTA (ms)' },
+      { key: 'mttfMs', label: 'MTTF (ms)' },
     ], 'report-operatori')
   }
 
@@ -171,6 +174,7 @@ export function OperatorWorkloadTab({ products }: OperatorWorkloadTabProps) {
                 <TableHead className="text-right">On-call</TableHead>
                 <TableHead className="text-right">Occorrenze</TableHead>
                 <TableHead className="text-right">MTTA</TableHead>
+                <TableHead className="text-right">MTTF</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -206,6 +210,7 @@ export function OperatorWorkloadTab({ products }: OperatorWorkloadTabProps) {
                       </TableCell>
                       <TableCell className="text-right">{op.totalOccurrences}</TableCell>
                       <TableCell className="text-right font-mono text-sm">{formatDuration(op.mttaMs)}</TableCell>
+                      <TableCell className="text-right font-mono text-sm">{formatDuration(op.mttfMs)}</TableCell>
                     </TableRow>
                     {isExpanded && op.byEnvironment.map((env) => {
                       const envOnCallPct = env.count > 0
@@ -224,6 +229,7 @@ export function OperatorWorkloadTab({ products }: OperatorWorkloadTabProps) {
                           </TableCell>
                           <TableCell className="text-right text-sm">{env.occurrences}</TableCell>
                           <TableCell className="text-right font-mono text-sm">{formatDuration(env.mttaMs)}</TableCell>
+                          <TableCell className="text-right font-mono text-sm">{formatDuration(env.mttfMs)}</TableCell>
                         </TableRow>
                       )
                     })}

@@ -14,6 +14,8 @@ const COLORS = {
   mttaMedian: 'hsl(var(--chart-2, 160 60% 45%))',
   mttrAvg: 'hsl(var(--chart-4, 280 65% 55%))',
   mttrMedian: 'hsl(var(--chart-5, 340 70% 50%))',
+  mttfAvg: 'hsl(var(--chart-6, 45 90% 50%))',
+  mttfMedian: 'hsl(var(--chart-7, 200 80% 45%))',
   bar: 'hsl(var(--chart-3, 30 80% 55%))',
 }
 
@@ -64,6 +66,8 @@ const MttaTrendChart = memo(function MttaTrendChart({ data, granularity }: Props
       'MTTA Mediano': msToHours(d.medianMttaMs),
       'MTTR Medio': msToHours(d.avgMttrMs),
       'MTTR Mediano': msToHours(d.medianMttrMs),
+      'MTTF Medio': msToHours(d.avgMttfMs),
+      'MTTF Mediano': msToHours(d.medianMttfMs),
       eventi: d.eventCount,
     })),
     [data, granularity]
@@ -72,7 +76,7 @@ const MttaTrendChart = memo(function MttaTrendChart({ data, granularity }: Props
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Trend MTTA / MTTR nel tempo</CardTitle>
+        <CardTitle className="text-base">Trend MTTA / MTTR / MTTF nel tempo</CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={350}>
@@ -138,6 +142,25 @@ const MttaTrendChart = memo(function MttaTrendChart({ data, granularity }: Props
               strokeDasharray="5 5"
               dot={{ r: 3 }}
               name="MTTR Mediano"
+            />
+            <Line
+              yAxisId="time"
+              type="monotone"
+              dataKey="MTTF Medio"
+              stroke={COLORS.mttfAvg}
+              strokeWidth={2}
+              dot={{ r: 3 }}
+              name="MTTF Medio"
+            />
+            <Line
+              yAxisId="time"
+              type="monotone"
+              dataKey="MTTF Mediano"
+              stroke={COLORS.mttfMedian}
+              strokeWidth={2}
+              strokeDasharray="5 5"
+              dot={{ r: 3 }}
+              name="MTTF Mediano"
             />
           </ComposedChart>
         </ResponsiveContainer>

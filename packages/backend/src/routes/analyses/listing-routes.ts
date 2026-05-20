@@ -196,12 +196,18 @@ export async function registerAnalysisListingRoutes(
             include: analysisInclude,
           }),
           prisma.$queryRawUnsafe<
-            Array<{ avg_mtta_ms: number | null; avg_mttr_ms: number | null }>
+            Array<{
+              avg_mtta_ms: number | null;
+              avg_mttr_ms: number | null;
+              avg_mttf_ms: number | null;
+            }>
           >(
             `SELECT
                AVG(EXTRACT(EPOCH FROM (linked_at - fired_at)) * 1000) AS avg_mtta_ms,
                AVG(EXTRACT(EPOCH FROM (resolved_at - fired_at)) * 1000)
-                 FILTER (WHERE resolved_at IS NOT NULL) AS avg_mttr_ms
+                 FILTER (WHERE resolved_at IS NOT NULL) AS avg_mttr_ms,
+               AVG(EXTRACT(EPOCH FROM (resolved_at - linked_at)) * 1000)
+                 FILTER (WHERE resolved_at IS NOT NULL) AS avg_mttf_ms
              FROM alarm_events
              WHERE analysis_id = $1
                AND linked_at IS NOT NULL`,
@@ -220,6 +226,8 @@ export async function registerAnalysisListingRoutes(
             row.avg_mtta_ms != null ? Number(row.avg_mtta_ms) : null;
           response.avgMttrMs =
             row.avg_mttr_ms != null ? Number(row.avg_mttr_ms) : null;
+          response.avgMttfMs =
+            row.avg_mttf_ms != null ? Number(row.avg_mttf_ms) : null;
         }
 
         reply.send(response);

@@ -33,8 +33,8 @@ import {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function timeDelta(end: string | null, start: string): string {
-  if (!end) return '—'
+function timeDelta(end: string | null, start: string | null): string {
+  if (!end || !start) return '—'
   const ms = new Date(end).getTime() - new Date(start).getTime()
   return ms > 0 ? formatDuration(ms) : '—'
 }
@@ -159,6 +159,7 @@ function LinkedAlarmEvents({ analysis }: { analysis: AlarmAnalysis }) {
               <th className="px-3 py-2 text-left font-medium">Risolto</th>
               <th className="px-3 py-2 text-left font-medium">TTA</th>
               <th className="px-3 py-2 text-left font-medium">TTR</th>
+              <th className="px-3 py-2 text-left font-medium">TTF</th>
               <th className="px-3 py-2 w-10" />
             </tr>
           </thead>
@@ -213,6 +214,9 @@ function LinkedAlarmEvents({ analysis }: { analysis: AlarmAnalysis }) {
                 </td>
                 <td className="px-3 py-2 font-mono text-xs tabular-nums text-muted-foreground">
                   {timeDelta(event.resolvedAt, event.firedAt)}
+                </td>
+                <td className="px-3 py-2 font-mono text-xs tabular-nums text-muted-foreground">
+                  {timeDelta(event.resolvedAt, event.linkedAt)}
                 </td>
                 <td className="px-1 py-1">
                   <button
@@ -556,7 +560,7 @@ export function AnalysisDetailPanel({
   isLocked = false,
   lockDays,
 }: AnalysisDetailPanelProps) {
-  // Fetch full detail (includes avgMttaMs/avgMttrMs computed from linked events)
+  // Fetch full detail (includes avgMttaMs/avgMttrMs/avgMttfMs computed from linked events)
   const { data: detailAnalysis } = useQuery<AlarmAnalysis>({
     queryKey: listAnalysis ? qk.analyses.detail(listAnalysis.productId, listAnalysis.id) : ['noop'],
     queryFn: () => api.getAnalysis(listAnalysis!.productId, listAnalysis!.id),
@@ -965,6 +969,11 @@ export function AnalysisDetailPanel({
                 <Field label="MTTR">
                   <span className="tabular-nums font-medium">
                     {analysis.avgMttrMs != null ? formatDuration(analysis.avgMttrMs) : '—'}
+                  </span>
+                </Field>
+                <Field label="MTTF">
+                  <span className="tabular-nums font-medium">
+                    {analysis.avgMttfMs != null ? formatDuration(analysis.avgMttfMs) : '—'}
                   </span>
                 </Field>
                 <Field label="Primo allarme">

@@ -22,6 +22,7 @@ const EnvironmentBreakdownSchema = Type.Object({
   onCallCount: Type.Integer(),
   occurrences: Type.Integer(),
   mttaMs: Type.Union([Type.Number(), Type.Null()]),
+  mttfMs: Type.Union([Type.Number(), Type.Null()]),
 });
 
 const OperatorWorkloadItemSchema = Type.Object({
@@ -32,6 +33,7 @@ const OperatorWorkloadItemSchema = Type.Object({
   onCallAnalyses: Type.Integer(),
   totalOccurrences: Type.Integer(),
   mttaMs: Type.Union([Type.Number(), Type.Null()]),
+  mttfMs: Type.Union([Type.Number(), Type.Null()]),
   byEnvironment: Type.Array(EnvironmentBreakdownSchema),
 });
 
@@ -140,8 +142,11 @@ const MttaTrendItemSchema = Type.Object({
   medianMttaMs: Type.Union([Type.Number(), Type.Null()]),
   avgMttrMs: Type.Union([Type.Number(), Type.Null()]),
   medianMttrMs: Type.Union([Type.Number(), Type.Null()]),
+  avgMttfMs: Type.Union([Type.Number(), Type.Null()]),
+  medianMttfMs: Type.Union([Type.Number(), Type.Null()]),
   eventCount: Type.Integer(),
   resolvedCount: Type.Integer(),
+  fixedCount: Type.Integer(),
 });
 
 export const MttaTrendResponseSchema = Type.Array(MttaTrendItemSchema);

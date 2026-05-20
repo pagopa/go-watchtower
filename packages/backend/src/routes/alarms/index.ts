@@ -168,21 +168,27 @@ export async function alarmRoutes(fastify: FastifyInstance): Promise<void> {
                 date: string;
                 avg_mtta_ms: number | null;
                 avg_mttr_ms: number | null;
+                avg_mttf_ms: number | null;
                 event_count: bigint;
                 resolved_count: bigint;
                 sum_mtta_ms: number | null;
                 sum_mttr_ms: number | null;
+                sum_mttf_ms: number | null;
               }>
             >(
               `SELECT DATE(linked_at)::text AS date,
                       AVG(EXTRACT(EPOCH FROM (linked_at - fired_at)) * 1000) AS avg_mtta_ms,
                       AVG(EXTRACT(EPOCH FROM (resolved_at - fired_at)) * 1000)
                         FILTER (WHERE resolved_at IS NOT NULL) AS avg_mttr_ms,
+                      AVG(EXTRACT(EPOCH FROM (resolved_at - linked_at)) * 1000)
+                        FILTER (WHERE resolved_at IS NOT NULL) AS avg_mttf_ms,
                       COUNT(*)::bigint AS event_count,
                       COUNT(resolved_at)::bigint AS resolved_count,
                       SUM(EXTRACT(EPOCH FROM (linked_at - fired_at)) * 1000) AS sum_mtta_ms,
                       SUM(EXTRACT(EPOCH FROM (resolved_at - fired_at)) * 1000)
-                        FILTER (WHERE resolved_at IS NOT NULL) AS sum_mttr_ms
+                        FILTER (WHERE resolved_at IS NOT NULL) AS sum_mttr_ms,
+                      SUM(EXTRACT(EPOCH FROM (resolved_at - linked_at)) * 1000)
+                        FILTER (WHERE resolved_at IS NOT NULL) AS sum_mttf_ms
                FROM alarm_events
                WHERE ${evtConditions.join(" AND ")}
                GROUP BY DATE(linked_at)
@@ -296,11 +302,12 @@ export async function alarmRoutes(fastify: FastifyInstance): Promise<void> {
             ? Math.round((ignorableCount / totalCount) * 10000) / 100
             : 0;
 
-        // Derive MTTA/MTTR averages from daily rows (avoids extra DB queries)
+        // Derive MTTA/MTTR/MTTF averages from daily rows (avoids extra DB queries)
         let totalEvents = 0;
         let totalResolved = 0;
         let sumMtta = 0;
         let sumMttr = 0;
+        let sumMttf = 0;
         for (const r of mttaMttrDailyRaw) {
           const evtCount = Number(r.event_count);
           const resCount = Number(r.resolved_count);
@@ -308,9 +315,11 @@ export async function alarmRoutes(fastify: FastifyInstance): Promise<void> {
           totalResolved += resCount;
           if (r.sum_mtta_ms != null) sumMtta += Number(r.sum_mtta_ms);
           if (r.sum_mttr_ms != null) sumMttr += Number(r.sum_mttr_ms);
+          if (r.sum_mttf_ms != null) sumMttf += Number(r.sum_mttf_ms);
         }
         const avgMttaMs = totalEvents > 0 ? sumMtta / totalEvents : null;
         const avgMttrMs = totalResolved > 0 ? sumMttr / totalResolved : null;
+        const avgMttfMs = totalResolved > 0 ? sumMttf / totalResolved : null;
 
         // ── Assemble response ───────────────────────────────────────────
         reply.send({
@@ -336,6 +345,7 @@ export async function alarmRoutes(fastify: FastifyInstance): Promise<void> {
             totalOccurrences,
             avgMttaMs,
             avgMttrMs,
+            avgMttfMs,
             ignorableRatio,
           },
           occurrenceTrend: occurrenceTrendRaw.map((r) => ({
@@ -347,6 +357,7 @@ export async function alarmRoutes(fastify: FastifyInstance): Promise<void> {
             date: r.date,
             avgMttaMs: r.avg_mtta_ms != null ? Number(r.avg_mtta_ms) : null,
             avgMttrMs: r.avg_mttr_ms != null ? Number(r.avg_mttr_ms) : null,
+            avgMttfMs: r.avg_mttf_ms != null ? Number(r.avg_mttf_ms) : null,
             eventCount: Number(r.event_count),
           })),
           byEnvironment: byEnvironment

@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query'
 import { startOfMonth, subMonths } from '@go-watchtower/shared'
 import type { DateRange } from 'react-day-picker'
 import {
-  FileBarChart, Hash, Clock, Timer, EyeOff, ArrowLeft,
+  FileBarChart, Hash, Clock, Timer, Wrench, EyeOff, ArrowLeft,
   BookOpen, ExternalLink,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
@@ -168,11 +168,12 @@ export function AlarmDetailPageContent() {
       {isLoading ? (
         <KpiSkeleton />
       ) : data ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
           <KpiCard title="Analisi Totali" value={data.kpi.totalAnalyses} icon={FileBarChart} />
           <KpiCard title="Occorrenze Totali" value={data.kpi.totalOccurrences} icon={Hash} />
           <KpiCard title="MTTA Medio" value={formatDuration(data.kpi.avgMttaMs)} icon={Clock} />
           <KpiCard title="MTTR Medio" value={formatDuration(data.kpi.avgMttrMs)} icon={Timer} />
+          <KpiCard title="MTTF Medio" value={formatDuration(data.kpi.avgMttfMs)} icon={Wrench} />
           <KpiCard title="% Ignorabili" value={`${data.kpi.ignorableRatio}%`} icon={EyeOff} />
         </div>
       ) : null}

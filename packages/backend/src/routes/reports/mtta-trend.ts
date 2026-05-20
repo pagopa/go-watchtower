@@ -72,8 +72,11 @@ export async function registerMttaTrendReportRoute(
             median_mtta_ms: number | null;
             avg_mttr_ms: number | null;
             median_mttr_ms: number | null;
+            avg_mttf_ms: number | null;
+            median_mttf_ms: number | null;
             event_count: bigint;
             resolved_count: bigint;
+            fixed_count: bigint;
           }>
         >(
           `SELECT
@@ -87,8 +90,14 @@ export async function registerMttaTrendReportRoute(
              PERCENTILE_CONT(0.5) WITHIN GROUP (
                ORDER BY EXTRACT(EPOCH FROM (resolved_at - fired_at)) * 1000
              ) FILTER (WHERE resolved_at IS NOT NULL) AS median_mttr_ms,
+             AVG(EXTRACT(EPOCH FROM (resolved_at - linked_at)) * 1000)
+               FILTER (WHERE resolved_at IS NOT NULL) AS avg_mttf_ms,
+             PERCENTILE_CONT(0.5) WITHIN GROUP (
+               ORDER BY EXTRACT(EPOCH FROM (resolved_at - linked_at)) * 1000
+             ) FILTER (WHERE resolved_at IS NOT NULL) AS median_mttf_ms,
              COUNT(*)::bigint AS event_count,
-             COUNT(resolved_at)::bigint AS resolved_count
+             COUNT(resolved_at)::bigint AS resolved_count,
+             COUNT(resolved_at)::bigint AS fixed_count
            FROM alarm_events
            WHERE ${conditions.join(" AND ")}
            GROUP BY ${truncFn}
@@ -105,8 +114,12 @@ export async function registerMttaTrendReportRoute(
             avgMttrMs: row.avg_mttr_ms != null ? Number(row.avg_mttr_ms) : null,
             medianMttrMs:
               row.median_mttr_ms != null ? Number(row.median_mttr_ms) : null,
+            avgMttfMs: row.avg_mttf_ms != null ? Number(row.avg_mttf_ms) : null,
+            medianMttfMs:
+              row.median_mttf_ms != null ? Number(row.median_mttf_ms) : null,
             eventCount: Number(row.event_count),
             resolvedCount: Number(row.resolved_count),
+            fixedCount: Number(row.fixed_count),
           })),
         );
       } catch (error) {

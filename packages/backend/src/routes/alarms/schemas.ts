@@ -49,6 +49,7 @@ const AlarmKpiSchema = Type.Object({
   totalOccurrences: Type.Integer(),
   avgMttaMs: Type.Union([Type.Number(), Type.Null()]),
   avgMttrMs: Type.Union([Type.Number(), Type.Null()]),
+  avgMttfMs: Type.Union([Type.Number(), Type.Null()]),
   ignorableRatio: Type.Number(),
 });
 
@@ -62,6 +63,7 @@ const MttaTrendItemSchema = Type.Object({
   date: Type.String(),
   avgMttaMs: Type.Union([Type.Number(), Type.Null()]),
   avgMttrMs: Type.Union([Type.Number(), Type.Null()]),
+  avgMttfMs: Type.Union([Type.Number(), Type.Null()]),
   eventCount: Type.Integer(),
 });
 
