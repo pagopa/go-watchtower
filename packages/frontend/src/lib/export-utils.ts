@@ -17,10 +17,11 @@ export function downloadJson(data: unknown, filename: string): void {
 
 function escapeCsvValue(value: unknown): string {
   const str = value == null ? '' : String(value)
-  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-    return `"${str.replace(/"/g, '""')}"`
+  const safeStr = /^[=+\-@]/.test(str) ? `'${str}` : str
+  if (safeStr.includes(',') || safeStr.includes('"') || safeStr.includes('\n')) {
+    return `"${safeStr.replace(/"/g, '""')}"`
   }
-  return str
+  return safeStr
 }
 
 export function downloadCsv<T extends Record<string, unknown>>(

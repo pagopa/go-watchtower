@@ -71,6 +71,7 @@ export const qk = {
     analysisStats:     (filters: object) => [REPORTS, 'analysis-stats', filters] as const,
     operatorWorkload:  (filters: object) => [REPORTS, 'operator-workload', filters] as const,
     alarmRanking:      (filters: object) => [REPORTS, 'alarm-ranking', filters] as const,
+    alarmRankingOptions: (productIds: string[]) => [REPORTS, 'alarm-ranking-options', productIds] as const,
     monthlyKpi:        (productId: string, year: number, month: number) => [REPORTS, 'monthly-kpi', productId, year, month] as const,
     yearlySummary:     (year: number, productId?: string) => [REPORTS, 'yearly-summary', year, productId] as const,
     mttaTrend:         (filters: object) => [REPORTS, 'mtta-trend', filters] as const,

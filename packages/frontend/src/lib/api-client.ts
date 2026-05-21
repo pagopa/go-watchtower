@@ -863,6 +863,15 @@ export interface AnalysisStats {
 // Report Types
 export type ReportFilters = AnalysisStatsFilters
 
+export type AlarmRankingSortBy = 'alarmName' | 'productName' | 'environmentName' | 'totalAnalyses' | 'totalOccurrences'
+
+export interface AlarmRankingFilters extends AnalysisStatsFilters {
+  environmentId?: string | string[]
+  alarmId?: string | string[]
+  sortBy?: AlarmRankingSortBy
+  sortOrder?: 'asc' | 'desc'
+}
+
 export interface OperatorWorkloadItem {
   operatorId: string
   operatorName: string
@@ -909,6 +918,8 @@ export interface AlarmRankingItem {
   alarmName: string
   productId: string
   productName: string
+  environmentId: string
+  environmentName: string
   totalAnalyses: number
   totalOccurrences: number
 }
@@ -1308,9 +1319,9 @@ export const api = {
     request<OperatorWorkloadItem[]>('/api/reports/operator-workload', {
       params: filters as Record<string, string | number | boolean | undefined>,
     }),
-  getAlarmRanking: (filters?: ReportFilters) =>
+  getAlarmRanking: (filters?: AlarmRankingFilters) =>
     request<AlarmRankingItem[]>('/api/reports/alarm-ranking', {
-      params: filters as Record<string, string | number | boolean | undefined>,
+      params: filters as Record<string, string | number | boolean | string[] | undefined>,
     }),
   getMonthlyKpi: (filters: MonthlyKpiFilters) =>
     request<MonthlyKpiData>('/api/reports/monthly-kpi', {

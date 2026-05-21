@@ -40,14 +40,34 @@ const OperatorWorkloadItemSchema = Type.Object({
 export const OperatorWorkloadResponseSchema = Type.Array(OperatorWorkloadItemSchema);
 
 // ============================================================================
-// Alarm Ranking Response
+// Alarm Ranking Query & Response
 // ============================================================================
+
+export const AlarmRankingQuerySchema = Type.Object({
+  productId: Type.Optional(Type.String()),
+  environmentId: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())])),
+  alarmId: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())])),
+  dateFrom: Type.Optional(Type.String()),
+  dateTo: Type.Optional(Type.String()),
+  sortBy: Type.Optional(Type.Union([
+    Type.Literal("alarmName"),
+    Type.Literal("productName"),
+    Type.Literal("environmentName"),
+    Type.Literal("totalAnalyses"),
+    Type.Literal("totalOccurrences"),
+  ])),
+  sortOrder: Type.Optional(Type.Union([Type.Literal("asc"), Type.Literal("desc")])),
+});
+
+export type AlarmRankingQuery = Static<typeof AlarmRankingQuerySchema>;
 
 const AlarmRankingItemSchema = Type.Object({
   alarmId: Type.String(),
   alarmName: Type.String(),
   productId: Type.String(),
   productName: Type.String(),
+  environmentId: Type.String(),
+  environmentName: Type.String(),
   totalAnalyses: Type.Integer(),
   totalOccurrences: Type.Integer(),
 });
@@ -189,4 +209,3 @@ export const DailyActivityResponseSchema = Type.Object({
   daysInMonth: Type.Integer(),
   operators: Type.Array(OperatorDailyActivitySchema),
 });
-
