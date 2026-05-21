@@ -3,9 +3,17 @@ packages:
 
 minimumReleaseAge: 0
 
+peerDependencyRules:
+  allowedVersions:
+    eslint-plugin-import>eslint: ">=10"
+    eslint-plugin-react-hooks>eslint: ">=10"
+    eslint-plugin-jsx-a11y>eslint: ">=10"
+    eslint-plugin-react>eslint: ">=10"
+
 allowBuilds:
   esbuild: true
   unrs-resolver: true
   "@prisma/engines": true
   prisma: true
   bcrypt: true
+  sharp: true
