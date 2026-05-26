@@ -2,6 +2,9 @@ import type { ChannelDefaults, Message, ParsedAlarmEvent, ParserFn } from "./typ
 import { resolveRegion } from "../region-map.js";
 import { firedAtFromSlackTimestamp } from "./slack-timestamp.js";
 
+const TRANSITIONED_TO_ALARM_RE = /\btransitioned\s+to\s+ALARM\b/i;
+const STATE_CHANGE_TO_ALARM_RE = /\bState Change:\s*(?:OK|INSUFFICIENT_DATA)\s*->\s*ALARM\b/i;
+
 /**
  * Parser for Jira Service Management ChatOps alert cards.
  *
@@ -48,7 +51,7 @@ export const parseJiraServiceManagement: ParserFn = (
 
   const rawDescription = extractDescription(texts);
   const { description, reason } = splitDescriptionAndReason(rawDescription);
-  if (!reason?.includes("Threshold Crossed:")) {
+  if (!isAlarmTransition(rawDescription, reason)) {
     return null;
   }
 
@@ -199,10 +202,16 @@ function findAlarmTitle(texts: string[]): string | null {
 }
 
 function extractDescription(texts: string[]): string | null {
-  for (const text of texts) {
+  for (let index = 0; index < texts.length; index++) {
+    const text = texts[index]!;
     const normalized = normalizeSlackText(text);
     const labeled = extractLabeledDescription(normalized);
     if (labeled) return labeled;
+
+    if (normalizeLabel(normalized) === "description") {
+      const followingValue = extractFollowingDescriptionValue(texts, index + 1);
+      if (followingValue) return followingValue;
+    }
   }
 
   for (const text of texts) {
@@ -222,6 +231,27 @@ function extractDescription(texts: string[]): string | null {
   return null;
 }
 
+function extractFollowingDescriptionValue(texts: string[], startIndex: number): string | null {
+  const valueLines: string[] = [];
+
+  for (let i = startIndex; i < texts.length; i++) {
+    const normalized = normalizeSlackText(texts[i]!);
+    const lines = normalized
+      .split(/\n+/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    for (const line of lines) {
+      if (isDescriptionTerminator(line)) {
+        return stripFooter(valueLines.join("\n")).trim() || null;
+      }
+      valueLines.push(line);
+    }
+  }
+
+  return stripFooter(valueLines.join("\n")).trim() || null;
+}
+
 function extractLabeledDescription(text: string): string | null {
   const lines = text
     .split(/\n+/)
@@ -236,11 +266,7 @@ function extractLabeledDescription(text: string): string | null {
   const valueLines: string[] = [];
   for (let i = descriptionIndex + 1; i < lines.length; i++) {
     const line = lines[i]!;
-    const label = normalizeLabel(line);
-    if (label === "status" || label === "responders" || label === "priority") {
-      break;
-    }
-    if (line.startsWith("Added by ")) {
+    if (isDescriptionTerminator(line)) {
       break;
     }
     valueLines.push(line);
@@ -248,6 +274,17 @@ function extractLabeledDescription(text: string): string | null {
 
   const value = stripFooter(valueLines.join("\n")).trim();
   return value || null;
+}
+
+function isDescriptionTerminator(line: string): boolean {
+  const label = normalizeLabel(line);
+  return (
+    label === "status" ||
+    label === "responders" ||
+    label === "priority" ||
+    line.startsWith("Added by ") ||
+    /\bALARM:\s*"/.test(line)
+  );
 }
 
 function splitDescriptionAndReason(rawDescription: string | null): {
@@ -262,6 +299,20 @@ function splitDescriptionAndReason(rawDescription: string | null): {
   const thresholdIndex = text.indexOf("Threshold Crossed:");
 
   if (thresholdIndex === -1) {
+    const transitionMatch = text.match(TRANSITIONED_TO_ALARM_RE);
+    if (transitionMatch?.index !== undefined) {
+      const description = text.substring(0, transitionMatch.index).trim() || null;
+      const reason = text.substring(transitionMatch.index).trim() || null;
+      return { description, reason };
+    }
+
+    const stateChangeMatch = text.match(STATE_CHANGE_TO_ALARM_RE);
+    if (stateChangeMatch?.index !== undefined) {
+      const description = text.substring(0, stateChangeMatch.index).trim() || null;
+      const reason = text.substring(stateChangeMatch.index).trim() || null;
+      return { description, reason };
+    }
+
     return { description: text || null, reason: null };
   }
 
@@ -269,6 +320,19 @@ function splitDescriptionAndReason(rawDescription: string | null): {
   const reason = text.substring(thresholdIndex).trim() || null;
 
   return { description, reason };
+}
+
+function isAlarmTransition(rawDescription: string | null, reason: string | null): boolean {
+  const transitionText = reason ?? rawDescription;
+  if (!transitionText) {
+    return false;
+  }
+
+  return (
+    transitionText.includes("Threshold Crossed:") ||
+    TRANSITIONED_TO_ALARM_RE.test(transitionText) ||
+    STATE_CHANGE_TO_ALARM_RE.test(transitionText)
+  );
 }
 
 function normalizeLabel(line: string): string {
