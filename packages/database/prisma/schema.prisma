@@ -441,6 +441,7 @@ model AlarmAnalysis {
   @@index([createdById])
   @@index([updatedById])
   @@index([productId, environmentId, analysisDate])
+  @@index([links], type: Gin)
   @@index([trackingIds], type: Gin)
   @@map("alarm_analyses")
 }

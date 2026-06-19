@@ -43,6 +43,7 @@ export interface AnalysisFiltersState {
   runbookIds: string[]
   resourceIds: string[]
   downstreamIds: string[]
+  linkTypes: string[]
   traceId: string
 }
 
@@ -59,6 +60,7 @@ interface AnalysisFiltersProps {
   resources: ProductResource[] | undefined
   downstreams: Downstream[] | undefined
   runbooks: Runbook[] | undefined
+  linkTypes: string[] | undefined
   collapsed?: boolean
   onToggleCollapsed?: () => void
 }
@@ -215,6 +217,15 @@ function buildActiveChips(
   if (filters.runbookIds.length > 0) chips.push({ key: 'runbook', label: `${filters.runbookIds.length} runbook` })
   if (filters.resourceIds.length > 0) chips.push({ key: 'resource', label: `${filters.resourceIds.length} risorse` })
   if (filters.downstreamIds.length > 0) chips.push({ key: 'downstream', label: `${filters.downstreamIds.length} downstream` })
+  if (filters.linkTypes.length > 0) {
+    if (filters.linkTypes.length <= 2) {
+      for (const type of filters.linkTypes) {
+        chips.push({ key: `linkType:${type}`, label: type })
+      }
+    } else {
+      chips.push({ key: 'linkType', label: `${filters.linkTypes.length} tipi link` })
+    }
+  }
   if (filters.traceId) chips.push({ key: 'trace', label: `Trace: ${filters.traceId.slice(0, 12)}\u2026` })
 
   return chips
@@ -255,6 +266,7 @@ export function AnalysisFilters({
   resources,
   downstreams,
   runbooks,
+  linkTypes,
   collapsed = false,
   onToggleCollapsed,
 }: AnalysisFiltersProps) {
@@ -291,6 +303,12 @@ export function AnalysisFilters({
       onFilterChange(updated)
       return
     }
+    if (key.startsWith('linkType:')) {
+      const linkType = key.slice(9)
+      updated.linkTypes = updated.linkTypes.filter((type) => type !== linkType)
+      onFilterChange(updated)
+      return
+    }
     switch (key) {
       case 'env': updated.environmentIds = []; break
       case 'date': updated.dateFrom = ''; updated.dateTo = ''; break
@@ -309,6 +327,7 @@ export function AnalysisFilters({
       case 'runbook': updated.runbookIds = []; break
       case 'resource': updated.resourceIds = []; break
       case 'downstream': updated.downstreamIds = []; break
+      case 'linkType': updated.linkTypes = []; break
       case 'trace':
         traceId.reset()
         updated.traceId = ''
@@ -333,6 +352,7 @@ export function AnalysisFilters({
     filters.runbookIds.length > 0 ||
     filters.resourceIds.length > 0 ||
     filters.downstreamIds.length > 0 ||
+    filters.linkTypes.length > 0 ||
     filters.traceId
   )
   const [advancedToggle, setAdvancedToggle] = useState(false)
@@ -356,6 +376,7 @@ export function AnalysisFilters({
     filters.runbookIds.length > 0,
     filters.resourceIds.length > 0,
     filters.downstreamIds.length > 0,
+    filters.linkTypes.length > 0,
     filters.traceId,
   ].filter(Boolean).length
 
@@ -631,6 +652,21 @@ export function AnalysisFilters({
                     className="text-sm"
                   />
                 </div>
+
+                {/* Link type (multi, populated from persisted analysis links) */}
+                {linkTypes && linkTypes.length > 0 && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Tipo link</Label>
+                    <MultiSelectCombobox showTags={false}
+                      options={linkTypes.map((type) => ({ value: type, label: type }))}
+                      value={filters.linkTypes}
+                      onValueChange={(types) => updateFilter('linkTypes', types)}
+                      placeholder="Tutti i tipi link"
+                      searchPlaceholder="Cerca tipo link..."
+                      emptyMessage="Nessun tipo link trovato."
+                    />
+                  </div>
+                )}
 
                 {/* Runbook (multi, with search) */}
                 {runbooks && (

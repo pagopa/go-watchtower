@@ -147,6 +147,7 @@ const DEFAULT_FILTERS: AnalysisFiltersState = {
   runbookIds: [],
   resourceIds: [],
   downstreamIds: [],
+  linkTypes: [],
   traceId: "",
 };
 
@@ -495,6 +496,12 @@ function AnalysesPageContent() {
     enabled: can("ALARM_ANALYSIS", "read"),
     staleTime: 5 * 60 * 1000,
   });
+  const { data: linkTypes } = useQuery<string[]>({
+    queryKey: qk.analyses.linkTypes(effectiveProductId || undefined),
+    queryFn: () => api.getAnalysisLinkTypes(effectiveProductId || undefined),
+    enabled: can("ALARM_ANALYSIS", "read"),
+    staleTime: 5 * 60 * 1000,
+  });
 
   // Working hours & on-call hours for daily/oncall views
   const { data: workingHours } = useQuery({
@@ -564,6 +571,7 @@ function AnalysesPageContent() {
       ...(filters.downstreamIds.length > 0 && {
         downstreamId: filters.downstreamIds,
       }),
+      ...(filters.linkTypes.length > 0 && { linkType: filters.linkTypes }),
       ...(filters.traceId && { traceId: filters.traceId }),
     }),
     [
@@ -587,6 +595,7 @@ function AnalysesPageContent() {
       filters.runbookIds,
       filters.resourceIds,
       filters.downstreamIds,
+      filters.linkTypes,
       filters.traceId,
     ],
   );
@@ -870,6 +879,7 @@ function AnalysesPageContent() {
         resources={!isAllView ? resources : undefined}
         downstreams={!isAllView ? downstreams : undefined}
         runbooks={!isAllView ? runbooks : undefined}
+        linkTypes={linkTypes}
         collapsed={filtersCollapsed}
         onToggleCollapsed={handleToggleFiltersCollapsed}
       />

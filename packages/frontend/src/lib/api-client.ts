@@ -644,6 +644,7 @@ export interface AlarmAnalysisFilters {
   resourceId?: string | string[]
   downstreamId?: string | string[]
   priorityCode?: string | string[]
+  linkType?: string | string[]
   traceId?: string
 }
 
@@ -1292,6 +1293,10 @@ export const api = {
       params: filters as Record<string, string | number | boolean | undefined>,
     }),
   getAnalysisAuthors: () => request<AnalysisAuthor[]>('/api/analyses/authors'),
+  getAnalysisLinkTypes: (productId?: string) =>
+    request<string[]>('/api/analyses/link-types', {
+      params: { productId: productId || undefined },
+    }),
   exportAnalyses: (body: ExportAnalysesRequest) =>
     requestBlob('/api/analyses/export', { method: 'POST', body }),
   getAnalysisPolicy: () => request<{ editLockDays: number; analysisFutureOffsetMinutes: number }>('/api/analyses/policy'),

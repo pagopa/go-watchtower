@@ -1,11 +1,17 @@
 import type { FastifyInstance } from "fastify";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
-import { prisma } from "@go-watchtower/database";
+import { Prisma, prisma, SystemComponent } from "@go-watchtower/database";
 import type { IgnoreReasonDetailsSchema } from "@go-watchtower/shared";
+import { requirePermission } from "../../lib/require-permission.js";
+import { HttpError } from "../../utils/http-errors.js";
 import { fromJson } from "../../utils/json-cast.js";
 import {
   AnalysisPolicyResponseSchema,
   IgnoreReasonsResponseSchema,
+  LinkTypesQuerySchema,
+  LinkTypesResponseSchema,
+  ErrorResponseSchema,
+  type LinkTypesQuery,
 } from "./schemas.js";
 
 export async function registerAnalysisMetadataRoutes(
@@ -35,6 +41,48 @@ export async function registerAnalysisMetadataRoutes(
           detailsSchema: fromJson<IgnoreReasonDetailsSchema>(row.detailsSchema),
         })),
       );
+    },
+  );
+
+  app.get<{ Querystring: LinkTypesQuery }>(
+    "/analyses/link-types",
+    {
+      onRequest: [
+        app.authenticate,
+        requirePermission(SystemComponent.ALARM_ANALYSIS, "read"),
+      ],
+      schema: {
+        tags: ["analyses"],
+        summary: "Get distinct link types used by analyses",
+        security: [{ bearerAuth: [] }],
+        querystring: LinkTypesQuerySchema,
+        response: {
+          200: LinkTypesResponseSchema,
+          403: ErrorResponseSchema,
+          500: ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const { productId } = request.query;
+        const rows = await prisma.$queryRaw<Array<{ type: string }>>(
+          Prisma.sql`
+            SELECT DISTINCT BTRIM(link_item.link->>'type') AS type
+            FROM alarm_analyses AS aa
+            CROSS JOIN LATERAL jsonb_array_elements(aa.links) AS link_item(link)
+            WHERE NULLIF(BTRIM(link_item.link->>'type'), '') IS NOT NULL
+            ${productId ? Prisma.sql`AND aa.product_id = CAST(${productId} AS uuid)` : Prisma.empty}
+            ORDER BY type ASC
+          `,
+        );
+
+        reply.send(rows.map((row) => row.type));
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Failed to fetch link types";
+        HttpError.internal(reply, message);
+      }
     },
   );
 

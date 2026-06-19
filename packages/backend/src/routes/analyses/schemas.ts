@@ -95,6 +95,7 @@ export const AllAnalysesQuerySchema = Type.Object({
   resourceId: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())])),
   downstreamId: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())])),
   priorityCode: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())])),
+  linkType: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())])),
   traceId: Type.Optional(Type.String()),
 });
 
@@ -132,6 +133,7 @@ export const AlarmAnalysisQuerySchema = Type.Object({
   resourceId: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())])),
   downstreamId: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())])),
   priorityCode: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())])),
+  linkType: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())])),
   traceId: Type.Optional(Type.String()),
 });
 
@@ -278,6 +280,14 @@ export const AlarmAnalysisResponseSchema = Type.Object({
 });
 
 export const IgnoreReasonsResponseSchema = Type.Array(IgnoreReasonResponseSchema);
+
+export const LinkTypesQuerySchema = Type.Object({
+  productId: Type.Optional(Type.String({ format: "uuid" })),
+});
+
+export type LinkTypesQuery = Static<typeof LinkTypesQuerySchema>;
+
+export const LinkTypesResponseSchema = Type.Array(Type.String());
 
 export const PaginatedAlarmAnalysisResponseSchema = Type.Object({
   data: Type.Array(AlarmAnalysisResponseSchema),

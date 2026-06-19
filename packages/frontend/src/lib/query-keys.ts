@@ -49,6 +49,7 @@ export const qk = {
     oncall:     (params: object) => [ANALYSES, 'oncall', params] as const,
     detail:     (productId: string, id: string) => [ANALYSES, 'detail', productId, id] as const,
     policy:     [ANALYSES, 'policy'] as const,
+    linkTypes:  (productId?: string) => [ANALYSES, 'link-types', productId ?? '__all__'] as const,
     forLink:    (...args: (string | null)[]) => [ANALYSES, 'for-link', ...args] as const,
     authors:    [ANALYSES, 'authors'] as const,
   },

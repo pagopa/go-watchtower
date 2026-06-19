@@ -349,13 +349,14 @@ export function AnalysisDailyView({
     ...(filters.runbookIds.length > 0        && { runbookId: filters.runbookIds }),
     ...(filters.resourceIds.length > 0       && { resourceId: filters.resourceIds }),
     ...(filters.downstreamIds.length > 0     && { downstreamId: filters.downstreamIds }),
+    ...(filters.linkTypes.length > 0         && { linkType: filters.linkTypes }),
     ...(filters.traceId                      && { traceId: filters.traceId }),
   }), [
     dateFrom, dateTo, productId,
     filters.search, filters.analysisTypes, filters.statuses,
     filters.environmentIds, filters.operatorIds, filters.alarmIds,
     filters.finalActionIds, filters.isOnCall, filters.ignoreReasonCodes,
-    filters.runbookIds, filters.resourceIds, filters.downstreamIds, filters.traceId,
+    filters.runbookIds, filters.resourceIds, filters.downstreamIds, filters.linkTypes, filters.traceId,
   ])
 
   const isToday = selectedDate === new Date().toISOString().slice(0, 10)

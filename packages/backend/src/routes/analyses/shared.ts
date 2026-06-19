@@ -228,6 +228,24 @@ function singleOrIn<T>(value: T | T[]): T | { in: T[] } {
   return Array.isArray(value) ? { in: value } : value;
 }
 
+function asArray<T>(value: T | T[]): T[] {
+  return Array.isArray(value) ? value : [value];
+}
+
+function addAndCondition(
+  where: Prisma.AlarmAnalysisWhereInput,
+  condition: Prisma.AlarmAnalysisWhereInput,
+): void {
+  if (!where.AND) {
+    where.AND = [condition];
+    return;
+  }
+
+  where.AND = Array.isArray(where.AND)
+    ? [...where.AND, condition]
+    : [where.AND, condition];
+}
+
 export function buildAnalysisWhereClause(
   query: AlarmAnalysisQuery | AllAnalysesQuery,
   productId?: string,
@@ -292,13 +310,29 @@ export function buildAnalysisWhereClause(
     where.trackingIds = { array_contains: [{ traceId: query.traceId }] };
   }
 
+  if (query.linkType) {
+    const linkTypes = asArray(query.linkType)
+      .map((type) => type.trim())
+      .filter(Boolean);
+
+    if (linkTypes.length > 0) {
+      addAndCondition(where, {
+        OR: linkTypes.map((type) => ({
+          links: { array_contains: [{ type }] },
+        })),
+      });
+    }
+  }
+
   if (query.search) {
     const search = query.search.trim();
-    where.OR = [
-      { errorDetails: { contains: query.search, mode: "insensitive" } },
-      { conclusionNotes: { contains: query.search, mode: "insensitive" } },
-      ...(search ? [{ trackingIds: { array_contains: [{ traceId: search }] } }] : []),
-    ];
+    addAndCondition(where, {
+      OR: [
+        { errorDetails: { contains: query.search, mode: "insensitive" } },
+        { conclusionNotes: { contains: query.search, mode: "insensitive" } },
+        ...(search ? [{ trackingIds: { array_contains: [{ traceId: search }] } }] : []),
+      ],
+    });
   }
 
   return where;
