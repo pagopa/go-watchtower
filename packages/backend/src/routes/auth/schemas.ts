@@ -25,6 +25,22 @@ export const RefreshBodySchema = Type.Object({
 
 export type RefreshBody = Static<typeof RefreshBodySchema>;
 
+// Runbook Automation service principal login (D4/A2).
+export const ServiceLoginBodySchema = Type.Object({
+  serviceId: Type.String({ minLength: 1, maxLength: 255 }),
+  password: Type.String({ minLength: 1, maxLength: 255 }),
+});
+
+export type ServiceLoginBody = Static<typeof ServiceLoginBodySchema>;
+
+export const ServiceTokenResponseSchema = Type.Object({
+  accessToken: Type.String(),
+  refreshToken: Type.String(),
+  expiresIn: Type.Number(),
+  serviceId: Type.String(),
+  principalType: Type.Literal("SERVICE"),
+});
+
 export const UserResponseSchema = Type.Object({
   id: Type.String(),
   email: Type.String(),

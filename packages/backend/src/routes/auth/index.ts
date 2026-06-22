@@ -11,18 +11,28 @@ import {
   RevokeSessionParamsSchema,
   MessageResponseSchema,
   GoogleCallbackBodySchema,
+  ServiceLoginBodySchema,
+  ServiceTokenResponseSchema,
   type LoginBody,
   type RefreshBody,
   type RevokeSessionParams,
   type GoogleCallbackBody,
+  type ServiceLoginBody,
 } from "./schemas.js";
 import {
   loginUser,
+  loginServicePrincipal,
+  PrincipalTypeNotAllowedError,
   findOrCreateGoogleUser,
   getUserById,
   type GoogleUserInfo,
   type SafeUser,
 } from "../../services/auth.service.js";
+import { generateServiceAccessToken } from "../../plugins/jwt.js";
+import {
+  RUNBOOK_AUTOMATION_AUDIENCE,
+  RUNBOOK_AUTOMATION_ISSUER,
+} from "@go-watchtower/shared";
 import {
   createRefreshToken,
   rotateRefreshToken,
@@ -44,6 +54,9 @@ import { HttpError } from "../../utils/http-errors.js";
 
 // Access token expires in 15 minutes (in seconds)
 const ACCESS_TOKEN_EXPIRES_IN_SECONDS = 15 * 60;
+
+// Service principal access token: 10 minutes (within the 5-15 min window, §9.6).
+const SERVICE_ACCESS_TOKEN_EXPIRES_IN_SECONDS = 10 * 60;
 
 function formatUser(user: SafeUser) {
   return {
@@ -166,7 +179,68 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
           userAgent: request.headers["user-agent"] ?? null,
         });
 
+        // A2: un account SERVICE non può usare il login umano → 403, anche con
+        // password corretta. Le altre cause restano 401 (credenziali invalide).
+        if (error instanceof PrincipalTypeNotAllowedError) {
+          reply.status(403).send({ error: "PRINCIPAL_TYPE_NOT_ALLOWED" });
+          return;
+        }
+
         HttpError.unauthorized(reply, message);
+      }
+    }
+  );
+
+  // Service principal login (Runbook Automation worker, D4/A2)
+  app.post<{ Body: ServiceLoginBody }>(
+    "/service/login",
+    {
+      ...loginRateLimitConfig,
+      schema: {
+        tags: ["auth"],
+        summary: "Login as a service principal (machine-to-machine)",
+        body: ServiceLoginBodySchema,
+        response: {
+          200: ServiceTokenResponseSchema,
+          401: ErrorResponseSchema,
+          429: ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const user = await loginServicePrincipal(request.body);
+        const clientInfo = getClientInfo(request);
+
+        // serviceId è garantito non-null per i SERVICE (CHECK DB + canServiceLogin).
+        const serviceId = user.serviceId ?? request.body.serviceId;
+        const accessToken = generateServiceAccessToken(app, {
+          userId: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.roleName,
+          serviceId,
+          audience: RUNBOOK_AUTOMATION_AUDIENCE,
+          issuer: RUNBOOK_AUTOMATION_ISSUER,
+          expiresInSeconds: SERVICE_ACCESS_TOKEN_EXPIRES_IN_SECONDS,
+        });
+
+        const refreshToken = await createRefreshToken({
+          userId: user.id,
+          ...clientInfo,
+        });
+
+        // Niente cookie: i client M2M usano i token nel body (no browser session).
+        reply.send({
+          accessToken,
+          refreshToken,
+          expiresIn: SERVICE_ACCESS_TOKEN_EXPIRES_IN_SECONDS,
+          serviceId,
+          principalType: "SERVICE" as const,
+        });
+      } catch {
+        // Risposta indistinguibile per evitare enumerazione (HUMAN/serviceId ignoto/inattivo).
+        HttpError.unauthorized(reply, "Invalid credentials");
       }
     }
   );
@@ -213,6 +287,27 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       if (!user) {
         clearTokenCookies(reply);
         HttpError.unauthorized(reply, "User not found");
+        return;
+      }
+
+      // Il refresh conserva il tipo di principal (§9.6): un SERVICE riceve un token
+      // service con aud/iss e TTL 10 min; un HUMAN il consueto token 15 min.
+      if (user.principalType === "SERVICE" && user.serviceId) {
+        const accessToken = generateServiceAccessToken(app, {
+          userId: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.roleName,
+          serviceId: user.serviceId,
+          audience: RUNBOOK_AUTOMATION_AUDIENCE,
+          issuer: RUNBOOK_AUTOMATION_ISSUER,
+          expiresInSeconds: SERVICE_ACCESS_TOKEN_EXPIRES_IN_SECONDS,
+        });
+        reply.send({
+          accessToken,
+          refreshToken: rotation.refreshToken,
+          expiresIn: SERVICE_ACCESS_TOKEN_EXPIRES_IN_SECONDS,
+        });
         return;
       }
 

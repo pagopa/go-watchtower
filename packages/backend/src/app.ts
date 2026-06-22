@@ -21,6 +21,7 @@ import { alarmPriorityRuleRoutes } from "./routes/alarm-priority-rules/index.js"
 import { systemEventRoutes } from "./routes/system-events/index.js";
 import { settingRoutes } from "./routes/settings/index.js";
 import { alarmRoutes } from "./routes/alarms/index.js";
+import { automaticRunbookExecutionRoutes } from "./routes/automatic-runbook-executions/index.js";
 import { healthRoutes } from "./routes/health.js";
 
 function getLoggerConfig(): FastifyServerOptions["logger"] {
@@ -72,6 +73,7 @@ export async function buildApp() {
   await app.register(systemEventRoutes, { prefix: "/api" });
   await app.register(settingRoutes, { prefix: "/api" });
   await app.register(alarmRoutes, { prefix: "/api" });
+  await app.register(automaticRunbookExecutionRoutes, { prefix: "/api" });
 
   return app;
 }

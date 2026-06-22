@@ -20,6 +20,7 @@ export const SystemEventResources = {
   IGNORE_REASONS:            'ignore_reasons',
   RESOURCE_TYPES:            'resource_types',
   ROLES:                     'roles',
+  AUTOMATIC_RUNBOOK_EXECUTIONS: 'automatic_runbook_executions',
 } as const;
 
 export type SystemEventResource = typeof SystemEventResources[keyof typeof SystemEventResources];

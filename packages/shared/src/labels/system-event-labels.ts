@@ -23,6 +23,7 @@ export const SYSTEM_EVENT_RESOURCE_LABELS: Record<SystemEventResource, string> =
   [SystemEventResources.IGNORE_REASONS]:            'Motivi Ignoramento',
   [SystemEventResources.RESOURCE_TYPES]:            'Tipi Risorsa',
   [SystemEventResources.ROLES]:                     'Ruoli',
+  [SystemEventResources.AUTOMATIC_RUNBOOK_EXECUTIONS]: 'Runbook Automatici',
 };
 
 export const SYSTEM_EVENT_ACTION_LABELS: Partial<Record<SystemEventAction, string>> = {
@@ -89,4 +90,15 @@ export const SYSTEM_EVENT_ACTION_LABELS: Partial<Record<SystemEventAction, strin
   [SystemEventActions.ROLE_UPDATED]:                'Ruolo Aggiornato',
   [SystemEventActions.ROLE_DELETED]:                'Ruolo Eliminato',
   [SystemEventActions.ROLE_PERMISSIONS_UPDATED]:    'Permessi Ruolo Aggiornati',
+  [SystemEventActions.AUTOMATION_EXECUTION_REQUESTED]:        'Esecuzione Automatica Richiesta',
+  [SystemEventActions.AUTOMATION_EXECUTION_DISPATCHED]:       'Esecuzione Automatica Accodata',
+  [SystemEventActions.AUTOMATION_EXECUTION_STARTED]:          'Esecuzione Automatica Avviata',
+  [SystemEventActions.AUTOMATION_EXECUTION_ATTEMPT_TAKEN_OVER]: 'Tentativo Riacquisito',
+  [SystemEventActions.AUTOMATION_EXECUTION_COMPLETED]:        'Esecuzione Automatica Completata',
+  [SystemEventActions.AUTOMATION_EXECUTION_FAILED]:           'Esecuzione Automatica Fallita',
+  [SystemEventActions.AUTOMATION_EXECUTION_RETRIED]:          'Esecuzione Automatica Rilanciata',
+  [SystemEventActions.AUTOMATION_EXECUTION_CANCEL_REQUESTED]: 'Annullamento Richiesto',
+  [SystemEventActions.AUTOMATION_EXECUTION_CANCELLED]:        'Esecuzione Automatica Annullata',
+  [SystemEventActions.AUTOMATION_ANALYSIS_APPLIED]:           'Analisi Automatica Applicata',
+  [SystemEventActions.AUTOMATION_ANALYSIS_REVIEWED]:          'Analisi Automatica Revisionata',
 };

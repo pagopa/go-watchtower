@@ -16,6 +16,7 @@ export const RESOURCE_LABELS: Record<Resource, string> = {
   DOWNSTREAM:     'Downstream',
   USER:           'Utenti',
   SYSTEM_SETTING: 'Impostazioni di sistema',
+  AUTOMATIC_RUNBOOK_EXECUTION: 'Runbook automatici',
 };
 
 /** Tutte le risorse esclusa SYSTEM_SETTING, nell'ordine canonico. */

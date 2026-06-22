@@ -13,6 +13,7 @@ export const Resources = {
   DOWNSTREAM:      'DOWNSTREAM',
   USER:            'USER',
   SYSTEM_SETTING:  'SYSTEM_SETTING',
+  AUTOMATIC_RUNBOOK_EXECUTION: 'AUTOMATIC_RUNBOOK_EXECUTION',
 } as const;
 
 export type Resource = typeof Resources[keyof typeof Resources];

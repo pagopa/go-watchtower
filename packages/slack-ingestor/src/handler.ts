@@ -1,4 +1,4 @@
-import { prisma } from "@go-watchtower/database";
+import { prisma, ensureInitialExecution } from "@go-watchtower/database";
 import { resolveAlarmPriority } from "@go-watchtower/shared";
 import type { AlertPriorityLevel, AlarmPriorityRule } from "@go-watchtower/shared";
 import { CHANNEL_REGISTRY } from "./config.js";
@@ -199,7 +199,7 @@ async function processChannel(
           firedAt: parsed.firedAt,
         });
 
-        await prisma.alarmEvent.create({
+        const event = await prisma.alarmEvent.create({
           data: {
             name:           parsed.name,
             firedAt:        parsed.firedAt,
@@ -218,12 +218,20 @@ async function processChannel(
         });
         stats.created++;
         stats.createdAlarms.push(parsed.name);
+        // Flow 1 (execution-as-outbox, §8.1/§8.2): crea l'esecuzione iniziale
+        // PENDING_DISPATCH idempotente. Il dispatch su SQS è eseguito dal
+        // reconciler backend (l'invio diretto da qui resta un'ottimizzazione di
+        // latenza non implementata — vedi nota di handoff).
+        await ensureAutomaticExecution(event.id, alarmId);
         logVerboseResult(stats.label, msg, parsed, "created");
       } catch (err: unknown) {
         if (isPrismaUniqueError(err)) {
           stats.duplicates++;
           console.warn(`[${stats.label}] Duplicate ts=${ts}, skipping`);
           logVerboseResult(stats.label, msg, parsed, "duplicate");
+          // Recovery: l'evento esisteva già ma l'esecuzione iniziale potrebbe non
+          // essere stata creata (crash dopo create) → ensureInitialExecution idempotente.
+          await ensureAutomaticExecutionForSlackMessage(`${channelId}/${ts}`);
         } else {
           stats.dbErrors++;
           console.error(`[${stats.label}] DB error for ts=${ts}:`, err);
@@ -234,6 +242,35 @@ async function processChannel(
 
       await saveCursor(channelId, ts);
     }
+  }
+}
+
+// ─── Runbook Automation Flow 1 (execution-as-outbox) ───────────────────────────
+
+/**
+ * Crea l'esecuzione iniziale per un evento appena creato. Gli errori propagano:
+ * il cursore non avanza e la riconsegna (duplicate path) ritenta in modo idempotente.
+ */
+async function ensureAutomaticExecution(eventId: string, alarmId: string | null): Promise<void> {
+  if (!alarmId) return; // nessun alarm risolto → nessun runbook target → niente esecuzione
+  await ensureInitialExecution(eventId);
+}
+
+/**
+ * Recovery best-effort sul duplicate path: l'evento esiste già; assicura che
+ * esista la sua esecuzione iniziale (ensureInitialExecution è idempotente).
+ */
+async function ensureAutomaticExecutionForSlackMessage(slackMessageId: string): Promise<void> {
+  try {
+    const event = await prisma.alarmEvent.findUnique({
+      where: { slackMessageId },
+      select: { id: true, alarmId: true },
+    });
+    if (event?.alarmId) {
+      await ensureInitialExecution(event.id);
+    }
+  } catch (err: unknown) {
+    console.warn(`[slack-ingestor] ensureInitialExecution recovery failed for ${slackMessageId}:`, err);
   }
 }
 
@@ -348,7 +385,7 @@ function msgPreview(msg: Message): string {
       if (b?.text?.text) return b.text.text.trim().slice(0, 160).replace(/\n/g, " ↵ ");
     }
   }
-  const attachments = msg.attachments as Array<{ text?: string; fallback?: string }> | undefined;
+  const attachments = msg.attachments;
   if (attachments?.[0]?.text)     return attachments[0].text.slice(0, 160).replace(/\n/g, " ↵ ");
   if (attachments?.[0]?.fallback) return attachments[0].fallback.slice(0, 160).replace(/\n/g, " ↵ ");
   const files = msg.files as Array<Record<string, unknown>> | undefined;
@@ -364,6 +401,6 @@ function isPrismaUniqueError(err: unknown): boolean {
     typeof err === "object" &&
     err !== null &&
     "code" in err &&
-    (err as { code: unknown }).code === "P2002"
+    (err).code === "P2002"
   );
 }

@@ -38,6 +38,7 @@ enum SystemComponent {
   DOWNSTREAM
   USER
   SYSTEM_SETTING
+  AUTOMATIC_RUNBOOK_EXECUTION
 }
 
 enum PermissionScope {
@@ -55,6 +56,83 @@ enum AlarmPriorityMatcherType {
   ALARM_ID
   ALARM_NAME_PREFIX
   ALARM_NAME_REGEX
+}
+
+// ═══════════════════════════════════════════════════════════
+// RUNBOOK AUTOMATION (EVO-WATCHTINTEG-OPUS-03 §9.4)
+// ═══════════════════════════════════════════════════════════
+
+enum PrincipalType {
+  HUMAN
+  SERVICE
+}
+
+enum AnalysisOrigin {
+  MANUAL
+  AUTOMATIC
+  HYBRID
+}
+
+enum AutomationExecutionStatus {
+  PENDING_DISPATCH
+  QUEUED
+  RUNNING
+  RETRY_PENDING
+  CANCEL_REQUESTED
+  SUCCEEDED
+  SKIPPED
+  FAILED
+  CANCELLED
+}
+
+enum AutomationExecutionOutcome {
+  KNOWN_CASE
+  UNKNOWN_CASE
+  NO_DATA
+  NO_RUNBOOK
+  CONFIGURATION_ERROR
+  EXECUTION_ERROR
+}
+
+enum AutomationTriggerKind {
+  SLACK_INGESTER
+  WATCHTOWER_UI
+  WATCHTOWER_API
+  RETRY
+}
+
+enum AutomationReviewStatus {
+  NOT_REQUIRED
+  PENDING
+  CONFIRMED
+  REJECTED
+}
+
+enum AutomationMode {
+  SHADOW
+  APPLY_KNOWN
+  APPLY_ALL
+}
+
+enum AutomationAttemptStatus {
+  RUNNING
+  COMPLETED
+  INTERRUPTED
+  FAILED
+  CANCELLED
+}
+
+enum AutomationRetryDisposition {
+  COMPLETE_OUTCOME
+  CANCEL_EXECUTION
+  RETRY_MESSAGE
+  FAIL_EXECUTION
+}
+
+enum AutomationCancellationFinalizedBy {
+  IMMEDIATE
+  WORKER
+  SYSTEM
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -118,42 +196,49 @@ model UserPermissionOverride {
 // ═══════════════════════════════════════════════════════════
 
 model User {
-  id           String       @id @default(uuid(7)) @db.Uuid
-  email        String       @unique
-  passwordHash String?      @map("password_hash")
-  name         String
-  roleId       String       @map("role_id") @db.Uuid
-  provider     AuthProvider @default(LOCAL)
-  providerId   String?      @map("provider_id")
-  isActive     Boolean      @default(true) @map("is_active")
-  preferences  Json         @default("{}") @map("preferences")
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
+  id            String        @id @default(uuid(7)) @db.Uuid
+  email         String        @unique
+  passwordHash  String?       @map("password_hash")
+  name          String
+  roleId        String        @map("role_id") @db.Uuid
+  provider      AuthProvider  @default(LOCAL)
+  providerId    String?       @map("provider_id")
+  isActive      Boolean       @default(true) @map("is_active")
+  // D4/A1: identità tecnica tipizzata e segregata dagli utenti umani.
+  // CHECK in migration: SERVICE ⇒ serviceId NOT NULL; HUMAN ⇒ serviceId NULL.
+  principalType PrincipalType @default(HUMAN) @map("principal_type")
+  serviceId     String?       @unique @map("service_id")
+  preferences   Json          @default("{}") @map("preferences")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
 
-  role                Role                     @relation(fields: [roleId], references: [id])
-  permissionOverrides UserPermissionOverride[] @relation("UserOverrides")
-  grantedOverrides    UserPermissionOverride[] @relation("GrantedOverrides")
-  refreshTokens       RefreshToken[]
-  analyses            AlarmAnalysis[]          @relation("OperatorAnalyses")
-  createdAnalyses     AlarmAnalysis[]          @relation("CreatedByUser")
-  updatedAnalyses     AlarmAnalysis[]          @relation("UpdatedByUser")
-  updatedSettings     SystemSetting[]          @relation("UpdatedSettings")
-  systemEvents        SystemEvent[]            @relation("UserSystemEvents")
+  role                           Role                        @relation(fields: [roleId], references: [id])
+  permissionOverrides            UserPermissionOverride[]    @relation("UserOverrides")
+  grantedOverrides               UserPermissionOverride[]    @relation("GrantedOverrides")
+  refreshTokens                  RefreshToken[]
+  analyses                       AlarmAnalysis[]             @relation("OperatorAnalyses")
+  createdAnalyses                AlarmAnalysis[]             @relation("CreatedByUser")
+  updatedAnalyses                AlarmAnalysis[]             @relation("UpdatedByUser")
+  updatedSettings                SystemSetting[]             @relation("UpdatedSettings")
+  systemEvents                   SystemEvent[]               @relation("UserSystemEvents")
+  automationTriggered            AutomaticRunbookExecution[] @relation("AutomationTriggeredBy")
+  automationReviewed             AutomaticRunbookExecution[] @relation("AutomationReviewedBy")
+  automationCancellationRequests AutomaticRunbookExecution[] @relation("AutomationCancelRequestedBy")
 
   @@index([roleId])
   @@map("users")
 }
 
 model RefreshToken {
-  id          String   @id @default(uuid(7)) @db.Uuid
-  tokenHash   String   @unique @map("token_hash")
-  userId      String   @map("user_id") @db.Uuid
-  userAgent   String?  @map("user_agent")
-  ipAddress   String?  @map("ip_address")
-  expiresAt   DateTime @map("expires_at")
-  createdAt   DateTime @default(now()) @map("created_at")
-  revokedAt   DateTime? @map("revoked_at")
-  replacedBy  String?  @map("replaced_by")
+  id         String    @id @default(uuid(7)) @db.Uuid
+  tokenHash  String    @unique @map("token_hash")
+  userId     String    @map("user_id") @db.Uuid
+  userAgent  String?   @map("user_agent")
+  ipAddress  String?   @map("ip_address")
+  expiresAt  DateTime  @map("expires_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  revokedAt  DateTime? @map("revoked_at")
+  replacedBy String?   @map("replaced_by")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -170,9 +255,9 @@ model Product {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  environments Environment[]
-  resources    Resource[]
-  finalActions FinalAction[]
+  environments  Environment[]
+  resources     Resource[]
+  finalActions  FinalAction[]
   ignoredAlarms IgnoredAlarm[]
   priorityRules AlarmPriorityRule[]
   runbooks      Runbook[]
@@ -197,7 +282,7 @@ model Environment {
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")
 
-  product       Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product       Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
   analyses      AlarmAnalysis[]
   ignoredAlarms IgnoredAlarm[]
   priorityRules AlarmPriorityRule[]
@@ -220,15 +305,15 @@ model ResourceType {
 }
 
 model Resource {
-  id          String           @id @default(uuid(7)) @db.Uuid
+  id          String             @id @default(uuid(7)) @db.Uuid
   name        String
   description String?
-  typeId      String           @map("type_id") @db.Uuid
-  productId   String           @map("product_id") @db.Uuid
-  createdAt   DateTime         @default(now()) @map("created_at")
-  updatedAt   DateTime         @updatedAt @map("updated_at")
-  type        ResourceType     @relation(fields: [typeId], references: [id])
-  product     Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  typeId      String             @map("type_id") @db.Uuid
+  productId   String             @map("product_id") @db.Uuid
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+  type        ResourceType       @relation(fields: [typeId], references: [id])
+  product     Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
   analyses    AnalysisResource[]
 
   @@unique([productId, name])
@@ -291,8 +376,8 @@ model Alarm {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  product       Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
-  runbook       Runbook?        @relation(fields: [runbookId], references: [id], onDelete: SetNull)
+  product       Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  runbook       Runbook?            @relation(fields: [runbookId], references: [id], onDelete: SetNull)
   analyses      AlarmAnalysis[]
   ignoredAlarms IgnoredAlarm[]
   priorityRules AlarmPriorityRule[]
@@ -384,46 +469,53 @@ model IgnoreReason {
 }
 
 model AlarmAnalysis {
-  id               String         @id @default(uuid(7)) @db.Uuid
-  analysisDate     DateTime       @map("analysis_date")
-  firstAlarmAt     DateTime       @map("first_alarm_at")
-  lastAlarmAt      DateTime       @map("last_alarm_at")
-  occurrences      Int            @default(1)
-  isOnCall         Boolean        @default(false) @map("is_on_call")
-  analysisType     AnalysisType   @default(ANALYZABLE) @map("analysis_type")
-  status           AnalysisStatus @default(CREATED) @map("status")
-  alarmId          String         @map("alarm_id") @db.Uuid
-  errorDetails     String?        @map("error_details")
-  conclusionNotes  String?        @map("conclusion_notes")
-  ignoreReasonCode String?        @map("ignore_reason_code")
-  ignoreDetails    Json?          @map("ignore_details")
-  operatorId       String         @map("operator_id") @db.Uuid
-  productId        String         @map("product_id") @db.Uuid
-  environmentId    String         @map("environment_id") @db.Uuid
-  runbookId        String?        @map("runbook_id") @db.Uuid
-  links            Json           @default("[]")
-  trackingIds      Json           @default("[]") @map("tracking_ids")
-  validationScore  Int?           @map("validation_score") @db.SmallInt
-  qualityScore     Int?           @map("quality_score") @db.SmallInt
-  scoredAt         DateTime?      @map("scored_at")
-  createdAt        DateTime       @default(now()) @map("created_at")
-  updatedAt        DateTime       @updatedAt @map("updated_at")
-  createdById      String         @map("created_by_id") @db.Uuid
-  updatedById      String?        @map("updated_by_id") @db.Uuid
+  id                     String         @id @default(uuid(7)) @db.Uuid
+  analysisDate           DateTime       @map("analysis_date")
+  firstAlarmAt           DateTime       @map("first_alarm_at")
+  lastAlarmAt            DateTime       @map("last_alarm_at")
+  occurrences            Int            @default(1)
+  isOnCall               Boolean        @default(false) @map("is_on_call")
+  analysisType           AnalysisType   @default(ANALYZABLE) @map("analysis_type")
+  status                 AnalysisStatus @default(CREATED) @map("status")
+  alarmId                String         @map("alarm_id") @db.Uuid
+  errorDetails           String?        @map("error_details")
+  conclusionNotes        String?        @map("conclusion_notes")
+  ignoreReasonCode       String?        @map("ignore_reason_code")
+  ignoreDetails          Json?          @map("ignore_details")
+  operatorId             String         @map("operator_id") @db.Uuid
+  productId              String         @map("product_id") @db.Uuid
+  environmentId          String         @map("environment_id") @db.Uuid
+  runbookId              String?        @map("runbook_id") @db.Uuid
+  links                  Json           @default("[]")
+  trackingIds            Json           @default("[]") @map("tracking_ids")
+  validationScore        Int?           @map("validation_score") @db.SmallInt
+  qualityScore           Int?           @map("quality_score") @db.SmallInt
+  scoredAt               DateTime?      @map("scored_at")
+  // Runbook Automation (§9.2/§9.4): provenienza analisi e puntatore all'esecuzione
+  // che ha prodotto il contenuto corrente (rami 1/2). HYBRID = automatica poi modificata.
+  origin                 AnalysisOrigin @default(MANUAL)
+  lastAppliedExecutionId String?        @map("last_applied_execution_id") @db.Uuid
+  createdAt              DateTime       @default(now()) @map("created_at")
+  updatedAt              DateTime       @updatedAt @map("updated_at")
+  createdById            String         @map("created_by_id") @db.Uuid
+  updatedById            String?        @map("updated_by_id") @db.Uuid
 
-  alarm        Alarm        @relation(fields: [alarmId], references: [id], onDelete: Restrict)
-  operator     User         @relation("OperatorAnalyses", fields: [operatorId], references: [id], onDelete: Restrict)
-  product      Product      @relation(fields: [productId], references: [id], onDelete: Restrict)
-  environment  Environment  @relation(fields: [environmentId], references: [id], onDelete: Restrict)
-  runbook      Runbook?     @relation(fields: [runbookId], references: [id], onDelete: Restrict)
-  createdBy    User         @relation("CreatedByUser", fields: [createdById], references: [id], onDelete: Restrict)
-  updatedBy    User?        @relation("UpdatedByUser", fields: [updatedById], references: [id], onDelete: Restrict)
+  alarm        Alarm         @relation(fields: [alarmId], references: [id], onDelete: Restrict)
+  operator     User          @relation("OperatorAnalyses", fields: [operatorId], references: [id], onDelete: Restrict)
+  product      Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
+  environment  Environment   @relation(fields: [environmentId], references: [id], onDelete: Restrict)
+  runbook      Runbook?      @relation(fields: [runbookId], references: [id], onDelete: Restrict)
+  createdBy    User          @relation("CreatedByUser", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy    User?         @relation("UpdatedByUser", fields: [updatedById], references: [id], onDelete: Restrict)
   ignoreReason IgnoreReason? @relation(fields: [ignoreReasonCode], references: [code])
 
-  resources    AnalysisResource[]
-  downstreams  AnalysisDownstream[]
-  finalActions  AnalysisFinalAction[]
-  alarmEvents   AlarmEvent[]
+  lastApplied AutomaticRunbookExecution? @relation("AnalysisLastApplied", fields: [lastAppliedExecutionId], references: [id], onDelete: SetNull)
+
+  resources         AnalysisResource[]
+  downstreams       AnalysisDownstream[]
+  finalActions      AnalysisFinalAction[]
+  alarmEvents       AlarmEvent[]
+  runbookExecutions AutomaticRunbookExecution[] @relation("ExecutionAnalysis")
 
   @@index([analysisDate])
   // @@index([productId]) — redundant: covered by @@index([productId, analysisDate])
@@ -502,33 +594,35 @@ model AnalysisFinalAction {
 // ═══════════════════════════════════════════════════════════
 
 model AlarmEvent {
-  id             String   @id @default(uuid(7)) @db.Uuid
-  name           String
-  firedAt        DateTime @map("fired_at")
-  description    String?
-  reason         String?
-  awsRegion      String   @map("aws_region")
-  awsAccountId   String   @map("aws_account_id")
-  productId      String   @map("product_id") @db.Uuid
-  environmentId  String   @map("environment_id") @db.Uuid
-  alarmId        String?  @map("alarm_id") @db.Uuid
-  analysisId     String?  @map("analysis_id") @db.Uuid
-  priorityCode   String   @default("NORMAL") @map("priority_code")
-  priorityRuleId String?  @map("priority_rule_id") @db.Uuid
+  id                 String    @id @default(uuid(7)) @db.Uuid
+  name               String
+  firedAt            DateTime  @map("fired_at")
+  description        String?
+  reason             String?
+  awsRegion          String    @map("aws_region")
+  awsAccountId       String    @map("aws_account_id")
+  productId          String    @map("product_id") @db.Uuid
+  environmentId      String    @map("environment_id") @db.Uuid
+  alarmId            String?   @map("alarm_id") @db.Uuid
+  analysisId         String?   @map("analysis_id") @db.Uuid
+  priorityCode       String    @default("NORMAL") @map("priority_code")
+  priorityRuleId     String?   @map("priority_rule_id") @db.Uuid
   priorityResolvedAt DateTime? @map("priority_resolved_at")
-  linkedAt       DateTime? @map("linked_at")
-  resolvedAt     DateTime? @map("resolved_at")
+  linkedAt           DateTime? @map("linked_at")
+  resolvedAt         DateTime? @map("resolved_at")
   // Identificatore univoco del messaggio Slack sorgente — formato "{channelId}/{ts}".
   // Usato per prevenire duplicati quando lo script di ingestione rilegge messaggi già processati.
-  slackMessageId String?  @unique @map("slack_message_id")
-  createdAt      DateTime @default(now()) @map("created_at")
+  slackMessageId     String?   @unique @map("slack_message_id")
+  createdAt          DateTime  @default(now()) @map("created_at")
 
-  product     Product        @relation(fields: [productId], references: [id], onDelete: Restrict)
-  environment Environment    @relation(fields: [environmentId], references: [id], onDelete: Restrict)
-  alarm       Alarm?         @relation(fields: [alarmId], references: [id], onDelete: SetNull)
-  analysis    AlarmAnalysis? @relation(fields: [analysisId], references: [id], onDelete: SetNull)
-  priority    PriorityLevel  @relation(fields: [priorityCode], references: [code], onDelete: Restrict)
-  priorityRule AlarmPriorityRule? @relation(fields: [priorityRuleId], references: [id], onDelete: SetNull)
+  product           Product                     @relation(fields: [productId], references: [id], onDelete: Restrict)
+  environment       Environment                 @relation(fields: [environmentId], references: [id], onDelete: Restrict)
+  alarm             Alarm?                      @relation(fields: [alarmId], references: [id], onDelete: SetNull)
+  analysis          AlarmAnalysis?              @relation(fields: [analysisId], references: [id], onDelete: SetNull)
+  priority          PriorityLevel               @relation(fields: [priorityCode], references: [code], onDelete: Restrict)
+  priorityRule      AlarmPriorityRule?          @relation(fields: [priorityRuleId], references: [id], onDelete: SetNull)
+  // NON Cascade: la storia execution è append-only e deve sopravvivere (§9.4).
+  runbookExecutions AutomaticRunbookExecution[] @relation("ExecutionAlarmEvent")
 
   @@index([firedAt])
   @@index([productId, firedAt])
@@ -610,4 +704,120 @@ model SystemEvent {
   @@index([resource, resourceId])
   @@index([createdAt])
   @@map("system_events")
+}
+
+// ═══════════════════════════════════════════════════════════
+// RUNBOOK AUTOMATION — EXECUTIONS & ATTEMPTS (EVO-WATCHTINTEG-OPUS-03 §9.4)
+// ═══════════════════════════════════════════════════════════
+
+model AutomaticRunbookExecution {
+  id                      String                             @id @default(uuid(7)) @db.Uuid // = executionId: SQS MessageDeduplicationId + chiave apply-once
+  parentExecutionId       String?                            @map("parent_execution_id") @db.Uuid
+  requestKey              String?                            @unique @map("request_key") // idempotenza CREAZIONE iniziale: "SLACK:<alarmEventId>"; null per manuale/re-launch
+  alarmEventId            String                             @map("alarm_event_id") @db.Uuid
+  analysisId              String?                            @map("analysis_id") @db.Uuid
+  productId               String                             @map("product_id") @db.Uuid
+  environmentId           String                             @map("environment_id") @db.Uuid
+  alarmId                 String?                            @map("alarm_id") @db.Uuid
+  status                  AutomationExecutionStatus
+  outcome                 AutomationExecutionOutcome?
+  reviewStatus            AutomationReviewStatus             @default(NOT_REQUIRED) @map("review_status")
+  reviewedByUserId        String?                            @map("reviewed_by_user_id") @db.Uuid
+  reviewedByLabel         String?                            @map("reviewed_by_label")
+  reviewedAt              DateTime?                          @map("reviewed_at")
+  cancelRequestedByUserId String?                            @map("cancel_requested_by_user_id") @db.Uuid
+  cancelRequestedByLabel  String?                            @map("cancel_requested_by_label")
+  cancelRequestId         String?                            @unique @map("cancel_request_id") @db.Uuid
+  cancelReason            String?                            @map("cancel_reason") @db.VarChar(500)
+  cancelRequestedAt       DateTime?                          @map("cancel_requested_at")
+  cancelledAt             DateTime?                          @map("cancelled_at")
+  cancellationFinalizedBy AutomationCancellationFinalizedBy? @map("cancellation_finalized_by")
+  triggerKind             AutomationTriggerKind              @map("trigger_kind")
+  triggeredByUserId       String?                            @map("triggered_by_user_id") @db.Uuid
+  triggeredByLabel        String?                            @map("triggered_by_label")
+  appliedMode             AutomationMode                     @map("applied_mode")
+  runbookKey              String?                            @map("runbook_key")
+  runbookVersion          String?                            @map("runbook_version")
+  engineExecutionId       String?                            @map("engine_execution_id")
+  inputSnapshot           Json                               @map("input_snapshot")
+  resultSummary           Json?                              @map("result_summary")
+  analysisPayload         Json?                              @map("analysis_payload")
+  errorCode               String?                            @map("error_code")
+  errorMessage            String?                            @map("error_message")
+  failedStepId            String?                            @map("failed_step_id")
+  queryCount              Int?                               @map("query_count")
+  bytesScanned            BigInt?                            @map("bytes_scanned")
+  recordsScanned          BigInt?                            @map("records_scanned")
+  recordsMatched          BigInt?                            @map("records_matched")
+  dispatchAttempts        Int                                @default(0) @map("dispatch_attempts")
+  totalWorkerAttempts     Int                                @default(0) @map("total_worker_attempts")
+  deliveryCycle           Int                                @default(1) @map("delivery_cycle")
+  cycleReceiveCount       Int                                @default(0) @map("cycle_receive_count")
+  sqsMessageId            String?                            @map("sqs_message_id")
+  queuedAt                DateTime?                          @map("queued_at")
+  startedAt               DateTime?                          @map("started_at")
+  lastHeartbeatAt         DateTime?                          @map("last_heartbeat_at")
+  activeAttemptId         String?                            @unique @map("active_attempt_id") @db.Uuid
+  workerDeadlineAt        DateTime?                          @map("worker_deadline_at")
+  deadlineAt              DateTime                           @map("deadline_at")
+  completedAt             DateTime?                          @map("completed_at")
+  durationMs              Int?                               @map("duration_ms")
+  createdAt               DateTime                           @default(now()) @map("created_at")
+  updatedAt               DateTime                           @updatedAt @map("updated_at")
+
+  parent            AutomaticRunbookExecution?  @relation("ExecutionChain", fields: [parentExecutionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children          AutomaticRunbookExecution[] @relation("ExecutionChain")
+  alarmEvent        AlarmEvent                  @relation("ExecutionAlarmEvent", fields: [alarmEventId], references: [id], onDelete: Restrict)
+  analysis          AlarmAnalysis?              @relation("ExecutionAnalysis", fields: [analysisId], references: [id], onDelete: SetNull)
+  triggeredBy       User?                       @relation("AutomationTriggeredBy", fields: [triggeredByUserId], references: [id], onDelete: SetNull)
+  reviewedBy        User?                       @relation("AutomationReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  cancelRequestedBy User?                       @relation("AutomationCancelRequestedBy", fields: [cancelRequestedByUserId], references: [id], onDelete: SetNull)
+  attempts          AutomaticRunbookAttempt[]   @relation("ExecutionAttempts")
+  activeAttempt     AutomaticRunbookAttempt?    @relation("ExecutionActiveAttempt", fields: [activeAttemptId], references: [id], onDelete: Restrict)
+  appliedToAnalyses AlarmAnalysis[]             @relation("AnalysisLastApplied")
+
+  @@index([alarmEventId, createdAt(sort: Desc)])
+  @@index([status, createdAt])
+  @@index([status, lastHeartbeatAt])
+  @@index([status, workerDeadlineAt])
+  @@index([status, deadlineAt])
+  @@index([productId, environmentId, createdAt(sort: Desc)])
+  @@index([alarmId, outcome, createdAt(sort: Desc)])
+  @@index([reviewStatus, createdAt])
+  @@index([analysisId])
+  @@index([parentExecutionId])
+  @@map("automatic_runbook_executions")
+}
+
+model AutomaticRunbookAttempt {
+  id                    String                      @id @default(uuid(7)) @db.Uuid
+  executionId           String                      @map("execution_id") @db.Uuid
+  attemptNumber         Int                         @map("attempt_number")
+  deliveryCycle         Int                         @map("delivery_cycle")
+  cycleReceiveCount     Int                         @map("cycle_receive_count")
+  sqsMessageId          String                      @map("sqs_message_id")
+  status                AutomationAttemptStatus
+  phase                 String?
+  heartbeatSequence     Int                         @default(0) @map("heartbeat_sequence")
+  retryDisposition      AutomationRetryDisposition? @map("retry_disposition")
+  completionPayloadHash String?                     @map("completion_payload_hash") @db.VarChar(64)
+  completionHashVersion String?                     @map("completion_hash_version") @db.VarChar(32)
+  errorCode             String?                     @map("error_code")
+  errorMessage          String?                     @map("error_message")
+  startedAt             DateTime                    @default(now()) @map("started_at")
+  lastHeartbeatAt       DateTime?                   @map("last_heartbeat_at")
+  workerDeadlineAt      DateTime?                   @map("worker_deadline_at")
+  finishedAt            DateTime?                   @map("finished_at")
+  durationMs            Int?                        @map("duration_ms")
+  createdAt             DateTime                    @default(now()) @map("created_at")
+  updatedAt             DateTime                    @updatedAt @map("updated_at")
+
+  execution          AutomaticRunbookExecution  @relation("ExecutionAttempts", fields: [executionId], references: [id], onDelete: Restrict)
+  activeForExecution AutomaticRunbookExecution? @relation("ExecutionActiveAttempt")
+
+  @@unique([executionId, attemptNumber])
+  @@unique([executionId, sqsMessageId, cycleReceiveCount])
+  @@index([executionId, startedAt(sort: Desc)])
+  @@index([status, lastHeartbeatAt])
+  @@map("automatic_runbook_attempts")
 }

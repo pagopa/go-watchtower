@@ -1,5 +1,6 @@
-import { prisma, type User, type Role, AuthProvider } from "@go-watchtower/database";
+import { prisma, type User, type Role, AuthProvider, PrincipalType } from "@go-watchtower/database";
 import { hashPassword, verifyPassword } from "../utils/password.js";
+import { canHumanLogin, canServiceLogin } from "./automation/principal-access.js";
 
 export interface RegisterInput {
   email: string;
@@ -75,6 +76,14 @@ export async function registerUser(input: RegisterInput): Promise<SafeUser> {
   return toSafeUser(user);
 }
 
+/** Distingue il rifiuto per tipo di principal (403) dalle credenziali invalide (401). */
+export class PrincipalTypeNotAllowedError extends Error {
+  constructor() {
+    super("PRINCIPAL_TYPE_NOT_ALLOWED");
+    this.name = "PrincipalTypeNotAllowedError";
+  }
+}
+
 export async function loginUser(input: LoginInput): Promise<SafeUser> {
   const user = await prisma.user.findUnique({
     where: { email: input.email },
@@ -89,9 +98,54 @@ export async function loginUser(input: LoginInput): Promise<SafeUser> {
     throw new Error("User is disabled");
   }
 
+  // A2: /auth/login accetta solo HUMAN; un account SERVICE riceve 403 anche con
+  // password corretta. Il controllo precede la verifica password per evitare di
+  // trattare il service principal come un login umano.
+  if (user.principalType !== PrincipalType.HUMAN) {
+    throw new PrincipalTypeNotAllowedError();
+  }
+
   const isValid = await verifyPassword(input.password, user.passwordHash);
   if (!isValid) {
     throw new Error("Invalid credentials");
+  }
+
+  if (!canHumanLogin({ principalType: user.principalType, serviceId: user.serviceId, isActive: user.isActive })) {
+    throw new PrincipalTypeNotAllowedError();
+  }
+
+  return toSafeUser(user);
+}
+
+export interface ServiceLoginInput {
+  serviceId: string;
+  password: string;
+}
+
+/**
+ * Login del service principal (D4/A2): accetta solo account SERVICE attivi.
+ * Un account HUMAN, un serviceId sconosciuto, inattivo o password errata
+ * producono lo **stesso** errore 401 indistinguibile (anti-enumerazione, §9.6).
+ */
+export async function loginServicePrincipal(input: ServiceLoginInput): Promise<SafeUser> {
+  const user = await prisma.user.findUnique({
+    where: { serviceId: input.serviceId },
+    include: { role: true },
+  });
+
+  const invalid = new Error("Invalid credentials");
+
+  if (
+    !user ||
+    !user.passwordHash ||
+    !canServiceLogin({ principalType: user.principalType, serviceId: user.serviceId, isActive: user.isActive })
+  ) {
+    throw invalid;
+  }
+
+  const isValid = await verifyPassword(input.password, user.passwordHash);
+  if (!isValid) {
+    throw invalid;
   }
 
   return toSafeUser(user);

@@ -1,4 +1,5 @@
 import "dotenv/config";
+import crypto from "node:crypto";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient, SystemComponent, PermissionScope } from "../generated/prisma/client.js";
 import bcrypt from "bcrypt";
@@ -18,10 +19,14 @@ const ROLE_IDS = {
   OPERATOR:  "a0000000-0000-0000-0000-000000000002",
   TEAM_LEAD: "a0000000-0000-0000-0000-000000000003",
   ADMIN:     "a0000000-0000-0000-0000-000000000004",
+  // Runbook Automation: ruolo minimo del service principal (solo write su AUTOMATIC_RUNBOOK_EXECUTION).
+  AUTOMATION_WORKER: "a0000000-0000-0000-0000-000000000005",
 } as const;
 
 // Prefisso "00" = entità di sistema, non confligge con gli UUID del seed privato
 const ADMIN_USER_ID = "00000000-0000-0000-0000-000000000001";
+// Service principal Runbook Automation (utente tecnico SERVICE).
+const AUTOMATION_WORKER_USER_ID = "00000000-0000-0000-0000-000000000002";
 
 // ─── Permission matrix ─────────────────────────────────────────────────────
 const { NONE, OWN, ALL } = PermissionScope;
@@ -43,6 +48,7 @@ const PERMISSIONS: Record<keyof typeof ROLE_IDS, Record<SystemComponent, Tuple>>
     DOWNSTREAM:     [ALL,  NONE, NONE],
     USER:           [NONE, NONE, NONE],
     SYSTEM_SETTING: [NONE, NONE, NONE],
+    AUTOMATIC_RUNBOOK_EXECUTION: [ALL, NONE, NONE],
   },
   OPERATOR: {
     PRODUCT:        [ALL,  NONE, NONE],
@@ -59,6 +65,7 @@ const PERMISSIONS: Record<keyof typeof ROLE_IDS, Record<SystemComponent, Tuple>>
     DOWNSTREAM:     [ALL,  NONE, NONE],
     USER:           [NONE, NONE, NONE],
     SYSTEM_SETTING: [NONE, NONE, NONE],
+    AUTOMATIC_RUNBOOK_EXECUTION: [ALL, NONE, NONE],
   },
   TEAM_LEAD: {
     PRODUCT:        [ALL,  NONE, NONE],
@@ -75,6 +82,7 @@ const PERMISSIONS: Record<keyof typeof ROLE_IDS, Record<SystemComponent, Tuple>>
     DOWNSTREAM:     [ALL,  ALL,  NONE],
     USER:           [ALL,  NONE, NONE],
     SYSTEM_SETTING: [NONE, NONE, NONE],
+    AUTOMATIC_RUNBOOK_EXECUTION: [ALL, ALL, NONE],
   },
   ADMIN: {
     PRODUCT:        [ALL, ALL, ALL],
@@ -91,6 +99,27 @@ const PERMISSIONS: Record<keyof typeof ROLE_IDS, Record<SystemComponent, Tuple>>
     DOWNSTREAM:     [ALL, ALL, ALL],
     USER:           [ALL, ALL, ALL],
     SYSTEM_SETTING: [ALL, ALL, ALL],
+    AUTOMATIC_RUNBOOK_EXECUTION: [ALL, ALL, ALL],
+  },
+  // Least privilege (§9.6): solo write su AUTOMATIC_RUNBOOK_EXECUTION; nessun
+  // accesso ad analisi/CRUD/UI. Il complete applica l'analisi come operazione
+  // interna trusted, senza ALARM_ANALYSIS:write sul worker.
+  AUTOMATION_WORKER: {
+    PRODUCT:        [NONE, NONE, NONE],
+    ENVIRONMENT:    [NONE, NONE, NONE],
+    RESOURCE:       [NONE, NONE, NONE],
+    IGNORED_ALARM:  [NONE, NONE, NONE],
+    ALARM_PRIORITY_RULE: [NONE, NONE, NONE],
+    PRIORITY_LEVEL: [NONE, NONE, NONE],
+    RUNBOOK:        [NONE, NONE, NONE],
+    FINAL_ACTION:   [NONE, NONE, NONE],
+    ALARM:          [NONE, NONE, NONE],
+    ALARM_ANALYSIS: [NONE, NONE, NONE],
+    ALARM_EVENT:    [NONE, NONE, NONE],
+    DOWNSTREAM:     [NONE, NONE, NONE],
+    USER:           [NONE, NONE, NONE],
+    SYSTEM_SETTING: [NONE, NONE, NONE],
+    AUTOMATIC_RUNBOOK_EXECUTION: [NONE, ALL, NONE],
   },
 };
 
@@ -104,6 +133,7 @@ async function seedRoles() {
     { id: ROLE_IDS.OPERATOR,  name: "OPERATOR",  description: "Can create and edit alarm analyses.",                             isDefault: false },
     { id: ROLE_IDS.TEAM_LEAD, name: "TEAM_LEAD", description: "Can manage configurations and delete analyses.",                  isDefault: false },
     { id: ROLE_IDS.ADMIN,     name: "ADMIN",     description: "Full access to all resources including user management.",         isDefault: false },
+    { id: ROLE_IDS.AUTOMATION_WORKER, name: "AUTOMATION_WORKER", description: "Service principal role: only AUTOMATIC_RUNBOOK_EXECUTION:write (lifecycle callbacks).", isDefault: false },
   ];
 
   for (const role of roles) {
@@ -333,6 +363,50 @@ async function seedAdmin() {
   console.log(`  ✅ ${email} (password: ${password === "changeme" ? "⚠️  default — change on first login" : "***"})`);
 }
 
+async function seedAutomationWorker() {
+  console.log("\n🤖 Seeding Runbook Automation service principal...");
+
+  const serviceId = "runbook-automation-worker";
+  const email = "runbook-automation-worker@service.watchtower.local";
+  // La password è fornita out-of-band via secret CI (CONTRACT-03 §4.4): nessun
+  // plaintext nel repository. Se assente al primo seed, ne genera una casuale
+  // (NON utilizzabile dal worker finché non ruotata): va impostata e ruotata.
+  const envPassword = process.env["SEED_AUTOMATION_WORKER_PASSWORD"];
+  const passwordToHash =
+    envPassword ?? crypto.randomBytes(24).toString("base64url");
+  const passwordHash = await bcrypt.hash(passwordToHash, 12);
+
+  await prisma.user.upsert({
+    where: { serviceId },
+    // Aggiorna la password solo se fornita via env (rotazione esplicita);
+    // altrimenti preserva l'hash esistente per idempotenza.
+    update: {
+      principalType: "SERVICE",
+      roleId: ROLE_IDS.AUTOMATION_WORKER,
+      isActive: true,
+      ...(envPassword ? { passwordHash } : {}),
+    },
+    create: {
+      id: AUTOMATION_WORKER_USER_ID,
+      email,
+      name: "Runbook Automation Worker",
+      passwordHash,
+      principalType: "SERVICE",
+      serviceId,
+      roleId: ROLE_IDS.AUTOMATION_WORKER,
+      provider: "LOCAL",
+    },
+  });
+
+  if (envPassword) {
+    console.log(`  ✅ ${serviceId} (password from SEED_AUTOMATION_WORKER_PASSWORD)`);
+  } else {
+    console.log(
+      `  ⚠️  ${serviceId} created with a RANDOM password — set SEED_AUTOMATION_WORKER_PASSWORD and re-seed (or rotate) before enabling dispatch`,
+    );
+  }
+}
+
 async function seedSystemSettings() {
   console.log("\n⚙️  Seeding system settings...");
 
@@ -374,6 +448,15 @@ async function seedSystemSettings() {
       description: "Numero di minuti di tolleranza oltre l'ora corrente per la data di analisi. Impedisce l'inserimento di date nel futuro.",
     },
     {
+      key:         "automation.defaultMode",
+      value:       "SHADOW",
+      type:        "STRING",
+      format:      null,
+      category:    "SYSTEM",
+      label:       "Modo predefinito Runbook Automation",
+      description: "Rollout dell'automazione: SHADOW (solo esecuzione), APPLY_KNOWN (crea analisi per KNOWN_CASE), APPLY_ALL (anche UNKNOWN_CASE). Override per-allarme/runbook.",
+    },
+    {
       key:         "on_call_hours",
       value:       {
         timezone:  "Europe/Rome",
@@ -408,6 +491,7 @@ async function main() {
   await seedPriorityLevels();
   await seedResourceTypes();
   await seedAdmin();
+  await seedAutomationWorker();
   await seedSystemSettings();
   console.log("\n✨ Done.");
 }

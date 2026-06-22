@@ -14,6 +14,7 @@ export default tseslint.config(
       // Files outside tsconfig (scripts, seed, config)
       'eslint.config.mjs',
       'packages/backend/test/**',
+      'packages/backend/test-integration/**',
       'packages/database/prisma/**',
       'packages/database/prisma.config.ts',
       'packages/database/scripts/**',

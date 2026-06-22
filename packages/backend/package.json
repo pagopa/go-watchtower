@@ -10,10 +10,14 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "type-check": "tsc --noEmit",
-    "test:unit": "node --import tsx --test test/**/*.test.ts",
+    "test:unit": "node --import tsx --test \"test/**/*.test.ts\"",
+    "test:integration": "node --import tsx --test --test-concurrency=1 \"test-integration/**/*.test.ts\"",
+    "gen:contracts": "tsx src/scripts/export-contract-artifacts.ts",
     "rescore": "tsx src/scripts/rescore-analyses.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-sqs": "^3.1073.0",
+    "@aws-sdk/client-ssm": "^3.1073.0",
     "@fastify/cookie": "^11.0.2",
     "@fastify/cors": "^11.2.0",
     "@fastify/jwt": "^10.1.0",

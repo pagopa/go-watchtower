@@ -409,6 +409,22 @@ export async function alarmEventRoutes(app: FastifyInstance) {
       const analysisId = request.body.analysisId || null;
       const updates = request.body.analysisUpdates;
 
+      // §9.10: le analisi origin=AUTOMATIC sono automation-owned e per-occorrenza
+      // (1:1). Vietato collegarle manualmente (aggiungere occorrenze o forzare il
+      // +1 di occurrences su un'analisi AUTOMATIC).
+      if (analysisId) {
+        const target = await prisma.alarmAnalysis.findUnique({
+          where: { id: analysisId },
+          select: { origin: true },
+        });
+        if (target?.origin === "AUTOMATIC") {
+          return HttpError.conflict(
+            reply,
+            "Analisi automatica per-occorrenza: non collegabile manualmente",
+          );
+        }
+      }
+
       // Scope-aware ownership check for analysis updates
       let canUpdateAnalysis = false;
       if (analysisId && updates) {
