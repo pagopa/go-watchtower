@@ -7,6 +7,7 @@
   "scripts": {
     "lint": "eslint . && pnpm --filter @go-watchtower/frontend lint",
     "type-check": "tsc --noEmit",
+    "inventory:aws": "bash scripts/aws-inventory.sh",
     "deploy:frontend": "bash scripts/deploy-frontend.sh",
     "deploy:backend": "bash scripts/deploy-backend.sh",
     "deploy:slack-ingestor": "bash scripts/deploy-slack-ingestor.sh"
