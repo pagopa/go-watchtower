@@ -63,6 +63,15 @@ export const env = {
     | "strict"
     | "lax"
     | "none",
+
+  // Runbook Automation — reconciler/reaper/safety-net/finalizer + dispatch (OPUS-03 §9.9)
+  // Opt-in: invia messaggi verso SQS, quindi va abilitato esplicitamente.
+  RECONCILER_ENABLED: optionalEnv("RECONCILER_ENABLED", "false") === "true",
+  RECONCILER_INTERVAL_MS: optionalPositiveIntEnv("RECONCILER_INTERVAL_MS", 60_000),
+  // Registry regionale GA→WT (contratto §6). Se vuoto → reconciler in sola modalità DB
+  // (nessun dispatch su SQS), il resto (timeout/recupero/finalizzazione) gira comunque.
+  EXECUTE_RUNBOOK_QUEUE_REGISTRY_PARAMETER: optionalEnv("EXECUTE_RUNBOOK_QUEUE_REGISTRY_PARAMETER", ""),
+  EXECUTE_RUNBOOK_QUEUE_REGISTRY_REGION: optionalEnv("EXECUTE_RUNBOOK_QUEUE_REGISTRY_REGION", "eu-south-1"),
 } as const;
 
 export type Env = typeof env;

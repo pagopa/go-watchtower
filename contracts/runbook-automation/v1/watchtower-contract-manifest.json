@@ -6,7 +6,7 @@
     {
       "logicalName": "watchtower-openapi",
       "path": "watchtower-openapi.json",
-      "sha256": "658a0a174fca362e4d673a88c199bfceb29b20eb2f3809f9c7b0dd19bce60333"
+      "sha256": "7a3ac7c0c5e7bce4c0cf2a0c158a4be4c56573bd0c285fcf935b20de64e106cb"
     },
     {
       "logicalName": "automatic-alarm-analysis-command-v1.schema",

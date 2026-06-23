@@ -326,6 +326,28 @@ export const ExecutionDtoSchema = Type.Object({
   updatedAt: Type.String(),
 });
 
+// Dettaglio esecuzione: include i JSON versionati (snapshot/risultato/analisi)
+// non presenti nel DTO di lista per non appesantire la paginazione (§15.1).
+export const ExecutionContextSchema = Type.Object({
+  alarmName: Type.Union([Type.String(), Type.Null()]),
+  alarmEventName: Type.String(),
+  firedAt: Type.String(),
+  productName: Type.String(),
+  environmentName: Type.String(),
+  awsAccountId: Type.String(),
+  awsRegion: Type.String(),
+})
+
+export const ExecutionDetailDtoSchema = Type.Composite([
+  ExecutionDtoSchema,
+  Type.Object({
+    inputSnapshot: Type.Unknown(),
+    resultSummary: Type.Unknown(),
+    analysisPayload: Type.Unknown(),
+    context: ExecutionContextSchema,
+  }),
+])
+
 export const AttemptDtoSchema = Type.Object({
   id: Type.String(),
   executionId: Type.String(),

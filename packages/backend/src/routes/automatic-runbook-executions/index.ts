@@ -19,6 +19,7 @@ import {
   ProgressExecutionResponseSchema,
   CompleteExecutionRequestSchema,
   CompleteExecutionResponseSchema,
+  ExecutionDetailDtoSchema,
   ControlConflictResponseSchema,
   FailExecutionRequestSchema,
   FailExecutionResponseSchema,
@@ -109,6 +110,15 @@ function toExecutionDto(e: AutomaticRunbookExecution) {
   };
 }
 
+function toExecutionDetailDto(e: AutomaticRunbookExecution) {
+  return {
+    ...toExecutionDto(e),
+    inputSnapshot: e.inputSnapshot ?? null,
+    resultSummary: e.resultSummary ?? null,
+    analysisPayload: e.analysisPayload ?? null,
+  };
+}
+
 function toAttemptDto(a: AutomaticRunbookAttempt) {
   return {
     id: a.id,
@@ -188,13 +198,37 @@ export async function automaticRunbookExecutionRoutes(fastify: FastifyInstance):
         summary: "Get an execution by id",
         security: BEARER,
         params: ExecutionIdParamsSchema,
-        response: { 200: ExecutionDtoSchema, 403: ErrorResponseSchema, 404: ErrorResponseSchema },
+        response: { 200: ExecutionDetailDtoSchema, 403: ErrorResponseSchema, 404: ErrorResponseSchema },
       },
     },
     async (request, reply) => {
-      const row = await prisma.automaticRunbookExecution.findUnique({ where: { id: request.params.id } });
+      const row = await prisma.automaticRunbookExecution.findUnique({
+        where: { id: request.params.id },
+        include: {
+          alarmEvent: {
+            select: {
+              name: true,
+              firedAt: true,
+              awsAccountId: true,
+              awsRegion: true,
+              product: { select: { name: true } },
+              environment: { select: { name: true } },
+              alarm: { select: { name: true } },
+            },
+          },
+        },
+      });
       if (!row) return HttpError.notFound(reply, "Execution");
-      reply.send(toExecutionDto(row));
+      const context = {
+        alarmName: row.alarmEvent.alarm?.name ?? null,
+        alarmEventName: row.alarmEvent.name,
+        firedAt: row.alarmEvent.firedAt.toISOString(),
+        productName: row.alarmEvent.product.name,
+        environmentName: row.alarmEvent.environment.name,
+        awsAccountId: row.alarmEvent.awsAccountId,
+        awsRegion: row.alarmEvent.awsRegion,
+      };
+      reply.send({ ...toExecutionDetailDto(row), context });
     },
   );
 

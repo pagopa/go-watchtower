@@ -30,6 +30,7 @@ const PRIORITY_LEVELS = 'priority-levels' as const
 const SYSTEM_EVENTS   = 'system-events'   as const
 const PERMISSIONS     = 'permissions'     as const
 const PREFERENCES     = 'preferences'     as const
+const AUTOMATIC_EXECUTIONS = 'automatic-runbook-executions' as const
 
 // ─── Registry ────────────────────────────────────────────────────────────────
 
@@ -145,6 +146,15 @@ export const qk = {
   systemEvents: {
     root: [SYSTEM_EVENTS] as const,
     list: (params: object) => [SYSTEM_EVENTS, 'list', params] as const,
+  },
+
+  // ── Runbook Automation ─────────────────────────────────────────────────────
+  automaticExecutions: {
+    root:     [AUTOMATIC_EXECUTIONS] as const,
+    list:     (params: object) => [AUTOMATIC_EXECUTIONS, 'list', params] as const,
+    detail:   (id: string) => [AUTOMATIC_EXECUTIONS, 'detail', id] as const,
+    attempts: (id: string, params: object) => [AUTOMATIC_EXECUTIONS, 'attempts', id, params] as const,
+    stats:    [AUTOMATIC_EXECUTIONS, 'stats'] as const,
   },
 
   // ── Auth / session ───────────────────────────────────────────────────────

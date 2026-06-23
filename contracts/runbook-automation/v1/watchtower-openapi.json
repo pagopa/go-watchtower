@@ -3341,6 +3341,16 @@
                           "lastAlarmAt": {
                             "type": "string"
                           },
+                          "lastAppliedExecutionId": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
                           "linkedEventsCount": {
                             "type": "integer"
                           },
@@ -3392,6 +3402,28 @@
                           },
                           "operatorId": {
                             "type": "string"
+                          },
+                          "origin": {
+                            "anyOf": [
+                              {
+                                "enum": [
+                                  "MANUAL"
+                                ],
+                                "type": "string"
+                              },
+                              {
+                                "enum": [
+                                  "AUTOMATIC"
+                                ],
+                                "type": "string"
+                              },
+                              {
+                                "enum": [
+                                  "HYBRID"
+                                ],
+                                "type": "string"
+                              }
+                            ]
                           },
                           "product": {
                             "properties": {
@@ -6086,6 +6118,7 @@
                         }
                       ]
                     },
+                    "analysisPayload": {},
                     "appliedMode": {
                       "anyOf": [
                         {
@@ -6169,6 +6202,48 @@
                         }
                       ]
                     },
+                    "context": {
+                      "properties": {
+                        "alarmEventName": {
+                          "type": "string"
+                        },
+                        "alarmName": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "awsAccountId": {
+                          "type": "string"
+                        },
+                        "awsRegion": {
+                          "type": "string"
+                        },
+                        "environmentName": {
+                          "type": "string"
+                        },
+                        "firedAt": {
+                          "type": "string"
+                        },
+                        "productName": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "alarmName",
+                        "alarmEventName",
+                        "firedAt",
+                        "productName",
+                        "environmentName",
+                        "awsAccountId",
+                        "awsRegion"
+                      ],
+                      "type": "object"
+                    },
                     "createdAt": {
                       "type": "string"
                     },
@@ -6214,6 +6289,7 @@
                     "id": {
                       "type": "string"
                     },
+                    "inputSnapshot": {},
                     "outcome": {
                       "anyOf": [
                         {
@@ -6316,6 +6392,7 @@
                         }
                       ]
                     },
+                    "resultSummary": {},
                     "reviewStatus": {
                       "anyOf": [
                         {
@@ -6500,7 +6577,11 @@
                     "completedAt",
                     "durationMs",
                     "createdAt",
-                    "updatedAt"
+                    "updatedAt",
+                    "inputSnapshot",
+                    "resultSummary",
+                    "analysisPayload",
+                    "context"
                   ],
                   "type": "object"
                 }
@@ -15631,6 +15712,16 @@
                           "lastAlarmAt": {
                             "type": "string"
                           },
+                          "lastAppliedExecutionId": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
                           "linkedEventsCount": {
                             "type": "integer"
                           },
@@ -15682,6 +15773,28 @@
                           },
                           "operatorId": {
                             "type": "string"
+                          },
+                          "origin": {
+                            "anyOf": [
+                              {
+                                "enum": [
+                                  "MANUAL"
+                                ],
+                                "type": "string"
+                              },
+                              {
+                                "enum": [
+                                  "AUTOMATIC"
+                                ],
+                                "type": "string"
+                              },
+                              {
+                                "enum": [
+                                  "HYBRID"
+                                ],
+                                "type": "string"
+                              }
+                            ]
                           },
                           "product": {
                             "properties": {
@@ -16543,6 +16656,16 @@
                     "lastAlarmAt": {
                       "type": "string"
                     },
+                    "lastAppliedExecutionId": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
                     "linkedEventsCount": {
                       "type": "integer"
                     },
@@ -16594,6 +16717,28 @@
                     },
                     "operatorId": {
                       "type": "string"
+                    },
+                    "origin": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "MANUAL"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "enum": [
+                            "AUTOMATIC"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "enum": [
+                            "HYBRID"
+                          ],
+                          "type": "string"
+                        }
+                      ]
                     },
                     "product": {
                       "properties": {
@@ -17332,6 +17477,16 @@
                     "lastAlarmAt": {
                       "type": "string"
                     },
+                    "lastAppliedExecutionId": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
                     "linkedEventsCount": {
                       "type": "integer"
                     },
@@ -17383,6 +17538,28 @@
                     },
                     "operatorId": {
                       "type": "string"
+                    },
+                    "origin": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "MANUAL"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "enum": [
+                            "AUTOMATIC"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "enum": [
+                            "HYBRID"
+                          ],
+                          "type": "string"
+                        }
+                      ]
                     },
                     "product": {
                       "properties": {
@@ -18204,6 +18381,16 @@
                     "lastAlarmAt": {
                       "type": "string"
                     },
+                    "lastAppliedExecutionId": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
                     "linkedEventsCount": {
                       "type": "integer"
                     },
@@ -18255,6 +18442,28 @@
                     },
                     "operatorId": {
                       "type": "string"
+                    },
+                    "origin": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "MANUAL"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "enum": [
+                            "AUTOMATIC"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "enum": [
+                            "HYBRID"
+                          ],
+                          "type": "string"
+                        }
+                      ]
                     },
                     "product": {
                       "properties": {

@@ -722,6 +722,15 @@ export function AnalysisDetailPanel({
                     Reperibilità
                   </span>
                 )}
+                {analysis.origin && analysis.origin !== 'MANUAL' && (
+                  <span
+                    className="inline-flex items-center gap-1 rounded-full border border-sky-500/25 bg-sky-500/10 px-2 py-0.5 text-[11px] font-medium text-sky-600 dark:text-sky-400"
+                    title={analysis.origin === 'AUTOMATIC' ? 'Generata automaticamente dal runbook' : 'Generata automaticamente, poi modificata manualmente'}
+                  >
+                    <Zap className="h-3 w-3" />
+                    {analysis.origin === 'AUTOMATIC' ? 'Automatica' : 'Ibrida'}
+                  </span>
+                )}
               </div>
               {/* Alarm name */}
               <div className="flex items-center gap-1.5">
@@ -735,6 +744,17 @@ export function AnalysisDetailPanel({
                 <span className="mx-1.5 text-muted-foreground/30">·</span>
                 {formatDateTimeRome(analysis.analysisDate)}
               </p>
+              {analysis.origin && analysis.origin !== 'MANUAL' && analysis.lastAppliedExecutionId && (
+                <a
+                  href="/automatic-runbooks"
+                  className="mt-1.5 inline-flex items-center gap-1 text-xs text-sky-600 hover:underline dark:text-sky-400"
+                  title="Apri la console Runbook automatici"
+                >
+                  <Zap className="h-3 w-3" />
+                  Esecuzione: <span className="font-mono">{analysis.lastAppliedExecutionId.slice(0, 8)}…</span>
+                  <ExternalLink className="h-3 w-3 opacity-60" />
+                </a>
+              )}
             </div>
             <div className="flex shrink-0 items-center gap-0.5">
               {canWrite && (

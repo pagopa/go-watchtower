@@ -20,6 +20,7 @@ import {
   BellRing,
   Layers,
   Flag,
+  Bot,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -78,6 +79,13 @@ const navGroups: NavGroup[] = [
         resource: 'ALARM_ANALYSIS',
         action: 'read',
         expandable: true,
+      },
+      {
+        title: 'Runbook automatici',
+        href: '/automatic-runbooks',
+        icon: Bot,
+        resource: 'AUTOMATIC_RUNBOOK_EXECUTION',
+        action: 'read',
       },
       {
         title: 'Report',

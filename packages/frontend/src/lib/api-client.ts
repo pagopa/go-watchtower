@@ -27,9 +27,21 @@ import type {
   SystemEvent,
   SystemEventsResponse,
   ResourceType,
+  AutomationExecutionStatus,
+  AutomationExecutionOutcome,
+  AutomationReviewStatus,
+  AutomationTriggerKind,
+  AutomationMode,
+  AutomationAttemptStatus,
 } from '@go-watchtower/shared'
 
 export type {
+  AutomationExecutionStatus,
+  AutomationExecutionOutcome,
+  AutomationReviewStatus,
+  AutomationTriggerKind,
+  AutomationMode,
+  AutomationAttemptStatus,
   AnalysisType,
   AnalysisStatus,
   PermissionScope,
@@ -593,6 +605,9 @@ export interface AlarmAnalysis {
   updatedAt: string
   createdById: string
   updatedById: string | null
+  // Runbook Automation provenance
+  origin?: 'MANUAL' | 'AUTOMATIC' | 'HYBRID'
+  lastAppliedExecutionId?: string | null
   product: RelatedEntity
   alarm: RelatedEntity
   operator: RelatedUser
@@ -1155,8 +1170,138 @@ export interface UpdateAlarmEventData {
   resolvedAt?: string | null
 }
 
+// ─── Runbook Automation (EVO-WATCHTINTEG-OPUS-03 §15.1) ────────────────────────
+
+export interface AutomaticRunbookExecution {
+  id: string
+  parentExecutionId: string | null
+  alarmEventId: string
+  analysisId: string | null
+  productId: string
+  environmentId: string
+  alarmId: string | null
+  status: AutomationExecutionStatus
+  outcome: AutomationExecutionOutcome | null
+  reviewStatus: AutomationReviewStatus
+  triggerKind: AutomationTriggerKind
+  appliedMode: AutomationMode
+  runbookKey: string | null
+  runbookVersion: string | null
+  errorCode: string | null
+  errorMessage: string | null
+  queryCount: number | null
+  bytesScanned: string | null
+  recordsScanned: string | null
+  recordsMatched: string | null
+  totalWorkerAttempts: number
+  deliveryCycle: number
+  cancelRequestedAt: string | null
+  cancelReason: string | null
+  cancelledAt: string | null
+  cancellationFinalizedBy: string | null
+  queuedAt: string | null
+  startedAt: string | null
+  deadlineAt: string
+  completedAt: string | null
+  durationMs: number | null
+  createdAt: string
+  updatedAt: string
+  // Present only on the detail endpoint (GET /:id), not in the list.
+  inputSnapshot?: unknown
+  resultSummary?: unknown
+  analysisPayload?: unknown
+  context?: {
+    alarmName: string | null
+    alarmEventName: string
+    firedAt: string
+    productName: string
+    environmentName: string
+    awsAccountId: string
+    awsRegion: string
+  }
+}
+
+export interface AutomaticRunbookAttempt {
+  id: string
+  executionId: string
+  attemptNumber: number
+  deliveryCycle: number
+  cycleReceiveCount: number
+  sqsMessageId: string
+  status: AutomationAttemptStatus
+  phase: string | null
+  heartbeatSequence: number
+  retryDisposition: string | null
+  errorCode: string | null
+  errorMessage: string | null
+  startedAt: string
+  lastHeartbeatAt: string | null
+  finishedAt: string | null
+  durationMs: number | null
+}
+
+export interface AutomaticExecutionListResponse {
+  data: AutomaticRunbookExecution[]
+  total: number
+  page: number
+  totalPages: number
+}
+
+export interface AutomaticAttemptListResponse {
+  data: AutomaticRunbookAttempt[]
+  total: number
+  page: number
+  totalPages: number
+}
+
+export interface AutomaticExecutionStats {
+  byStatus: Record<string, number>
+  byOutcome: Record<string, number>
+  pendingReview: number
+  inDlq: number
+}
+
+export interface AutomaticExecutionListParams {
+  page?: number
+  limit?: number
+  status?: AutomationExecutionStatus
+  outcome?: AutomationExecutionOutcome
+  reviewStatus?: AutomationReviewStatus
+  triggerKind?: AutomationTriggerKind
+  productId?: string
+  environmentId?: string
+  alarmId?: string
+}
+
+export interface CancelAutomaticExecutionResponse {
+  status: AutomationExecutionStatus
+  cancelRequestId: string | null
+}
+
 // API methods
 export const api = {
+  // Runbook Automation
+  listAutomaticExecutions: (params: AutomaticExecutionListParams = {}) =>
+    request<AutomaticExecutionListResponse>('/api/automatic-runbook-executions', {
+      params: params as Record<string, string | number | undefined>,
+    }),
+  getAutomaticExecution: (id: string) =>
+    request<AutomaticRunbookExecution>(`/api/automatic-runbook-executions/${id}`),
+  getAutomaticExecutionAttempts: (id: string, params: { page?: number; limit?: number } = {}) =>
+    request<AutomaticAttemptListResponse>(`/api/automatic-runbook-executions/${id}/attempts`, {
+      params: params as Record<string, string | number | undefined>,
+    }),
+  getAutomaticExecutionStats: () =>
+    request<AutomaticExecutionStats>('/api/automatic-runbook-executions/stats'),
+  createAutomaticExecution: (data: { alarmEventId: string }) =>
+    request<AutomaticRunbookExecution>('/api/automatic-runbook-executions', { method: 'POST', body: data }),
+  retryAutomaticExecution: (id: string) =>
+    request<AutomaticRunbookExecution>(`/api/automatic-runbook-executions/${id}/retry`, { method: 'POST' }),
+  reviewAutomaticExecution: (id: string, data: { decision: 'CONFIRMED' | 'REJECTED'; note?: string }) =>
+    request<AutomaticRunbookExecution>(`/api/automatic-runbook-executions/${id}/review`, { method: 'POST', body: data }),
+  cancelAutomaticExecution: (id: string, data: { reason?: string }) =>
+    request<CancelAutomaticExecutionResponse>(`/api/automatic-runbook-executions/${id}/cancel`, { method: 'POST', body: data }),
+
   // Auth
   me: () => request<User>('/auth/me'),
   logout: () => request<{ message: string }>('/auth/logout', { method: 'POST' }),

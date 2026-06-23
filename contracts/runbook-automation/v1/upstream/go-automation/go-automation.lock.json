@@ -1,30 +1,30 @@
 {
-  "$comment": "Lock file dell'handoff GA → WT (CONTRACT-03 §3.4). I file in questa cartella sono copie NON modificate degli artefatti go-automation. La generazione/validazione CI DEVE fallire se gli hash divergono da questo lock. La revision-canonicalization è riconciliata con l'algoritmo GA (vedi $comment dello schema): WT riproduce byte-per-byte la revision delle fixture valid/missing-region e rifiuta invalid-revision.",
+  "$comment": "Lock file dell'handoff GA → WT (CONTRACT-03 §3.4), CONTENT-ADDRESSED: i file in questa cartella sono copie NON modificate degli artefatti go-automation, pinnati per hash sha256 (nessuna dipendenza dal commit SHA upstream). La generazione/validazione CI DEVE fallire se gli hash divergono da questo lock (vedi test queue-registry-contract). La revision-canonicalization è riconciliata: WT riproduce byte-per-byte la revision delle fixture valid/missing-region e rifiuta invalid-revision.",
   "contractVersion": "1.0.0",
   "ownerRepository": "go-automation",
   "consumerRepository": "go-watchtower",
-  "upstreamCommit": "TODO_SET_GO_AUTOMATION_COMMIT_SHA",
-  "vendoredAt": "2026-06-22",
+  "addressing": "content-sha256",
+  "vendoredAt": "2026-06-23",
   "artifacts": [
     {
       "path": "execute-runbook-queue-registry-v1.schema.json",
-      "sha256": "54d29a313fe1751021c2c397bf23b2ebb8d5a3292fdadaccbb606e895bcaa191"
+      "sha256": "b107c3ff8f7550de1ae6d8e49c8a2ebdb9cd6f17889c3d7008395dffc59391cb"
     },
     {
       "path": "go-automation-contract-manifest.json",
-      "sha256": "bcb2e339ca50787af1a9f45bec388d394b567bc1a6cf872bb798980b0eec4294"
+      "sha256": "10f06bed8e2d565bbc534d9e71fd1e82a003fcea6becd33ae0efe0195a2b937e"
     },
     {
       "path": "fixtures/queue-registry.valid.json",
-      "sha256": "e9379fd1b05789b76d15496f50d57e3fef6621754c2fffe44088acf4483c0622"
+      "sha256": "90c5ae85f17fb56e1b82635674783cc8d0ab9b1386017ec89c57d4fe2a88769e"
     },
     {
       "path": "fixtures/queue-registry.invalid-revision.json",
-      "sha256": "3e760e4910ef342797c7d902930daa3bbcb2deb40b69701e97685844be242ac7"
+      "sha256": "eb7928b704053f824b35d68bb538984ebca4aad5d0f8d7740811e98bd6a71be5"
     },
     {
       "path": "fixtures/queue-registry.missing-region.json",
-      "sha256": "c61c2d1ec13846dceb6ba5b0db46dee935fbc926564ba47b4eb098b17a5b7725"
+      "sha256": "355541a4cdb6c85036f85fd5aa31c9ea2a4dd3ce2546d3c4fc11f31a3e20cc8d"
     }
   ]
 }

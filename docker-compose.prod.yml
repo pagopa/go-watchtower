@@ -23,6 +23,11 @@ services:
       FRONTEND_URL: ${FRONTEND_URL}
       COOKIE_SECURE: "false"
       COOKIE_SAME_SITE: lax
+      # Runbook Automation reconciler (opt-in; modalità completa invia su SQS)
+      RECONCILER_ENABLED: ${RECONCILER_ENABLED:-false}
+      RECONCILER_INTERVAL_MS: ${RECONCILER_INTERVAL_MS:-60000}
+      EXECUTE_RUNBOOK_QUEUE_REGISTRY_PARAMETER: ${EXECUTE_RUNBOOK_QUEUE_REGISTRY_PARAMETER:-}
+      EXECUTE_RUNBOOK_QUEUE_REGISTRY_REGION: ${EXECUTE_RUNBOOK_QUEUE_REGISTRY_REGION:-eu-south-1}
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/health"]
       interval: 30s

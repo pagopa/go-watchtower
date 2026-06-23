@@ -253,6 +253,13 @@ export const AlarmAnalysisResponseSchema = Type.Object({
   updatedAt: Type.String(),
   createdById: Type.String(),
   updatedById: Type.Union([Type.String(), Type.Null()]),
+  // Runbook Automation provenance (§9.2/§9.4)
+  origin: Type.Optional(Type.Union([
+    Type.Literal("MANUAL"),
+    Type.Literal("AUTOMATIC"),
+    Type.Literal("HYBRID"),
+  ])),
+  lastAppliedExecutionId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
   product: RelatedEntitySchema,
   alarm: RelatedEntitySchema,
   operator: RelatedUserSchema,
