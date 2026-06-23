@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import { ChevronLeft, ChevronRight, Bot, RotateCw, Loader2, ListChecks, Inbox, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Bot, RotateCw, Loader2, ListChecks, Inbox, AlertTriangle, CheckCircle2, XCircle, Play } from 'lucide-react'
 import { api, type AutomaticExecutionListParams } from '@/lib/api-client'
 import { qk } from '@/lib/query-keys'
 import { usePermissions } from '@/hooks/use-permissions'
@@ -12,6 +12,7 @@ import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { StatusBadge, OutcomeBadge, ReviewBadge, TRIGGER_LABELS, STATUS_ACCENT } from './_components/badges'
 import { ExecutionDetailPanel } from './_components/execution-detail-panel'
+import { ExecuteRunbookPicker } from './_components/execute-runbook-picker'
 
 const ALL = 'ALL'
 
@@ -90,6 +91,13 @@ export function AutomaticRunbooksPageContent() {
   const [reviewStatus, setReviewStatus] = useState(ALL)
   const [triggerKind, setTriggerKind] = useState(ALL)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
+
+  // Deep-link: ?execution=<id> apre il dettaglio (es. dal toast "Apri" dopo un lancio).
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('execution')
+    if (id) setSelectedId(id)
+  }, [])
 
   const limit = 50
   const params: AutomaticExecutionListParams = {
@@ -126,9 +134,16 @@ export function AutomaticRunbooksPageContent() {
             <p className="text-sm text-muted-foreground">Esecuzioni automatiche dei runbook sugli allarmi · {total} totali</p>
           </div>
         </div>
-        <Button variant="outline" size="sm" onClick={() => { void statsQuery.refetch(); void listQuery.refetch() }}>
-          <RotateCw className={`mr-1 h-4 w-4 ${listQuery.isFetching ? 'animate-spin' : ''}`} /> Aggiorna
-        </Button>
+        <div className="flex items-center gap-2">
+          {canWrite && (
+            <Button size="sm" onClick={() => setPickerOpen(true)}>
+              <Play className="mr-1 h-4 w-4" /> Nuova esecuzione
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={() => { void statsQuery.refetch(); void listQuery.refetch() }}>
+            <RotateCw className={`mr-1 h-4 w-4 ${listQuery.isFetching ? 'animate-spin' : ''}`} /> Aggiorna
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
@@ -203,6 +218,12 @@ export function AutomaticRunbooksPageContent() {
       </div>
 
       <ExecutionDetailPanel executionId={selectedId} canWrite={canWrite} onClose={() => setSelectedId(null)} />
+
+      <ExecuteRunbookPicker
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        onLaunched={(id) => setSelectedId(id)}
+      />
     </div>
   )
 }

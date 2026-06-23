@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
   X, Pencil, Trash2, ExternalLink, Copy, Check, Unlink,
-  Bell, FileText, ListChecks, Info, ShieldCheck, Zap,
+  Bell, FileText, ListChecks, Info, ShieldCheck, Zap, Bot,
   XCircle, AlertCircle, CheckCircle, Circle, ChevronDown, Lock, Link2,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -20,6 +20,7 @@ import { qk } from '@/lib/query-keys'
 import { sanitizeUrl } from '@/lib/sanitize-url'
 import { usePreferences } from '@/hooks/use-preferences'
 import { UnlinkAlarmEventDialog } from '../../alarm-events/_components/unlink-alarm-event-dialog'
+import { ExecuteRunbookConfirmDialog, type RunTarget } from '../../automatic-runbooks/_components/execute-runbook-action'
 import { IgnoredAlarmDetailsDialog } from './ignored-alarm-warning'
 import { formatDuration } from '@go-watchtower/shared'
 import { isoToUTCLocal, utcLocalToISO } from './analysis-form-schemas'
@@ -133,7 +134,9 @@ function LinkedAlarmEvents({ analysis }: { analysis: AlarmAnalysis }) {
   const queryClient = useQueryClient()
   const { can } = usePermissions()
   const canEditDates = can('ALARM_EVENT', 'write')
+  const canRunAutomatic = can('AUTOMATIC_RUNBOOK_EXECUTION', 'write')
   const [unlinkEvent, setUnlinkEvent] = useState<AlarmEvent | null>(null)
+  const [runTarget, setRunTarget] = useState<RunTarget | null>(null)
 
   const { data } = useQuery<PaginatedResponse<AlarmEvent>>({
     queryKey: qk.alarmEvents.forAnalysis(analysis.id),
@@ -220,14 +223,30 @@ function LinkedAlarmEvents({ analysis }: { analysis: AlarmAnalysis }) {
                   {timeDelta(event.resolvedAt, event.linkedAt)}
                 </td>
                 <td className="px-1 py-1">
-                  <button
-                    type="button"
-                    title="Scollega"
-                    onClick={() => setUnlinkEvent(event)}
-                    className="inline-flex items-center justify-center rounded p-1 text-muted-foreground/30 opacity-0 transition-all group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
-                  >
-                    <Unlink className="h-3.5 w-3.5" />
-                  </button>
+                  <div className="flex items-center justify-end gap-0.5">
+                    {canRunAutomatic && event.alarmId && (
+                      <button
+                        type="button"
+                        title="Esegui runbook automatico"
+                        onClick={() => setRunTarget({
+                          alarmEventId: event.id,
+                          alarmName: event.alarm?.name ?? event.name,
+                          hasAlarm: true,
+                        })}
+                        className="inline-flex items-center justify-center rounded p-1 text-muted-foreground/30 opacity-0 transition-all group-hover:opacity-100 hover:bg-primary/10 hover:text-primary"
+                      >
+                        <Bot className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      title="Scollega"
+                      onClick={() => setUnlinkEvent(event)}
+                      className="inline-flex items-center justify-center rounded p-1 text-muted-foreground/30 opacity-0 transition-all group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <Unlink className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -246,6 +265,11 @@ function LinkedAlarmEvents({ analysis }: { analysis: AlarmAnalysis }) {
           invalidate(queryClient, 'alarmEvents', 'analyses')
           setUnlinkEvent(null)
         }}
+      />
+
+      <ExecuteRunbookConfirmDialog
+        target={runTarget}
+        onOpenChange={(open) => { if (!open) setRunTarget(null) }}
       />
     </section>
   )

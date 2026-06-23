@@ -17,6 +17,7 @@ import { matchIgnoredAlarm } from '@go-watchtower/shared'
 import { ANALYSIS_STATUS_LABELS, ANALYSIS_TYPE_LABELS } from '../../analyses/_lib/constants'
 import { IgnoredAlarmDetailsDialog } from '../../analyses/_components/ignored-alarm-warning'
 import { UnlinkAlarmEventDialog } from './unlink-alarm-event-dialog'
+import { ExecuteRunbookButton } from '../../automatic-runbooks/_components/execute-runbook-action'
 
 // ─── Linked analysis section ──────────────────────────────────────────────────
 
@@ -376,6 +377,16 @@ export function AlarmEventDetailPanel({
                 )}
               </div>
               <div className="flex shrink-0 items-center gap-1">
+                <ExecuteRunbookButton
+                  target={{
+                    alarmEventId: event.id,
+                    alarmName: event.alarm?.name ?? event.name,
+                    hasAlarm: !!event.alarmId,
+                  }}
+                  iconOnly
+                  variant="ghost"
+                  className="h-8 w-8 text-primary hover:text-primary"
+                />
                 {canWrite && (
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(event)} title="Modifica">
                     <Pencil className="h-4 w-4" />
