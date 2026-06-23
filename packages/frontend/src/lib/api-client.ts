@@ -1218,6 +1218,21 @@ export interface AutomaticRunbookExecution {
     environmentName: string
     awsAccountId: string
     awsRegion: string
+    triggeredBy: {
+      userId: string | null
+      label: string | null
+      name: string | null
+      email: string | null
+      principalType: string | null
+      serviceId: string | null
+    }
+    linkedAnalysis: {
+      id: string
+      productId: string
+      analysisType: string
+      status: string
+      analysisDate: string
+    } | null
   }
 }
 
@@ -1259,6 +1274,10 @@ export interface AutomaticExecutionStats {
   byOutcome: Record<string, number>
   pendingReview: number
   inDlq: number
+  /** Modo predefinito proposto al lancio. */
+  defaultMode: AutomationMode
+  /** Override globale (kill-switch) attivo, oppure null se disattivato. */
+  modeOverride: AutomationMode | null
 }
 
 export interface AutomaticExecutionListParams {
@@ -1293,7 +1312,7 @@ export const api = {
     }),
   getAutomaticExecutionStats: () =>
     request<AutomaticExecutionStats>('/api/automatic-runbook-executions/stats'),
-  createAutomaticExecution: (data: { alarmEventId: string }) =>
+  createAutomaticExecution: (data: { alarmEventId: string; mode?: AutomationMode }) =>
     request<AutomaticRunbookExecution>('/api/automatic-runbook-executions', { method: 'POST', body: data }),
   retryAutomaticExecution: (id: string) =>
     request<AutomaticRunbookExecution>(`/api/automatic-runbook-executions/${id}/retry`, { method: 'POST' }),

@@ -3,14 +3,14 @@
 import { useEffect, useState } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { Search, Loader2, Bot, Zap } from 'lucide-react'
-import { api, type AlarmEvent } from '@/lib/api-client'
+import { api, type AlarmEvent, type AutomationMode } from '@/lib/api-client'
 import { qk } from '@/lib/query-keys'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { useRunAutomaticRunbook } from './execute-runbook-action'
+import { useRunAutomaticRunbook, ModeSelect } from './execute-runbook-action'
 
 /**
  * Picker per lanciare un runbook automatico dalla console (dove non c'è
@@ -27,6 +27,7 @@ export function ExecuteRunbookPicker({
 }) {
   const [term, setTerm] = useState('')
   const [debounced, setDebounced] = useState('')
+  const [mode, setMode] = useState<AutomationMode | undefined>(undefined)
   const run = useRunAutomaticRunbook()
 
   useEffect(() => {
@@ -35,7 +36,7 @@ export function ExecuteRunbookPicker({
   }, [term])
 
   useEffect(() => {
-    if (!open) { setTerm(''); setDebounced('') }
+    if (!open) { setTerm(''); setDebounced(''); setMode(undefined) }
   }, [open])
 
   const params = { pageSize: 20, sortBy: 'firedAt' as const, ...(debounced ? { name: debounced } : {}) }
@@ -48,7 +49,7 @@ export function ExecuteRunbookPicker({
   const events = data?.data ?? []
 
   const launch = (event: AlarmEvent) => {
-    run.mutate(event.id, {
+    run.mutate({ alarmEventId: event.id, mode }, {
       onSuccess: (execution) => { onLaunched?.(execution.id); onOpenChange(false) },
     })
   }
@@ -76,6 +77,11 @@ export function ExecuteRunbookPicker({
           />
         </div>
 
+        <div className="flex items-center gap-3">
+          <span className="shrink-0 text-xs font-medium text-muted-foreground">Modo di esecuzione</span>
+          <div className="w-72"><ModeSelect value={mode} onChange={setMode} /></div>
+        </div>
+
         <div className="max-h-[360px] min-h-[160px] overflow-y-auto rounded-lg border">
           {isFetching && events.length === 0 ? (
             <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
@@ -89,7 +95,7 @@ export function ExecuteRunbookPicker({
             <ul className="divide-y">
               {events.map((event) => {
                 const launchable = !!event.alarmId
-                const pending = run.isPending && run.variables === event.id
+                const pending = run.isPending && run.variables?.alarmEventId === event.id
                 return (
                   <li key={event.id} className="flex items-center justify-between gap-3 px-3 py-2.5 hover:bg-muted/40">
                     <div className="min-w-0">

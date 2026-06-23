@@ -307,7 +307,10 @@ export async function completeExecution(
       }
 
       const derivedStatus = OUTCOME_TO_STATUS[request.outcome];
-      const appliedMode = await resolveAutomationMode(tx);
+      // Modo effettivo dell'apply: l'override globale (kill-switch) se valorizzato,
+      // altrimenti il modo deciso al lancio e salvato sull'esecuzione (mai riletto
+      // il default qui). `appliedMode` della riga resta l'intento del lancio.
+      const effectiveMode = (await resolveModeOverride(tx)) ?? row.appliedMode;
 
       // Chiudi l'attempt COMPLETED con hash/versione (invariante DB §9.4).
       await tx.automaticRunbookAttempt.update({
@@ -346,7 +349,7 @@ export async function completeExecution(
           }
           const routing = routeAnalysis({
             outcome: request.outcome,
-            appliedMode,
+            appliedMode: effectiveMode,
             alarmEventAnalysisId: event.analysisId,
             existingAnalysisOrigin: existingOrigin,
           });
@@ -408,7 +411,7 @@ export async function completeExecution(
         data: {
           status: derivedStatus,
           outcome: request.outcome,
-          appliedMode,
+          // appliedMode NON viene riscritto: resta l'intento del lancio.
           reviewStatus,
           analysisId: resolvedAnalysisId,
           activeAttemptId: null,
@@ -440,7 +443,7 @@ export async function completeExecution(
           resource: SystemEventResources.AUTOMATIC_RUNBOOK_EXECUTIONS,
           resourceId: id,
           userId: actorUserId,
-          metadata: { actorType: "SERVICE", outcome: request.outcome, appliedMode },
+          metadata: { actorType: "SERVICE", outcome: request.outcome, appliedMode: effectiveMode },
         },
       });
       if (analysisApplied) {
@@ -460,7 +463,7 @@ export async function completeExecution(
         status: derivedStatus,
         outcome: request.outcome,
         analysisId: resolvedAnalysisId,
-        appliedMode,
+        appliedMode: effectiveMode,
       };
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
@@ -474,6 +477,20 @@ async function resolveAutomationMode(tx: Tx): Promise<"SHADOW" | "APPLY_KNOWN" |
     return value;
   }
   return AutomationModes.SHADOW;
+}
+
+/**
+ * Override globale (kill-switch) letto da `automation.modeOverride`. Se valorizzato
+ * con un modo valido sovrascrive l'appliedMode di OGNI esecuzione al completamento;
+ * vuoto/assente/non valido = nessun override (null).
+ */
+async function resolveModeOverride(tx: Tx): Promise<"SHADOW" | "APPLY_KNOWN" | "APPLY_ALL" | null> {
+  const setting = await tx.systemSetting.findUnique({ where: { key: "automation.modeOverride" } });
+  const value = typeof setting?.value === "string" ? setting.value : "";
+  if (value === AutomationModes.SHADOW || value === AutomationModes.APPLY_KNOWN || value === AutomationModes.APPLY_ALL) {
+    return value;
+  }
+  return null;
 }
 
 export type FailResult =
@@ -701,6 +718,7 @@ export async function createManualExecution(
   alarmEventId: string,
   triggerKind: "WATCHTOWER_UI" | "WATCHTOWER_API",
   actor: Actor,
+  mode?: "SHADOW" | "APPLY_KNOWN" | "APPLY_ALL",
   now: Date = new Date(),
 ): Promise<CreateResult> {
   const event = await prisma.alarmEvent.findUnique({
@@ -728,7 +746,9 @@ export async function createManualExecution(
     },
     trigger: { kind: triggerKind, actorId: actor.userId },
   };
-  const appliedMode = await resolveAutomationMode(prisma);
+  // Da UI l'operatore può forzare il modo per questo lancio; altrimenti si usa
+  // il default di sistema. Resta fisso sull'esecuzione (non più riletto).
+  const appliedMode = mode ?? (await resolveAutomationMode(prisma));
 
   const execution = await prisma.automaticRunbookExecution.create({
     data: {
@@ -764,7 +784,8 @@ export async function retryExecution(id: string, actor: Actor, now: Date = new D
     executionId: childId,
     trigger: { kind: "RETRY", actorId: actor.userId, parentExecutionId: parent.id },
   };
-  const appliedMode = await resolveAutomationMode(prisma);
+  // Il re-launch eredita il modo deciso al lancio del padre.
+  const appliedMode = parent.appliedMode;
   const execution = await prisma.automaticRunbookExecution.create({
     data: {
       id: childId,

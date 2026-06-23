@@ -6,10 +6,12 @@ import { toast } from 'sonner'
 import {
   Copy, RefreshCw, Ban, Check, X, Clock, Database, AlertTriangle,
   Info, Braces, Sparkles, Layers, GitBranch, Bell, Calendar, Boxes, ServerCog,
+  Bot, FileSearch, ExternalLink, ShieldAlert,
 } from 'lucide-react'
+import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { usePreferences } from '@/hooks/use-preferences'
-import { api, type AutomaticRunbookExecution, type AutomationExecutionStatus } from '@/lib/api-client'
+import { api, type AutomaticRunbookExecution, type AutomationExecutionStatus, type AutomationMode } from '@/lib/api-client'
 import { qk } from '@/lib/query-keys'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -21,8 +23,9 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   StatusBadge, OutcomeBadge, ReviewBadge, AttemptStatusBadge, StatusDot,
-  TRIGGER_LABELS, MODE_LABELS, statusLabel, STATUS_ACCENT,
+  TRIGGER_LABELS, MODE_LABELS, MODE_DESCRIPTIONS, statusLabel, STATUS_ACCENT,
 } from './badges'
+import { ANALYSIS_TYPE_LABELS, ANALYSIS_STATUS_LABELS } from '../../analyses/_lib/constants'
 
 // ─── Resize (shared `detailPanelWidth` preference, come analisi/allarmi) ───────
 const MIN_PANEL_WIDTH = 380
@@ -62,6 +65,76 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{label}</span>
       <span className="text-sm">{children}</span>
     </div>
+  )
+}
+
+type ExecContext = NonNullable<AutomaticRunbookExecution['context']>
+
+/**
+ * Chi ha avviato l'esecuzione, con grafica differenziata per tipo di principal:
+ * umano (avatar + accento verde), service principal (icona server + accento
+ * indaco) o avvio di sistema senza utente, es. Slack Ingester (accento neutro).
+ */
+function LaunchedByCard({ ctx, triggerKind }: { ctx: ExecContext; triggerKind: AutomaticRunbookExecution['triggerKind'] }) {
+  const t = ctx.triggeredBy
+  const isHuman = t.principalType === 'HUMAN'
+  const isService = t.principalType === 'SERVICE'
+  const title = isService
+    ? (t.serviceId ?? t.name ?? t.label ?? 'Service principal')
+    : (t.name ?? t.email ?? t.label ?? TRIGGER_LABELS[triggerKind])
+  const initial = (t.name ?? t.email ?? '?').trim().charAt(0).toUpperCase()
+
+  const theme = isHuman
+    ? { ring: 'border-emerald-500/30 bg-emerald-500/[0.04]', chip: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300', label: 'Umano' }
+    : isService
+      ? { ring: 'border-indigo-500/30 bg-indigo-500/[0.04]', chip: 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300', label: 'Servizio' }
+      : { ring: 'border-dashed border-border bg-muted/30', chip: 'bg-muted text-muted-foreground', label: 'Sistema' }
+
+  return (
+    <div className={cn('col-span-2 flex items-center gap-3 rounded-lg border p-3', theme.ring)}>
+      {isHuman ? (
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-sm font-bold text-emerald-700 dark:text-emerald-300">
+          {initial}
+        </div>
+      ) : (
+        <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-md', isService ? 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-300' : 'bg-muted text-muted-foreground')}>
+          {isService ? <ServerCog className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
+        </div>
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="truncate text-sm font-semibold" title={title}>{title}</span>
+          <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide', theme.chip)}>{theme.label}</span>
+        </div>
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+          {isService
+            ? <span className="font-mono">{t.serviceId ? `service · ${t.serviceId}` : 'service principal'}</span>
+            : !isHuman && <span>Avvio automatico di sistema</span>}
+          {t.email && <span>{t.email}</span>}
+          <span>via {TRIGGER_LABELS[triggerKind]}</span>
+        </div>
+        {t.userId && <div className="mt-1"><CopyMono value={t.userId} short /></div>}
+      </div>
+    </div>
+  )
+}
+
+/** Analisi collegata (di partenza / che verrà aggiornata) con link al dettaglio. */
+function LinkedAnalysisField({ analysis }: { analysis: ExecContext['linkedAnalysis'] }) {
+  if (!analysis) return <span className="text-muted-foreground">Nessuna analisi collegata</span>
+  const typeLabel = ANALYSIS_TYPE_LABELS[analysis.analysisType as keyof typeof ANALYSIS_TYPE_LABELS] ?? analysis.analysisType
+  const statusText = ANALYSIS_STATUS_LABELS[analysis.status as keyof typeof ANALYSIS_STATUS_LABELS] ?? analysis.status
+  return (
+    <Link
+      href={`/analyses?productId=${analysis.productId}&analysisId=${analysis.id}`}
+      className="group inline-flex items-center gap-2 rounded-md border border-border/60 bg-card px-2.5 py-1.5 transition-colors hover:border-primary/40 hover:bg-primary/[0.04]"
+    >
+      <FileSearch className="h-4 w-4 shrink-0 text-primary" />
+      <span className="font-medium">{typeLabel}</span>
+      <span className="text-muted-foreground">· {statusText}</span>
+      <span className="text-xs text-muted-foreground">· {fmt(analysis.analysisDate)}</span>
+      <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+    </Link>
   )
 }
 
@@ -115,10 +188,11 @@ function LifecycleStepper({ status }: { status: AutomationExecutionStatus }) {
 }
 
 export function ExecutionDetailPanel({
-  executionId, canWrite, onClose,
+  executionId, canWrite, globalModeOverride = null, onClose,
 }: {
   executionId: string | null
   canWrite: boolean
+  globalModeOverride?: AutomationMode | null
   onClose: () => void
 }) {
   const open = executionId !== null
@@ -175,13 +249,13 @@ export function ExecutionDetailPanel({
             <div className="h-[3px] w-[3px] rounded-full bg-primary" />
           </div>
         </div>
-        {executionId && <PanelBody executionId={executionId} canWrite={canWrite} onClose={onClose} />}
+        {executionId && <PanelBody executionId={executionId} canWrite={canWrite} globalModeOverride={globalModeOverride} onClose={onClose} />}
       </div>
     </>
   )
 }
 
-function PanelBody({ executionId, canWrite, onClose }: { executionId: string; canWrite: boolean; onClose: () => void }) {
+function PanelBody({ executionId, canWrite, globalModeOverride, onClose }: { executionId: string; canWrite: boolean; globalModeOverride: AutomationMode | null; onClose: () => void }) {
   const queryClient = useQueryClient()
   const [cancelReason, setCancelReason] = useState('')
 
@@ -286,12 +360,34 @@ function PanelBody({ executionId, canWrite, onClose }: { executionId: string; ca
           </TabsList>
 
           <TabsContent value="summary" className="grid grid-cols-2 gap-x-6 gap-y-3 pt-3">
+            {ctx && (
+              <div className="col-span-2 flex flex-col gap-1">
+                <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Lanciata da</span>
+                <LaunchedByCard ctx={ctx} triggerKind={execution.triggerKind} />
+              </div>
+            )}
             <Field label="Allarme">{ctx?.alarmName ?? '—'}{execution.alarmId && <span className="ml-1.5"><CopyMono value={execution.alarmId} short /></span>}</Field>
             <Field label="Trigger">{TRIGGER_LABELS[execution.triggerKind]}</Field>
             <Field label="Runbook">{execution.runbookKey ?? '—'}{execution.runbookVersion ? ` · v${execution.runbookVersion}` : ''}</Field>
-            <Field label="Modo applicato">{MODE_LABELS[execution.appliedMode]}</Field>
             <Field label="Tentativi worker">{execution.totalWorkerAttempts} · ciclo {execution.deliveryCycle}</Field>
-            <Field label="Analisi collegata">{execution.analysisId ? <CopyMono value={execution.analysisId} short /> : '—'}</Field>
+            <div className="col-span-2">
+              <Field label="Modo applicato">
+                <span className="font-medium">{MODE_LABELS[execution.appliedMode]}</span>
+                <span className="ml-2 rounded bg-muted px-1.5 py-0.5 align-middle font-mono text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{execution.appliedMode}</span>
+                <span className="mt-1 block text-xs font-normal leading-relaxed text-muted-foreground">{MODE_DESCRIPTIONS[execution.appliedMode]}</span>
+                {globalModeOverride && (
+                  <span className="mt-1.5 flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs font-normal text-amber-700 dark:text-amber-300">
+                    <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    Override globale attivo: al completamento si applica <strong className="font-semibold">{MODE_LABELS[globalModeOverride]}</strong>, non questo modo.
+                  </span>
+                )}
+              </Field>
+            </div>
+            <div className="col-span-2">
+              <Field label="Analisi collegata">
+                <LinkedAnalysisField analysis={ctx?.linkedAnalysis ?? null} />
+              </Field>
+            </div>
             <Field label="Creata">{fmt(execution.createdAt)}</Field>
             <Field label="In coda">{fmt(execution.queuedAt)}</Field>
             <Field label="Avviata">{fmt(execution.startedAt)}</Field>

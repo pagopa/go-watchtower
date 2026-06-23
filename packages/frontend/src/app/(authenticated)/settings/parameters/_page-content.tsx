@@ -527,6 +527,28 @@ function ValueDisplay({ setting }: { setting: SystemSetting }) {
   )
 }
 
+// ─── Enum settings (valore vincolato a una lista) ─────────────────────────────
+// Per queste chiavi il valore non si digita: si sceglie da un menu a tendina, così
+// non è possibile salvare un valore non valido (che il backend ignorerebbe).
+const ENUM_SETTING_OPTIONS: Record<string, readonly { value: string; label: string }[]> = {
+  'automation.defaultMode': [
+    { value: 'SHADOW', label: 'Shadow (solo osservazione)' },
+    { value: 'APPLY_KNOWN', label: 'Apply known (solo casi noti)' },
+    { value: 'APPLY_ALL', label: 'Apply all (sempre)' },
+  ],
+  // Override globale (kill-switch): "" = disattivato.
+  'automation.modeOverride': [
+    { value: '', label: 'Nessuno (override disattivato)' },
+    { value: 'SHADOW', label: 'Shadow — ferma: solo osservazione' },
+    { value: 'APPLY_KNOWN', label: 'Apply known — forza solo casi noti' },
+    { value: 'APPLY_ALL', label: 'Apply all — forza sempre' },
+  ],
+}
+
+// Radix Select non ammette SelectItem con value="": usiamo questo sentinel per
+// rappresentare l'opzione "Nessuno"/vuoto, rimappandolo a "" al salvataggio.
+const EMPTY_ENUM_SENTINEL = '__NONE__'
+
 // ─── Inline editor (STRING / NUMBER) ──────────────────────────────────────────
 
 function InlineEditor({
@@ -614,7 +636,8 @@ function SettingCard({
   const needsDialog    = isWorkingHours || isOnCallHours
   const isFk           = isFkSetting(setting)
   const isBoolean      = setting.type === 'BOOLEAN'
-  const isInline       = !needsDialog && !isFk && !isBoolean
+  const enumOptions    = ENUM_SETTING_OPTIONS[setting.key]
+  const isInline       = !needsDialog && !isFk && !isBoolean && !enumOptions
 
   return (
     <>
@@ -644,7 +667,35 @@ function SettingCard({
 
           {/* Right: value + edit */}
           <div className="flex shrink-0 items-center gap-2">
-            {isBoolean ? (
+            {enumOptions ? (
+              <div className="flex items-center gap-2">
+                {canWrite ? (
+                  <Select
+                    value={typeof setting.value === 'string' && setting.value !== '' ? setting.value : EMPTY_ENUM_SENTINEL}
+                    onValueChange={(v) => mutation.mutate(v === EMPTY_ENUM_SENTINEL ? '' : v)}
+                    disabled={mutation.isPending}
+                  >
+                    <SelectTrigger className="h-7 w-72 text-sm">
+                      <SelectValue placeholder="Scegli…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {enumOptions.map((o) => (
+                        <SelectItem key={o.value || EMPTY_ENUM_SENTINEL} value={o.value === '' ? EMPTY_ENUM_SENTINEL : o.value}>
+                          {o.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <span className="text-sm">
+                    {enumOptions.find((o) => o.value === (typeof setting.value === 'string' ? setting.value : ''))?.label ?? String(setting.value ?? '—')}
+                  </span>
+                )}
+                {mutation.isPending && (
+                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                )}
+              </div>
+            ) : isBoolean ? (
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground">
                   {setting.value ? 'Attivo' : 'Inattivo'}

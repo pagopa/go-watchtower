@@ -454,7 +454,16 @@ async function seedSystemSettings() {
       format:      null,
       category:    "SYSTEM",
       label:       "Modo predefinito Runbook Automation",
-      description: "Rollout dell'automazione: SHADOW (solo esecuzione), APPLY_KNOWN (crea analisi per KNOWN_CASE), APPLY_ALL (anche UNKNOWN_CASE). Override per-allarme/runbook.",
+      description: "Modo usato al LANCIO di una nuova esecuzione (default proposto in UI e valore per i lanci automatici/Slack): SHADOW (solo esecuzione), APPLY_KNOWN (crea analisi per KNOWN_CASE), APPLY_ALL (anche UNKNOWN_CASE). Cambiarlo influenza solo i nuovi lanci.",
+    },
+    {
+      key:         "automation.modeOverride",
+      value:       "",
+      type:        "STRING",
+      format:      null,
+      category:    "SYSTEM",
+      label:       "Override globale Runbook Automation (kill-switch)",
+      description: "Se valorizzato, al COMPLETAMENTO sovrascrive il modo di TUTTE le esecuzioni non ancora concluse (anche quelle già avviate), ignorando il modo con cui sono state lanciate. Vuoto = disattivato. Imposta SHADOW per fermare istantaneamente la creazione/aggiornamento di analisi.",
     },
     {
       key:         "on_call_hours",

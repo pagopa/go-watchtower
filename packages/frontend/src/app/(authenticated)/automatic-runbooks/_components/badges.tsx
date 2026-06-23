@@ -59,6 +59,16 @@ export const MODE_LABELS: Record<AutomationMode, string> = {
   APPLY_ALL: 'Apply all',
 }
 
+/** Cosa fa concretamente ogni modo di rollout sull'analisi, in parole semplici. */
+export const MODE_DESCRIPTIONS: Record<AutomationMode, string> = {
+  SHADOW:
+    'Solo osservazione: l’esito viene registrato sull’esecuzione ma nessuna analisi viene creata o modificata.',
+  APPLY_KNOWN:
+    'Applica solo i casi riconosciuti: se l’allarme è un caso noto crea/aggiorna l’analisi automaticamente, altrimenti registra soltanto l’esito senza toccare le analisi.',
+  APPLY_ALL:
+    'Applica sempre: crea o aggiorna l’analisi sia per i casi noti sia per quelli non riconosciuti.',
+}
+
 export function statusLabel(status: AutomationExecutionStatus): string {
   return STATUS_META[status].label
 }

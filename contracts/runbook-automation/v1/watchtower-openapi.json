@@ -5479,6 +5479,28 @@
                   "alarmEventId": {
                     "format": "uuid",
                     "type": "string"
+                  },
+                  "mode": {
+                    "anyOf": [
+                      {
+                        "enum": [
+                          "SHADOW"
+                        ],
+                        "type": "string"
+                      },
+                      {
+                        "enum": [
+                          "APPLY_KNOWN"
+                        ],
+                        "type": "string"
+                      },
+                      {
+                        "enum": [
+                          "APPLY_ALL"
+                        ],
+                        "type": "string"
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -6027,8 +6049,55 @@
                       },
                       "type": "object"
                     },
+                    "defaultMode": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "SHADOW"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "enum": [
+                            "APPLY_KNOWN"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "enum": [
+                            "APPLY_ALL"
+                          ],
+                          "type": "string"
+                        }
+                      ]
+                    },
                     "inDlq": {
                       "type": "integer"
+                    },
+                    "modeOverride": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "SHADOW"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "enum": [
+                            "APPLY_KNOWN"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "enum": [
+                            "APPLY_ALL"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "pendingReview": {
                       "type": "integer"
@@ -6038,7 +6107,9 @@
                     "byStatus",
                     "byOutcome",
                     "pendingReview",
-                    "inDlq"
+                    "inDlq",
+                    "defaultMode",
+                    "modeOverride"
                   ],
                   "type": "object"
                 }
@@ -6229,8 +6300,115 @@
                         "firedAt": {
                           "type": "string"
                         },
+                        "linkedAnalysis": {
+                          "anyOf": [
+                            {
+                              "properties": {
+                                "analysisDate": {
+                                  "type": "string"
+                                },
+                                "analysisType": {
+                                  "type": "string"
+                                },
+                                "id": {
+                                  "type": "string"
+                                },
+                                "productId": {
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "productId",
+                                "analysisType",
+                                "status",
+                                "analysisDate"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "productName": {
                           "type": "string"
+                        },
+                        "triggeredBy": {
+                          "properties": {
+                            "email": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "label": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "name": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "principalType": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "serviceId": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "userId": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "userId",
+                            "label",
+                            "name",
+                            "email",
+                            "principalType",
+                            "serviceId"
+                          ],
+                          "type": "object"
                         }
                       },
                       "required": [
@@ -6240,7 +6418,9 @@
                         "productName",
                         "environmentName",
                         "awsAccountId",
-                        "awsRegion"
+                        "awsRegion",
+                        "triggeredBy",
+                        "linkedAnalysis"
                       ],
                       "type": "object"
                     },

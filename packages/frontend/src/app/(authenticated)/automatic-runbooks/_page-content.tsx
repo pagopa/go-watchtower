@@ -13,6 +13,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { StatusBadge, OutcomeBadge, ReviewBadge, TRIGGER_LABELS, STATUS_ACCENT } from './_components/badges'
 import { ExecutionDetailPanel } from './_components/execution-detail-panel'
 import { ExecuteRunbookPicker } from './_components/execute-runbook-picker'
+import { GlobalOverrideBanner } from './_components/global-override-banner'
 
 const ALL = 'ALL'
 
@@ -146,6 +147,8 @@ export function AutomaticRunbooksPageContent() {
         </div>
       </div>
 
+      <GlobalOverrideBanner modeOverride={stats?.modeOverride ?? null} />
+
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <StatCard label="In coda" value={inQueue} icon={Inbox} accent="border-l-amber-400" />
         <StatCard label="In esecuzione" value={stats?.byStatus['RUNNING']} icon={Loader2} accent="border-l-sky-500" />
@@ -217,7 +220,7 @@ export function AutomaticRunbooksPageContent() {
         <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}><ChevronRight className="h-4 w-4" /></Button>
       </div>
 
-      <ExecutionDetailPanel executionId={selectedId} canWrite={canWrite} onClose={() => setSelectedId(null)} />
+      <ExecutionDetailPanel executionId={selectedId} canWrite={canWrite} globalModeOverride={stats?.modeOverride ?? null} onClose={() => setSelectedId(null)} />
 
       <ExecuteRunbookPicker
         open={pickerOpen}

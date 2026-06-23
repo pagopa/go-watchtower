@@ -274,7 +274,11 @@ export const CancelExecutionResponseSchema = Type.Object({
 });
 
 export const CreateExecutionRequestSchema = Type.Object(
-  { alarmEventId: Type.String({ format: "uuid" }) },
+  {
+    alarmEventId: Type.String({ format: "uuid" }),
+    // Override del modo solo per questo lancio; assente = usa il default di sistema.
+    mode: Type.Optional(enumUnion(AUTOMATION_MODE_VALUES)),
+  },
   { additionalProperties: false },
 );
 export type CreateExecutionRequest = Static<typeof CreateExecutionRequestSchema>;
@@ -328,6 +332,30 @@ export const ExecutionDtoSchema = Type.Object({
 
 // Dettaglio esecuzione: include i JSON versionati (snapshot/risultato/analisi)
 // non presenti nel DTO di lista per non appesantire la paginazione (§15.1).
+// Chi ha avviato l'esecuzione. `principalType`/`serviceId`/`name`/`email` sono
+// valorizzati solo quando l'avvio è riconducibile a un utente (umano o service
+// principal). Per gli avvii di sistema (es. Slack Ingester) restano null e si usa
+// `label` (+ il triggerKind del DTO) per descrivere l'origine.
+export const TriggeredBySchema = Type.Object({
+  userId: Type.Union([Type.String(), Type.Null()]),
+  label: Type.Union([Type.String(), Type.Null()]),
+  name: Type.Union([Type.String(), Type.Null()]),
+  email: Type.Union([Type.String(), Type.Null()]),
+  principalType: Type.Union([Type.String(), Type.Null()]),
+  serviceId: Type.Union([Type.String(), Type.Null()]),
+})
+
+// Analisi a cui l'esecuzione è collegata (quella di partenza dell'occorrenza e/o
+// quella applicata al completamento). Display-only: serve a mostrare nel
+// riepilogo l'analisi che verrà creata/aggiornata dall'esecuzione.
+export const LinkedAnalysisSchema = Type.Object({
+  id: Type.String(),
+  productId: Type.String(),
+  analysisType: Type.String(),
+  status: Type.String(),
+  analysisDate: Type.String(),
+})
+
 export const ExecutionContextSchema = Type.Object({
   alarmName: Type.Union([Type.String(), Type.Null()]),
   alarmEventName: Type.String(),
@@ -336,6 +364,8 @@ export const ExecutionContextSchema = Type.Object({
   environmentName: Type.String(),
   awsAccountId: Type.String(),
   awsRegion: Type.String(),
+  triggeredBy: TriggeredBySchema,
+  linkedAnalysis: Type.Union([LinkedAnalysisSchema, Type.Null()]),
 })
 
 export const ExecutionDetailDtoSchema = Type.Composite([
@@ -405,4 +435,8 @@ export const ExecutionStatsResponseSchema = Type.Object({
   byOutcome: Type.Record(Type.String(), Type.Integer()),
   pendingReview: Type.Integer(),
   inDlq: Type.Integer(),
+  // Modo predefinito proposto al lancio.
+  defaultMode: Type.Union([Type.Literal("SHADOW"), Type.Literal("APPLY_KNOWN"), Type.Literal("APPLY_ALL")]),
+  // Override globale (kill-switch) attivo, oppure null se disattivato.
+  modeOverride: Type.Union([Type.Literal("SHADOW"), Type.Literal("APPLY_KNOWN"), Type.Literal("APPLY_ALL"), Type.Null()]),
 });

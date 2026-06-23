@@ -202,6 +202,13 @@ export async function automaticRunbookExecutionRoutes(fastify: FastifyInstance):
       },
     },
     async (request, reply) => {
+      const analysisSelect = {
+        id: true,
+        productId: true,
+        analysisType: true,
+        status: true,
+        analysisDate: true,
+      } as const;
       const row = await prisma.automaticRunbookExecution.findUnique({
         where: { id: request.params.id },
         include: {
@@ -214,11 +221,19 @@ export async function automaticRunbookExecutionRoutes(fastify: FastifyInstance):
               product: { select: { name: true } },
               environment: { select: { name: true } },
               alarm: { select: { name: true } },
+              analysis: { select: analysisSelect },
             },
           },
+          // Chi ha avviato (umano o service principal); null per gli avvii di sistema.
+          triggeredBy: { select: { name: true, email: true, principalType: true, serviceId: true } },
+          // Analisi applicata al completamento (può differire da quella dell'occorrenza).
+          analysis: { select: analysisSelect },
         },
       });
       if (!row) return HttpError.notFound(reply, "Execution");
+      // Analisi di partenza: quella applicata dall'esecuzione se già nota,
+      // altrimenti quella attualmente collegata all'occorrenza.
+      const linked = row.analysis ?? row.alarmEvent.analysis;
       const context = {
         alarmName: row.alarmEvent.alarm?.name ?? null,
         alarmEventName: row.alarmEvent.name,
@@ -227,6 +242,23 @@ export async function automaticRunbookExecutionRoutes(fastify: FastifyInstance):
         environmentName: row.alarmEvent.environment.name,
         awsAccountId: row.alarmEvent.awsAccountId,
         awsRegion: row.alarmEvent.awsRegion,
+        triggeredBy: {
+          userId: row.triggeredByUserId,
+          label: row.triggeredByLabel,
+          name: row.triggeredBy?.name ?? null,
+          email: row.triggeredBy?.email ?? null,
+          principalType: row.triggeredBy?.principalType ?? null,
+          serviceId: row.triggeredBy?.serviceId ?? null,
+        },
+        linkedAnalysis: linked
+          ? {
+              id: linked.id,
+              productId: linked.productId,
+              analysisType: linked.analysisType,
+              status: linked.status,
+              analysisDate: linked.analysisDate.toISOString(),
+            }
+          : null,
       };
       reply.send({ ...toExecutionDetailDto(row), context });
     },
@@ -274,17 +306,23 @@ export async function automaticRunbookExecutionRoutes(fastify: FastifyInstance):
       },
     },
     async (_request, reply) => {
-      const [byStatus, byOutcome, pendingReview, inDlq] = await Promise.all([
+      const [byStatus, byOutcome, pendingReview, inDlq, defaultSetting, overrideSetting] = await Promise.all([
         prisma.automaticRunbookExecution.groupBy({ by: ["status"], _count: true }),
         prisma.automaticRunbookExecution.groupBy({ by: ["outcome"], _count: true }),
         prisma.automaticRunbookExecution.count({ where: { reviewStatus: "PENDING" } }),
         prisma.automaticRunbookExecution.count({ where: { status: "RETRY_PENDING" } }),
+        prisma.systemSetting.findUnique({ where: { key: "automation.defaultMode" } }),
+        prisma.systemSetting.findUnique({ where: { key: "automation.modeOverride" } }),
       ]);
       const statusMap: Record<string, number> = {};
       for (const s of byStatus) statusMap[s.status] = s._count;
       const outcomeMap: Record<string, number> = {};
       for (const o of byOutcome) if (o.outcome) outcomeMap[o.outcome] = o._count;
-      reply.send({ byStatus: statusMap, byOutcome: outcomeMap, pendingReview, inDlq });
+      const isMode = (v: unknown): v is "SHADOW" | "APPLY_KNOWN" | "APPLY_ALL" =>
+        v === "SHADOW" || v === "APPLY_KNOWN" || v === "APPLY_ALL";
+      const defaultMode = isMode(defaultSetting?.value) ? defaultSetting.value : "SHADOW";
+      const modeOverride = isMode(overrideSetting?.value) ? overrideSetting.value : null;
+      reply.send({ byStatus: statusMap, byOutcome: outcomeMap, pendingReview, inDlq, defaultMode, modeOverride });
     },
   );
 
@@ -303,7 +341,7 @@ export async function automaticRunbookExecutionRoutes(fastify: FastifyInstance):
       },
     },
     async (request, reply) => {
-      const result = await createManualExecution(request.body.alarmEventId, "WATCHTOWER_UI", actorOf(request));
+      const result = await createManualExecution(request.body.alarmEventId, "WATCHTOWER_UI", actorOf(request), request.body.mode);
       if (result.kind === "ALARM_EVENT_NOT_FOUND") return HttpError.notFound(reply, "Alarm event");
       if (result.kind === "ALARM_EVENT_NOT_LINKABLE") {
         reply.status(422).send({ error: result.reason });
