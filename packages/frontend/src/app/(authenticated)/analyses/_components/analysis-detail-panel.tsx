@@ -21,6 +21,7 @@ import { sanitizeUrl } from '@/lib/sanitize-url'
 import { usePreferences } from '@/hooks/use-preferences'
 import { UnlinkAlarmEventDialog } from '../../alarm-events/_components/unlink-alarm-event-dialog'
 import { ExecuteRunbookConfirmDialog, type RunTarget } from '../../automatic-runbooks/_components/execute-runbook-action'
+import { StatusBadge, OutcomeBadge, ReviewBadge, TRIGGER_LABELS, MODE_LABELS } from '../../automatic-runbooks/_components/badges'
 import { IgnoredAlarmDetailsDialog } from './ignored-alarm-warning'
 import { formatDuration } from '@go-watchtower/shared'
 import { isoToUTCLocal, utcLocalToISO } from './analysis-form-schemas'
@@ -315,6 +316,76 @@ function SectionHeader({
       )}
       <span className="h-px flex-1 bg-border/60" />
     </div>
+  )
+}
+
+/**
+ * Riepilogo dell'esecuzione automatica correlata all'analisi.
+ * Mostra stato/esito/review, runbook, durata e un deep-link al dettaglio
+ * completo nella console "Runbook automatici". Copre i rami 1/2 (lastApplied)
+ * e il ramo 3 (analisi umana con esecuzione automatica non applicata).
+ */
+function AutomaticExecutionSection({ analysis }: { analysis: AlarmAnalysis }) {
+  const exec = analysis.automaticExecution
+  if (!exec) return null
+  // L'esito non è stato applicato a QUESTA analisi (ramo 3 / SHADOW): il
+  // contenuto qui mostrato non proviene da questa esecuzione.
+  const notApplied = !exec.isLastApplied
+  return (
+    <section className="space-y-3">
+      <SectionHeader
+        label="Esecuzione automatica"
+        icon={Zap}
+        count={exec.totalCount > 1 ? exec.totalCount : undefined}
+      />
+      <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusBadge status={exec.status} />
+          <OutcomeBadge outcome={exec.outcome} />
+          <ReviewBadge reviewStatus={exec.reviewStatus} />
+        </div>
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+          <div>
+            <dt className="text-muted-foreground">Trigger</dt>
+            <dd>{TRIGGER_LABELS[exec.triggerKind]}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">Modo</dt>
+            <dd>{MODE_LABELS[exec.appliedMode]}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">Runbook</dt>
+            <dd className="font-mono">
+              {exec.runbookKey ?? '—'}
+              {exec.runbookVersion ? ` · v${exec.runbookVersion}` : ''}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">Durata</dt>
+            <dd>{formatDuration(exec.durationMs)}</dd>
+          </div>
+          <div className="col-span-2">
+            <dt className="text-muted-foreground">Completata</dt>
+            <dd>{exec.completedAt ? formatDateTimeRome(exec.completedAt) : '—'}</dd>
+          </div>
+        </dl>
+        {notApplied && (
+          <p className="rounded-md border border-amber-500/25 bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-700 dark:text-amber-400">
+            L’esito non è stato applicato a questa analisi (occorrenza con analisi
+            manuale o modalità shadow): il risultato completo dell’esecuzione resta
+            consultabile nella console Runbook automatici.
+          </p>
+        )}
+        <a
+          href={`/automatic-runbooks?execution=${exec.id}`}
+          className="inline-flex items-center gap-1 text-xs font-medium text-sky-600 hover:underline dark:text-sky-400"
+          title="Apri il dettaglio completo dell'esecuzione"
+        >
+          <ExternalLink className="h-3 w-3" />
+          Apri esecuzione <span className="font-mono">{exec.id.slice(0, 8)}…</span>
+        </a>
+      </div>
+    </section>
   )
 }
 
@@ -770,9 +841,9 @@ export function AnalysisDetailPanel({
               </p>
               {analysis.origin && analysis.origin !== 'MANUAL' && analysis.lastAppliedExecutionId && (
                 <a
-                  href="/automatic-runbooks"
+                  href={`/automatic-runbooks?execution=${analysis.lastAppliedExecutionId}`}
                   className="mt-1.5 inline-flex items-center gap-1 text-xs text-sky-600 hover:underline dark:text-sky-400"
-                  title="Apri la console Runbook automatici"
+                  title="Apri il dettaglio dell'esecuzione automatica"
                 >
                   <Zap className="h-3 w-3" />
                   Esecuzione: <span className="font-mono">{analysis.lastAppliedExecutionId.slice(0, 8)}…</span>
@@ -831,6 +902,11 @@ export function AnalysisDetailPanel({
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto">
           <div className="space-y-7 p-5 pb-12">
+
+            {/* ── Esecuzione automatica correlata (rami 1/2/3) ── */}
+            {analysis.automaticExecution && (
+              <AutomaticExecutionSection analysis={analysis} />
+            )}
 
             {/* ── Sezione 0: Valutazione ── */}
             {validation && quality && (

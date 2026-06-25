@@ -608,6 +608,23 @@ export interface AlarmAnalysis {
   // Runbook Automation provenance
   origin?: 'MANUAL' | 'AUTOMATIC' | 'HYBRID'
   lastAppliedExecutionId?: string | null
+  // Riepilogo dell'esecuzione automatica correlata (solo dettaglio): rami 1/2
+  // via lastApplied, ramo 3 via l'esecuzione più recente che referenzia l'analisi.
+  automaticExecution?: {
+    id: string
+    status: AutomationExecutionStatus
+    outcome: AutomationExecutionOutcome | null
+    reviewStatus: AutomationReviewStatus
+    triggerKind: AutomationTriggerKind
+    appliedMode: AutomationMode
+    runbookKey: string | null
+    runbookVersion: string | null
+    completedAt: string | null
+    durationMs: number | null
+    createdAt: string
+    isLastApplied: boolean
+    totalCount: number
+  } | null
   product: RelatedEntity
   alarm: RelatedEntity
   operator: RelatedUser

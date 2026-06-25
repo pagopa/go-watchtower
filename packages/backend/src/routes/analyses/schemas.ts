@@ -260,6 +260,29 @@ export const AlarmAnalysisResponseSchema = Type.Object({
     Type.Literal("HYBRID"),
   ])),
   lastAppliedExecutionId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  // Riepilogo dell'esecuzione automatica correlata. Popolato solo nel dettaglio:
+  // rami 1/2 via `lastApplied`; ramo 3 (analisi umana) via l'esecuzione più
+  // recente che referenzia l'analisi. Assente negli endpoint di lista.
+  automaticExecution: Type.Optional(
+    Type.Union([
+      Type.Object({
+        id: Type.String(),
+        status: Type.String(),
+        outcome: Type.Union([Type.String(), Type.Null()]),
+        reviewStatus: Type.String(),
+        triggerKind: Type.String(),
+        appliedMode: Type.String(),
+        runbookKey: Type.Union([Type.String(), Type.Null()]),
+        runbookVersion: Type.Union([Type.String(), Type.Null()]),
+        completedAt: Type.Union([Type.String(), Type.Null()]),
+        durationMs: Type.Union([Type.Integer(), Type.Null()]),
+        createdAt: Type.String(),
+        isLastApplied: Type.Boolean(),
+        totalCount: Type.Integer(),
+      }),
+      Type.Null(),
+    ]),
+  ),
   product: RelatedEntitySchema,
   alarm: RelatedEntitySchema,
   operator: RelatedUserSchema,

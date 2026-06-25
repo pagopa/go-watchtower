@@ -78,6 +78,21 @@ export const analysisListSelect = {
   _count: { select: { alarmEvents: true } },
 } as const;
 
+// Campi minimi di una esecuzione automatica per il riepilogo nel dettaglio analisi.
+const automationExecutionSummarySelect = {
+  id: true,
+  status: true,
+  outcome: true,
+  reviewStatus: true,
+  triggerKind: true,
+  appliedMode: true,
+  runbookKey: true,
+  runbookVersion: true,
+  completedAt: true,
+  durationMs: true,
+  createdAt: true,
+} as const;
+
 export const analysisInclude = {
   product: { select: { id: true, name: true } },
   alarm: { select: { id: true, name: true } },
@@ -104,7 +119,17 @@ export const analysisInclude = {
     include: { downstream: { select: { id: true, name: true } } },
   },
   ignoreReason: true,
-  _count: { select: { alarmEvents: true } },
+  // Esecuzione che ha prodotto il contenuto corrente (rami 1/2).
+  lastApplied: { select: automationExecutionSummarySelect },
+  // Esecuzione più recente che referenzia questa analisi (copre il ramo 3:
+  // automatico eseguito su un'occorrenza con analisi umana → risultato in
+  // execution.analysisPayload, senza aggiornare lastAppliedExecutionId).
+  runbookExecutions: {
+    orderBy: { createdAt: "desc" },
+    take: 1,
+    select: automationExecutionSummarySelect,
+  },
+  _count: { select: { alarmEvents: true, runbookExecutions: true } },
 } as const;
 
 export type AnalysisListRow = Prisma.AlarmAnalysisGetPayload<{
@@ -179,6 +204,28 @@ export function formatAnalysisListResponse(analysis: AnalysisListRow) {
 }
 
 export function formatAnalysisResponse(analysis: AnalysisWithRelations) {
+  const executionSummaryRow =
+    analysis.lastApplied ?? analysis.runbookExecutions[0] ?? null;
+  const automaticExecution = executionSummaryRow
+    ? {
+        id: executionSummaryRow.id,
+        status: executionSummaryRow.status,
+        outcome: executionSummaryRow.outcome,
+        reviewStatus: executionSummaryRow.reviewStatus,
+        triggerKind: executionSummaryRow.triggerKind,
+        appliedMode: executionSummaryRow.appliedMode,
+        runbookKey: executionSummaryRow.runbookKey,
+        runbookVersion: executionSummaryRow.runbookVersion,
+        completedAt: executionSummaryRow.completedAt
+          ? executionSummaryRow.completedAt.toISOString()
+          : null,
+        durationMs: executionSummaryRow.durationMs,
+        createdAt: executionSummaryRow.createdAt.toISOString(),
+        isLastApplied: executionSummaryRow.id === analysis.lastAppliedExecutionId,
+        totalCount: analysis._count.runbookExecutions,
+      }
+    : null;
+
   return {
     id: analysis.id,
     analysisDate: analysis.analysisDate.toISOString(),
@@ -204,6 +251,7 @@ export function formatAnalysisResponse(analysis: AnalysisWithRelations) {
     updatedById: analysis.updatedById,
     origin: analysis.origin,
     lastAppliedExecutionId: analysis.lastAppliedExecutionId,
+    automaticExecution,
     product: analysis.product,
     alarm: analysis.alarm,
     operator: analysis.operator,
