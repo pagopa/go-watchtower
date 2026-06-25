@@ -47,7 +47,7 @@ function command(event: EventRef, executionId: string) {
       awsAccountId: event.awsAccountId,
       awsRegion: event.awsRegion,
     },
-    trigger: { kind: "SLACK_INGESTER" },
+    trigger: { kind: "SLACK_INGESTOR" },
   };
 }
 
@@ -113,12 +113,12 @@ async function main(): Promise<void> {
 
   // 1) PENDING_DISPATCH
   await prisma.automaticRunbookExecution.create({
-    data: { ...base(ev(0), EID(1)), status: "PENDING_DISPATCH", triggerKind: "SLACK_INGESTER" },
+    data: { ...base(ev(0), EID(1)), status: "PENDING_DISPATCH", triggerKind: "SLACK_INGESTOR" },
   });
 
   // 2) QUEUED
   await prisma.automaticRunbookExecution.create({
-    data: { ...base(ev(1), EID(2)), status: "QUEUED", triggerKind: "SLACK_INGESTER", queuedAt: minutesAgo(2) },
+    data: { ...base(ev(1), EID(2)), status: "QUEUED", triggerKind: "SLACK_INGESTOR", queuedAt: minutesAgo(2) },
   });
 
   // 3) RUNNING (+ attempt RUNNING + lease) — in transazione per il trigger deferred
@@ -145,7 +145,7 @@ async function main(): Promise<void> {
   // 4) SUCCEEDED / KNOWN_CASE (+ attempt COMPLETED)
   await prisma.automaticRunbookExecution.create({
     data: {
-      ...base(ev(3), EID(4)), status: "SUCCEEDED", outcome: "KNOWN_CASE", triggerKind: "SLACK_INGESTER",
+      ...base(ev(3), EID(4)), status: "SUCCEEDED", outcome: "KNOWN_CASE", triggerKind: "SLACK_INGESTOR",
       reviewStatus: "NOT_REQUIRED", totalWorkerAttempts: 1, startedAt: minutesAgo(20), completedAt: minutesAgo(18),
       durationMs: 120_000, queryCount: 3, bytesScanned: BigInt(204800), recordsScanned: BigInt(1500), recordsMatched: BigInt(3),
     },
@@ -179,7 +179,7 @@ async function main(): Promise<void> {
   // 6) FAILED / CONFIGURATION_ERROR
   await prisma.automaticRunbookExecution.create({
     data: {
-      ...base(ev(5), EID(6)), status: "FAILED", outcome: "CONFIGURATION_ERROR", triggerKind: "SLACK_INGESTER",
+      ...base(ev(5), EID(6)), status: "FAILED", outcome: "CONFIGURATION_ERROR", triggerKind: "SLACK_INGESTOR",
       totalWorkerAttempts: 1, startedAt: minutesAgo(60), completedAt: minutesAgo(59),
       errorCode: "CONFIGURATION_ERROR", errorMessage: "OAM link assente per l'account sorgente (demo)",
     },

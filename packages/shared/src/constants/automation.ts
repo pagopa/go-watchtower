@@ -123,7 +123,7 @@ export const ANALYSIS_BEARING_OUTCOMES: readonly AutomationExecutionOutcome[] = 
 // ─── Trigger kind (§7.1) ──────────────────────────────────────────────────────
 
 export const AutomationTriggerKinds = {
-  SLACK_INGESTER: 'SLACK_INGESTER',
+  SLACK_INGESTOR: 'SLACK_INGESTOR',
   WATCHTOWER_UI: 'WATCHTOWER_UI',
   WATCHTOWER_API: 'WATCHTOWER_API',
   RETRY: 'RETRY',

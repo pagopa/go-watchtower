@@ -334,7 +334,7 @@ export const ExecutionDtoSchema = Type.Object({
 // non presenti nel DTO di lista per non appesantire la paginazione (§15.1).
 // Chi ha avviato l'esecuzione. `principalType`/`serviceId`/`name`/`email` sono
 // valorizzati solo quando l'avvio è riconducibile a un utente (umano o service
-// principal). Per gli avvii di sistema (es. Slack Ingester) restano null e si usa
+// principal). Per gli avvii di sistema (es. Slack Ingestor) restano null e si usa
 // `label` (+ il triggerKind del DTO) per descrivere l'origine.
 export const TriggeredBySchema = Type.Object({
   userId: Type.Union([Type.String(), Type.Null()]),

@@ -47,7 +47,7 @@ const ATTEMPT_META: Record<AutomationAttemptStatus, { label: string; variant: Ba
 }
 
 export const TRIGGER_LABELS: Record<AutomationTriggerKind, string> = {
-  SLACK_INGESTER: 'Slack',
+  SLACK_INGESTOR: 'Slack',
   WATCHTOWER_UI: 'UI',
   WATCHTOWER_API: 'API',
   RETRY: 'Retry',

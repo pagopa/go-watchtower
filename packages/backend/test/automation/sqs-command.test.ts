@@ -23,7 +23,7 @@ function validCommand(
       awsAccountId: "170533023216",
       awsRegion: "eu-south-1",
     },
-    trigger: { kind: "SLACK_INGESTER" },
+    trigger: { kind: "SLACK_INGESTOR" },
     ...overrides,
   };
 }

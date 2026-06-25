@@ -41,7 +41,7 @@ function command(region = "eu-south-1"): AutomaticAlarmAnalysisCommandV1 {
       awsAccountId: "170533023216",
       awsRegion: region,
     },
-    trigger: { kind: "SLACK_INGESTER" },
+    trigger: { kind: "SLACK_INGESTOR" },
   };
 }
 

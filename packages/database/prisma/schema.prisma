@@ -95,7 +95,7 @@ enum AutomationExecutionOutcome {
 }
 
 enum AutomationTriggerKind {
-  SLACK_INGESTER
+  SLACK_INGESTOR
   WATCHTOWER_UI
   WATCHTOWER_API
   RETRY

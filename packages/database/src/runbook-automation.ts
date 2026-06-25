@@ -13,7 +13,7 @@ import crypto from "node:crypto";
 
 /**
  * Primitive di Flow 1 (execution-as-outbox, OPUS-03 §8.2/§9.4) condivise tra
- * Slack Ingester e backend: la create idempotente dell'esecuzione iniziale e la
+ * Slack Ingestor e backend: la create idempotente dell'esecuzione iniziale e la
  * CAS `markQueued`. Vivono nel layer database (puro Prisma, niente AWS/typebox)
  * così entrambi i consumer le importano senza dipendenze incrociate.
  */
@@ -84,7 +84,7 @@ export async function ensureInitialExecution(
       awsAccountId: event.awsAccountId,
       awsRegion: event.awsRegion,
     },
-    trigger: { kind: AutomationTriggerKinds.SLACK_INGESTER },
+    trigger: { kind: AutomationTriggerKinds.SLACK_INGESTOR },
   };
 
   // INSERT … ON CONFLICT (request_key) DO NOTHING
@@ -98,7 +98,7 @@ export async function ensureInitialExecution(
         environmentId: event.environmentId,
         alarmId: event.alarmId,
         status: AutomationExecutionStatuses.PENDING_DISPATCH,
-        triggerKind: AutomationTriggerKinds.SLACK_INGESTER,
+        triggerKind: AutomationTriggerKinds.SLACK_INGESTOR,
         appliedMode,
         inputSnapshot: command satisfies Prisma.InputJsonValue,
         deadlineAt: new Date(now.getTime() + AutomationLifecycleBudgets.DISPATCH_BUDGET_MS),

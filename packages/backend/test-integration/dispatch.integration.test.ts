@@ -70,7 +70,7 @@ test("ensureInitialExecution is idempotent under concurrency (same executionId, 
   assert.equal(rows.length, 1);
   assert.equal(rows[0]?.status, "PENDING_DISPATCH");
   assert.equal(rows[0]?.requestKey, `SLACK:${eventId}`);
-  assert.equal(rows[0]?.triggerKind, "SLACK_INGESTER");
+  assert.equal(rows[0]?.triggerKind, "SLACK_INGESTOR");
 });
 
 test("markQueued CAS: PENDING_DISPATCH → QUEUED once; no-op otherwise", async () => {

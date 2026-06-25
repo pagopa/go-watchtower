@@ -73,7 +73,7 @@ type ExecContext = NonNullable<AutomaticRunbookExecution['context']>
 /**
  * Chi ha avviato l'esecuzione, con grafica differenziata per tipo di principal:
  * umano (avatar + accento verde), service principal (icona server + accento
- * indaco) o avvio di sistema senza utente, es. Slack Ingester (accento neutro).
+ * indaco) o avvio di sistema senza utente, es. Slack Ingestor (accento neutro).
  */
 function LaunchedByCard({ ctx, triggerKind }: { ctx: ExecContext; triggerKind: AutomaticRunbookExecution['triggerKind'] }) {
   const t = ctx.triggeredBy

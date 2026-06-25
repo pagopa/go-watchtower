@@ -92,7 +92,7 @@ async function main(): Promise<void> {
       awsAccountId: "170533023216",
       awsRegion: "eu-south-1",
     },
-    trigger: { kind: "SLACK_INGESTER" },
+    trigger: { kind: "SLACK_INGESTOR" },
   };
   writeJson(path.join(fixturesDir, "sqs-command.valid.json"), validCommand);
   writeJson(path.join(fixturesDir, "sqs-command.invalid-version.json"), {

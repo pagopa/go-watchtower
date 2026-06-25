@@ -154,7 +154,7 @@ export function validateRegistry(
 }
 
 /**
- * Lettore condiviso del registry per backend EC2, Slack Ingester Lambda e
+ * Lettore condiviso del registry per backend EC2, Slack Ingestor Lambda e
  * reconciler: cache in-memory ≤ 60s + force-refresh prima di dichiarare una
  * regione non onboardata (OPUS-03 §9.8).
  */

@@ -30,7 +30,7 @@ const REVIEW_OPTIONS = [
   ['NOT_REQUIRED', 'Non richiesta'], ['PENDING', 'Da revisionare'], ['CONFIRMED', 'Confermata'], ['REJECTED', 'Rifiutata'],
 ] as const
 const TRIGGER_OPTIONS = [
-  ['SLACK_INGESTER', 'Slack'], ['WATCHTOWER_UI', 'UI'], ['WATCHTOWER_API', 'API'], ['RETRY', 'Retry'],
+  ['SLACK_INGESTOR', 'Slack'], ['WATCHTOWER_UI', 'UI'], ['WATCHTOWER_API', 'API'], ['RETRY', 'Retry'],
 ] as const
 
 function relTime(iso: string): string {
