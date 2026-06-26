@@ -14,6 +14,8 @@ export interface JwtPayload {
   // verificati dalle guardie. NOTA: i claim sono un fast-path; l'autorità AuthZ è
   // sempre la rilettura dal DB (§9.6).
   principalType?: "HUMAN" | "SERVICE";
+  authMethod?: "HUMAN_LOGIN" | "SERVICE_LOGIN" | "CLI_PAT";
+  scope?: readonly string[];
   serviceId?: string;
   aud?: string;
   iss?: string;
@@ -55,6 +57,10 @@ export async function registerJwt(app: FastifyInstance): Promise<void> {
           reply.status(401).send({ error: "Invalid token type" });
           return;
         }
+        if (request.user.authMethod === "CLI_PAT" && request.routeOptions.config?.allowCliPat !== true) {
+          reply.status(403).send({ error: "CLI token not allowed for this route" });
+          return;
+        }
       } catch {
         reply.status(401).send({ error: "Unauthorized" });
       }
@@ -63,6 +69,10 @@ export async function registerJwt(app: FastifyInstance): Promise<void> {
 }
 
 declare module "fastify" {
+  interface FastifyContextConfig {
+    allowCliPat?: boolean;
+  }
+
   interface FastifyInstance {
     authenticate: (
       request: FastifyRequest,
@@ -74,12 +84,14 @@ declare module "fastify" {
 // Helper to generate access token (HUMAN principal by default)
 export function generateAccessToken(
   app: FastifyInstance,
-  payload: Omit<JwtPayload, "type" | "principalType" | "serviceId" | "aud" | "iss"> &
-    Partial<Pick<JwtPayload, "principalType">>
+  payload: Omit<JwtPayload, "type" | "principalType" | "authMethod" | "scope" | "serviceId" | "aud" | "iss"> &
+    Partial<Pick<JwtPayload, "principalType" | "authMethod" | "scope">>
 ): string {
   return app.jwt.sign({
     ...payload,
     principalType: payload.principalType ?? "HUMAN",
+    ...(payload.authMethod !== undefined ? { authMethod: payload.authMethod } : {}),
+    ...(payload.scope !== undefined ? { scope: payload.scope } : {}),
     type: "access",
   });
 }
@@ -109,6 +121,7 @@ export function generateServiceAccessToken(
     role: params.role,
     type: "access",
     principalType: "SERVICE",
+    authMethod: "SERVICE_LOGIN",
     serviceId: params.serviceId,
     aud: params.audience,
     iss: params.issuer,

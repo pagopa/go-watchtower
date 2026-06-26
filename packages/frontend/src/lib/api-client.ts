@@ -31,6 +31,7 @@ import type {
   AutomationExecutionOutcome,
   AutomationReviewStatus,
   AutomationTriggerKind,
+  AutomationDispatchKind,
   AutomationMode,
   AutomationAttemptStatus,
 } from '@go-watchtower/shared'
@@ -40,6 +41,7 @@ export type {
   AutomationExecutionOutcome,
   AutomationReviewStatus,
   AutomationTriggerKind,
+  AutomationDispatchKind,
   AutomationMode,
   AutomationAttemptStatus,
   AnalysisType,
@@ -316,6 +318,26 @@ export interface User {
   email: string
   name: string
   roleName: string
+}
+
+export interface CliTokenMetadata {
+  hint: string | null
+  createdAt: string | null
+  lastUsedAt: string | null
+  expiresAt: string | null
+  defaultTtlDays: number
+  maxTtlDays: number
+}
+
+export interface CreateCliTokenData {
+  expiresInDays?: number
+}
+
+export interface CreateCliTokenResponse extends CliTokenMetadata {
+  token: string
+  hint: string
+  createdAt: string
+  expiresAt: string
 }
 
 export interface Product {
@@ -1201,6 +1223,7 @@ export interface AutomaticRunbookExecution {
   outcome: AutomationExecutionOutcome | null
   reviewStatus: AutomationReviewStatus
   triggerKind: AutomationTriggerKind
+  dispatchKind: AutomationDispatchKind
   appliedMode: AutomationMode
   runbookKey: string | null
   runbookVersion: string | null
@@ -1341,6 +1364,10 @@ export const api = {
   // Auth
   me: () => request<User>('/auth/me'),
   logout: () => request<{ message: string }>('/auth/logout', { method: 'POST' }),
+  getCliTokenMetadata: () => request<CliTokenMetadata>('/api/me/cli-token'),
+  createCliToken: (data: CreateCliTokenData) =>
+    request<CreateCliTokenResponse>('/api/me/cli-token', { method: 'POST', body: data }),
+  revokeCliToken: () => request<{ message: string }>('/api/me/cli-token', { method: 'DELETE' }),
 
   // Products
   getProducts: () => request<Product[]>('/api/products'),

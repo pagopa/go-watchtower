@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { prisma } from "@go-watchtower/database";
+import { prisma, PrincipalType, RefreshTokenSource } from "@go-watchtower/database";
 import { env } from "../config/env.js";
 import {
   deriveRotatedRefreshToken,
@@ -13,6 +13,8 @@ export interface RefreshTokenData {
   userId: string;
   userAgent?: string;
   ipAddress?: string;
+  source?: RefreshTokenSource;
+  cliTokenHash?: string;
 }
 
 function hashToken(token: string): string {
@@ -37,6 +39,8 @@ export async function createRefreshToken(
       userId: data.userId,
       userAgent: data.userAgent,
       ipAddress: data.ipAddress,
+      source: data.source ?? RefreshTokenSource.HUMAN_LOGIN,
+      cliTokenHash: data.cliTokenHash ?? null,
       expiresAt,
     },
   });
@@ -68,8 +72,8 @@ export async function validateRefreshToken(
     return null;
   }
 
-  // Check if user is active
-  if (!refreshToken.user.isActive) {
+  // Check if user/PAT is active
+  if (!isRefreshTokenPrincipalValid(refreshToken, new Date())) {
     return null;
   }
 
@@ -83,6 +87,33 @@ export interface RotatedRefreshToken {
   userId: string;
   refreshToken: string;
   reusedRecentRotation: boolean;
+  source: RefreshTokenSource;
+  cliTokenHash: string | null;
+  cliTokenExpiresAt: Date | null;
+}
+
+function isRefreshTokenPrincipalValid(
+  refreshToken: {
+    source: RefreshTokenSource;
+    cliTokenHash: string | null;
+    user: {
+      isActive: boolean;
+      principalType: PrincipalType;
+      cliTokenHash: string | null;
+      cliTokenExpiresAt: Date | null;
+    };
+  },
+  now: Date
+): boolean {
+  if (!refreshToken.user.isActive) return false;
+  if (refreshToken.source !== RefreshTokenSource.CLI_PAT) return true;
+  return (
+    refreshToken.user.principalType === PrincipalType.HUMAN &&
+    refreshToken.cliTokenHash !== null &&
+    refreshToken.user.cliTokenHash === refreshToken.cliTokenHash &&
+    refreshToken.user.cliTokenExpiresAt !== null &&
+    refreshToken.user.cliTokenExpiresAt > now
+  );
 }
 
 export async function rotateRefreshToken(
@@ -103,7 +134,7 @@ export async function rotateRefreshToken(
     return null;
   }
 
-  if (oldRefreshToken.expiresAt < now || !oldRefreshToken.user.isActive) {
+  if (oldRefreshToken.expiresAt < now || !isRefreshTokenPrincipalValid(oldRefreshToken, now)) {
     return null;
   }
 
@@ -125,7 +156,7 @@ export async function rotateRefreshToken(
         !replacement ||
         replacement.revokedAt ||
         replacement.expiresAt < now ||
-        !replacement.user.isActive
+        !isRefreshTokenPrincipalValid(replacement, now)
       ) {
         return null;
       }
@@ -134,6 +165,9 @@ export async function rotateRefreshToken(
         userId: replacement.userId,
         refreshToken: newToken,
         reusedRecentRotation: true,
+        source: replacement.source,
+        cliTokenHash: replacement.cliTokenHash,
+        cliTokenExpiresAt: replacement.user.cliTokenExpiresAt,
       };
     }
 
@@ -182,14 +216,16 @@ export async function rotateRefreshToken(
         select: {
           revokedAt: true,
           expiresAt: true,
-          user: { select: { isActive: true } },
+          source: true,
+          cliTokenHash: true,
+          user: { select: { isActive: true, principalType: true, cliTokenHash: true, cliTokenExpiresAt: true } },
         },
       });
 
       return replacement &&
         !replacement.revokedAt &&
         replacement.expiresAt >= now &&
-        replacement.user.isActive
+        isRefreshTokenPrincipalValid(replacement, now)
         ? "reused"
         : null;
     }
@@ -200,6 +236,8 @@ export async function rotateRefreshToken(
         userId: oldRefreshToken.userId,
         userAgent: data.userAgent,
         ipAddress: data.ipAddress,
+        source: oldRefreshToken.source,
+        cliTokenHash: oldRefreshToken.cliTokenHash,
         expiresAt,
       },
     });
@@ -215,6 +253,9 @@ export async function rotateRefreshToken(
     userId: oldRefreshToken.userId,
     refreshToken: newToken,
     reusedRecentRotation: rotationResult === "reused",
+    source: oldRefreshToken.source,
+    cliTokenHash: oldRefreshToken.cliTokenHash,
+    cliTokenExpiresAt: oldRefreshToken.user.cliTokenExpiresAt,
   };
 }
 

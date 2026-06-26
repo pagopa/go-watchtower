@@ -25,6 +25,12 @@ export const RefreshBodySchema = Type.Object({
 
 export type RefreshBody = Static<typeof RefreshBodySchema>;
 
+export const CliLoginBodySchema = Type.Object({
+  token: Type.String({ minLength: 1, maxLength: 512 }),
+});
+
+export type CliLoginBody = Static<typeof CliLoginBodySchema>;
+
 // Runbook Automation service principal login (D4/A2).
 export const ServiceLoginBodySchema = Type.Object({
   serviceId: Type.String({ minLength: 1, maxLength: 255 }),
@@ -63,6 +69,34 @@ export const TokenResponseSchema = Type.Object({
   accessToken: Type.String(),
   refreshToken: Type.String(),
   expiresIn: Type.Number(),
+  principalType: Type.Optional(Type.Union([Type.Literal("HUMAN"), Type.Literal("SERVICE")])),
+  authMethod: Type.Optional(Type.Union([Type.Literal("CLI_PAT"), Type.Literal("SERVICE_LOGIN"), Type.Literal("HUMAN_LOGIN")])),
+  scope: Type.Optional(Type.Array(Type.String())),
+  cliTokenExpiresAt: Type.Optional(Type.String()),
+});
+
+export const CliTokenMetadataResponseSchema = Type.Object({
+  hint: Type.Union([Type.String(), Type.Null()]),
+  createdAt: Type.Union([Type.String(), Type.Null()]),
+  lastUsedAt: Type.Union([Type.String(), Type.Null()]),
+  expiresAt: Type.Union([Type.String(), Type.Null()]),
+  defaultTtlDays: Type.Number(),
+  maxTtlDays: Type.Number(),
+});
+
+export const CreateCliTokenBodySchema = Type.Object({
+  expiresInDays: Type.Optional(Type.Number({ minimum: 1 })),
+});
+
+export type CreateCliTokenBody = Static<typeof CreateCliTokenBodySchema>;
+
+export const CreateCliTokenResponseSchema = Type.Object({
+  token: Type.String(),
+  hint: Type.String(),
+  createdAt: Type.String(),
+  expiresAt: Type.String(),
+  defaultTtlDays: Type.Number(),
+  maxTtlDays: Type.Number(),
 });
 
 export const MeResponseSchema = UserResponseSchema;

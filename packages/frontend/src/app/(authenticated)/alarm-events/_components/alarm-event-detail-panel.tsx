@@ -580,9 +580,15 @@ export function AlarmEventDetailPanel({
                     {' · '}
                     <UtcTimestamp isoStr={event.createdAt} />
                   </p>
-                  <p className="mt-1 font-mono text-[11px] text-muted-foreground/40 break-all">
-                    ID: {event.id}
-                  </p>
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/50">
+                      ID evento
+                    </span>
+                    <code className="min-w-0 flex-1 break-all font-mono text-[11px] text-foreground/70">
+                      {event.id}
+                    </code>
+                    <CopyButton value={event.id} title="Copia ID evento" />
+                  </div>
                 </div>
 
               </dl>

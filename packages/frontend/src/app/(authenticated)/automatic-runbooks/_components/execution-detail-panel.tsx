@@ -23,7 +23,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   StatusBadge, OutcomeBadge, ReviewBadge, AttemptStatusBadge, StatusDot,
-  TRIGGER_LABELS, MODE_LABELS, MODE_DESCRIPTIONS, statusLabel, STATUS_ACCENT,
+  TRIGGER_LABELS, DISPATCH_LABELS, MODE_LABELS, MODE_DESCRIPTIONS, statusLabel, STATUS_ACCENT,
 } from './badges'
 import { ANALYSIS_TYPE_LABELS, ANALYSIS_STATUS_LABELS } from '../../analyses/_lib/constants'
 
@@ -289,6 +289,7 @@ function PanelBody({ executionId, canWrite, globalModeOverride, onClose }: { exe
   const accent = STATUS_ACCENT[execution.status]
   const canCancel = canWrite && CANCELLABLE.has(execution.status)
   const canReview = canWrite && execution.reviewStatus === 'PENDING'
+  const canRetry = canWrite && execution.dispatchKind !== 'CLI'
   const ctx = execution.context
 
   const hasInput = execution.inputSnapshot != null
@@ -368,6 +369,7 @@ function PanelBody({ executionId, canWrite, globalModeOverride, onClose }: { exe
             )}
             <Field label="Allarme">{ctx?.alarmName ?? '—'}{execution.alarmId && <span className="ml-1.5"><CopyMono value={execution.alarmId} short /></span>}</Field>
             <Field label="Trigger">{TRIGGER_LABELS[execution.triggerKind]}</Field>
+            <Field label="Dispatch">{DISPATCH_LABELS[execution.dispatchKind]}</Field>
             <Field label="Runbook">{execution.runbookKey ?? '—'}{execution.runbookVersion ? ` · v${execution.runbookVersion}` : ''}</Field>
             <Field label="Tentativi worker">{execution.totalWorkerAttempts} · ciclo {execution.deliveryCycle}</Field>
             <div className="col-span-2">
@@ -467,7 +469,15 @@ function PanelBody({ executionId, canWrite, globalModeOverride, onClose }: { exe
           </>
         )}
         {canWrite && (
-          <Button variant="secondary" size="sm" disabled={retryMutation.isPending} onClick={() => retryMutation.mutate()}><RefreshCw className="mr-1 h-4 w-4" /> Rilancia</Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={!canRetry || retryMutation.isPending}
+            title={execution.dispatchKind === 'CLI' ? 'Le esecuzioni CLI non possono essere rilanciate da Watchtower' : undefined}
+            onClick={() => retryMutation.mutate()}
+          >
+            <RefreshCw className="mr-1 h-4 w-4" /> Rilancia
+          </Button>
         )}
         {canCancel && (
           <AlertDialog>

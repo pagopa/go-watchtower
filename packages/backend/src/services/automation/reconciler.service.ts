@@ -3,6 +3,7 @@ import {
   AutomationExecutionStatuses as ES,
   AutomationAttemptStatuses as ATS,
   AutomationSystemErrorCodes as ERR,
+  AutomationDispatchKinds,
   AutomationLifecycleBudgets,
   SystemEventActions,
   SystemEventResources,
@@ -80,6 +81,26 @@ async function reapStaleRunning(
       const row = await lockExecution(tx, id);
       if (!row || row.status !== ES.RUNNING) return "skip";
       const decision = decideReaper(toSnapshot(row), now, marginMs, heartbeatStaleThresholdMs, row.lastHeartbeatAt);
+      if (decision.kind === "TERMINALIZE_LOCAL_TIMEOUT") {
+        if (row.activeAttemptId) {
+          await tx.automaticRunbookAttempt.update({
+            where: { id: row.activeAttemptId },
+            data: { status: ATS.INTERRUPTED, errorCode: ERR.LOCAL_RUN_TIMED_OUT, finishedAt: now },
+          });
+        }
+        await tx.automaticRunbookExecution.update({
+          where: { id },
+          data: {
+            status: ES.FAILED,
+            errorCode: ERR.LOCAL_RUN_TIMED_OUT,
+            activeAttemptId: null,
+            workerDeadlineAt: null,
+            completedAt: now,
+          },
+        });
+        await auditSystem(tx, SystemEventActions.AUTOMATION_EXECUTION_FAILED, id, { reason: ERR.LOCAL_RUN_TIMED_OUT });
+        return "released";
+      }
       if (decision.kind === "RELEASE_LEASE_RETRY_PENDING") {
         if (row.activeAttemptId) {
           await tx.automaticRunbookAttempt.update({
@@ -204,7 +225,7 @@ async function dispatchPendingExecutions(
 ): Promise<number> {
   let dispatched = 0;
   const candidates = await prisma.automaticRunbookExecution.findMany({
-    where: { status: ES.PENDING_DISPATCH },
+    where: { status: ES.PENDING_DISPATCH, dispatchKind: AutomationDispatchKinds.SQS },
     select: { id: true, inputSnapshot: true, dispatchAttempts: true, deadlineAt: true },
     take: batchSize,
     orderBy: { createdAt: "asc" },

@@ -99,6 +99,12 @@ enum AutomationTriggerKind {
   WATCHTOWER_UI
   WATCHTOWER_API
   RETRY
+  WATCHTOWER_CLI
+}
+
+enum AutomationDispatchKind {
+  SQS
+  CLI
 }
 
 enum AutomationReviewStatus {
@@ -133,6 +139,12 @@ enum AutomationCancellationFinalizedBy {
   IMMEDIATE
   WORKER
   SYSTEM
+}
+
+enum RefreshTokenSource {
+  HUMAN_LOGIN
+  SERVICE_LOGIN
+  CLI_PAT
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -208,6 +220,11 @@ model User {
   // CHECK in migration: SERVICE ⇒ serviceId NOT NULL; HUMAN ⇒ serviceId NULL.
   principalType PrincipalType @default(HUMAN) @map("principal_type")
   serviceId     String?       @unique @map("service_id")
+  cliTokenHash       String?   @unique @map("cli_token_hash")
+  cliTokenHint       String?   @map("cli_token_hint")
+  cliTokenCreatedAt  DateTime? @map("cli_token_created_at")
+  cliTokenLastUsedAt DateTime? @map("cli_token_last_used_at")
+  cliTokenExpiresAt  DateTime? @map("cli_token_expires_at")
   preferences   Json          @default("{}") @map("preferences")
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
@@ -235,6 +252,8 @@ model RefreshToken {
   userId     String    @map("user_id") @db.Uuid
   userAgent  String?   @map("user_agent")
   ipAddress  String?   @map("ip_address")
+  source     RefreshTokenSource @default(HUMAN_LOGIN)
+  cliTokenHash String? @map("cli_token_hash")
   expiresAt  DateTime  @map("expires_at")
   createdAt  DateTime  @default(now()) @map("created_at")
   revokedAt  DateTime? @map("revoked_at")
@@ -243,6 +262,8 @@ model RefreshToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, revokedAt])
+  @@index([userId, source, revokedAt])
+  @@index([cliTokenHash, revokedAt])
   @@index([expiresAt])
   @@map("refresh_tokens")
 }
@@ -733,6 +754,7 @@ model AutomaticRunbookExecution {
   cancelledAt             DateTime?                          @map("cancelled_at")
   cancellationFinalizedBy AutomationCancellationFinalizedBy? @map("cancellation_finalized_by")
   triggerKind             AutomationTriggerKind              @map("trigger_kind")
+  dispatchKind            AutomationDispatchKind             @default(SQS) @map("dispatch_kind")
   triggeredByUserId       String?                            @map("triggered_by_user_id") @db.Uuid
   triggeredByLabel        String?                            @map("triggered_by_label")
   appliedMode             AutomationMode                     @map("applied_mode")
@@ -786,6 +808,7 @@ model AutomaticRunbookExecution {
   @@index([reviewStatus, createdAt])
   @@index([analysisId])
   @@index([parentExecutionId])
+  @@index([status, dispatchKind])
   @@map("automatic_runbook_executions")
 }
 

@@ -4,6 +4,7 @@ import type {
   AutomationExecutionOutcome,
   AutomationReviewStatus,
   AutomationTriggerKind,
+  AutomationDispatchKind,
   AutomationMode,
   AutomationAttemptStatus,
 } from '@/lib/api-client'
@@ -50,7 +51,13 @@ export const TRIGGER_LABELS: Record<AutomationTriggerKind, string> = {
   SLACK_INGESTOR: 'Slack',
   WATCHTOWER_UI: 'UI',
   WATCHTOWER_API: 'API',
+  WATCHTOWER_CLI: 'CLI',
   RETRY: 'Retry',
+}
+
+export const DISPATCH_LABELS: Record<AutomationDispatchKind, string> = {
+  SQS: 'SQS',
+  CLI: 'Locale CLI',
 }
 
 export const MODE_LABELS: Record<AutomationMode, string> = {

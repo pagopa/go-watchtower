@@ -127,6 +127,7 @@ export const AutomationTriggerKinds = {
   WATCHTOWER_UI: 'WATCHTOWER_UI',
   WATCHTOWER_API: 'WATCHTOWER_API',
   RETRY: 'RETRY',
+  WATCHTOWER_CLI: 'WATCHTOWER_CLI',
 } as const;
 
 export type AutomationTriggerKind =
@@ -135,6 +136,20 @@ export type AutomationTriggerKind =
 export const AUTOMATION_TRIGGER_KIND_VALUES = Object.values(
   AutomationTriggerKinds,
 ) as [AutomationTriggerKind, ...AutomationTriggerKind[]];
+
+// ─── Dispatch kind (§EVO-WATCHCLI-FIN-03) ───────────────────────────────────
+
+export const AutomationDispatchKinds = {
+  SQS: 'SQS',
+  CLI: 'CLI',
+} as const;
+
+export type AutomationDispatchKind =
+  (typeof AutomationDispatchKinds)[keyof typeof AutomationDispatchKinds];
+
+export const AUTOMATION_DISPATCH_KIND_VALUES = Object.values(
+  AutomationDispatchKinds,
+) as [AutomationDispatchKind, ...AutomationDispatchKind[]];
 
 // ─── Review status (§9.4) ─────────────────────────────────────────────────────
 
@@ -225,6 +240,7 @@ export const AutomationSystemErrorCodes = {
   DEAD_LETTERED: 'DEAD_LETTERED',
   DISPATCH_FAILED: 'DISPATCH_FAILED',
   QUEUE_DELIVERY_TIMED_OUT: 'QUEUE_DELIVERY_TIMED_OUT',
+  LOCAL_RUN_TIMED_OUT: 'LOCAL_RUN_TIMED_OUT',
   REGION_NOT_ONBOARDED: 'REGION_NOT_ONBOARDED',
   QUEUE_REGISTRY_INVALID: 'QUEUE_REGISTRY_INVALID',
 } as const;
@@ -288,6 +304,9 @@ export const AutomationLifecycleBudgets = {
   ATTEMPT_LEASE_MARGIN_MS: 60_000,
   CONFIGURED_LAMBDA_TIMEOUT_MS: 900_000,
   RECONCILER_MARGIN_MS: 60_000,
+  CLI_START_GRACE_MS: 120_000,
+  CLI_HEARTBEAT_GRACE_MS: 120_000,
+  CLI_HEARTBEAT_INTERVAL_MS: 30_000,
 } as const;
 
 export type AutomationLifecycleBudgetKey =
@@ -298,3 +317,8 @@ export const EXECUTE_RUNBOOK_QUEUE_REGISTRY_SCHEMA_VERSION = 1;
 
 /** Versione del comando SQS AutomaticAlarmAnalysisCommandV1 (contratto §5, congelata a 1.0.0). */
 export const AUTOMATIC_ALARM_ANALYSIS_COMMAND_VERSION = '1.0.0';
+
+export const CLI_TOKEN_DEFAULT_TTL_DAYS_SETTING_KEY = 'auth.cliToken.defaultTtlDays';
+export const CLI_TOKEN_MAX_TTL_DAYS_SETTING_KEY = 'auth.cliToken.maxTtlDays';
+export const CLI_TOKEN_HARD_MAX_TTL_DAYS = 90;
+export const RUNBOOK_AUTOMATION_CLI_SCOPE = 'RUNBOOK_AUTOMATION_CLI';

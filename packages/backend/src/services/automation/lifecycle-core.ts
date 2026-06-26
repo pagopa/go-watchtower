@@ -2,6 +2,7 @@ import {
   AutomationExecutionStatuses,
   AutomationExecutionOutcomes,
   AutomationAttemptStatuses,
+  AutomationDispatchKinds,
   AutomationModes,
   AutomationSystemErrorCodes,
   AnalysisOrigins,
@@ -324,7 +325,7 @@ export function decideCancel(execution: ExecutionSnapshot): CancelDecision {
   }
 }
 
-/** Ack cooperativo SERVICE (§9.7 cancel/ack). */
+/** Ack cooperativo del lifecycle actor (§9.7 cancel/ack). */
 export function decideCancelAck(
   execution: ExecutionSnapshot,
   activeAttempt: ActiveAttemptSnapshot | null,
@@ -366,12 +367,24 @@ export function decideSafetyNet(
   }
   switch (execution.status) {
     case S.PENDING_DISPATCH:
+      if (execution.dispatchKind === AutomationDispatchKinds.CLI) {
+        return { kind: "TERMINALIZE", errorCode: AutomationSystemErrorCodes.LOCAL_RUN_TIMED_OUT };
+      }
       return { kind: "TERMINALIZE", errorCode: AutomationSystemErrorCodes.DISPATCH_FAILED };
     case S.QUEUED:
+      if (execution.dispatchKind === AutomationDispatchKinds.CLI) {
+        return { kind: "TERMINALIZE", errorCode: AutomationSystemErrorCodes.LOCAL_RUN_TIMED_OUT };
+      }
       return execution.totalWorkerAttempts === 0
         ? { kind: "TERMINALIZE", errorCode: AutomationSystemErrorCodes.QUEUE_DELIVERY_TIMED_OUT }
         : { kind: "TERMINALIZE", errorCode: AutomationSystemErrorCodes.TIMED_OUT };
     case S.RUNNING:
+      if (execution.dispatchKind === AutomationDispatchKinds.CLI) {
+        return { kind: "TERMINALIZE", errorCode: AutomationSystemErrorCodes.LOCAL_RUN_TIMED_OUT };
+      }
+      return inDlq
+        ? { kind: "TERMINALIZE", errorCode: AutomationSystemErrorCodes.DEAD_LETTERED }
+        : { kind: "TERMINALIZE", errorCode: AutomationSystemErrorCodes.TIMED_OUT };
     case S.RETRY_PENDING:
       return inDlq
         ? { kind: "TERMINALIZE", errorCode: AutomationSystemErrorCodes.DEAD_LETTERED }
@@ -399,6 +412,9 @@ export function decideReaper(
     execution.workerDeadlineAt !== null &&
     now.getTime() > execution.workerDeadlineAt.getTime() + marginMs;
   if (leaseExpired) {
+    if (execution.dispatchKind === AutomationDispatchKinds.CLI) {
+      return { kind: "TERMINALIZE_LOCAL_TIMEOUT" };
+    }
     return { kind: "RELEASE_LEASE_RETRY_PENDING" };
   }
   const heartbeatStale =

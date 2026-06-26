@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   AutomationExecutionStatuses as S,
   AutomationAttemptStatuses,
+  AutomationDispatchKinds,
   AutomationExecutionOutcomes,
   AutomationModes,
   AnalysisOrigins,
@@ -39,6 +40,7 @@ const BUDGETS: LifecycleBudgets = {
 function exec(overrides: Partial<ExecutionSnapshot>): ExecutionSnapshot {
   return {
     id: "exec-1",
+    dispatchKind: AutomationDispatchKinds.SQS,
     status: S.QUEUED,
     outcome: null,
     errorCode: null,
@@ -287,6 +289,17 @@ test("safety-net: state-aware error code mapping past deadline", () => {
   assert.equal(decideSafetyNet(exec({ status: S.RUNNING, deadlineAt: past, activeAttemptId: "a", workerDeadlineAt: past }), NOW, false).errorCode, "TIMED_OUT");
 });
 
+test("safety-net: CLI executions terminalize as LOCAL_RUN_TIMED_OUT past deadline", () => {
+  const past = new Date(NOW.getTime() - 1000);
+  const decision = decideSafetyNet(
+    exec({ dispatchKind: AutomationDispatchKinds.CLI, status: S.RUNNING, deadlineAt: past, activeAttemptId: "a", workerDeadlineAt: past }),
+    NOW,
+    false,
+  );
+  assert.equal(decision.kind, "TERMINALIZE");
+  if (decision.kind === "TERMINALIZE") assert.equal(decision.errorCode, "LOCAL_RUN_TIMED_OUT");
+});
+
 test("safety-net: not expired and CANCEL_REQUESTED excluded → NONE", () => {
   assert.equal(decideSafetyNet(exec({ status: S.QUEUED, deadlineAt: new Date(NOW.getTime() + 1000) }), NOW, false).kind, "NONE");
   assert.equal(decideSafetyNet(exec({ status: S.CANCEL_REQUESTED, deadlineAt: new Date(NOW.getTime() - 1000), activeAttemptId: "a", workerDeadlineAt: NOW, cancelRequestId: "c", cancelRequestedAt: NOW }), NOW, false).kind, "NONE");
@@ -297,6 +310,16 @@ test("reaper: heartbeat stale (valid lease) only alerts; expired lease releases 
   assert.equal(decideReaper(validLease, NOW, 60_000, 30_000, new Date(NOW.getTime() - 60_000)).kind, "HEARTBEAT_STALE_ALERT");
   const expiredLease = exec({ status: S.RUNNING, activeAttemptId: "a", workerDeadlineAt: new Date(NOW.getTime() - 120_000) });
   assert.equal(decideReaper(expiredLease, NOW, 60_000, 30_000, NOW).kind, "RELEASE_LEASE_RETRY_PENDING");
+});
+
+test("reaper: CLI expired lease terminalizes local timeout instead of SQS retry", () => {
+  const expiredLease = exec({
+    dispatchKind: AutomationDispatchKinds.CLI,
+    status: S.RUNNING,
+    activeAttemptId: "a",
+    workerDeadlineAt: new Date(NOW.getTime() - 120_000),
+  });
+  assert.equal(decideReaper(expiredLease, NOW, 60_000, 30_000, NOW).kind, "TERMINALIZE_LOCAL_TIMEOUT");
 });
 
 test("finalizer: closes CANCEL_REQUESTED only past worker deadline + margin", () => {

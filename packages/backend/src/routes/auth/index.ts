@@ -5,6 +5,7 @@ import {
   RefreshBodySchema,
   AuthResponseSchema,
   TokenResponseSchema,
+  CliLoginBodySchema,
   ErrorResponseSchema,
   MeResponseSchema,
   SessionsResponseSchema,
@@ -18,6 +19,7 @@ import {
   type RevokeSessionParams,
   type GoogleCallbackBody,
   type ServiceLoginBody,
+  type CliLoginBody,
 } from "./schemas.js";
 import {
   loginUser,
@@ -30,9 +32,11 @@ import {
 } from "../../services/auth.service.js";
 import { generateServiceAccessToken } from "../../plugins/jwt.js";
 import {
+  RUNBOOK_AUTOMATION_CLI_SCOPE,
   RUNBOOK_AUTOMATION_AUDIENCE,
   RUNBOOK_AUTOMATION_ISSUER,
 } from "@go-watchtower/shared";
+import { RefreshTokenSource } from "@go-watchtower/database";
 import {
   createRefreshToken,
   rotateRefreshToken,
@@ -50,6 +54,7 @@ import { env } from "../../config/env.js";
 import { logEvent } from "../../services/system-event.service.js";
 import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
 import { HttpError } from "../../utils/http-errors.js";
+import { loginCliToken } from "../../services/cli-token.service.js";
 
 
 // Access token expires in 15 minutes (in seconds)
@@ -144,6 +149,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
 
         const refreshToken = await createRefreshToken({
           userId: user.id,
+          source: RefreshTokenSource.SERVICE_LOGIN,
           ...clientInfo,
         });
 
@@ -245,6 +251,82 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
     }
   );
 
+  app.post<{ Body: CliLoginBody }>(
+    "/cli-login",
+    {
+      ...loginRateLimitConfig,
+      schema: {
+        tags: ["auth"],
+        summary: "Login with a scoped CLI Personal Access Token",
+        body: CliLoginBodySchema,
+        response: {
+          200: TokenResponseSchema,
+          401: ErrorResponseSchema,
+          429: ErrorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const login = await loginCliToken(request.body.token);
+        if (!login) {
+          logEvent({
+            action: SystemEventActions.USER_LOGIN_CLI_TOKEN_FAILED,
+            resource: SystemEventResources.AUTH,
+            metadata: { category: "INVALID_CLI_TOKEN" },
+            ipAddress: request.ip,
+            userAgent: request.headers["user-agent"] ?? null,
+          });
+          HttpError.unauthorized(reply, "Invalid credentials");
+          return;
+        }
+        const clientInfo = getClientInfo(request);
+        const accessToken = generateAccessToken(app, {
+          userId: login.user.id,
+          name: login.user.name,
+          email: login.user.email,
+          role: login.user.roleName,
+          principalType: "HUMAN",
+          authMethod: "CLI_PAT",
+          scope: [RUNBOOK_AUTOMATION_CLI_SCOPE],
+        });
+        const refreshToken = await createRefreshToken({
+          userId: login.user.id,
+          source: RefreshTokenSource.CLI_PAT,
+          cliTokenHash: login.cliTokenHash,
+          ...clientInfo,
+        });
+        logEvent({
+          action: SystemEventActions.USER_LOGIN_CLI_TOKEN,
+          resource: SystemEventResources.AUTH,
+          userId: login.user.id,
+          userLabel: `${login.user.name} (${login.user.email})`,
+          ipAddress: request.ip,
+          userAgent: request.headers["user-agent"] ?? null,
+        });
+        reply.send({
+          accessToken,
+          refreshToken,
+          expiresIn: ACCESS_TOKEN_EXPIRES_IN_SECONDS,
+          cliTokenExpiresAt: login.cliTokenExpiresAt.toISOString(),
+          principalType: "HUMAN" as const,
+          authMethod: "CLI_PAT" as const,
+          scope: [RUNBOOK_AUTOMATION_CLI_SCOPE],
+        });
+      } catch (error) {
+        request.log.error({ error }, "CLI token login failed");
+        logEvent({
+          action: SystemEventActions.USER_LOGIN_CLI_TOKEN_FAILED,
+          resource: SystemEventResources.AUTH,
+          metadata: { category: "CLI_TOKEN_CONFIGURATION" },
+          ipAddress: request.ip,
+          userAgent: request.headers["user-agent"] ?? null,
+        });
+        HttpError.unauthorized(reply, "Invalid credentials");
+      }
+    }
+  );
+
   // Refresh tokens
   app.post<{ Body: RefreshBody }>(
     "/refresh",
@@ -292,6 +374,28 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
 
       // Il refresh conserva il tipo di principal (§9.6): un SERVICE riceve un token
       // service con aud/iss e TTL 10 min; un HUMAN il consueto token 15 min.
+      if (rotation.source === RefreshTokenSource.CLI_PAT) {
+        const accessToken = generateAccessToken(app, {
+          userId: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.roleName,
+          principalType: "HUMAN",
+          authMethod: "CLI_PAT",
+          scope: [RUNBOOK_AUTOMATION_CLI_SCOPE],
+        });
+        reply.send({
+          accessToken,
+          refreshToken: rotation.refreshToken,
+          expiresIn: ACCESS_TOKEN_EXPIRES_IN_SECONDS,
+          cliTokenExpiresAt: rotation.cliTokenExpiresAt?.toISOString(),
+          principalType: "HUMAN" as const,
+          authMethod: "CLI_PAT" as const,
+          scope: [RUNBOOK_AUTOMATION_CLI_SCOPE],
+        });
+        return;
+      }
+
       if (user.principalType === "SERVICE" && user.serviceId) {
         const accessToken = generateServiceAccessToken(app, {
           userId: user.id,

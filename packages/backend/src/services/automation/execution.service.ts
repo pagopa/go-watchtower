@@ -1,6 +1,7 @@
 import {
   prisma,
   Prisma,
+  PermissionScope,
   type AutomaticRunbookExecution,
   type AutomaticRunbookAttempt,
 } from "@go-watchtower/database";
@@ -8,6 +9,8 @@ import {
   AutomationExecutionStatuses as ES,
   AutomationAttemptStatuses as ATS,
   AutomationModes,
+  AutomationDispatchKinds,
+  AutomationTriggerKinds,
   AutomationReviewStatuses,
   AutomationExecutionOutcomes,
   AutomationLifecycleBudgets,
@@ -17,6 +20,7 @@ import {
   SystemEventResources,
   type AutomationExecutionOutcome,
   type AnalysisOrigin,
+  type AutomationTriggerKind,
 } from "@go-watchtower/shared";
 import {
   decideStart,
@@ -51,6 +55,27 @@ type Tx = Prisma.TransactionClient;
 
 const CYCLE_BUDGET_MS = 6 * 60 * 60 * 1000; // > visibilityTimeout (90m) + margine (§11.2)
 
+export type LifecycleAccess =
+  | { readonly kind: "SERVICE" }
+  | { readonly kind: "CLI_PAT"; readonly userId: string; readonly permissionScope: PermissionScope };
+
+const SERVICE_LIFECYCLE_ACCESS: LifecycleAccess = { kind: "SERVICE" };
+
+export interface LifecycleForbiddenResult {
+  readonly kind: "FORBIDDEN";
+  readonly error: string;
+}
+
+function denyLifecycleAccess(row: AutomaticRunbookExecution, access: LifecycleAccess): LifecycleForbiddenResult | null {
+  if (access.kind === "SERVICE") return null;
+  if (row.triggerKind !== AutomationTriggerKinds.WATCHTOWER_CLI || row.dispatchKind !== AutomationDispatchKinds.CLI) {
+    return { kind: "FORBIDDEN", error: "CLI token cannot control this execution" };
+  }
+  if (access.permissionScope === PermissionScope.ALL) return null;
+  if (access.permissionScope === PermissionScope.OWN && row.triggeredByUserId === access.userId) return null;
+  return { kind: "FORBIDDEN", error: "Permission denied" };
+}
+
 function budgets(): LifecycleBudgets {
   return {
     attemptLeaseMarginMs: AutomationLifecycleBudgets.ATTEMPT_LEASE_MARGIN_MS,
@@ -64,6 +89,7 @@ function budgets(): LifecycleBudgets {
 export function toSnapshot(row: AutomaticRunbookExecution): ExecutionSnapshot {
   return {
     id: row.id,
+    dispatchKind: row.dispatchKind,
     status: row.status,
     outcome: row.outcome,
     errorCode: row.errorCode,
@@ -108,14 +134,16 @@ async function loadAttempt(tx: Tx, attemptId: string | null): Promise<AutomaticR
   return tx.automaticRunbookAttempt.findUnique({ where: { id: attemptId } });
 }
 
-export interface StartResult {
-  readonly response:
-    | { disposition: "START" | "ALREADY_STARTED"; attemptId: string; workerDeadlineAt: string }
-    | { disposition: "ALREADY_RUNNING"; workerDeadlineAt: string }
-    | { disposition: "CANCEL_REQUESTED"; cancelRequestId: string }
-    | { disposition: "ALREADY_TERMINAL"; status: "SUCCEEDED" | "SKIPPED" | "FAILED" | "CANCELLED" };
-  readonly notFound?: boolean;
-}
+export type StartResult =
+  | LifecycleForbiddenResult
+  | { readonly notFound: true }
+  | {
+      readonly response:
+        | { disposition: "START" | "ALREADY_STARTED"; attemptId: string; workerDeadlineAt: string }
+        | { disposition: "ALREADY_RUNNING"; workerDeadlineAt: string }
+        | { disposition: "CANCEL_REQUESTED"; cancelRequestId: string }
+        | { disposition: "ALREADY_TERMINAL"; status: "SUCCEEDED" | "SKIPPED" | "FAILED" | "CANCELLED" };
+    };
 
 /** Clampa workerDeadlineAt del client a now + lambda timeout + skew (§9.7). */
 function clampWorkerDeadline(clientDeadline: string, now: Date): Date {
@@ -128,16 +156,23 @@ function clampWorkerDeadline(clientDeadline: string, now: Date): Date {
 export async function startExecution(
   id: string,
   request: { sqsMessageId: string; approximateReceiveCount: number; workerDeadlineAt: string },
+  access: LifecycleAccess = SERVICE_LIFECYCLE_ACCESS,
   now: Date = new Date(),
 ): Promise<StartResult> {
   return prisma.$transaction(async (tx) => {
     const row = await lockExecution(tx, id);
-    if (!row) return { notFound: true } as StartResult;
+    if (!row) return { notFound: true };
+    const denied = denyLifecycleAccess(row, access);
+    if (denied !== null) return denied;
 
+    const workerDeadlineAt =
+      row.dispatchKind === AutomationDispatchKinds.CLI
+        ? new Date(now.getTime() + AutomationLifecycleBudgets.CLI_HEARTBEAT_GRACE_MS)
+        : clampWorkerDeadline(request.workerDeadlineAt, now);
     const delivery: DeliveryMetadata = {
       sqsMessageId: request.sqsMessageId,
       approximateReceiveCount: request.approximateReceiveCount,
-      workerDeadlineAt: clampWorkerDeadline(request.workerDeadlineAt, now),
+      workerDeadlineAt,
     };
     const activeAttempt = await loadAttempt(tx, row.activeAttemptId);
     const decision = decideStart(
@@ -177,7 +212,7 @@ export async function startExecution(
         status: ES.RUNNING,
         activeAttemptId: attempt.id,
         workerDeadlineAt: delivery.workerDeadlineAt,
-        deadlineAt: decision.nextDeadlineAt,
+        deadlineAt: row.dispatchKind === AutomationDispatchKinds.CLI ? delivery.workerDeadlineAt : decision.nextDeadlineAt,
         deliveryCycle: decision.nextDeliveryCycle,
         cycleReceiveCount: decision.nextCycleReceiveCount,
         sqsMessageId: delivery.sqsMessageId,
@@ -195,23 +230,30 @@ export async function startExecution(
   });
 }
 
-export interface ProgressResult {
-  readonly notFound?: boolean;
-  readonly response: {
-    cancelRequested: boolean;
-    staleAttempt?: boolean;
-    cancelRequestId?: string;
-    cancelRequestedAt?: string;
-  };
-}
+export type ProgressResult =
+  | LifecycleForbiddenResult
+  | { readonly notFound: true }
+  | {
+      readonly response: {
+        cancelRequested: boolean;
+        staleAttempt?: boolean;
+        cancelRequestId?: string;
+        cancelRequestedAt?: string;
+        workerDeadlineAt?: string;
+      };
+    };
 
 export async function progressExecution(
   id: string,
   request: { attemptId: string; phase: string; heartbeatSequence: number },
+  access: LifecycleAccess = SERVICE_LIFECYCLE_ACCESS,
+  now: Date = new Date(),
 ): Promise<ProgressResult> {
   return prisma.$transaction(async (tx) => {
     const row = await lockExecution(tx, id);
-    if (!row) return { notFound: true, response: { cancelRequested: false } };
+    if (!row) return { notFound: true };
+    const denied = denyLifecycleAccess(row, access);
+    if (denied !== null) return denied;
     const activeAttempt = await loadAttempt(tx, row.activeAttemptId);
     const decision = decideProgress(
       toSnapshot(row),
@@ -219,16 +261,45 @@ export async function progressExecution(
       request,
     );
     if (decision.action === "UPDATE_HEARTBEAT" && activeAttempt) {
+      const cliWorkerDeadlineAt =
+        row.dispatchKind === AutomationDispatchKinds.CLI
+          ? new Date(now.getTime() + AutomationLifecycleBudgets.CLI_HEARTBEAT_GRACE_MS)
+          : null;
       await tx.automaticRunbookAttempt.update({
         where: { id: activeAttempt.id },
-        data: { heartbeatSequence: decision.heartbeatSequence, phase: decision.phase, lastHeartbeatAt: new Date() },
+        data: {
+          heartbeatSequence: decision.heartbeatSequence,
+          phase: decision.phase,
+          lastHeartbeatAt: now,
+          ...(cliWorkerDeadlineAt !== null ? { workerDeadlineAt: cliWorkerDeadlineAt } : {}),
+        },
       });
       await tx.automaticRunbookExecution.update({
         where: { id },
-        data: { lastHeartbeatAt: new Date() },
+        data: {
+          lastHeartbeatAt: now,
+          ...(cliWorkerDeadlineAt !== null
+            ? { workerDeadlineAt: cliWorkerDeadlineAt, deadlineAt: cliWorkerDeadlineAt }
+            : {}),
+        },
       });
+      return {
+        response: {
+          ...decision.response,
+          ...(cliWorkerDeadlineAt !== null ? { workerDeadlineAt: cliWorkerDeadlineAt.toISOString() } : {}),
+        },
+      };
     }
-    return { response: decision.response };
+    return {
+      response: {
+        ...decision.response,
+        ...(row.dispatchKind === AutomationDispatchKinds.CLI &&
+        decision.action !== "STALE_ATTEMPT" &&
+        row.workerDeadlineAt !== null
+          ? { workerDeadlineAt: row.workerDeadlineAt.toISOString() }
+          : {}),
+      },
+    };
   });
 }
 
@@ -238,7 +309,19 @@ export type CompleteResult =
   | { kind: "IDEMPOTENCY_PAYLOAD_MISMATCH"; status: string }
   | { kind: "STALE_ATTEMPT"; status: string }
   | { kind: "CANCELLATION_REQUESTED" }
+  | LifecycleForbiddenResult
   | { kind: "NOT_FOUND" };
+
+export interface LifecycleActor {
+  readonly lifecycleActorUserId: string;
+  readonly lifecycleActorType: "HUMAN" | "SERVICE";
+  readonly lifecycleAuthMethod?: "CLI_PAT" | "SERVICE_LOGIN" | "HUMAN_LOGIN";
+  readonly lifecycleAccess: LifecycleAccess;
+}
+
+export interface CompletionActors extends LifecycleActor {
+  readonly analysisOperatorUserId: string;
+}
 
 function conclusionForOutcome(outcome: AutomationExecutionOutcome, runbookKey: string | undefined): string {
   const label =
@@ -254,7 +337,7 @@ function conclusionForOutcome(outcome: AutomationExecutionOutcome, runbookKey: s
  */
 export async function completeExecution(
   id: string,
-  actorUserId: string,
+  actors: CompletionActors,
   request: {
     attemptId: string;
     outcome: AutomationExecutionOutcome;
@@ -282,6 +365,8 @@ export async function completeExecution(
     async (tx) => {
       const row = await lockExecution(tx, id);
       if (!row) return { kind: "NOT_FOUND" };
+      const denied = denyLifecycleAccess(row, actors.lifecycleAccess);
+      if (denied !== null) return denied;
       const tokenAttempt = await loadAttempt(tx, request.attemptId);
       const decision = decideComplete(
         toSnapshot(row),
@@ -367,8 +452,8 @@ export async function completeExecution(
                 alarmId: event.alarmId,
                 productId: event.productId,
                 environmentId: event.environmentId,
-                operatorId: actorUserId,
-                createdById: actorUserId,
+                operatorId: actors.analysisOperatorUserId,
+                createdById: actors.analysisOperatorUserId,
                 conclusionNotes: conclusion,
                 trackingIds: trackingJson,
                 lastAppliedExecutionId: id,
@@ -442,8 +527,14 @@ export async function completeExecution(
           action: completedAction,
           resource: SystemEventResources.AUTOMATIC_RUNBOOK_EXECUTIONS,
           resourceId: id,
-          userId: actorUserId,
-          metadata: { actorType: "SERVICE", outcome: request.outcome, appliedMode: effectiveMode },
+          userId: actors.lifecycleActorUserId,
+          metadata: {
+            actorType: actors.lifecycleActorType,
+            authMethod: actors.lifecycleAuthMethod,
+            analysisOperatorUserId: actors.analysisOperatorUserId,
+            outcome: request.outcome,
+            appliedMode: effectiveMode,
+          },
         },
       });
       if (analysisApplied) {
@@ -452,8 +543,14 @@ export async function completeExecution(
             action: SystemEventActions.AUTOMATION_ANALYSIS_APPLIED,
             resource: SystemEventResources.AUTOMATIC_RUNBOOK_EXECUTIONS,
             resourceId: id,
-            userId: actorUserId,
-            metadata: { actorType: "SERVICE", analysisId: resolvedAnalysisId, outcome: request.outcome },
+            userId: actors.lifecycleActorUserId,
+            metadata: {
+              actorType: actors.lifecycleActorType,
+              authMethod: actors.lifecycleAuthMethod,
+              analysisOperatorUserId: actors.analysisOperatorUserId,
+              analysisId: resolvedAnalysisId,
+              outcome: request.outcome,
+            },
           },
         });
       }
@@ -500,16 +597,20 @@ export type FailResult =
   | { kind: "STALE_ATTEMPT" }
   | { kind: "CANCELLATION_REQUESTED" }
   | { kind: "REJECT_NOT_RUNNABLE" }
+  | LifecycleForbiddenResult
   | { kind: "NOT_FOUND" };
 
 export async function failExecution(
   id: string,
+  actor: LifecycleActor,
   request: { scope: "PRE_START" | "ACTIVE_ATTEMPT"; attemptId?: string; errorCode: string; errorMessage: string; failedPhase: string },
   now: Date = new Date(),
 ): Promise<FailResult> {
   return prisma.$transaction(async (tx) => {
     const row = await lockExecution(tx, id);
     if (!row) return { kind: "NOT_FOUND" };
+    const denied = denyLifecycleAccess(row, actor.lifecycleAccess);
+    if (denied !== null) return denied;
     const tokenAttempt = await loadAttempt(tx, request.scope === "ACTIVE_ATTEMPT" ? request.attemptId ?? null : null);
     const decision = decideFail(toSnapshot(row), tokenAttempt ? toAttemptSnapshot(tokenAttempt) : null, request);
 
@@ -550,6 +651,22 @@ export async function failExecution(
         completedAt: now,
       },
     });
+    await tx.systemEvent.create({
+      data: {
+        action: SystemEventActions.AUTOMATION_EXECUTION_FAILED,
+        resource: SystemEventResources.AUTOMATIC_RUNBOOK_EXECUTIONS,
+        resourceId: id,
+        userId: actor.lifecycleActorUserId,
+        metadata: {
+          actorType: actor.lifecycleActorType,
+          authMethod: actor.lifecycleAuthMethod,
+          scope: request.scope,
+          ...(request.attemptId !== undefined ? { attemptId: request.attemptId } : {}),
+          errorCode: request.errorCode,
+          failedPhase: request.failedPhase,
+        },
+      },
+    });
     return { kind: "OK", status: ES.FAILED };
   });
 }
@@ -559,16 +676,20 @@ export type CancelAckResult =
   | { kind: "ALREADY_TERMINAL"; status: string }
   | { kind: "MISMATCH" }
   | { kind: "NOT_REQUESTED" }
+  | LifecycleForbiddenResult
   | { kind: "NOT_FOUND" };
 
 export async function acknowledgeCancellation(
   id: string,
+  actor: LifecycleActor,
   request: { cancelRequestId: string; attemptId: string; partialTelemetry?: unknown },
   now: Date = new Date(),
 ): Promise<CancelAckResult> {
   return prisma.$transaction(async (tx) => {
     const row = await lockExecution(tx, id);
     if (!row) return { kind: "NOT_FOUND" };
+    const denied = denyLifecycleAccess(row, actor.lifecycleAccess);
+    if (denied !== null) return denied;
     const activeAttempt = await loadAttempt(tx, row.activeAttemptId);
     const decision = decideCancelAck(toSnapshot(row), activeAttempt ? toAttemptSnapshot(activeAttempt) : null, request);
 
@@ -602,6 +723,21 @@ export async function acknowledgeCancellation(
         cancellationFinalizedBy: "WORKER",
         reviewStatus: AutomationReviewStatuses.NOT_REQUIRED,
         resultSummary: (request.partialTelemetry ?? Prisma.DbNull),
+      },
+    });
+    await tx.systemEvent.create({
+      data: {
+        action: SystemEventActions.AUTOMATION_EXECUTION_CANCELLED,
+        resource: SystemEventResources.AUTOMATIC_RUNBOOK_EXECUTIONS,
+        resourceId: id,
+        userId: actor.lifecycleActorUserId,
+        metadata: {
+          actorType: actor.lifecycleActorType,
+          authMethod: actor.lifecycleAuthMethod,
+          finalizedBy: "WORKER",
+          cancelRequestId: request.cancelRequestId,
+          attemptId: request.attemptId,
+        },
       },
     });
     return { kind: "OK", status: ES.CANCELLED };
@@ -709,6 +845,64 @@ export type CreateResult =
   | { kind: "ALARM_EVENT_NOT_FOUND" }
   | { kind: "ALARM_EVENT_NOT_LINKABLE"; reason: string };
 
+export type CreateCliResult =
+  | { kind: "OK"; execution: AutomaticRunbookExecution; command: AutomaticAlarmAnalysisCommandV1 }
+  | { kind: "ALARM_EVENT_NOT_FOUND" }
+  | { kind: "ALARM_EVENT_NOT_LINKABLE"; reason: string };
+
+export type PreviewCliResult =
+  | { kind: "OK"; command: AutomaticAlarmAnalysisCommandV1 }
+  | { kind: "ALARM_EVENT_NOT_FOUND" }
+  | { kind: "ALARM_EVENT_NOT_LINKABLE"; reason: string };
+
+type CommandAlarmEvent = Prisma.AlarmEventGetPayload<{ include: { alarm: true } }>;
+type LinkableCommandAlarmEvent = CommandAlarmEvent & {
+  readonly alarmId: string;
+  readonly alarm: NonNullable<CommandAlarmEvent["alarm"]>;
+};
+
+type BuildCommandResult =
+  | { kind: "OK"; event: LinkableCommandAlarmEvent; command: AutomaticAlarmAnalysisCommandV1 }
+  | { kind: "ALARM_EVENT_NOT_FOUND" }
+  | { kind: "ALARM_EVENT_NOT_LINKABLE"; reason: string };
+
+async function buildCommandForAlarmEvent(
+  alarmEventId: string,
+  executionId: string,
+  triggerKind: AutomationTriggerKind,
+  actor: Actor,
+): Promise<BuildCommandResult> {
+  const event = await prisma.alarmEvent.findUnique({
+    where: { id: alarmEventId },
+    include: { alarm: true },
+  });
+  if (!event) return { kind: "ALARM_EVENT_NOT_FOUND" };
+  if (!event.alarmId || !event.alarm) {
+    return { kind: "ALARM_EVENT_NOT_LINKABLE", reason: "alarm event has no linked alarm" };
+  }
+  const linkableEvent: LinkableCommandAlarmEvent = { ...event, alarmId: event.alarmId, alarm: event.alarm };
+  const command: AutomaticAlarmAnalysisCommandV1 = {
+    schemaVersion: AUTOMATIC_ALARM_ANALYSIS_COMMAND_VERSION,
+    executionId,
+    alarmEvent: {
+      id: linkableEvent.id,
+      productId: linkableEvent.productId,
+      environmentId: linkableEvent.environmentId,
+      alarmId: linkableEvent.alarmId,
+      alarmName: linkableEvent.alarm.name,
+      firedAt: linkableEvent.firedAt.toISOString(),
+      awsAccountId: linkableEvent.awsAccountId,
+      awsRegion: linkableEvent.awsRegion,
+    },
+    trigger: { kind: triggerKind, actorId: actor.userId },
+  };
+  return {
+    kind: "OK",
+    event: linkableEvent,
+    command,
+  };
+}
+
 /**
  * Crea una execution manuale (Flow 2) in PENDING_DISPATCH (execution-as-outbox).
  * L'enqueue su SQS è eseguito dal dispatcher (Wave 2/3, adapter AWS non ancora
@@ -721,31 +915,10 @@ export async function createManualExecution(
   mode?: "SHADOW" | "APPLY_KNOWN" | "APPLY_ALL",
   now: Date = new Date(),
 ): Promise<CreateResult> {
-  const event = await prisma.alarmEvent.findUnique({
-    where: { id: alarmEventId },
-    include: { alarm: true },
-  });
-  if (!event) return { kind: "ALARM_EVENT_NOT_FOUND" };
-  if (!event.alarmId || !event.alarm) {
-    return { kind: "ALARM_EVENT_NOT_LINKABLE", reason: "alarm event has no linked alarm" };
-  }
-
   const id = crypto.randomUUID();
-  const command: AutomaticAlarmAnalysisCommandV1 = {
-    schemaVersion: AUTOMATIC_ALARM_ANALYSIS_COMMAND_VERSION,
-    executionId: id,
-    alarmEvent: {
-      id: event.id,
-      productId: event.productId,
-      environmentId: event.environmentId,
-      alarmId: event.alarmId,
-      alarmName: event.alarm.name,
-      firedAt: event.firedAt.toISOString(),
-      awsAccountId: event.awsAccountId,
-      awsRegion: event.awsRegion,
-    },
-    trigger: { kind: triggerKind, actorId: actor.userId },
-  };
+  const built = await buildCommandForAlarmEvent(alarmEventId, id, triggerKind, actor);
+  if (built.kind !== "OK") return built;
+  const { event, command } = built;
   // Da UI l'operatore può forzare il modo per questo lancio; altrimenti si usa
   // il default di sistema. Resta fisso sull'esecuzione (non più riletto).
   const appliedMode = mode ?? (await resolveAutomationMode(prisma));
@@ -759,6 +932,7 @@ export async function createManualExecution(
       alarmId: event.alarmId,
       status: ES.PENDING_DISPATCH,
       triggerKind,
+      dispatchKind: AutomationDispatchKinds.SQS,
       triggeredByUserId: actor.userId,
       triggeredByLabel: actor.label,
       appliedMode,
@@ -769,14 +943,61 @@ export async function createManualExecution(
   return { kind: "OK", execution };
 }
 
+export async function createCliExecution(
+  alarmEventId: string,
+  actor: Actor,
+  mode?: "SHADOW" | "APPLY_KNOWN" | "APPLY_ALL",
+  now: Date = new Date(),
+): Promise<CreateCliResult> {
+  const id = crypto.randomUUID();
+  const built = await buildCommandForAlarmEvent(alarmEventId, id, AutomationTriggerKinds.WATCHTOWER_CLI, actor);
+  if (built.kind !== "OK") return built;
+  const { event, command } = built;
+  const appliedMode = mode ?? (await resolveAutomationMode(prisma));
+  const execution = await prisma.automaticRunbookExecution.create({
+    data: {
+      id,
+      alarmEventId: event.id,
+      productId: event.productId,
+      environmentId: event.environmentId,
+      alarmId: event.alarmId,
+      status: ES.PENDING_DISPATCH,
+      triggerKind: AutomationTriggerKinds.WATCHTOWER_CLI,
+      dispatchKind: AutomationDispatchKinds.CLI,
+      triggeredByUserId: actor.userId,
+      triggeredByLabel: actor.label,
+      appliedMode,
+      inputSnapshot: command,
+      deadlineAt: new Date(now.getTime() + AutomationLifecycleBudgets.CLI_START_GRACE_MS),
+    },
+  });
+  return { kind: "OK", execution, command };
+}
+
+export async function previewCliExecutionCommand(
+  alarmEventId: string,
+  actor: Actor,
+): Promise<PreviewCliResult> {
+  const built = await buildCommandForAlarmEvent(
+    alarmEventId,
+    crypto.randomUUID(),
+    AutomationTriggerKinds.WATCHTOWER_CLI,
+    actor,
+  );
+  if (built.kind !== "OK") return built;
+  return { kind: "OK", command: built.command };
+}
+
 export type RetryResult =
   | { kind: "OK"; execution: AutomaticRunbookExecution }
+  | { kind: "CANNOT_RETRY_CLI" }
   | { kind: "NOT_FOUND" };
 
 /** Re-launch: nuova execution figlia (parentExecutionId), mai riapre la riga. */
 export async function retryExecution(id: string, actor: Actor, now: Date = new Date()): Promise<RetryResult> {
   const parent = await prisma.automaticRunbookExecution.findUnique({ where: { id } });
   if (!parent) return { kind: "NOT_FOUND" };
+  if (parent.dispatchKind === AutomationDispatchKinds.CLI) return { kind: "CANNOT_RETRY_CLI" };
   const childId = crypto.randomUUID();
   const snapshot = parent.inputSnapshot as unknown as AutomaticAlarmAnalysisCommandV1;
   const command: AutomaticAlarmAnalysisCommandV1 = {
@@ -796,6 +1017,7 @@ export async function retryExecution(id: string, actor: Actor, now: Date = new D
       alarmId: parent.alarmId,
       status: ES.PENDING_DISPATCH,
       triggerKind: "RETRY",
+      dispatchKind: AutomationDispatchKinds.SQS,
       triggeredByUserId: actor.userId,
       triggeredByLabel: actor.label,
       appliedMode,

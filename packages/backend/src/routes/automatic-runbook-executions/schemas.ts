@@ -3,6 +3,7 @@ import {
   AUTOMATION_EXECUTION_STATUS_VALUES,
   AUTOMATION_EXECUTION_OUTCOME_VALUES,
   AUTOMATION_TRIGGER_KIND_VALUES,
+  AUTOMATION_DISPATCH_KIND_VALUES,
   AUTOMATION_REVIEW_STATUS_VALUES,
   AUTOMATION_MODE_VALUES,
   AUTOMATION_ATTEMPT_STATUS_VALUES,
@@ -101,6 +102,7 @@ export const ProgressExecutionResponseSchema = Type.Object({
   staleAttempt: Type.Optional(Type.Boolean()),
   cancelRequestId: Type.Optional(Type.String({ format: "uuid" })),
   cancelRequestedAt: Type.Optional(Type.String({ format: "date-time" })),
+  workerDeadlineAt: Type.Optional(Type.String({ format: "date-time" })),
 });
 export type ProgressExecutionResponse = Static<typeof ProgressExecutionResponseSchema>;
 
@@ -166,6 +168,7 @@ export const ControlConflictResponseSchema = Type.Object({
     Type.Literal("CANNOT_CANCEL_TERMINAL"),
     Type.Literal("CANCELLATION_REQUEST_MISMATCH"),
     Type.Literal("CANCELLATION_NOT_REQUESTED"),
+    Type.Literal("CANNOT_RETRY_CLI"),
   ]),
   status: Type.Optional(enumUnion(AUTOMATION_EXECUTION_STATUS_VALUES)),
 });
@@ -283,6 +286,15 @@ export const CreateExecutionRequestSchema = Type.Object(
 );
 export type CreateExecutionRequest = Static<typeof CreateExecutionRequestSchema>;
 
+export const CreateCliExecutionRequestSchema = Type.Object(
+  {
+    alarmEventId: Type.String({ format: "uuid" }),
+    mode: Type.Optional(enumUnion(AUTOMATION_MODE_VALUES)),
+  },
+  { additionalProperties: false },
+);
+export type CreateCliExecutionRequest = Static<typeof CreateCliExecutionRequestSchema>;
+
 export const ReviewExecutionRequestSchema = Type.Object(
   {
     decision: Type.Union([Type.Literal("CONFIRMED"), Type.Literal("REJECTED")]),
@@ -306,6 +318,7 @@ export const ExecutionDtoSchema = Type.Object({
   outcome: Type.Union([enumUnion(AUTOMATION_EXECUTION_OUTCOME_VALUES), Type.Null()]),
   reviewStatus: enumUnion(AUTOMATION_REVIEW_STATUS_VALUES),
   triggerKind: enumUnion(AUTOMATION_TRIGGER_KIND_VALUES),
+  dispatchKind: enumUnion(AUTOMATION_DISPATCH_KIND_VALUES),
   appliedMode: enumUnion(AUTOMATION_MODE_VALUES),
   runbookKey: Type.Union([Type.String(), Type.Null()]),
   runbookVersion: Type.Union([Type.String(), Type.Null()]),
@@ -328,6 +341,12 @@ export const ExecutionDtoSchema = Type.Object({
   durationMs: Type.Union([Type.Integer(), Type.Null()]),
   createdAt: Type.String(),
   updatedAt: Type.String(),
+});
+
+export const CliExecutionCommandResponseSchema = Type.Object({
+  execution: Type.Optional(ExecutionDtoSchema),
+  command: Type.Unknown(),
+  dryRun: Type.Optional(Type.Boolean()),
 });
 
 // Dettaglio esecuzione: include i JSON versionati (snapshot/risultato/analisi)

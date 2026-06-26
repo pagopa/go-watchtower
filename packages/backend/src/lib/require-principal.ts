@@ -1,10 +1,12 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { prisma, SystemComponent } from "@go-watchtower/database";
+import { prisma, PermissionScope, SystemComponent } from "@go-watchtower/database";
 import {
+  RUNBOOK_AUTOMATION_CLI_SCOPE,
   RUNBOOK_AUTOMATION_AUDIENCE,
   RUNBOOK_AUTOMATION_ISSUER,
 } from "@go-watchtower/shared";
-import { hasPermission } from "../services/permission.service.js";
+import { getPermissionScope, hasPermission } from "../services/permission.service.js";
+import type { LifecycleAccess } from "../services/automation/execution.service.js";
 import {
   evaluateHumanGuard,
   evaluateServiceGuard,
@@ -17,6 +19,12 @@ import {
  * principal è **riletto dal DB** a ogni richiesta: disabilitazione o cambio ruolo
  * hanno effetto immediato anche su access token non ancora scaduti.
  */
+
+declare module "fastify" {
+  interface FastifyRequest {
+    lifecycleAccess?: LifecycleAccess;
+  }
+}
 
 async function readPrincipal(userId: string): Promise<PrincipalContext | null> {
   const user = await prisma.user.findUnique({
@@ -104,5 +112,59 @@ export function requireService(serviceId: string) {
     if (!allowed) {
       reply.status(403).send({ error: "Permission denied" });
     }
+  };
+}
+
+export function requireServiceOrCliHuman(serviceId: string) {
+  return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    if (request.user.principalType === "SERVICE") {
+      await requireService(serviceId)(request, reply);
+      if (!reply.sent) request.lifecycleAccess = { kind: "SERVICE" };
+      return;
+    }
+
+    const isCliPat =
+      request.user.principalType === "HUMAN" &&
+      request.user.authMethod === "CLI_PAT" &&
+      Array.isArray(request.user.scope) &&
+      request.user.scope.includes(RUNBOOK_AUTOMATION_CLI_SCOPE);
+    if (!isCliPat) {
+      reply.status(403).send({ error: "PRINCIPAL_TYPE_NOT_ALLOWED" });
+      return;
+    }
+
+    const principal = await readPrincipal(request.user.userId);
+    if (!principal) {
+      reply.status(401).send({ error: "Unauthorized" });
+      return;
+    }
+    const humanDecision = evaluateHumanGuard(principal);
+    if (!humanDecision.allowed) {
+      reply.status(403).send({ error: humanDecision.code });
+      return;
+    }
+
+    const params = request.params as { id?: string } | undefined;
+    const executionId = params?.id;
+    if (!executionId) {
+      reply.status(403).send({ error: "Missing execution id" });
+      return;
+    }
+
+    const scope = await getPermissionScope(
+      request.user.userId,
+      SystemComponent.AUTOMATIC_RUNBOOK_EXECUTION,
+      "write",
+    );
+    if (scope === PermissionScope.NONE) {
+      reply.status(403).send({ error: "Permission denied" });
+      return;
+    }
+
+    request.lifecycleAccess = {
+      kind: "CLI_PAT",
+      userId: request.user.userId,
+      permissionScope: scope,
+    };
   };
 }

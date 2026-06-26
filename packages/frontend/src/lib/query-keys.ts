@@ -31,6 +31,7 @@ const SYSTEM_EVENTS   = 'system-events'   as const
 const PERMISSIONS     = 'permissions'     as const
 const PREFERENCES     = 'preferences'     as const
 const AUTOMATIC_EXECUTIONS = 'automatic-runbook-executions' as const
+const PROFILE         = 'profile'         as const
 
 // ─── Registry ────────────────────────────────────────────────────────────────
 
@@ -166,5 +167,10 @@ export const qk = {
   preferences: {
     root: [PREFERENCES] as const,
     user: [PREFERENCES, 'user'] as const,
+  },
+
+  profile: {
+    root: [PROFILE] as const,
+    cliToken: [PROFILE, 'cli-token'] as const,
   },
 } as const

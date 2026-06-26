@@ -2,6 +2,7 @@ import { prisma } from "./client.js";
 import { Prisma } from "../generated/prisma/client.js";
 import {
   AutomationExecutionStatuses,
+  AutomationDispatchKinds,
   AutomationTriggerKinds,
   AutomationModes,
   AutomationLifecycleBudgets,
@@ -99,6 +100,7 @@ export async function ensureInitialExecution(
         alarmId: event.alarmId,
         status: AutomationExecutionStatuses.PENDING_DISPATCH,
         triggerKind: AutomationTriggerKinds.SLACK_INGESTOR,
+        dispatchKind: AutomationDispatchKinds.SQS,
         appliedMode,
         inputSnapshot: command satisfies Prisma.InputJsonValue,
         deadlineAt: new Date(now.getTime() + AutomationLifecycleBudgets.DISPATCH_BUDGET_MS),

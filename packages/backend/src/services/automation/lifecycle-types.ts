@@ -3,6 +3,7 @@ import type {
   AutomationExecutionOutcome,
   AutomationAttemptStatus,
   AutomationMode,
+  AutomationDispatchKind,
   AutomationSystemErrorCode,
   AnalysisOrigin,
 } from "@go-watchtower/shared";
@@ -35,6 +36,7 @@ export interface ActiveAttemptSnapshot {
 /** Snapshot dell'execution sotto lock. */
 export interface ExecutionSnapshot {
   readonly id: string;
+  readonly dispatchKind: AutomationDispatchKind;
   readonly status: AutomationExecutionStatus;
   readonly outcome: AutomationExecutionOutcome | null;
   readonly errorCode: string | null;
@@ -151,11 +153,11 @@ export type CancelDecision =
   | { readonly kind: "ALREADY_CANCELLED" }
   | { readonly kind: "CANNOT_CANCEL_TERMINAL"; readonly status: TerminalStatus };
 
-// ─── cancel/ack (service) ─────────────────────────────────────────────────────
+// ─── cancel/ack (lifecycle actor) ──────────────────────────────────────────────
 
 export type CancelAckDecision =
   | { readonly kind: "ALREADY_TERMINAL_IDEMPOTENT"; readonly status: TerminalStatus }
-  | { readonly kind: "FINALIZE_CANCEL" } // CANCEL_REQUESTED → CANCELLED (WORKER)
+  | { readonly kind: "FINALIZE_CANCEL" } // CANCEL_REQUESTED → CANCELLED (cooperative worker ack)
   | { readonly kind: "MISMATCH" } // 409 CANCELLATION_REQUEST_MISMATCH
   | { readonly kind: "NOT_REQUESTED" }; // 409 CANCELLATION_NOT_REQUESTED
 
@@ -168,7 +170,8 @@ export type SafetyNetDecision =
 export type ReaperDecision =
   | { readonly kind: "NONE" }
   | { readonly kind: "HEARTBEAT_STALE_ALERT" }
-  | { readonly kind: "RELEASE_LEASE_RETRY_PENDING" }; // RUNNING → RETRY_PENDING
+  | { readonly kind: "RELEASE_LEASE_RETRY_PENDING" } // RUNNING → RETRY_PENDING
+  | { readonly kind: "TERMINALIZE_LOCAL_TIMEOUT" }; // CLI RUNNING → FAILED
 
 export type FinalizerDecision =
   | { readonly kind: "NONE" }

@@ -20,13 +20,30 @@ export interface GoogleUserInfo {
   picture?: string;
 }
 
-// User without password hash, with role name from join
-export type SafeUser = Omit<User, "passwordHash"> & { roleName: string };
+// User without credential material, with role name from join.
+type SensitiveUserField =
+  | "passwordHash"
+  | "cliTokenHash"
+  | "cliTokenHint"
+  | "cliTokenCreatedAt"
+  | "cliTokenLastUsedAt"
+  | "cliTokenExpiresAt";
+
+export type SafeUser = Omit<User, SensitiveUserField> & { roleName: string };
 
 type UserWithRole = User & { role: Role };
 
-function toSafeUser(user: UserWithRole): SafeUser {
-  const { passwordHash: _, role, ...rest } = user;
+export function toSafeUser(user: UserWithRole): SafeUser {
+  const {
+    passwordHash: _passwordHash,
+    cliTokenHash: _cliTokenHash,
+    cliTokenHint: _cliTokenHint,
+    cliTokenCreatedAt: _cliTokenCreatedAt,
+    cliTokenLastUsedAt: _cliTokenLastUsedAt,
+    cliTokenExpiresAt: _cliTokenExpiresAt,
+    role,
+    ...rest
+  } = user;
   return { ...rest, roleName: role.name };
 }
 

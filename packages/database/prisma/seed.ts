@@ -466,6 +466,24 @@ async function seedSystemSettings() {
       description: "Se valorizzato, al COMPLETAMENTO sovrascrive il modo di TUTTE le esecuzioni non ancora concluse (anche quelle già avviate), ignorando il modo con cui sono state lanciate. Vuoto = disattivato. Imposta SHADOW per fermare istantaneamente la creazione/aggiornamento di analisi.",
     },
     {
+      key:         "auth.cliToken.defaultTtlDays",
+      value:       30,
+      type:        "NUMBER",
+      format:      null,
+      category:    "AUTH",
+      label:       "Durata predefinita token CLI",
+      description: "Numero di giorni usato come scadenza predefinita dei Personal Access Token CLI.",
+    },
+    {
+      key:         "auth.cliToken.maxTtlDays",
+      value:       90,
+      type:        "NUMBER",
+      format:      null,
+      category:    "AUTH",
+      label:       "Durata massima token CLI",
+      description: "Numero massimo di giorni consentito per la scadenza dei Personal Access Token CLI.",
+    },
+    {
       key:         "on_call_hours",
       value:       {
         timezone:  "Europe/Rome",

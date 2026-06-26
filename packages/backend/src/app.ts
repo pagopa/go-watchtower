@@ -22,6 +22,7 @@ import { systemEventRoutes } from "./routes/system-events/index.js";
 import { settingRoutes } from "./routes/settings/index.js";
 import { alarmRoutes } from "./routes/alarms/index.js";
 import { automaticRunbookExecutionRoutes } from "./routes/automatic-runbook-executions/index.js";
+import { profileRoutes } from "./routes/profile/index.js";
 import { healthRoutes } from "./routes/health.js";
 
 function getLoggerConfig(): FastifyServerOptions["logger"] {
@@ -60,6 +61,7 @@ export async function buildApp() {
   // Register routes
   await app.register(healthRoutes);
   await app.register(authRoutes, { prefix: "/auth" });
+  await app.register(profileRoutes, { prefix: "/api" });
   await app.register(productRoutes, { prefix: "/api" });
   await app.register(analysisRoutes, { prefix: "/api" });
   await app.register(permissionRoutes, { prefix: "/api" });

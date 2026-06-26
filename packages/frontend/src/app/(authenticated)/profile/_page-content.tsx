@@ -9,9 +9,9 @@ import {
   Mail, Shield, CalendarDays, Loader2, Check, Pencil, X,
   Monitor, Sun, Moon, Rows3, PanelLeft, SlidersHorizontal,
   KeyRound, Globe, RotateCcw, Eye, EyeOff, Lock, ChevronDown, ChevronUp,
-  Bell, BellOff,
+  Bell, BellOff, Copy, Terminal, Trash2,
 } from 'lucide-react'
-import { api, type UserDetail, type AlertPriorityLevel } from '@/lib/api-client'
+import { api, type UserDetail, type AlertPriorityLevel, type CliTokenMetadata } from '@/lib/api-client'
 import { qk } from '@/lib/query-keys'
 import type { ColumnSettings } from '@go-watchtower/shared'
 import { formatDateLong as formatDate, getInitials } from '@/lib/format'
@@ -58,6 +58,17 @@ function getEnabledPriorityCodes(priorityLevels: AlertPriorityLevel[], notificat
   }
 
   return new Set(priorityLevels.filter((level) => level.defaultNotify).map((level) => level.code))
+}
+
+function formatIsoDateTime(value: string | null): string {
+  if (!value) return '—'
+  return new Date(value).toLocaleString('it-IT', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 // ─── Column analysis ──────────────────────────────────────────────────────────
@@ -343,6 +354,159 @@ function PrefRow({
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
     <h2 className="mb-1 text-base font-semibold text-foreground">{children}</h2>
+  )
+}
+
+// ─── CLI token ────────────────────────────────────────────────────────────────
+
+function CliTokenSection() {
+  const queryClient = useQueryClient()
+  const [ttlDays, setTtlDays] = useState(30)
+  const [ttlInitialized, setTtlInitialized] = useState(false)
+  const [generatedToken, setGeneratedToken] = useState<string | null>(null)
+
+  const { data: metadata, isLoading } = useQuery<CliTokenMetadata>({
+    queryKey: qk.profile.cliToken,
+    queryFn: api.getCliTokenMetadata,
+    staleTime: 30_000,
+  })
+
+  useEffect(() => {
+    if (metadata && !ttlInitialized) {
+      setTtlDays(metadata.defaultTtlDays)
+      setTtlInitialized(true)
+    }
+  }, [metadata, ttlInitialized])
+
+  const maxTtlDays = metadata?.maxTtlDays ?? 90
+  const clampedTtlDays = Math.min(Math.max(1, Math.trunc(ttlDays || 1)), maxTtlDays)
+
+  const createMutation = useMutation({
+    mutationFn: () => api.createCliToken({ expiresInDays: clampedTtlDays }),
+    onSuccess: (response) => {
+      setGeneratedToken(response.token)
+      queryClient.setQueryData<CliTokenMetadata>(qk.profile.cliToken, {
+        hint: response.hint,
+        createdAt: response.createdAt,
+        lastUsedAt: null,
+        expiresAt: response.expiresAt,
+        defaultTtlDays: response.defaultTtlDays,
+        maxTtlDays: response.maxTtlDays,
+      })
+      toast.success('Token CLI generato')
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+
+  const revokeMutation = useMutation({
+    mutationFn: api.revokeCliToken,
+    onSuccess: () => {
+      setGeneratedToken(null)
+      queryClient.setQueryData<CliTokenMetadata | undefined>(qk.profile.cliToken, (current) => current
+        ? { ...current, hint: null, createdAt: null, lastUsedAt: null, expiresAt: null }
+        : current)
+      toast.success('Token CLI revocato')
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+
+  const hasToken = metadata?.hint != null
+  const isExpired = hasToken && metadata?.expiresAt
+    ? new Date(metadata.expiresAt).getTime() <= Date.now()
+    : false
+
+  const copyGeneratedToken = () => {
+    if (!generatedToken) return
+    void navigator.clipboard.writeText(generatedToken)
+      .then(() => toast.success('Token copiato'))
+      .catch(() => toast.error('Copia non riuscita'))
+  }
+
+  const revoke = () => {
+    if (!window.confirm('Revocare il token CLI corrente?')) return
+    revokeMutation.mutate()
+  }
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <SectionTitle>Token CLI Watchtower</SectionTitle>
+          <p className="text-sm text-muted-foreground">Accesso personale per esecuzioni runbook da terminale.</p>
+        </div>
+        <Badge variant={hasToken && !isExpired ? 'success' : hasToken ? 'destructive' : 'outline'} className="shrink-0">
+          {hasToken && !isExpired ? 'Attivo' : hasToken ? 'Scaduto' : 'Non configurato'}
+        </Badge>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-4">
+        <div className="rounded-lg bg-muted/35 px-3 py-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/60">Hint</p>
+          <p className="mt-1 font-mono text-sm">{isLoading ? '…' : metadata?.hint ? `…${metadata.hint}` : '—'}</p>
+        </div>
+        <div className="rounded-lg bg-muted/35 px-3 py-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/60">Creato</p>
+          <p className="mt-1 text-sm">{isLoading ? '…' : formatIsoDateTime(metadata?.createdAt ?? null)}</p>
+        </div>
+        <div className="rounded-lg bg-muted/35 px-3 py-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/60">Ultimo uso</p>
+          <p className="mt-1 text-sm">{isLoading ? '…' : formatIsoDateTime(metadata?.lastUsedAt ?? null)}</p>
+        </div>
+        <div className="rounded-lg bg-muted/35 px-3 py-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/60">Scadenza</p>
+          <p className="mt-1 text-sm">{isLoading ? '…' : formatIsoDateTime(metadata?.expiresAt ?? null)}</p>
+        </div>
+      </div>
+
+      {generatedToken && (
+        <div className="mt-4 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
+          <div className="flex items-center gap-2">
+            <Input readOnly value={generatedToken} className="h-9 flex-1 font-mono text-xs" />
+            <Button variant="outline" size="sm" onClick={copyGeneratedToken}>
+              <Copy className="mr-1 h-4 w-4" /> Copia
+            </Button>
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">Il valore completo non sarà più recuperabile dopo aver lasciato questa pagina.</p>
+        </div>
+      )}
+
+      <div className="mt-4 flex flex-wrap items-end gap-3">
+        <div className="w-36">
+          <Label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground/60">
+            Durata giorni
+          </Label>
+          <Input
+            type="number"
+            min={1}
+            max={maxTtlDays}
+            value={ttlDays}
+            onChange={(event) => setTtlDays(Number(event.target.value))}
+            onBlur={() => setTtlDays(clampedTtlDays)}
+            disabled={isLoading || createMutation.isPending}
+          />
+        </div>
+        <Button
+          onClick={() => createMutation.mutate()}
+          disabled={isLoading || createMutation.isPending}
+        >
+          {createMutation.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Terminal className="mr-1 h-4 w-4" />}
+          {hasToken ? 'Ruota token' : 'Genera token'}
+        </Button>
+        <Button
+          variant="outline"
+          onClick={revoke}
+          disabled={!hasToken || revokeMutation.isPending}
+        >
+          {revokeMutation.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Trash2 className="mr-1 h-4 w-4" />}
+          Revoca
+        </Button>
+        {metadata && (
+          <span className="pb-2 text-xs text-muted-foreground">
+            Default {metadata.defaultTtlDays} giorni · massimo {metadata.maxTtlDays}
+          </span>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -751,6 +915,8 @@ export function ProfilePageContent() {
           </div>
         </div>
       </div>
+
+      <CliTokenSection />
 
       {/* ── Notifiche ── */}
       <div id="notifiche" className="rounded-xl border border-border bg-card p-6">

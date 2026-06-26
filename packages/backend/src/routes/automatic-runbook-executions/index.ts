@@ -8,7 +8,7 @@ import {
 } from "@go-watchtower/database";
 import { RUNBOOK_AUTOMATION_SERVICE_ID } from "@go-watchtower/shared";
 import { requirePermission } from "../../lib/require-permission.js";
-import { requireHumanPrincipal, requireService } from "../../lib/require-principal.js";
+import { requireHumanPrincipal, requireServiceOrCliHuman } from "../../lib/require-principal.js";
 import { HttpError } from "../../utils/http-errors.js";
 import {
   ExecutionIdParamsSchema,
@@ -28,6 +28,8 @@ import {
   CancelExecutionRequestSchema,
   CancelExecutionResponseSchema,
   CreateExecutionRequestSchema,
+  CreateCliExecutionRequestSchema,
+  CliExecutionCommandResponseSchema,
   ReviewExecutionRequestSchema,
   ExecutionDtoSchema,
   ExecutionListQuerySchema,
@@ -44,6 +46,7 @@ import {
   type AcknowledgeCancellationRequest,
   type CancelExecutionRequest,
   type CreateExecutionRequest,
+  type CreateCliExecutionRequest,
   type ReviewExecutionRequest,
   type ExecutionListQuery,
   type AttemptsQuery,
@@ -57,8 +60,13 @@ import {
   requestCancel,
   reviewExecution,
   createManualExecution,
+  createCliExecution,
+  previewCliExecutionCommand,
   retryExecution,
   type Actor,
+  type CompletionActors,
+  type LifecycleAccess,
+  type LifecycleActor,
 } from "../../services/automation/execution.service.js";
 
 const RESOURCE = SystemComponent.AUTOMATIC_RUNBOOK_EXECUTION;
@@ -85,6 +93,7 @@ function toExecutionDto(e: AutomaticRunbookExecution) {
     outcome: e.outcome,
     reviewStatus: e.reviewStatus,
     triggerKind: e.triggerKind,
+    dispatchKind: e.dispatchKind,
     appliedMode: e.appliedMode,
     runbookKey: e.runbookKey,
     runbookVersion: e.runbookVersion,
@@ -145,9 +154,54 @@ function actorOf(request: { user: { userId: string; name?: string; email?: strin
   return { userId: u.userId, label: u.name ? `${u.name} (${u.email})` : (u.email ?? u.userId) };
 }
 
+type LifecycleRequest = {
+  user: { userId: string; principalType?: "HUMAN" | "SERVICE"; authMethod?: "CLI_PAT" | "SERVICE_LOGIN" | "HUMAN_LOGIN" };
+  lifecycleAccess?: LifecycleAccess;
+};
+
+function lifecycleAccessOf(request: LifecycleRequest): LifecycleAccess {
+  if (request.lifecycleAccess === undefined) throw new Error("Lifecycle authorization context missing");
+  return request.lifecycleAccess;
+}
+
+function lifecycleActorOf(request: LifecycleRequest): LifecycleActor {
+  const actorType = request.user.authMethod === "CLI_PAT" || request.user.principalType === "HUMAN" ? "HUMAN" : "SERVICE";
+  return {
+    lifecycleActorUserId: request.user.userId,
+    lifecycleActorType: actorType,
+    lifecycleAuthMethod:
+      request.user.authMethod ?? (actorType === "HUMAN" ? "HUMAN_LOGIN" : "SERVICE_LOGIN"),
+    lifecycleAccess: lifecycleAccessOf(request),
+  };
+}
+
+async function completionActorsOf(request: LifecycleRequest): Promise<CompletionActors> {
+  const lifecycleActor = lifecycleActorOf(request);
+  if (request.user.authMethod === "CLI_PAT") {
+    const service = await prisma.user.findUnique({
+      where: { serviceId: RUNBOOK_AUTOMATION_SERVICE_ID },
+      select: { id: true, isActive: true },
+    });
+    if (!service?.isActive) {
+      throw new Error("Runbook automation service principal is not active");
+    }
+    return {
+      analysisOperatorUserId: service.id,
+      ...lifecycleActor,
+    };
+  }
+  if (lifecycleActor.lifecycleAccess.kind !== "SERVICE") {
+    throw new Error("Completion actor resolution expected a service lifecycle actor");
+  }
+  return {
+    analysisOperatorUserId: request.user.userId,
+    ...lifecycleActor,
+  };
+}
+
 export async function automaticRunbookExecutionRoutes(fastify: FastifyInstance): Promise<void> {
   const app = fastify.withTypeProvider<TypeBoxTypeProvider>();
-  const serviceGuard = requireService(RUNBOOK_AUTOMATION_SERVICE_ID);
+  const lifecycleGuard = requireServiceOrCliHuman(RUNBOOK_AUTOMATION_SERVICE_ID);
 
   // ─── human read ──────────────────────────────────────────────────────────
 
@@ -351,6 +405,54 @@ export async function automaticRunbookExecutionRoutes(fastify: FastifyInstance):
     },
   );
 
+  app.post<{ Body: CreateCliExecutionRequest }>(
+    "/automatic-runbook-executions/cli",
+    {
+      config: { allowCliPat: true },
+      onRequest: [app.authenticate, requireHumanPrincipal(), requirePermission(RESOURCE, "write")],
+      schema: {
+        tags: ["Automatic Runbook Executions"],
+        summary: "Create a CLI execution and return the canonical command",
+        security: BEARER,
+        body: CreateCliExecutionRequestSchema,
+        response: { 201: CliExecutionCommandResponseSchema, 403: ErrorResponseSchema, 404: ErrorResponseSchema, 422: ErrorResponseSchema },
+      },
+    },
+    async (request, reply) => {
+      const result = await createCliExecution(request.body.alarmEventId, actorOf(request), request.body.mode);
+      if (result.kind === "ALARM_EVENT_NOT_FOUND") return HttpError.notFound(reply, "Alarm event");
+      if (result.kind === "ALARM_EVENT_NOT_LINKABLE") {
+        reply.status(422).send({ error: result.reason });
+        return;
+      }
+      reply.status(201).send({ execution: toExecutionDto(result.execution), command: result.command });
+    },
+  );
+
+  app.post<{ Body: CreateCliExecutionRequest }>(
+    "/automatic-runbook-executions/cli/preview",
+    {
+      config: { allowCliPat: true },
+      onRequest: [app.authenticate, requireHumanPrincipal(), requirePermission(RESOURCE, "read")],
+      schema: {
+        tags: ["Automatic Runbook Executions"],
+        summary: "Preview a CLI execution command without persisting an execution",
+        security: BEARER,
+        body: CreateCliExecutionRequestSchema,
+        response: { 200: CliExecutionCommandResponseSchema, 403: ErrorResponseSchema, 404: ErrorResponseSchema, 422: ErrorResponseSchema },
+      },
+    },
+    async (request, reply) => {
+      const result = await previewCliExecutionCommand(request.body.alarmEventId, actorOf(request));
+      if (result.kind === "ALARM_EVENT_NOT_FOUND") return HttpError.notFound(reply, "Alarm event");
+      if (result.kind === "ALARM_EVENT_NOT_LINKABLE") {
+        reply.status(422).send({ error: result.reason });
+        return;
+      }
+      reply.send({ command: result.command, dryRun: true });
+    },
+  );
+
   app.post<{ Params: ExecutionIdParams }>(
     "/automatic-runbook-executions/:id/retry",
     {
@@ -360,12 +462,16 @@ export async function automaticRunbookExecutionRoutes(fastify: FastifyInstance):
         summary: "Re-launch as a child execution (parentExecutionId)",
         security: BEARER,
         params: ExecutionIdParamsSchema,
-        response: { 201: ExecutionDtoSchema, 403: ErrorResponseSchema, 404: ErrorResponseSchema },
+        response: { 201: ExecutionDtoSchema, 403: ErrorResponseSchema, 404: ErrorResponseSchema, 409: ControlConflictResponseSchema },
       },
     },
     async (request, reply) => {
       const result = await retryExecution(request.params.id, actorOf(request));
       if (result.kind === "NOT_FOUND") return HttpError.notFound(reply, "Execution");
+      if (result.kind === "CANNOT_RETRY_CLI") {
+        reply.status(409).send({ conflict: "CANNOT_RETRY_CLI" });
+        return;
+      }
       reply.status(201).send(toExecutionDto(result.execution));
     },
   );
@@ -435,7 +541,8 @@ export async function automaticRunbookExecutionRoutes(fastify: FastifyInstance):
   app.post<{ Params: ExecutionIdParams; Body: StartExecutionRequest }>(
     "/automatic-runbook-executions/:id/start",
     {
-      onRequest: [app.authenticate, serviceGuard],
+      config: { allowCliPat: true },
+      onRequest: [app.authenticate, lifecycleGuard],
       schema: {
         tags: ["Automatic Runbook Executions"],
         summary: "Worker: acquire the lease (lease arbitration under lock)",
@@ -447,16 +554,21 @@ export async function automaticRunbookExecutionRoutes(fastify: FastifyInstance):
       },
     },
     async (request, reply) => {
-      const result = await startExecution(request.params.id, request.body);
-      if (result.notFound) return HttpError.notFound(reply, "Execution");
-      reply.send(result.response);
+      const result = await startExecution(request.params.id, request.body, lifecycleAccessOf(request));
+      if ("notFound" in result) return HttpError.notFound(reply, "Execution");
+      if ("response" in result) {
+        reply.send(result.response);
+        return;
+      }
+      reply.status(403).send({ error: result.error });
     },
   );
 
   app.patch<{ Params: ExecutionIdParams; Body: ProgressExecutionRequest }>(
     "/automatic-runbook-executions/:id/progress",
     {
-      onRequest: [app.authenticate, serviceGuard],
+      config: { allowCliPat: true },
+      onRequest: [app.authenticate, lifecycleGuard],
       schema: {
         tags: ["Automatic Runbook Executions"],
         summary: "Worker: heartbeat/phase fenced by attemptId; response carries cancelRequested",
@@ -468,16 +580,21 @@ export async function automaticRunbookExecutionRoutes(fastify: FastifyInstance):
       },
     },
     async (request, reply) => {
-      const result = await progressExecution(request.params.id, request.body);
-      if (result.notFound) return HttpError.notFound(reply, "Execution");
-      reply.send(result.response);
+      const result = await progressExecution(request.params.id, request.body, lifecycleAccessOf(request));
+      if ("notFound" in result) return HttpError.notFound(reply, "Execution");
+      if ("response" in result) {
+        reply.send(result.response);
+        return;
+      }
+      reply.status(403).send({ error: result.error });
     },
   );
 
   app.post<{ Params: ExecutionIdParams; Body: CompleteExecutionRequest }>(
     "/automatic-runbook-executions/:id/complete",
     {
-      onRequest: [app.authenticate, serviceGuard],
+      config: { allowCliPat: true },
+      onRequest: [app.authenticate, lifecycleGuard],
       schema: {
         tags: ["Automatic Runbook Executions"],
         summary: "Worker: terminate with a runbook outcome (no resultHash; status derived from outcome)",
@@ -495,7 +612,14 @@ export async function automaticRunbookExecutionRoutes(fastify: FastifyInstance):
     },
     async (request, reply) => {
       const body = request.body;
-      const result = await completeExecution(request.params.id, request.user.userId, {
+      let actors: CompletionActors;
+      try {
+        actors = await completionActorsOf(request);
+      } catch (error) {
+        reply.status(500).send({ error: error instanceof Error ? error.message : "Completion actor resolution failed" });
+        return;
+      }
+      const result = await completeExecution(request.params.id, actors, {
         attemptId: body.attemptId,
         outcome: body.outcome,
         ...(body.bytesScanned !== undefined ? { bytesScanned: body.bytesScanned } : {}),
@@ -514,6 +638,9 @@ export async function automaticRunbookExecutionRoutes(fastify: FastifyInstance):
       switch (result.kind) {
         case "NOT_FOUND":
           return HttpError.notFound(reply, "Execution");
+        case "FORBIDDEN":
+          reply.status(403).send({ error: result.error });
+          return;
         case "IDEMPOTENCY_PAYLOAD_MISMATCH":
           reply.status(409).send({ conflict: "IDEMPOTENCY_PAYLOAD_MISMATCH", status: result.status });
           return;
@@ -540,7 +667,8 @@ export async function automaticRunbookExecutionRoutes(fastify: FastifyInstance):
   app.post<{ Params: ExecutionIdParams; Body: FailExecutionRequest }>(
     "/automatic-runbook-executions/:id/fail",
     {
-      onRequest: [app.authenticate, serviceGuard],
+      config: { allowCliPat: true },
+      onRequest: [app.authenticate, lifecycleGuard],
       schema: {
         tags: ["Automatic Runbook Executions"],
         summary: "Worker: permanent allowlisted failure (retryable=false)",
@@ -559,16 +687,23 @@ export async function automaticRunbookExecutionRoutes(fastify: FastifyInstance):
     },
     async (request, reply) => {
       const body = request.body;
-      const result = await failExecution(request.params.id, {
-        scope: body.scope,
-        ...(body.scope === "ACTIVE_ATTEMPT" ? { attemptId: body.attemptId } : {}),
-        errorCode: body.errorCode,
-        errorMessage: body.errorMessage,
-        failedPhase: body.failedPhase,
-      });
+      const result = await failExecution(
+        request.params.id,
+        lifecycleActorOf(request),
+        {
+          scope: body.scope,
+          ...(body.scope === "ACTIVE_ATTEMPT" ? { attemptId: body.attemptId } : {}),
+          errorCode: body.errorCode,
+          errorMessage: body.errorMessage,
+          failedPhase: body.failedPhase,
+        },
+      );
       switch (result.kind) {
         case "NOT_FOUND":
           return HttpError.notFound(reply, "Execution");
+        case "FORBIDDEN":
+          reply.status(403).send({ error: result.error });
+          return;
         case "CONFLICT_TERMINAL":
           reply.status(409).send({ conflict: "IDEMPOTENCY_PAYLOAD_MISMATCH", status: result.status });
           return;
@@ -599,7 +734,8 @@ export async function automaticRunbookExecutionRoutes(fastify: FastifyInstance):
   app.post<{ Params: ExecutionIdParams; Body: AcknowledgeCancellationRequest }>(
     "/automatic-runbook-executions/:id/cancel/ack",
     {
-      onRequest: [app.authenticate, serviceGuard],
+      config: { allowCliPat: true },
+      onRequest: [app.authenticate, lifecycleGuard],
       schema: {
         tags: ["Automatic Runbook Executions"],
         summary: "Worker: acknowledge cooperative cancellation (owner only)",
@@ -617,14 +753,21 @@ export async function automaticRunbookExecutionRoutes(fastify: FastifyInstance):
     },
     async (request, reply) => {
       const body = request.body;
-      const result = await acknowledgeCancellation(request.params.id, {
-        cancelRequestId: body.cancelRequestId,
-        attemptId: body.attemptId,
-        ...(body.partialTelemetry !== undefined ? { partialTelemetry: body.partialTelemetry } : {}),
-      });
+      const result = await acknowledgeCancellation(
+        request.params.id,
+        lifecycleActorOf(request),
+        {
+          cancelRequestId: body.cancelRequestId,
+          attemptId: body.attemptId,
+          ...(body.partialTelemetry !== undefined ? { partialTelemetry: body.partialTelemetry } : {}),
+        },
+      );
       switch (result.kind) {
         case "NOT_FOUND":
           return HttpError.notFound(reply, "Execution");
+        case "FORBIDDEN":
+          reply.status(403).send({ error: result.error });
+          return;
         case "MISMATCH":
           reply.status(409).send({ conflict: "CANCELLATION_REQUEST_MISMATCH" });
           return;

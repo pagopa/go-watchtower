@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
-import { StatusBadge, OutcomeBadge, ReviewBadge, TRIGGER_LABELS, STATUS_ACCENT } from './_components/badges'
+import { StatusBadge, OutcomeBadge, ReviewBadge, TRIGGER_LABELS, DISPATCH_LABELS, STATUS_ACCENT } from './_components/badges'
 import { ExecutionDetailPanel } from './_components/execution-detail-panel'
 import { ExecuteRunbookPicker } from './_components/execute-runbook-picker'
 import { GlobalOverrideBanner } from './_components/global-override-banner'
@@ -30,7 +30,7 @@ const REVIEW_OPTIONS = [
   ['NOT_REQUIRED', 'Non richiesta'], ['PENDING', 'Da revisionare'], ['CONFIRMED', 'Confermata'], ['REJECTED', 'Rifiutata'],
 ] as const
 const TRIGGER_OPTIONS = [
-  ['SLACK_INGESTOR', 'Slack'], ['WATCHTOWER_UI', 'UI'], ['WATCHTOWER_API', 'API'], ['RETRY', 'Retry'],
+  ['SLACK_INGESTOR', 'Slack'], ['WATCHTOWER_UI', 'UI'], ['WATCHTOWER_API', 'API'], ['WATCHTOWER_CLI', 'CLI'], ['RETRY', 'Retry'],
 ] as const
 
 function relTime(iso: string): string {
@@ -202,7 +202,14 @@ export function AutomaticRunbooksPageContent() {
                   <TableCell><StatusBadge status={e.status} /></TableCell>
                   <TableCell><OutcomeBadge outcome={e.outcome} /></TableCell>
                   <TableCell className="max-w-[200px] truncate font-mono text-xs" title={e.alarmId ?? ''}>{e.alarmId ?? '—'}</TableCell>
-                  <TableCell className="text-sm">{TRIGGER_LABELS[e.triggerKind]}</TableCell>
+                  <TableCell className="text-sm">
+                    <span>{TRIGGER_LABELS[e.triggerKind]}</span>
+                    {e.dispatchKind === 'CLI' && (
+                      <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] uppercase text-muted-foreground">
+                        {DISPATCH_LABELS[e.dispatchKind]}
+                      </span>
+                    )}
+                  </TableCell>
                   <TableCell className="max-w-[160px] truncate text-sm" title={e.runbookKey ?? ''}>{e.runbookKey ?? '—'}</TableCell>
                   <TableCell><ReviewBadge reviewStatus={e.reviewStatus} /></TableCell>
                   <TableCell className="text-right font-mono tabular-nums">{e.totalWorkerAttempts}</TableCell>

@@ -14,12 +14,14 @@ CREATE TYPE "PrincipalType" AS ENUM ('HUMAN', 'SERVICE');
 CREATE TYPE "AnalysisOrigin" AS ENUM ('MANUAL', 'AUTOMATIC', 'HYBRID');
 CREATE TYPE "AutomationExecutionStatus" AS ENUM ('PENDING_DISPATCH', 'QUEUED', 'RUNNING', 'RETRY_PENDING', 'CANCEL_REQUESTED', 'SUCCEEDED', 'SKIPPED', 'FAILED', 'CANCELLED');
 CREATE TYPE "AutomationExecutionOutcome" AS ENUM ('KNOWN_CASE', 'UNKNOWN_CASE', 'NO_DATA', 'NO_RUNBOOK', 'CONFIGURATION_ERROR', 'EXECUTION_ERROR');
-CREATE TYPE "AutomationTriggerKind" AS ENUM ('SLACK_INGESTOR', 'WATCHTOWER_UI', 'WATCHTOWER_API', 'RETRY');
+CREATE TYPE "AutomationTriggerKind" AS ENUM ('SLACK_INGESTOR', 'WATCHTOWER_UI', 'WATCHTOWER_API', 'RETRY', 'WATCHTOWER_CLI');
+CREATE TYPE "AutomationDispatchKind" AS ENUM ('SQS', 'CLI');
 CREATE TYPE "AutomationReviewStatus" AS ENUM ('NOT_REQUIRED', 'PENDING', 'CONFIRMED', 'REJECTED');
 CREATE TYPE "AutomationMode" AS ENUM ('SHADOW', 'APPLY_KNOWN', 'APPLY_ALL');
 CREATE TYPE "AutomationAttemptStatus" AS ENUM ('RUNNING', 'COMPLETED', 'INTERRUPTED', 'FAILED', 'CANCELLED');
 CREATE TYPE "AutomationRetryDisposition" AS ENUM ('COMPLETE_OUTCOME', 'CANCEL_EXECUTION', 'RETRY_MESSAGE', 'FAIL_EXECUTION');
 CREATE TYPE "AutomationCancellationFinalizedBy" AS ENUM ('IMMEDIATE', 'WORKER', 'SYSTEM');
+CREATE TYPE "RefreshTokenSource" AS ENUM ('HUMAN_LOGIN', 'SERVICE_LOGIN', 'CLI_PAT');
 
 -- Nuovo valore SystemComponent (NON usato in questa migration: i permessi/seed
 -- vivono in seed.ts, perché Postgres vieta l'uso di un valore enum nello stesso
@@ -35,15 +37,34 @@ END $$;
 
 ALTER TABLE "users"
   ADD COLUMN "principal_type" "PrincipalType" NOT NULL DEFAULT 'HUMAN',
-  ADD COLUMN "service_id" TEXT;
+  ADD COLUMN "service_id" TEXT,
+  ADD COLUMN "cli_token_hash" TEXT,
+  ADD COLUMN "cli_token_hint" TEXT,
+  ADD COLUMN "cli_token_created_at" TIMESTAMP(3),
+  ADD COLUMN "cli_token_last_used_at" TIMESTAMP(3),
+  ADD COLUMN "cli_token_expires_at" TIMESTAMP(3);
 
 CREATE UNIQUE INDEX "users_service_id_key" ON "users" ("service_id");
+CREATE UNIQUE INDEX "users_cli_token_hash_key" ON "users" ("cli_token_hash");
+CREATE INDEX "users_cli_token_expires_at_idx" ON "users" ("cli_token_expires_at");
 
 ALTER TABLE "users"
   ADD CONSTRAINT "users_principal_service_id_consistent" CHECK (
     (principal_type = 'SERVICE' AND service_id IS NOT NULL)
     OR (principal_type = 'HUMAN' AND service_id IS NULL)
   );
+
+ALTER TABLE "users"
+  ADD CONSTRAINT "users_cli_token_expires_at_present" CHECK (
+    cli_token_hash IS NULL OR cli_token_expires_at IS NOT NULL
+  );
+
+ALTER TABLE "refresh_tokens"
+  ADD COLUMN "source" "RefreshTokenSource" NOT NULL DEFAULT 'HUMAN_LOGIN',
+  ADD COLUMN "cli_token_hash" TEXT;
+
+CREATE INDEX "refresh_tokens_user_id_source_revoked_at_idx" ON "refresh_tokens" ("user_id", "source", "revoked_at");
+CREATE INDEX "refresh_tokens_cli_token_hash_revoked_at_idx" ON "refresh_tokens" ("cli_token_hash", "revoked_at");
 
 -- ── AlarmAnalysis: provenienza + puntatore lastApplied (§9.2/§9.4) ───────────
 
@@ -76,6 +97,7 @@ CREATE TABLE "automatic_runbook_executions" (
   "cancelled_at" TIMESTAMP(3),
   "cancellation_finalized_by" "AutomationCancellationFinalizedBy",
   "trigger_kind" "AutomationTriggerKind" NOT NULL,
+  "dispatch_kind" "AutomationDispatchKind" NOT NULL DEFAULT 'SQS',
   "triggered_by_user_id" UUID,
   "triggered_by_label" TEXT,
   "applied_mode" "AutomationMode" NOT NULL,
@@ -166,6 +188,7 @@ CREATE INDEX "automatic_runbook_executions_alarm_id_outcome_created_at_idx" ON "
 CREATE INDEX "automatic_runbook_executions_review_status_created_at_idx" ON "automatic_runbook_executions" ("review_status", "created_at");
 CREATE INDEX "automatic_runbook_executions_analysis_id_idx" ON "automatic_runbook_executions" ("analysis_id");
 CREATE INDEX "automatic_runbook_executions_parent_execution_id_idx" ON "automatic_runbook_executions" ("parent_execution_id");
+CREATE INDEX "automatic_runbook_executions_status_dispatch_kind_idx" ON "automatic_runbook_executions" ("status", "dispatch_kind");
 
 CREATE INDEX "automatic_runbook_attempts_execution_id_started_at_idx" ON "automatic_runbook_attempts" ("execution_id", "started_at" DESC);
 CREATE INDEX "automatic_runbook_attempts_status_last_heartbeat_at_idx" ON "automatic_runbook_attempts" ("status", "last_heartbeat_at");
