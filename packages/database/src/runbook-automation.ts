@@ -11,6 +11,7 @@ import {
   type AutomationMode,
 } from "@go-watchtower/shared";
 import crypto from "node:crypto";
+import { getActiveCapabilityCatalog } from "./automation-capability-catalog.js";
 
 /**
  * Primitive di Flow 1 (execution-as-outbox, OPUS-03 §8.2/§9.4) condivise tra
@@ -25,8 +26,12 @@ async function resolveDefaultMode(): Promise<AutomationMode> {
   const setting = await prisma.systemSetting.findUnique({
     where: { key: AUTOMATION_DEFAULT_MODE_SETTING_KEY },
   });
-  const value = typeof setting?.value === "string" ? setting.value : AutomationModes.SHADOW;
-  if (value === AutomationModes.APPLY_ALL || value === AutomationModes.APPLY_KNOWN) {
+  const value =
+    typeof setting?.value === "string" ? setting.value : AutomationModes.SHADOW;
+  if (
+    value === AutomationModes.APPLY_ALL ||
+    value === AutomationModes.APPLY_KNOWN
+  ) {
     return value;
   }
   return AutomationModes.SHADOW;
@@ -36,6 +41,14 @@ export interface EnsureInitialExecutionResult {
   readonly executionId: string;
   /** true se questa chiamata ha creato la riga; false se era già presente (dedup). */
   readonly created: boolean;
+}
+
+export interface InitialExecutionCapability {
+  key: string;
+  version: string;
+  definitionDigest: string;
+  catalogRevision: string;
+  workerRevision: string;
 }
 
 /**
@@ -48,6 +61,7 @@ export interface EnsureInitialExecutionResult {
 export async function ensureInitialExecution(
   alarmEventId: string,
   now: Date = new Date(),
+  pinnedCapability?: InitialExecutionCapability,
 ): Promise<EnsureInitialExecutionResult> {
   const requestKey = `SLACK:${alarmEventId}`;
 
@@ -67,11 +81,32 @@ export async function ensureInitialExecution(
     throw new Error(`AlarmEvent ${alarmEventId} not found`);
   }
   if (!event.alarmId || !event.alarm) {
-    throw new Error(`AlarmEvent ${alarmEventId} has no linked alarm; cannot create automatic execution`);
+    throw new Error(
+      `AlarmEvent ${alarmEventId} has no linked alarm; cannot create automatic execution`,
+    );
   }
 
   const executionId = crypto.randomUUID();
   const appliedMode = await resolveDefaultMode();
+  let capability = pinnedCapability;
+  if (!capability) {
+    const activeCatalog = await getActiveCapabilityCatalog(now);
+    const descriptor = activeCatalog.catalog?.runbooks.find((runbook) =>
+      runbook.alarmNames.includes(event.alarm!.name),
+    );
+    if (!activeCatalog.usable || !activeCatalog.catalog || !descriptor) {
+      throw new Error(
+        `No active runbook capability for alarm ${event.alarm.name}`,
+      );
+    }
+    capability = {
+      key: descriptor.key,
+      version: descriptor.version,
+      definitionDigest: descriptor.definitionDigest,
+      catalogRevision: activeCatalog.catalog.revision,
+      workerRevision: activeCatalog.catalog.worker.artifactRevision,
+    };
+  }
   const command = {
     schemaVersion: COMMAND_VERSION,
     executionId,
@@ -84,6 +119,13 @@ export async function ensureInitialExecution(
       firedAt: event.firedAt.toISOString(),
       awsAccountId: event.awsAccountId,
       awsRegion: event.awsRegion,
+    },
+    runbook: {
+      key: capability.key,
+      version: capability.version,
+      definitionDigest: capability.definitionDigest,
+      catalogRevision: capability.catalogRevision,
+      workerRevision: capability.workerRevision,
     },
     trigger: { kind: AutomationTriggerKinds.SLACK_INGESTOR },
   };
@@ -102,8 +144,15 @@ export async function ensureInitialExecution(
         triggerKind: AutomationTriggerKinds.SLACK_INGESTOR,
         dispatchKind: AutomationDispatchKinds.SQS,
         appliedMode,
+        requestedRunbookKey: capability.key,
+        requestedRunbookVersion: capability.version,
+        requestedRunbookDigest: capability.definitionDigest,
+        catalogRevision: capability.catalogRevision,
+        workerRevision: capability.workerRevision,
         inputSnapshot: command satisfies Prisma.InputJsonValue,
-        deadlineAt: new Date(now.getTime() + AutomationLifecycleBudgets.DISPATCH_BUDGET_MS),
+        deadlineAt: new Date(
+          now.getTime() + AutomationLifecycleBudgets.DISPATCH_BUDGET_MS,
+        ),
       },
     ],
     skipDuplicates: true,
@@ -140,7 +189,10 @@ export async function markQueued(
   now: Date = new Date(),
 ): Promise<MarkQueuedResult> {
   const result = await prisma.automaticRunbookExecution.updateMany({
-    where: { id: executionId, status: AutomationExecutionStatuses.PENDING_DISPATCH },
+    where: {
+      id: executionId,
+      status: AutomationExecutionStatuses.PENDING_DISPATCH,
+    },
     data: {
       status: AutomationExecutionStatuses.QUEUED,
       queuedAt: now,

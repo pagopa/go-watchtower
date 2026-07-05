@@ -49,6 +49,9 @@ export const AlarmEventResponseSchema = Type.Object({
   analysisId:    Type.Union([Type.String(), Type.Null()]),
   linkedAt:      Type.Union([Type.String({ format: "date-time" }), Type.Null()]),
   resolvedAt:    Type.Union([Type.String({ format: "date-time" }), Type.Null()]),
+  automationDecision: Type.Union([Type.String(), Type.Null()]),
+  automationDecisionMetadata: Type.Unknown(),
+  automationDecidedAt: Type.Union([Type.String({ format: "date-time" }), Type.Null()]),
   createdAt:     Type.String({ format: "date-time" }),
 });
 
@@ -87,6 +90,12 @@ export const AlarmEventsQuerySchema = Type.Object({
   createdFrom:   Type.Optional(Type.String({ format: "date-time" })),
   hasAnalysis:   Type.Optional(Type.Union([Type.Literal('true'), Type.Literal('false')])),
   name:          Type.Optional(Type.String()),
+  automationDecision: Type.Optional(Type.Union([
+    Type.Literal("EXECUTION_CREATED"), Type.Literal("EXECUTION_POLICY_OFF"),
+    Type.Literal("UNLINKED_ALARM"), Type.Literal("CATALOG_UNAVAILABLE"),
+    Type.Literal("NO_CAPABILITY"), Type.Literal("SCOPE_CONFIGURATION_UNSAFE"),
+    Type.Literal("SCOPE_DENIED"), Type.Literal("LEGACY_EVENT_NOT_EVALUATED"),
+  ])),
   sortBy:        Type.Optional(Type.Union([Type.Literal('firedAt'), Type.Literal('createdAt')])),
   page:          Type.Optional(Type.Integer({ minimum: 1, default: 1 })),
   pageSize:      Type.Optional(Type.Integer({ minimum: 1, maximum: 1000, default: 20 })),

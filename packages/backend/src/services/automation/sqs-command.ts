@@ -37,11 +37,23 @@ export const CommandTriggerSchema = Type.Object(
   { additionalProperties: false },
 );
 
+export const RequestedRunbookSchema = Type.Object(
+  {
+    key: Type.String({ minLength: 1 }),
+    version: Type.String({ minLength: 1 }),
+    definitionDigest: Type.String({ pattern: "^sha256[-:][0-9a-fA-F]{32,}$" }),
+    catalogRevision: Type.String({ minLength: 1 }),
+    workerRevision: Type.String({ minLength: 1 }),
+  },
+  { additionalProperties: false },
+);
+
 export const AutomaticAlarmAnalysisCommandV1Schema = Type.Object(
   {
     schemaVersion: Type.Literal("1.0.0"),
     executionId: UuidString,
     alarmEvent: AlarmEventSnapshotSchema,
+    runbook: RequestedRunbookSchema,
     trigger: CommandTriggerSchema,
   },
   {

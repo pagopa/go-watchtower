@@ -11,9 +11,17 @@ import {
 } from "@go-watchtower/database";
 import { requirePermission } from "../../lib/require-permission.js";
 import { buildDiff } from "../../services/system-event.service.js";
-import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
+import {
+  SystemEventActions,
+  SystemEventResources,
+  SLACK_CHANNEL_ID_PATTERN,
+  AWS_ACCOUNT_ID_PATTERN,
+  AWS_REGION_PATTERN,
+  SLACK_PARSER_IDS,
+} from "@go-watchtower/shared";
 import { HttpError } from "../../utils/http-errors.js";
 import { validateRegexPattern } from "../../utils/validate-regex.js";
+import { buildDispatchDeps } from "../../services/automation/reconciler-scheduler.js";
 import { registerFilterOptionsRoutes } from "./filter-options-routes.js";
 import { registerIgnoredAlarmRoutes } from "./ignored-alarm-routes.js";
 import { registerProductCoreRoutes } from "./product-core-routes.js";
@@ -72,6 +80,35 @@ import {
   type DownstreamParams,
 } from "./schemas.js";
 
+const SLACK_PARSERS = new Set<string>(SLACK_PARSER_IDS);
+
+function validateSlackEnvironment(value: {
+  slackIngestorEnabled: boolean;
+  slackChannelId: string | null;
+  slackParserId: string | null;
+  defaultAwsAccountId: string | null;
+  defaultAwsRegion: string | null;
+}): string | null {
+  if (value.slackChannelId && !SLACK_CHANNEL_ID_PATTERN.test(value.slackChannelId)) return "slackChannelId non valido";
+  if (value.slackParserId && !SLACK_PARSERS.has(value.slackParserId)) return "slackParserId non supportato";
+  if (value.defaultAwsAccountId && !AWS_ACCOUNT_ID_PATTERN.test(value.defaultAwsAccountId)) return "defaultAwsAccountId deve contenere 12 cifre";
+  if (value.defaultAwsRegion && !AWS_REGION_PATTERN.test(value.defaultAwsRegion)) return "defaultAwsRegion non valida";
+  if (value.slackIngestorEnabled && (!value.slackChannelId || !value.slackParserId || !value.defaultAwsAccountId || !value.defaultAwsRegion)) {
+    return "Per abilitare lo Slack Ingestor servono channel, parser, account e region";
+  }
+  return null;
+}
+
+async function validateSlackRegionOnboarding(enabled: boolean, region: string | null): Promise<string | null> {
+  if (!enabled || !region) return null;
+  // Registry non configurato = modalità db-only (nessun dispatch SQS): l'ingestione
+  // resta abilitabile, il routing viene comunque segnalato nella UI dei canali.
+  const deps = buildDispatchDeps();
+  if (!deps) return null;
+  const resolution = await deps.registry.resolveQueue(region);
+  return resolution.kind === "OK" ? null : `Region ${region} non onboardata nel queue registry (${resolution.kind})`;
+}
+
 export async function productRoutes(fastify: FastifyInstance): Promise<void> {
   const app = fastify.withTypeProvider<TypeBoxTypeProvider>();
   await registerProductCoreRoutes(fastify);
@@ -127,6 +164,8 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
             slackChannelId:      e.slackChannelId ?? null,
             defaultAwsAccountId: e.defaultAwsAccountId ?? null,
             defaultAwsRegion:    e.defaultAwsRegion ?? null,
+            slackIngestorEnabled: e.slackIngestorEnabled,
+            slackParserId:       e.slackParserId ?? null,
             onCallAlarmPattern:  e.onCallAlarmPattern ?? null,
             createdAt:           e.createdAt.toISOString(),
             updatedAt:           e.updatedAt.toISOString(),
@@ -177,6 +216,16 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
             return HttpError.badRequest(reply, `onCallAlarmPattern: ${regexError}`);
           }
         }
+        const slackError = validateSlackEnvironment({
+          slackIngestorEnabled: request.body.slackIngestorEnabled ?? false,
+          slackChannelId: request.body.slackChannelId ?? null,
+          slackParserId: request.body.slackParserId ?? null,
+          defaultAwsAccountId: request.body.defaultAwsAccountId ?? null,
+          defaultAwsRegion: request.body.defaultAwsRegion ?? null,
+        });
+        if (slackError) return HttpError.badRequest(reply, slackError);
+        const regionError = await validateSlackRegionOnboarding(request.body.slackIngestorEnabled ?? false, request.body.defaultAwsRegion ?? null);
+        if (regionError) return HttpError.badRequest(reply, regionError);
 
         const environment = await prisma.environment.create({
           data: {
@@ -187,6 +236,8 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
             slackChannelId:      request.body.slackChannelId,
             defaultAwsAccountId: request.body.defaultAwsAccountId,
             defaultAwsRegion:    request.body.defaultAwsRegion,
+            slackIngestorEnabled: request.body.slackIngestorEnabled ?? false,
+            slackParserId:       request.body.slackParserId,
             onCallAlarmPattern:  request.body.onCallAlarmPattern,
           },
         });
@@ -208,6 +259,8 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           slackChannelId:      environment.slackChannelId ?? null,
           defaultAwsAccountId: environment.defaultAwsAccountId ?? null,
           defaultAwsRegion:    environment.defaultAwsRegion ?? null,
+          slackIngestorEnabled: environment.slackIngestorEnabled,
+          slackParserId:       environment.slackParserId ?? null,
           onCallAlarmPattern:  environment.onCallAlarmPattern ?? null,
           createdAt:           environment.createdAt.toISOString(),
           updatedAt:           environment.updatedAt.toISOString(),
@@ -250,8 +303,22 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
 
         const existingEnv = await prisma.environment.findFirst({
           where: { id: request.params.id, productId: request.params.productId },
-          select: { name: true, description: true, order: true, slackChannelId: true, defaultAwsAccountId: true, defaultAwsRegion: true, onCallAlarmPattern: true },
+          select: { name: true, description: true, order: true, slackChannelId: true, defaultAwsAccountId: true, defaultAwsRegion: true, slackIngestorEnabled: true, slackParserId: true, onCallAlarmPattern: true },
         });
+
+        if (!existingEnv) return HttpError.notFound(reply, "Environment");
+        const slackError = validateSlackEnvironment({
+          slackIngestorEnabled: request.body.slackIngestorEnabled ?? existingEnv.slackIngestorEnabled,
+          slackChannelId: request.body.slackChannelId === undefined ? existingEnv.slackChannelId : request.body.slackChannelId,
+          slackParserId: request.body.slackParserId === undefined ? existingEnv.slackParserId : request.body.slackParserId,
+          defaultAwsAccountId: request.body.defaultAwsAccountId === undefined ? existingEnv.defaultAwsAccountId : request.body.defaultAwsAccountId,
+          defaultAwsRegion: request.body.defaultAwsRegion === undefined ? existingEnv.defaultAwsRegion : request.body.defaultAwsRegion,
+        });
+        if (slackError) return HttpError.badRequest(reply, slackError);
+        const mergedEnabled = request.body.slackIngestorEnabled ?? existingEnv.slackIngestorEnabled;
+        const mergedRegion = request.body.defaultAwsRegion === undefined ? existingEnv.defaultAwsRegion : request.body.defaultAwsRegion;
+        const regionError = await validateSlackRegionOnboarding(mergedEnabled, mergedRegion);
+        if (regionError) return HttpError.badRequest(reply, regionError);
 
         const environment = await prisma.environment.update({
           where: {
@@ -265,6 +332,8 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
             slackChannelId:      request.body.slackChannelId,
             defaultAwsAccountId: request.body.defaultAwsAccountId,
             defaultAwsRegion:    request.body.defaultAwsRegion,
+            slackIngestorEnabled: request.body.slackIngestorEnabled,
+            slackParserId:       request.body.slackParserId,
             onCallAlarmPattern:  request.body.onCallAlarmPattern,
           },
         });
@@ -292,6 +361,8 @@ export async function productRoutes(fastify: FastifyInstance): Promise<void> {
           slackChannelId:      environment.slackChannelId ?? null,
           defaultAwsAccountId: environment.defaultAwsAccountId ?? null,
           defaultAwsRegion:    environment.defaultAwsRegion ?? null,
+          slackIngestorEnabled: environment.slackIngestorEnabled,
+          slackParserId:       environment.slackParserId ?? null,
           onCallAlarmPattern:  environment.onCallAlarmPattern ?? null,
           createdAt:           environment.createdAt.toISOString(),
           updatedAt:           environment.updatedAt.toISOString(),

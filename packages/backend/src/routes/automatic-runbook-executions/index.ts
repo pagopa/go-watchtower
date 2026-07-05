@@ -95,8 +95,9 @@ function toExecutionDto(e: AutomaticRunbookExecution) {
     triggerKind: e.triggerKind,
     dispatchKind: e.dispatchKind,
     appliedMode: e.appliedMode,
-    runbookKey: e.runbookKey,
-    runbookVersion: e.runbookVersion,
+    // Alias compatibili con la UI esistente; i requested* sono i nomi V03.
+    runbookKey: e.requestedRunbookKey,
+    runbookVersion: e.requestedRunbookVersion,
     errorCode: e.errorCode,
     errorMessage: e.errorMessage,
     queryCount: e.queryCount,
@@ -122,6 +123,14 @@ function toExecutionDto(e: AutomaticRunbookExecution) {
 function toExecutionDetailDto(e: AutomaticRunbookExecution) {
   return {
     ...toExecutionDto(e),
+    requestedRunbookKey: e.requestedRunbookKey,
+    requestedRunbookVersion: e.requestedRunbookVersion,
+    requestedRunbookDigest: e.requestedRunbookDigest,
+    catalogRevision: e.catalogRevision,
+    workerRevision: e.workerRevision,
+    executedRunbookKey: e.executedRunbookKey,
+    executedRunbookVersion: e.executedRunbookVersion,
+    executedRunbookDigest: e.executedRunbookDigest,
     inputSnapshot: e.inputSnapshot ?? null,
     resultSummary: e.resultSummary ?? null,
     analysisPayload: e.analysisPayload ?? null,
@@ -628,6 +637,7 @@ export async function automaticRunbookExecutionRoutes(fastify: FastifyInstance):
         ...(body.queryCount !== undefined ? { queryCount: body.queryCount } : {}),
         ...(body.runbookKey !== undefined ? { runbookKey: body.runbookKey } : {}),
         ...(body.runbookVersion !== undefined ? { runbookVersion: body.runbookVersion } : {}),
+        ...(body.runbookDigest !== undefined ? { runbookDigest: body.runbookDigest } : {}),
         ...(body.engineExecutionId !== undefined ? { engineExecutionId: body.engineExecutionId } : {}),
         ...(body.errorCode !== undefined ? { errorCode: body.errorCode } : {}),
         ...(body.errorMessage !== undefined ? { errorMessage: body.errorMessage } : {}),
@@ -646,6 +656,9 @@ export async function automaticRunbookExecutionRoutes(fastify: FastifyInstance):
           return;
         case "CANCELLATION_REQUESTED":
           reply.status(409).send({ conflict: "CANCELLATION_REQUESTED" });
+          return;
+        case "RUNBOOK_CAPABILITY_MISMATCH":
+          reply.status(409).send({ conflict: "RUNBOOK_CAPABILITY_MISMATCH", status: result.status });
           return;
         case "STALE_ATTEMPT":
           reply.send({ status: result.status, outcome: null, staleAttempt: true });

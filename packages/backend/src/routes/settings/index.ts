@@ -3,7 +3,7 @@ import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import { prisma, Prisma, SystemComponent } from "@go-watchtower/database";
 import { requirePermission } from "../../lib/require-permission.js";
 import { buildDiff } from "../../services/system-event.service.js";
-import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
+import { SystemEventActions, SystemEventResources, SLACK_INGESTOR_CONTROL_SETTING_KEY } from "@go-watchtower/shared";
 import { HttpError } from "../../utils/http-errors.js";
 import { toJsonInput } from "../../utils/json-cast.js";
 import {
@@ -194,6 +194,10 @@ export async function settingRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     async (request, reply) => {
+
+      if (request.params.key === SLACK_INGESTOR_CONTROL_SETTING_KEY) {
+        return HttpError.badRequest(reply, "Use the dedicated /slack-ingestor/control API for this setting");
+      }
 
       const existing = await prisma.systemSetting.findUnique({
         where: { key: request.params.key },

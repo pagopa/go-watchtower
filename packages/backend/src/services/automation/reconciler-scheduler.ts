@@ -4,6 +4,7 @@ import { runReconcilerTick, type DispatchDeps, type ReconcilerTickResult } from 
 import { RegionalQueueRegistry } from "./queue-registry.js";
 import { AwsSqsSender, AwsSsmParameterReader } from "./aws-adapters.js";
 import { createReconcilerRunner } from "./reconciler-runner.js";
+import { DatabaseCapabilityCatalog } from "./capability-catalog.js";
 
 /**
  * Scheduler in-process del reconciler (OPUS-03 §9.9): un timer interno al backend
@@ -27,7 +28,7 @@ export function buildDispatchDeps(): DispatchDeps | undefined {
     parameterName,
     parameterRegion,
   });
-  return { registry, sender: new AwsSqsSender() };
+  return { registry, sender: new AwsSqsSender(), catalog: new DatabaseCapabilityCatalog() };
 }
 
 function isMeaningful(r: ReconcilerTickResult): boolean {

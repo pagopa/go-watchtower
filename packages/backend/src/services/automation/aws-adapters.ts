@@ -1,11 +1,13 @@
 import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
 import { SSMClient, GetParameterCommand } from "@aws-sdk/client-ssm";
+import { S3Client, HeadObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import type { SqsSender, SqsSendInput } from "./dispatcher.js";
 import {
   type SsmParameterReader,
   TransientSsmError,
   ParameterNotFoundError,
 } from "./queue-registry.js";
+import type { CatalogObjectReader } from "./capability-catalog.js";
 
 /**
  * Adapter AWS concreti per i port `SqsSender`/`SsmParameterReader` (OPUS-03 §9.8).
@@ -126,4 +128,34 @@ export class AwsSsmParameterReader implements SsmParameterReader {
       return mapSsmError(err);
     }
   }
+}
+
+export class AwsS3CatalogReader implements CatalogObjectReader {
+  constructor(private readonly client: S3Client) {}
+
+  async head(bucket: string, key: string) {
+    const result = await this.client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+    return { versionId: result.VersionId ?? null, etag: result.ETag ?? null };
+  }
+
+  async get(bucket: string, key: string, versionId: string | null) {
+    const result = await this.client.send(new GetObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      ...(versionId ? { VersionId: versionId } : {}),
+    }));
+    if (!result.Body) throw new Error("CATALOG_EMPTY_BODY");
+    const body = await result.Body.transformToByteArray();
+    return { body, versionId: result.VersionId ?? versionId, etag: result.ETag ?? null };
+  }
+}
+
+export function createAwsS3CatalogReader(region: string): AwsS3CatalogReader {
+  // Timeout espliciti: una GET appesa bloccherebbe l'overlap guard del runner
+  // e con esso tutti i tick successivi del sync. Il catalogo è ≤1MB same-region:
+  // questi margini sono abbondanti e restano dentro l'intervallo di sync (60s).
+  return new AwsS3CatalogReader(new S3Client({
+    region,
+    requestHandler: { connectionTimeout: 2_000, requestTimeout: 10_000 },
+  }));
 }

@@ -1,12 +1,29 @@
-import { prisma, ensureInitialExecution } from "@go-watchtower/database";
-import { resolveAlarmPriority } from "@go-watchtower/shared";
-import type { AlertPriorityLevel, AlarmPriorityRule } from "@go-watchtower/shared";
-import { CHANNEL_REGISTRY } from "./config.js";
+import crypto from "node:crypto";
+import { prisma, Prisma, createSlackAlarmEventDecision, getActiveCapabilityCatalog } from "@go-watchtower/database";
+import {
+  resolveAlarmPriority,
+  validateSlackIngestorControl,
+  evaluateCatalogReferenceHealth,
+  SlackAutomationDecisions,
+  AutomationModes,
+  AutomationTriggerKinds,
+  AUTOMATIC_ALARM_ANALYSIS_COMMAND_VERSION,
+  AUTOMATION_DEFAULT_MODE_SETTING_KEY,
+  SLACK_INGESTOR_CONTROL_SETTING_KEY,
+  type AlertPriorityLevel,
+  type AlarmPriorityRule,
+  type SlackIngestorControl,
+  type AutomaticRunbookCatalog,
+  type AutomaticRunbookDescriptor,
+  type AutomationMode,
+  type SlackAutomationDecisionMetadata,
+} from "@go-watchtower/shared";
 import { fetchMessagePages, getHttpWarningStats } from "./slack-client.js";
 import { getCursor, saveCursor } from "./cursor-store.js";
 import { getParser } from "./parsers/registry.js";
 import { resolveAlarmId } from "./alarm-resolver.js";
 import type { Message, ParsedAlarmEvent } from "./parsers/types.js";
+import { decideSlackAutomation } from "./automation-decision.js";
 
 const VERBOSE = process.env["VERBOSE"] === "1" || process.env["DEBUG"] === "1";
 
@@ -100,23 +117,73 @@ interface ChannelStats {
   createdAlarms: string[];
 }
 
+interface IngestorSnapshot {
+  control: SlackIngestorControl;
+  defaultMode: AutomationMode;
+  catalog: AutomaticRunbookCatalog | null;
+  catalogUsable: boolean;
+  scopeUnsafe: boolean;
+  capabilityByAlarmName: Map<string, AutomaticRunbookDescriptor>;
+}
+
+async function loadSnapshot(): Promise<IngestorSnapshot | null> {
+  const [controlSetting, modeSetting, activeCatalog] = await Promise.all([
+    prisma.systemSetting.findUnique({ where: { key: SLACK_INGESTOR_CONTROL_SETTING_KEY }, select: { value: true } }),
+    prisma.systemSetting.findUnique({ where: { key: AUTOMATION_DEFAULT_MODE_SETTING_KEY }, select: { value: true } }),
+    getActiveCapabilityCatalog(),
+  ]);
+  const controlValidation = validateSlackIngestorControl(controlSetting?.value, { allowGlobalMatchers: true });
+  if (!controlValidation.valid) {
+    console.error("[slack-ingestor] invalid or missing slackIngestor.control", controlValidation.errors);
+    return null;
+  }
+  const control = controlValidation.value;
+  if (control.ingestionMode === "PAUSED") {
+    await prisma.slackChannelCursor.updateMany({ data: { lastStatus: "PAUSED", lastControlRevision: control.revision } });
+    console.info(`[slack-ingestor] paused at control revision ${control.revision}`);
+    return null;
+  }
+  const rawMode = typeof modeSetting?.value === "string" ? modeSetting.value : null;
+  const defaultMode: AutomationMode = rawMode === AutomationModes.APPLY_ALL || rawMode === AutomationModes.APPLY_KNOWN
+    ? rawMode
+    : AutomationModes.SHADOW;
+  const catalog = activeCatalog.catalog;
+  const referenceHealth = catalog ? evaluateCatalogReferenceHealth(control, catalog.runbooks) : null;
+  const capabilityByAlarmName = new Map<string, AutomaticRunbookDescriptor>();
+  for (const runbook of catalog?.runbooks ?? []) {
+    for (const alarmName of runbook.alarmNames) capabilityByAlarmName.set(alarmName, runbook);
+  }
+  return { control, defaultMode, catalog, catalogUsable: activeCatalog.usable && catalog !== null, scopeUnsafe: referenceHealth?.unsafe ?? false, capabilityByAlarmName };
+}
+
 export const handler = async (): Promise<void> => {
-  if (CHANNEL_REGISTRY.length === 0) {
-    console.warn(
-      "[slack-ingestor] CHANNEL_REGISTRY is empty -- nothing to process",
-    );
+  const snapshot = await loadSnapshot();
+  if (!snapshot) return; // invalid control or PAUSED: no Slack call and no cursor movement
+  const channels = await prisma.environment.findMany({
+    where: {
+      slackIngestorEnabled: true,
+      slackChannelId: { not: null },
+      slackParserId: { not: null },
+      defaultAwsAccountId: { not: null },
+    },
+    include: { product: { select: { name: true } } },
+    orderBy: [{ productId: "asc" }, { order: "asc" }],
+  });
+  if (channels.length === 0) {
+    console.warn("[slack-ingestor] no enabled environment has a complete Slack configuration");
     return;
   }
 
   const startTime = Date.now();
   const allStats: ChannelStats[] = [];
 
-  for (let i = 0; i < CHANNEL_REGISTRY.length; i++) {
-    const channel = CHANNEL_REGISTRY[i]!;
+  for (const environment of channels) {
+    const channelId = environment.slackChannelId!;
+    const label = `${environment.product.name} / ${environment.name}`;
 
     const stats: ChannelStats = {
-      label:         channel.label,
-      channelId:     channel.channelId,
+      label,
+      channelId,
       processed:     0,
       created:       0,
       skipped:       0,
@@ -127,13 +194,14 @@ export const handler = async (): Promise<void> => {
     };
 
     try {
-      await processChannel(channel.channelId, channel.productId, channel.environmentId, {
-        parserId:            channel.parserId,
-        defaultAwsAccountId: channel.defaultAwsAccountId,
-        defaultAwsRegion:    channel.defaultAwsRegion,
-      }, stats);
+      await processChannel(channelId, environment.productId, environment.id, {
+        parserId: environment.slackParserId!,
+        defaultAwsAccountId: environment.defaultAwsAccountId!,
+        defaultAwsRegion: environment.defaultAwsRegion ?? undefined,
+      }, stats, snapshot);
     } catch (err) {
-      console.error(`[${channel.label}] Channel processing failed:`, err);
+      console.error(`[${label}] Channel processing failed:`, err);
+      await recordCursorFailure(channelId, snapshot, err);
     }
 
     // Per-channel summary (always logged)
@@ -156,13 +224,21 @@ async function processChannel(
     defaultAwsRegion?: string | undefined;
   },
   stats: ChannelStats,
+  snapshot: IngestorSnapshot,
 ): Promise<void> {
+  await recordCursorAttempt(channelId, snapshot);
   const cursor = await getCursor(channelId);
   const parse  = getParser(opts.parserId as Parameters<typeof getParser>[0]);
   const defaults = {
     defaultAwsAccountId: opts.defaultAwsAccountId,
     defaultAwsRegion:    opts.defaultAwsRegion,
   };
+
+  // Il cursore avanza in memoria messaggio per messaggio e viene persistito una
+  // volta per pagina: il dedup sull'unique slackMessageId rende sicuro rileggere
+  // un'intera pagina dopo un crash, mentre un write per messaggio moltiplicava
+  // i roundtrip DB sui backlog grandi.
+  let lastTs: string | null = null;
 
   for await (const page of fetchMessagePages(channelId, cursor)) {
     for (const msg of page) {
@@ -178,14 +254,14 @@ async function processChannel(
         stats.parseErrors++;
         console.error(`[${stats.label}] Parser error for ts=${ts}:`, err);
         logVerboseResult(stats.label, msg, null, "parse_error", err);
-        await saveCursor(channelId, ts);
+        lastTs = ts;
         continue;
       }
 
       if (!parsed) {
         stats.skipped++;
         logVerboseResult(stats.label, msg, null, "skipped");
-        await saveCursor(channelId, ts);
+        lastTs = ts;
         continue;
       }
 
@@ -199,8 +275,56 @@ async function processChannel(
           firedAt: parsed.firedAt,
         });
 
-        const event = await prisma.alarmEvent.create({
-          data: {
+        const capability = snapshot.capabilityByAlarmName.get(parsed.name) ?? null;
+        const decided = decideSlackAutomation({
+          control: snapshot.control,
+          alarmId,
+          catalogUsable: snapshot.catalogUsable && snapshot.catalog !== null,
+          scopeUnsafe: snapshot.scopeUnsafe,
+          capability,
+          context: {
+            channelId, productId, environmentId, alarmName: parsed.name,
+            awsRegion: parsed.awsRegion, awsAccountId: parsed.awsAccountId,
+            priorityCode: priority.priorityCode,
+          },
+        });
+        const { decision, matchedRuleId, ruleEffect } = decided;
+
+        const eventId = crypto.randomUUID();
+        const executionId = decision === SlackAutomationDecisions.EXECUTION_CREATED ? crypto.randomUUID() : null;
+        const metadata: SlackAutomationDecisionMetadata = {
+          schemaVersion: 1,
+          controlRevision: snapshot.control.revision,
+          executionPolicy: snapshot.control.executionPolicy,
+          ...(matchedRuleId ? { matchedRuleId } : {}),
+          ...(ruleEffect ? { ruleEffect } : {}),
+          ...(snapshot.catalog ? { catalogRevision: snapshot.catalog.revision } : {}),
+          ...(capability && snapshot.catalog ? {
+            runbook: {
+              key: capability.key, version: capability.version, definitionDigest: capability.definitionDigest,
+              kind: capability.kind, categories: capability.categories,
+              workerRevision: snapshot.catalog.worker.artifactRevision,
+            },
+          } : {}),
+          ...(executionId ? { executionId, appliedMode: snapshot.defaultMode } : {}),
+        };
+
+        const command = executionId && capability && snapshot.catalog && alarmId ? {
+          schemaVersion: AUTOMATIC_ALARM_ANALYSIS_COMMAND_VERSION,
+          executionId,
+          alarmEvent: {
+            id: eventId, productId, environmentId, alarmId, alarmName: parsed.name,
+            firedAt: parsed.firedAt.toISOString(), awsAccountId: parsed.awsAccountId, awsRegion: parsed.awsRegion,
+          },
+          runbook: {
+            key: capability.key, version: capability.version, definitionDigest: capability.definitionDigest,
+            catalogRevision: snapshot.catalog.revision, workerRevision: snapshot.catalog.worker.artifactRevision,
+          },
+          trigger: { kind: AutomationTriggerKinds.SLACK_INGESTOR },
+        } : null;
+        await createSlackAlarmEventDecision({
+          eventData: {
+            id: eventId,
             name:           parsed.name,
             firedAt:        parsed.firedAt,
             awsRegion:      parsed.awsRegion,
@@ -215,63 +339,83 @@ async function processChannel(
             priorityResolvedAt: priority.priorityResolvedAt,
             slackMessageId: `${channelId}/${ts}`,
           },
+          decision,
+          decisionMetadata: metadata,
+          ...(command && capability && snapshot.catalog ? {
+            execution: {
+              id: executionId!,
+              appliedMode: snapshot.defaultMode,
+              capability: {
+                key: capability.key, version: capability.version, definitionDigest: capability.definitionDigest,
+                catalogRevision: snapshot.catalog.revision, workerRevision: snapshot.catalog.worker.artifactRevision,
+              },
+              command: command as Prisma.InputJsonValue,
+            },
+          } : {}),
         });
         stats.created++;
         stats.createdAlarms.push(parsed.name);
-        // Flow 1 (execution-as-outbox, §8.1/§8.2): crea l'esecuzione iniziale
-        // PENDING_DISPATCH idempotente. Il dispatch su SQS è eseguito dal
-        // reconciler backend (l'invio diretto da qui resta un'ottimizzazione di
-        // latenza non implementata — vedi nota di handoff).
-        await ensureAutomaticExecution(event.id, alarmId);
         logVerboseResult(stats.label, msg, parsed, "created");
       } catch (err: unknown) {
         if (isPrismaUniqueError(err)) {
           stats.duplicates++;
           console.warn(`[${stats.label}] Duplicate ts=${ts}, skipping`);
           logVerboseResult(stats.label, msg, parsed, "duplicate");
-          // Recovery: l'evento esisteva già ma l'esecuzione iniziale potrebbe non
-          // essere stata creata (crash dopo create) → ensureInitialExecution idempotente.
-          await ensureAutomaticExecutionForSlackMessage(`${channelId}/${ts}`);
+          // Forward-only: una decisione esistente non viene mai rivalutata.
+          await prisma.alarmEvent.updateMany({
+            where: { slackMessageId: `${channelId}/${ts}`, automationDecision: null },
+            data: {
+              automationDecision: SlackAutomationDecisions.LEGACY_EVENT_NOT_EVALUATED,
+              automationDecisionMetadata: {
+                schemaVersion: 1,
+                controlRevision: snapshot.control.revision,
+                executionPolicy: snapshot.control.executionPolicy,
+                reasonDetail: "Evento importato prima dell'introduzione delle decisioni forward-only",
+              },
+              automationDecidedAt: new Date(),
+            },
+          });
         } else {
           stats.dbErrors++;
           console.error(`[${stats.label}] DB error for ts=${ts}:`, err);
           logVerboseResult(stats.label, msg, parsed, "db_error", err);
-          return;
+          // Non perdere il progresso dei messaggi già riusciti in questa pagina.
+          // Best-effort: se anche questo write fallisce, l'errore originale vince
+          // e il dedup assorbe la rilettura al prossimo run.
+          if (lastTs) await saveCursor(channelId, lastTs).catch(() => undefined);
+          throw err;
         }
       }
 
-      await saveCursor(channelId, ts);
+      lastTs = ts;
     }
+
+    if (lastTs) await saveCursor(channelId, lastTs);
   }
+  await recordCursorSuccess(channelId, snapshot, stats);
 }
 
-// ─── Runbook Automation Flow 1 (execution-as-outbox) ───────────────────────────
-
-/**
- * Crea l'esecuzione iniziale per un evento appena creato. Gli errori propagano:
- * il cursore non avanza e la riconsegna (duplicate path) ritenta in modo idempotente.
- */
-async function ensureAutomaticExecution(eventId: string, alarmId: string | null): Promise<void> {
-  if (!alarmId) return; // nessun alarm risolto → nessun runbook target → niente esecuzione
-  await ensureInitialExecution(eventId);
+async function recordCursorAttempt(channelId: string, snapshot: IngestorSnapshot): Promise<void> {
+  await prisma.slackChannelCursor.upsert({
+    where: { channelId },
+    create: { channelId, lastAttemptAt: new Date(), lastStatus: "RUNNING", lastControlRevision: snapshot.control.revision, lastCatalogRevision: snapshot.catalog?.revision },
+    update: { lastAttemptAt: new Date(), lastStatus: "RUNNING", lastError: null, lastControlRevision: snapshot.control.revision, lastCatalogRevision: snapshot.catalog?.revision },
+  });
 }
 
-/**
- * Recovery best-effort sul duplicate path: l'evento esiste già; assicura che
- * esista la sua esecuzione iniziale (ensureInitialExecution è idempotente).
- */
-async function ensureAutomaticExecutionForSlackMessage(slackMessageId: string): Promise<void> {
-  try {
-    const event = await prisma.alarmEvent.findUnique({
-      where: { slackMessageId },
-      select: { id: true, alarmId: true },
-    });
-    if (event?.alarmId) {
-      await ensureInitialExecution(event.id);
-    }
-  } catch (err: unknown) {
-    console.warn(`[slack-ingestor] ensureInitialExecution recovery failed for ${slackMessageId}:`, err);
-  }
+async function recordCursorSuccess(channelId: string, snapshot: IngestorSnapshot, stats: ChannelStats): Promise<void> {
+  await prisma.slackChannelCursor.update({
+    where: { channelId },
+    data: { lastSuccessAt: new Date(), lastStatus: stats.parseErrors > 0 ? "PARTIAL" : "SUCCESS", lastError: null, lastSummary: stats as unknown as Prisma.InputJsonValue, lastControlRevision: snapshot.control.revision, lastCatalogRevision: snapshot.catalog?.revision },
+  });
+}
+
+async function recordCursorFailure(channelId: string, snapshot: IngestorSnapshot, error: unknown): Promise<void> {
+  await prisma.slackChannelCursor.upsert({
+    where: { channelId },
+    create: { channelId, lastAttemptAt: new Date(), lastStatus: "FAILED", lastError: error instanceof Error ? error.message : String(error), lastControlRevision: snapshot.control.revision, lastCatalogRevision: snapshot.catalog?.revision },
+    update: { lastStatus: "FAILED", lastError: error instanceof Error ? error.message : String(error), lastControlRevision: snapshot.control.revision, lastCatalogRevision: snapshot.catalog?.revision },
+  });
 }
 
 // ─── Logging helpers ──────────────────────────────────────────────────────────

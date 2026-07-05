@@ -4,11 +4,12 @@ import {
   type AutomaticAlarmAnalysisCommandV1,
 } from "./sqs-command.js";
 import type { RegionalQueueRegistry } from "./queue-registry.js";
+import type { CapabilityCatalogProvider } from "./capability-catalog.js";
 
 /**
  * Orchestrazione del dispatch WT → SQS (OPUS-03 §9.8). Pura rispetto all'AWS SDK:
  * la send concreta è dietro la port {@link SqsSender}, implementata da un adapter
- * `@aws-sdk/client-sqs` (infra, Wave 2/3 — dipendenza non ancora aggiunta a WT).
+ * `@aws-sdk/client-sqs`.
  * WT costruisce il client SQS nella regione della queue e non esegue fallback
  * cross-region.
  */
@@ -35,7 +36,9 @@ export type DispatchResult =
   // Chiude FAILED/CONFIGURATION_ERROR/QUEUE_REGISTRY_INVALID.
   | { readonly kind: "QUEUE_REGISTRY_INVALID"; readonly reason: string }
   // Comando invalido prima del send (errore di programmazione/contract): non accodare.
-  | { readonly kind: "INVALID_COMMAND"; readonly reason: string };
+  | { readonly kind: "INVALID_COMMAND"; readonly reason: string }
+  | { readonly kind: "CATALOG_UNAVAILABLE"; readonly reason: string }
+  | { readonly kind: "CAPABILITY_WITHDRAWN"; readonly key: string };
 
 /**
  * Risolve la queue per `command.alarmEvent.awsRegion`, costruisce i parametri FIFO
@@ -46,7 +49,12 @@ export async function dispatchExecution(
   command: AutomaticAlarmAnalysisCommandV1,
   registry: RegionalQueueRegistry,
   sender: SqsSender,
+  catalog?: CapabilityCatalogProvider,
 ): Promise<DispatchResult> {
+  if (catalog) {
+    const capability = await catalog.resolve(command);
+    if (capability.kind !== "OK") return capability;
+  }
   const region = command.alarmEvent.awsRegion;
   const resolution = await registry.resolveQueue(region);
 

@@ -10,6 +10,12 @@ import {
   type ExecuteRunbookQueueRegistryV1,
   type SsmParameterReader,
 } from "../../src/services/automation/queue-registry.js";
+import type { AutomaticRunbookCatalogV1 } from "../../src/services/automation/capability-catalog.js";
+
+process.env["DATABASE_URL"] ??= "postgresql://unit:unit@localhost:5432/unit";
+const { computeCatalogRevision, validateCatalog } = await import(
+  "../../src/services/automation/capability-catalog.js"
+);
 
 // Handoff GA → WT vendorizzato (CONTRACT-03 §3.4). Questi test falliscono se gli
 // artefatti upstream cambiano senza aggiornare il lock, o se l'algoritmo della
@@ -53,6 +59,23 @@ test("WT rejects GA's invalid-revision fixture", () => {
   const res = validateRegistry(inv, { verifyRevision: true });
   assert.equal(res.ok, false);
   if (!res.ok) assert.match(res.reason, /revision/);
+});
+
+test("WT validates GA's separate automatic runbook catalog contract", () => {
+  const valid = JSON.parse(
+    readUpstream("fixtures/automatic-runbook-catalog.valid.json"),
+  ) as AutomaticRunbookCatalogV1;
+  assert.equal(computeCatalogRevision(valid), valid.revision);
+  assert.equal(validateCatalog(valid, "production").ok, true);
+});
+
+test("WT rejects GA's automatic runbook catalog with invalid revision", () => {
+  const invalid = JSON.parse(
+    readUpstream("fixtures/automatic-runbook-catalog.invalid-revision.json"),
+  );
+  const result = validateCatalog(invalid, "production");
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.match(result.reason, /revision/i);
 });
 
 test("resolveQueue against the GA valid fixture: OK for eu-south-1, REGION_NOT_ONBOARDED otherwise", async () => {

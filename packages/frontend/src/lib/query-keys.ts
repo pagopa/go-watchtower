@@ -31,6 +31,8 @@ const SYSTEM_EVENTS   = 'system-events'   as const
 const PERMISSIONS     = 'permissions'     as const
 const PREFERENCES     = 'preferences'     as const
 const AUTOMATIC_EXECUTIONS = 'automatic-runbook-executions' as const
+const SLACK_INGESTOR = 'slack-ingestor' as const
+const AUTOMATIC_RUNBOOK_CATALOG = 'automatic-runbook-catalog' as const
 const PROFILE         = 'profile'         as const
 
 // ─── Registry ────────────────────────────────────────────────────────────────
@@ -97,6 +99,8 @@ export const qk = {
     filterOptions: (productId: string) => [PRODUCTS, 'filter-options', productId] as const,
     /** Cross-product environments used by alarm-events multi-select filter. */
     allEnvironments: (productIds: string[]) => [PRODUCTS, 'environments-all', productIds] as const,
+    /** Cross-product alarms used by the Slack Ingestor rule editor. */
+    allAlarms: (productIds: string[]) => [PRODUCTS, 'alarms-all', productIds] as const,
     /** Cross-product ignored alarms used by alarm-events ignorable indicator. */
     allIgnoredAlarms: (productIds: string[]) => [PRODUCTS, 'ignored-alarms-all', productIds] as const,
   },
@@ -156,6 +160,20 @@ export const qk = {
     detail:   (id: string) => [AUTOMATIC_EXECUTIONS, 'detail', id] as const,
     attempts: (id: string, params: object) => [AUTOMATIC_EXECUTIONS, 'attempts', id, params] as const,
     stats:    [AUTOMATIC_EXECUTIONS, 'stats'] as const,
+  },
+
+  slackIngestor: {
+    root:    [SLACK_INGESTOR] as const,
+    control: [SLACK_INGESTOR, 'control'] as const,
+    channels: [SLACK_INGESTOR, 'channels'] as const,
+    history: [SLACK_INGESTOR, 'history'] as const,
+  },
+
+  automaticRunbookCatalog: {
+    root:     [AUTOMATIC_RUNBOOK_CATALOG] as const,
+    list:     [AUTOMATIC_RUNBOOK_CATALOG, 'list'] as const,
+    status:   [AUTOMATIC_RUNBOOK_CATALOG, 'status'] as const,
+    coverage: [AUTOMATIC_RUNBOOK_CATALOG, 'coverage'] as const,
   },
 
   // ── Auth / session ───────────────────────────────────────────────────────

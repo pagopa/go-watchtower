@@ -207,8 +207,8 @@ test("complete: active token applies, status derived from outcome (never forced 
   assert.deepEqual(known, { kind: "APPLY", derivedStatus: S.SUCCEEDED });
   const cfg = decideComplete(running, a, { attemptId: "att-1", outcome: AutomationExecutionOutcomes.CONFIGURATION_ERROR, recomputedHash: "h" });
   assert.deepEqual(cfg, { kind: "APPLY", derivedStatus: S.FAILED });
-  const noRb = decideComplete(running, a, { attemptId: "att-1", outcome: AutomationExecutionOutcomes.NO_RUNBOOK, recomputedHash: "h" });
-  assert.deepEqual(noRb, { kind: "APPLY", derivedStatus: S.SKIPPED });
+  const withdrawn = decideComplete(running, a, { attemptId: "att-1", outcome: AutomationExecutionOutcomes.CAPABILITY_WITHDRAWN, recomputedHash: "h" });
+  assert.deepEqual(withdrawn, { kind: "APPLY", derivedStatus: S.SKIPPED });
 });
 
 test("complete: stale token → STALE_ATTEMPT, no apply", () => {

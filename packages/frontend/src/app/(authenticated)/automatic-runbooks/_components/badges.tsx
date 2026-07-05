@@ -27,7 +27,7 @@ const OUTCOME_META: Record<AutomationExecutionOutcome, { label: string; variant:
   KNOWN_CASE: { label: 'Caso noto', variant: 'success' },
   UNKNOWN_CASE: { label: 'Caso non riconosciuto', variant: 'secondary' },
   NO_DATA: { label: 'Nessun dato', variant: 'secondary' },
-  NO_RUNBOOK: { label: 'Nessun runbook', variant: 'outline' },
+  CAPABILITY_WITHDRAWN: { label: 'Runbook ritirato', variant: 'outline' },
   CONFIGURATION_ERROR: { label: 'Errore configurazione', variant: 'destructive' },
   EXECUTION_ERROR: { label: 'Errore esecuzione', variant: 'destructive' },
 }

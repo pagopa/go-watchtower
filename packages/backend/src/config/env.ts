@@ -73,6 +73,14 @@ export const env = {
   // (nessun dispatch su SQS), il resto (timeout/recupero/finalizzazione) gira comunque.
   EXECUTE_RUNBOOK_QUEUE_REGISTRY_PARAMETER: optionalEnv("EXECUTE_RUNBOOK_QUEUE_REGISTRY_PARAMETER", ""),
   EXECUTE_RUNBOOK_QUEUE_REGISTRY_REGION: optionalEnv("EXECUTE_RUNBOOK_QUEUE_REGISTRY_REGION", "eu-south-1"),
+
+  // Catalogo globale dei runbook automatici (EVO-SLACKINGRA-CODEX-03 §9).
+  AUTOMATIC_RUNBOOK_CATALOG_BUCKET: optionalEnv("AUTOMATIC_RUNBOOK_CATALOG_BUCKET", ""),
+  AUTOMATIC_RUNBOOK_CATALOG_REGION: optionalEnv("AUTOMATIC_RUNBOOK_CATALOG_REGION", "eu-south-1"),
+  AUTOMATIC_RUNBOOK_CATALOG_ENVIRONMENT: optionalEnv("AUTOMATIC_RUNBOOK_CATALOG_ENVIRONMENT", "development"),
+  CATALOG_SYNC_INTERVAL_SECONDS: optionalPositiveIntEnv("CATALOG_SYNC_INTERVAL_SECONDS", 60),
+  CATALOG_VALIDITY_SECONDS: optionalPositiveIntEnv("CATALOG_VALIDITY_SECONDS", 300),
+  SLACK_BOT_TOKEN: optionalEnv("SLACK_BOT_TOKEN", ""),
 } as const;
 
 export type Env = typeof env;

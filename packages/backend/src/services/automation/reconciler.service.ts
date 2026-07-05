@@ -5,6 +5,7 @@ import {
   AutomationSystemErrorCodes as ERR,
   AutomationDispatchKinds,
   AutomationLifecycleBudgets,
+  AutomationExecutionOutcomes,
   SystemEventActions,
   SystemEventResources,
 } from "@go-watchtower/shared";
@@ -13,6 +14,7 @@ import { toSnapshot, lockExecution } from "./execution.service.js";
 import { dispatchExecution, type SqsSender } from "./dispatcher.js";
 import type { RegionalQueueRegistry } from "./queue-registry.js";
 import type { AutomaticAlarmAnalysisCommandV1 } from "./sqs-command.js";
+import type { CapabilityCatalogProvider } from "./capability-catalog.js";
 
 /**
  * Job schedulato reconciler/reaper/safety-net/finalizer (OPUS-03 §9.9/§9.11).
@@ -21,8 +23,7 @@ import type { AutomaticAlarmAnalysisCommandV1 } from "./sqs-command.js";
  * Idempotente: salta terminali e ri-verifica sotto lock.
  *
  * NON anticipa mai il retry di SQS e NON consuma la DLQ. Il re-dispatch dei
- * PENDING_DISPATCH verso SQS richiede l'adapter dispatcher/registry (infra,
- * Wave 2/3): qui il reconciler chiude solo per cap/deadline via safety-net.
+ * PENDING_DISPATCH verso SQS usa l'adapter dispatcher/registry quando configurato.
  */
 
 export interface ReconcilerConfig {
@@ -45,6 +46,7 @@ export interface ReconcilerTickResult {
 export interface DispatchDeps {
   readonly registry: RegionalQueueRegistry;
   readonly sender: SqsSender;
+  readonly catalog?: CapabilityCatalogProvider;
 }
 
 type Tx = Prisma.TransactionClient;
@@ -239,7 +241,7 @@ async function dispatchPendingExecutions(
     }
 
     const command = row.inputSnapshot as unknown as AutomaticAlarmAnalysisCommandV1;
-    const result = await dispatchExecution(command, deps.registry, deps.sender);
+    const result = await dispatchExecution(command, deps.registry, deps.sender, deps.catalog);
 
     switch (result.kind) {
       case "QUEUED": {
@@ -261,6 +263,13 @@ async function dispatchPendingExecutions(
           data: { dispatchAttempts: { increment: 1 } },
         });
         break;
+      case "CATALOG_UNAVAILABLE":
+        // Il catalogo stale/non verificabile non consente dispatch ma non e' un
+        // fallimento permanente: resta pending fino a sync o deadline.
+        break;
+      case "CAPABILITY_WITHDRAWN":
+        await terminalizeCapabilityWithdrawn(row.id, now);
+        break;
       case "REGION_NOT_ONBOARDED":
         await terminalizePendingDispatch(row.id, ERR.REGION_NOT_ONBOARDED, now);
         break;
@@ -278,6 +287,29 @@ async function dispatchPendingExecutions(
     }
   }
   return dispatched;
+}
+
+async function terminalizeCapabilityWithdrawn(id: string, now: Date): Promise<void> {
+  const res = await prisma.automaticRunbookExecution.updateMany({
+    where: { id, status: ES.PENDING_DISPATCH },
+    data: {
+      status: ES.SKIPPED,
+      outcome: AutomationExecutionOutcomes.CAPABILITY_WITHDRAWN,
+      errorCode: "CAPABILITY_WITHDRAWN",
+      completedAt: now,
+    },
+  });
+  if (res.count === 1) {
+    await prisma.systemEvent.create({
+      data: {
+        action: SystemEventActions.AUTOMATION_EXECUTION_COMPLETED,
+        resource: SystemEventResources.AUTOMATIC_RUNBOOK_EXECUTIONS,
+        resourceId: id,
+        userId: null,
+        metadata: { actorType: "SYSTEM", reason: "CAPABILITY_WITHDRAWN" },
+      },
+    });
+  }
 }
 
 async function terminalizePendingDispatch(

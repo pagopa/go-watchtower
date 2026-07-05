@@ -13,7 +13,8 @@
 CREATE TYPE "PrincipalType" AS ENUM ('HUMAN', 'SERVICE');
 CREATE TYPE "AnalysisOrigin" AS ENUM ('MANUAL', 'AUTOMATIC', 'HYBRID');
 CREATE TYPE "AutomationExecutionStatus" AS ENUM ('PENDING_DISPATCH', 'QUEUED', 'RUNNING', 'RETRY_PENDING', 'CANCEL_REQUESTED', 'SUCCEEDED', 'SKIPPED', 'FAILED', 'CANCELLED');
-CREATE TYPE "AutomationExecutionOutcome" AS ENUM ('KNOWN_CASE', 'UNKNOWN_CASE', 'NO_DATA', 'NO_RUNBOOK', 'CONFIGURATION_ERROR', 'EXECUTION_ERROR');
+CREATE TYPE "AutomationExecutionOutcome" AS ENUM ('KNOWN_CASE', 'UNKNOWN_CASE', 'NO_DATA', 'CAPABILITY_WITHDRAWN', 'CONFIGURATION_ERROR', 'EXECUTION_ERROR');
+CREATE TYPE "SlackAutomationDecision" AS ENUM ('EXECUTION_CREATED', 'EXECUTION_POLICY_OFF', 'UNLINKED_ALARM', 'CATALOG_UNAVAILABLE', 'NO_CAPABILITY', 'SCOPE_CONFIGURATION_UNSAFE', 'SCOPE_DENIED', 'LEGACY_EVENT_NOT_EVALUATED');
 CREATE TYPE "AutomationTriggerKind" AS ENUM ('SLACK_INGESTOR', 'WATCHTOWER_UI', 'WATCHTOWER_API', 'RETRY', 'WATCHTOWER_CLI');
 CREATE TYPE "AutomationDispatchKind" AS ENUM ('SQS', 'CLI');
 CREATE TYPE "AutomationReviewStatus" AS ENUM ('NOT_REQUIRED', 'PENDING', 'CONFIRMED', 'REJECTED');
@@ -72,6 +73,86 @@ ALTER TABLE "alarm_analyses"
   ADD COLUMN "origin" "AnalysisOrigin" NOT NULL DEFAULT 'MANUAL',
   ADD COLUMN "last_applied_execution_id" UUID;
 
+-- ── Slack Ingestor control / monitoring (EVO-SLACKINGRA-CODEX-03) ───────────
+
+ALTER TABLE "environments"
+  ADD COLUMN "slack_ingestor_enabled" BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN "slack_parser_id" TEXT;
+
+CREATE UNIQUE INDEX "environments_slack_channel_id_key" ON "environments" ("slack_channel_id");
+
+-- Parser per canale: riporta la configurazione del CHANNEL_REGISTRY dello script
+-- slack-ingestor (config.ts, rimosso con questa evolutiva) sugli environment già
+-- presenti nel database. No-op sui DB dove i canali non esistono ancora.
+UPDATE "environments" SET "slack_parser_id" = 'jsm'       WHERE "slack_channel_id" = 'C0585442Z39'; -- SEND / Produzione
+UPDATE "environments" SET "slack_parser_id" = 'amazon-q'  WHERE "slack_channel_id" = 'C03JJLHL5K8'; -- SEND / UAT
+UPDATE "environments" SET "slack_parser_id" = 'email-sns' WHERE "slack_channel_id" = 'C0AGKJCMYDQ'; -- SEND / Building Block
+UPDATE "environments" SET "slack_parser_id" = 'email-sns' WHERE "slack_channel_id" = 'C0472QPG5D2'; -- Interop / Produzione
+UPDATE "environments" SET "slack_parser_id" = 'email-sns' WHERE "slack_channel_id" = 'C06LQ7Y8B17'; -- Interop / Attestazione
+UPDATE "environments" SET "slack_parser_id" = 'email-sns' WHERE "slack_channel_id" = 'C04708Y1QP5'; -- Interop / Collaudo
+UPDATE "environments" SET "slack_parser_id" = 'email-sns' WHERE "slack_channel_id" = 'C09RVCSL4BS'; -- Interop / Catalog
+
+ALTER TABLE "alarm_events"
+  ADD COLUMN "automation_decision" "SlackAutomationDecision",
+  ADD COLUMN "automation_decision_metadata" JSONB,
+  ADD COLUMN "automation_decided_at" TIMESTAMP(3);
+
+ALTER TABLE "alarm_events"
+  ADD CONSTRAINT "alarm_events_automation_decision_complete" CHECK (
+    (automation_decision IS NULL AND automation_decision_metadata IS NULL AND automation_decided_at IS NULL)
+    OR (automation_decision IS NOT NULL AND automation_decision_metadata IS NOT NULL AND automation_decided_at IS NOT NULL)
+  );
+
+CREATE INDEX "alarm_events_automation_decision_created_at_idx"
+  ON "alarm_events" ("automation_decision", "created_at");
+
+ALTER TABLE "slack_channel_cursors"
+  ALTER COLUMN "latest_ts" DROP NOT NULL,
+  ADD COLUMN "last_attempt_at" TIMESTAMP(3),
+  ADD COLUMN "last_success_at" TIMESTAMP(3),
+  ADD COLUMN "last_status" TEXT,
+  ADD COLUMN "last_error" TEXT,
+  ADD COLUMN "last_summary" JSONB,
+  ADD COLUMN "last_control_revision" INTEGER,
+  ADD COLUMN "last_catalog_revision" TEXT;
+
+CREATE TABLE "automation_capability_catalog" (
+  "key" TEXT NOT NULL,
+  "revision" TEXT,
+  "source_published_at" TIMESTAMP(3),
+  "source_version_id" TEXT,
+  "source_etag" TEXT,
+  "payload" JSONB,
+  "last_attempt_at" TIMESTAMP(3),
+  "last_verified_at" TIMESTAMP(3),
+  "valid_until" TIMESTAMP(3),
+  "last_error_code" TEXT,
+  "last_error" TEXT,
+  "updated_at" TIMESTAMP(3) NOT NULL,
+
+  CONSTRAINT "automation_capability_catalog_pkey" PRIMARY KEY ("key"),
+  CONSTRAINT "automation_capability_catalog_singleton_key" CHECK ("key" = 'ACTIVE'),
+  CONSTRAINT "automation_capability_catalog_valid_state" CHECK (
+    ("payload" IS NULL AND "revision" IS NULL AND "last_verified_at" IS NULL AND "valid_until" IS NULL)
+    OR ("payload" IS NOT NULL AND "revision" IS NOT NULL AND "last_verified_at" IS NOT NULL AND "valid_until" IS NOT NULL)
+  )
+);
+
+INSERT INTO "system_settings" (
+  "id", "key", "value", "type", "format", "category", "label", "description", "updated_at"
+) VALUES (
+  '019808ec-81f0-7f57-a3d9-78ad5b80f5a1',
+  'slackIngestor.control',
+  '{"schemaVersion":1,"revision":1,"ingestionMode":"ENABLED","executionPolicy":"OFF","defaultRuleEffect":"DENY","rules":[]}'::jsonb,
+  'JSON',
+  'SLACK_INGESTOR_CONTROL',
+  'SYSTEM',
+  'Controllo Slack Ingestor',
+  'Controlla ingestione Slack e creazione delle execution automatiche.',
+  CURRENT_TIMESTAMP
+)
+ON CONFLICT ("key") DO NOTHING;
+
 -- ── automatic_runbook_executions ─────────────────────────────────────────────
 
 CREATE TABLE "automatic_runbook_executions" (
@@ -101,8 +182,14 @@ CREATE TABLE "automatic_runbook_executions" (
   "triggered_by_user_id" UUID,
   "triggered_by_label" TEXT,
   "applied_mode" "AutomationMode" NOT NULL,
-  "runbook_key" TEXT,
-  "runbook_version" TEXT,
+  "requested_runbook_key" TEXT NOT NULL,
+  "requested_runbook_version" TEXT NOT NULL,
+  "requested_runbook_digest" TEXT NOT NULL,
+  "catalog_revision" TEXT NOT NULL,
+  "worker_revision" TEXT NOT NULL,
+  "executed_runbook_key" TEXT,
+  "executed_runbook_version" TEXT,
+  "executed_runbook_digest" TEXT,
   "engine_execution_id" TEXT,
   "input_snapshot" JSONB NOT NULL,
   "result_summary" JSONB,
@@ -218,6 +305,16 @@ ALTER TABLE "automatic_runbook_executions"
 ALTER TABLE "automatic_runbook_executions"
   ADD CONSTRAINT "automatic_runbook_executions_queued_has_queued_at" CHECK (
     status <> 'QUEUED' OR queued_at IS NOT NULL
+  );
+
+ALTER TABLE "automatic_runbook_executions"
+  ADD CONSTRAINT "automatic_runbook_executions_executed_capability_complete" CHECK (
+    (executed_runbook_key IS NULL AND executed_runbook_version IS NULL AND executed_runbook_digest IS NULL)
+    OR (
+      executed_runbook_key = requested_runbook_key
+      AND executed_runbook_version = requested_runbook_version
+      AND executed_runbook_digest = requested_runbook_digest
+    )
   );
 
 -- Completion hash is state-dependent: only COMPLETED attempts carry hash+version (§9.4).

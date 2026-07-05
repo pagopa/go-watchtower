@@ -86,8 +86,8 @@ const automationExecutionSummarySelect = {
   reviewStatus: true,
   triggerKind: true,
   appliedMode: true,
-  runbookKey: true,
-  runbookVersion: true,
+  requestedRunbookKey: true,
+  requestedRunbookVersion: true,
   completedAt: true,
   durationMs: true,
   createdAt: true,
@@ -214,8 +214,8 @@ export function formatAnalysisResponse(analysis: AnalysisWithRelations) {
         reviewStatus: executionSummaryRow.reviewStatus,
         triggerKind: executionSummaryRow.triggerKind,
         appliedMode: executionSummaryRow.appliedMode,
-        runbookKey: executionSummaryRow.runbookKey,
-        runbookVersion: executionSummaryRow.runbookVersion,
+        runbookKey: executionSummaryRow.requestedRunbookKey,
+        runbookVersion: executionSummaryRow.requestedRunbookVersion,
         completedAt: executionSummaryRow.completedAt
           ? executionSummaryRow.completedAt.toISOString()
           : null,

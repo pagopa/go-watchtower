@@ -1,4 +1,5 @@
 import { Type, type Static } from "@sinclair/typebox";
+import { SlackParserIds } from "@go-watchtower/shared";
 import {
   ErrorResponseSchema,
   MessageResponseSchema,
@@ -6,6 +7,14 @@ import {
   RelatedEntitySchema,
   RunbookStatusSchema,
 } from "../../schemas/common.js";
+
+// Literal espliciti da valori shared: mantengono l'inferenza statica di Static<>.
+const SlackParserIdSchema = Type.Union([
+  Type.Literal(SlackParserIds.AMAZON_Q),
+  Type.Literal(SlackParserIds.OPSGENIE),
+  Type.Literal(SlackParserIds.EMAIL_SNS),
+  Type.Literal(SlackParserIds.JSM),
+]);
 
 export {
   ErrorResponseSchema,
@@ -62,6 +71,8 @@ export const CreateEnvironmentBodySchema = Type.Object({
   slackChannelId:      Type.Optional(Type.String({ maxLength: 255 })),
   defaultAwsAccountId: Type.Optional(Type.String({ maxLength: 255 })),
   defaultAwsRegion:    Type.Optional(Type.String({ maxLength: 255 })),
+  slackIngestorEnabled: Type.Optional(Type.Boolean()),
+  slackParserId:       Type.Optional(SlackParserIdSchema),
   onCallAlarmPattern:  Type.Optional(Type.String({ maxLength: 500 })),
 });
 
@@ -74,6 +85,8 @@ export const UpdateEnvironmentBodySchema = Type.Object({
   slackChannelId:      Type.Optional(Type.Union([Type.String({ maxLength: 255 }), Type.Null()])),
   defaultAwsAccountId: Type.Optional(Type.Union([Type.String({ maxLength: 255 }), Type.Null()])),
   defaultAwsRegion:    Type.Optional(Type.Union([Type.String({ maxLength: 255 }), Type.Null()])),
+  slackIngestorEnabled: Type.Optional(Type.Boolean()),
+  slackParserId:       Type.Optional(Type.Union([SlackParserIdSchema, Type.Null()])),
   onCallAlarmPattern:  Type.Optional(Type.Union([Type.String({ maxLength: 500 }), Type.Null()])),
 });
 
@@ -97,6 +110,8 @@ export const EnvironmentResponseSchema = Type.Object({
   slackChannelId:      Type.Union([Type.String(), Type.Null()]),
   defaultAwsAccountId: Type.Union([Type.String(), Type.Null()]),
   defaultAwsRegion:    Type.Union([Type.String(), Type.Null()]),
+  slackIngestorEnabled: Type.Boolean(),
+  slackParserId:       Type.Union([Type.String(), Type.Null()]),
   onCallAlarmPattern:  Type.Union([Type.String(), Type.Null()]),
   createdAt:           Type.String(),
   updatedAt:           Type.String(),

@@ -14,6 +14,7 @@ import {
   AutomationReviewStatuses,
   AutomationExecutionOutcomes,
   AutomationLifecycleBudgets,
+  AutomationFailErrorCodes,
   OUTCOME_TO_STATUS,
   ANALYSIS_BEARING_OUTCOMES,
   SystemEventActions,
@@ -33,6 +34,8 @@ import {
 } from "./lifecycle-core.js";
 import crypto from "node:crypto";
 import { AUTOMATIC_ALARM_ANALYSIS_COMMAND_VERSION, type AutomaticAlarmAnalysisCommandV1 } from "./sqs-command.js";
+import { getCatalogState } from "./capability-catalog.js";
+import { findCapabilityForAlarm } from "../slack-ingestor-control.js";
 import type {
   ActiveAttemptSnapshot,
   ExecutionSnapshot,
@@ -309,6 +312,7 @@ export type CompleteResult =
   | { kind: "IDEMPOTENCY_PAYLOAD_MISMATCH"; status: string }
   | { kind: "STALE_ATTEMPT"; status: string }
   | { kind: "CANCELLATION_REQUESTED" }
+  | { kind: "RUNBOOK_CAPABILITY_MISMATCH"; status: "FAILED" }
   | LifecycleForbiddenResult
   | { kind: "NOT_FOUND" };
 
@@ -347,6 +351,7 @@ export async function completeExecution(
     queryCount?: number;
     runbookKey?: string;
     runbookVersion?: string;
+    runbookDigest?: string;
     engineExecutionId?: string;
     errorCode?: string;
     errorMessage?: string;
@@ -389,6 +394,42 @@ export async function completeExecution(
           const exhaustive: never = decision;
           throw new Error(`Unhandled complete decision ${JSON.stringify(exhaustive)}`);
         }
+      }
+
+      // Difesa finale del capability pinning. Il trasporto HTTP rende i tre
+      // campi obbligatori; il controllo condizionale mantiene test/unit caller
+      // interni compatibili e terminalizza deterministicamente ogni mismatch.
+      const reportedCapability = request.runbookKey !== undefined || request.runbookVersion !== undefined || request.runbookDigest !== undefined;
+      if (reportedCapability && (
+        request.runbookKey !== row.requestedRunbookKey ||
+        request.runbookVersion !== row.requestedRunbookVersion ||
+        request.runbookDigest !== row.requestedRunbookDigest
+      )) {
+        await tx.automaticRunbookAttempt.update({
+          where: { id: request.attemptId },
+          data: { status: ATS.FAILED, errorCode: AutomationFailErrorCodes.RUNBOOK_CAPABILITY_MISMATCH, finishedAt: now },
+        });
+        await tx.automaticRunbookExecution.update({
+          where: { id },
+          data: {
+            status: ES.FAILED,
+            errorCode: AutomationFailErrorCodes.RUNBOOK_CAPABILITY_MISMATCH,
+            errorMessage: `Requested ${row.requestedRunbookKey}@${row.requestedRunbookVersion}/${row.requestedRunbookDigest}; worker reported ${request.runbookKey ?? "<missing>"}@${request.runbookVersion ?? "<missing>"}/${request.runbookDigest ?? "<missing>"}`,
+            activeAttemptId: null,
+            workerDeadlineAt: null,
+            completedAt: now,
+          },
+        });
+        await tx.systemEvent.create({
+          data: {
+            action: SystemEventActions.AUTOMATION_EXECUTION_FAILED,
+            resource: SystemEventResources.AUTOMATIC_RUNBOOK_EXECUTIONS,
+            resourceId: id,
+            userId: null,
+            metadata: { actorType: "SYSTEM", reason: AutomationFailErrorCodes.RUNBOOK_CAPABILITY_MISMATCH },
+          },
+        });
+        return { kind: "RUNBOOK_CAPABILITY_MISMATCH", status: "FAILED" };
       }
 
       const derivedStatus = OUTCOME_TO_STATUS[request.outcome];
@@ -501,8 +542,9 @@ export async function completeExecution(
           analysisId: resolvedAnalysisId,
           activeAttemptId: null,
           workerDeadlineAt: null,
-          runbookKey: request.runbookKey ?? row.runbookKey,
-          runbookVersion: request.runbookVersion ?? row.runbookVersion,
+          executedRunbookKey: request.runbookKey ?? row.executedRunbookKey,
+          executedRunbookVersion: request.runbookVersion ?? row.executedRunbookVersion,
+          executedRunbookDigest: request.runbookDigest ?? row.executedRunbookDigest,
           engineExecutionId: request.engineExecutionId ?? row.engineExecutionId,
           errorCode: request.errorCode ?? null,
           errorMessage: request.errorMessage ?? null,
@@ -881,6 +923,15 @@ async function buildCommandForAlarmEvent(
     return { kind: "ALARM_EVENT_NOT_LINKABLE", reason: "alarm event has no linked alarm" };
   }
   const linkableEvent: LinkableCommandAlarmEvent = { ...event, alarmId: event.alarmId, alarm: event.alarm };
+  const activeCatalog = await getCatalogState();
+  const catalog = activeCatalog.catalog;
+  if (!catalog || !activeCatalog.usable) {
+    return { kind: "ALARM_EVENT_NOT_LINKABLE", reason: "automatic runbook catalog is unavailable or stale" };
+  }
+  const capability = findCapabilityForAlarm(catalog.runbooks, linkableEvent.alarm.name);
+  if (!capability) {
+    return { kind: "ALARM_EVENT_NOT_LINKABLE", reason: "no automatic runbook capability for alarm" };
+  }
   const command: AutomaticAlarmAnalysisCommandV1 = {
     schemaVersion: AUTOMATIC_ALARM_ANALYSIS_COMMAND_VERSION,
     executionId,
@@ -894,6 +945,13 @@ async function buildCommandForAlarmEvent(
       awsAccountId: linkableEvent.awsAccountId,
       awsRegion: linkableEvent.awsRegion,
     },
+    runbook: {
+      key: capability.key,
+      version: capability.version,
+      definitionDigest: capability.definitionDigest,
+      catalogRevision: catalog.revision,
+      workerRevision: catalog.worker.artifactRevision,
+    },
     trigger: { kind: triggerKind, actorId: actor.userId },
   };
   return {
@@ -905,8 +963,8 @@ async function buildCommandForAlarmEvent(
 
 /**
  * Crea una execution manuale (Flow 2) in PENDING_DISPATCH (execution-as-outbox).
- * L'enqueue su SQS è eseguito dal dispatcher (Wave 2/3, adapter AWS non ancora
- * presente): qui si persiste la riga e lo snapshot del comando.
+ * L'enqueue su SQS è eseguito dal dispatcher: qui si persiste la riga e lo
+ * snapshot del comando.
  */
 export async function createManualExecution(
   alarmEventId: string,
@@ -936,6 +994,11 @@ export async function createManualExecution(
       triggeredByUserId: actor.userId,
       triggeredByLabel: actor.label,
       appliedMode,
+      requestedRunbookKey: command.runbook.key,
+      requestedRunbookVersion: command.runbook.version,
+      requestedRunbookDigest: command.runbook.definitionDigest,
+      catalogRevision: command.runbook.catalogRevision,
+      workerRevision: command.runbook.workerRevision,
       inputSnapshot: command,
       deadlineAt: new Date(now.getTime() + AutomationLifecycleBudgets.DISPATCH_BUDGET_MS),
     },
@@ -967,6 +1030,11 @@ export async function createCliExecution(
       triggeredByUserId: actor.userId,
       triggeredByLabel: actor.label,
       appliedMode,
+      requestedRunbookKey: command.runbook.key,
+      requestedRunbookVersion: command.runbook.version,
+      requestedRunbookDigest: command.runbook.definitionDigest,
+      catalogRevision: command.runbook.catalogRevision,
+      workerRevision: command.runbook.workerRevision,
       inputSnapshot: command,
       deadlineAt: new Date(now.getTime() + AutomationLifecycleBudgets.CLI_START_GRACE_MS),
     },
@@ -1021,6 +1089,11 @@ export async function retryExecution(id: string, actor: Actor, now: Date = new D
       triggeredByUserId: actor.userId,
       triggeredByLabel: actor.label,
       appliedMode,
+      requestedRunbookKey: parent.requestedRunbookKey,
+      requestedRunbookVersion: parent.requestedRunbookVersion,
+      requestedRunbookDigest: parent.requestedRunbookDigest,
+      catalogRevision: parent.catalogRevision,
+      workerRevision: parent.workerRevision,
       inputSnapshot: command,
       deadlineAt: new Date(now.getTime() + AutomationLifecycleBudgets.DISPATCH_BUDGET_MS),
     },

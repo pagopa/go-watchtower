@@ -8,6 +8,7 @@
   "scripts": {
     "build": "tsc",
     "type-check": "tsc --noEmit",
+    "test:unit": "node --import tsx --test \"test/**/*.test.ts\"",
     "dev": "tsx --env-file=.env src/run-local.ts"
   },
   "dependencies": {

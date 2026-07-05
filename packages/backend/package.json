@@ -13,9 +13,11 @@
     "test:unit": "node --import tsx --test \"test/**/*.test.ts\"",
     "test:integration": "node --import tsx --test --test-concurrency=1 \"test-integration/**/*.test.ts\"",
     "gen:contracts": "tsx src/scripts/export-contract-artifacts.ts",
+    "catalog:import-local": "tsx src/scripts/import-local-automatic-runbook-catalog.ts",
     "rescore": "tsx src/scripts/rescore-analyses.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1073.0",
     "@aws-sdk/client-sqs": "^3.1073.0",
     "@aws-sdk/client-ssm": "^3.1073.0",
     "@fastify/cookie": "^11.0.2",

@@ -7,6 +7,13 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Plus, Pencil, Trash2, Loader2, Server, Minus, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
+import {
+  AWS_ACCOUNT_ID_PATTERN,
+  AWS_REGION_PATTERN,
+  SLACK_CHANNEL_ID_PATTERN,
+  SLACK_PARSER_IDS,
+  SLACK_PARSER_LABELS,
+} from '@go-watchtower/shared'
 import { api, type Environment } from '@/lib/api-client'
 import { qk } from '@/lib/query-keys'
 import { usePermissions } from '@/hooks/use-permissions'
@@ -34,15 +41,30 @@ import {
 } from '@/components/ui/dialog'
 import { DeleteConfirmDialog } from '@/components/delete-confirm-dialog'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Switch } from '@/components/ui/switch'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 const environmentSchema = z.object({
   name:                z.string().min(1, 'Il nome è obbligatorio'),
   description:         z.string().optional(),
   order:               z.coerce.number().min(0, "L'ordine deve essere >= 0").optional(),
   slackChannelId:      z.string().optional(),
+  slackIngestorEnabled: z.boolean(),
+  slackParserId:       z.enum(SLACK_PARSER_IDS),
   defaultAwsAccountId: z.string().optional(),
   defaultAwsRegion:    z.string().optional(),
   onCallAlarmPattern:  z.string().optional(),
+}).superRefine((value, context) => {
+  if (!value.slackIngestorEnabled) return
+  if (!SLACK_CHANNEL_ID_PATTERN.test(value.slackChannelId ?? '')) {
+    context.addIssue({ code: 'custom', path: ['slackChannelId'], message: 'Channel ID Slack obbligatorio e non valido' })
+  }
+  if (!AWS_ACCOUNT_ID_PATTERN.test(value.defaultAwsAccountId ?? '')) {
+    context.addIssue({ code: 'custom', path: ['defaultAwsAccountId'], message: 'Account AWS obbligatorio (12 cifre)' })
+  }
+  if (!AWS_REGION_PATTERN.test(value.defaultAwsRegion ?? '')) {
+    context.addIssue({ code: 'custom', path: ['defaultAwsRegion'], message: 'Regione AWS obbligatoria e non valida' })
+  }
 })
 
 type EnvironmentFormData = z.infer<typeof environmentSchema>
@@ -94,7 +116,7 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
     formState: { errors, isDirty },
   } = useForm<EnvironmentFormData>({
     resolver: zodResolver(environmentSchema) as Resolver<EnvironmentFormData>,
-    defaultValues: { name: '', description: '', order: 0, slackChannelId: '', defaultAwsAccountId: '', defaultAwsRegion: '', onCallAlarmPattern: '' },
+    defaultValues: { name: '', description: '', order: 0, slackChannelId: '', slackIngestorEnabled: false, slackParserId: 'amazon-q', defaultAwsAccountId: '', defaultAwsRegion: '', onCallAlarmPattern: '' },
   })
 
   const handleEdit = (item: Environment) => {
@@ -103,6 +125,8 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
       description:         item.description || '',
       order:               item.order,
       slackChannelId:      item.slackChannelId || '',
+      slackIngestorEnabled: item.slackIngestorEnabled ?? false,
+      slackParserId:       (item.slackParserId as EnvironmentFormData['slackParserId'] | null) ?? 'amazon-q',
       defaultAwsAccountId: item.defaultAwsAccountId || '',
       defaultAwsRegion:    item.defaultAwsRegion || '',
       onCallAlarmPattern:  item.onCallAlarmPattern || '',
@@ -130,6 +154,8 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
         description:         data.description,
         order:               data.order,
         slackChannelId:      data.slackChannelId || null,
+        slackIngestorEnabled: data.slackIngestorEnabled,
+        slackParserId:       data.slackParserId,
         defaultAwsAccountId: data.defaultAwsAccountId || null,
         defaultAwsRegion:    data.defaultAwsRegion || null,
         onCallAlarmPattern:  data.onCallAlarmPattern || null,
@@ -164,7 +190,7 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
     if (!open) {
       setShowCreateDialog(false)
       setEditItem(null)
-      reset({ name: '', description: '', order: 0, slackChannelId: '', defaultAwsAccountId: '', defaultAwsRegion: '', onCallAlarmPattern: '' })
+      reset({ name: '', description: '', order: 0, slackChannelId: '', slackIngestorEnabled: false, slackParserId: 'amazon-q', defaultAwsAccountId: '', defaultAwsRegion: '', onCallAlarmPattern: '' })
     }
   }
 
@@ -175,6 +201,8 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
       createMutation.mutate({
         ...data,
         slackChannelId:      data.slackChannelId      || undefined,
+        slackIngestorEnabled: data.slackIngestorEnabled,
+        slackParserId:       data.slackParserId,
         defaultAwsAccountId: data.defaultAwsAccountId || undefined,
         defaultAwsRegion:    data.defaultAwsRegion    || undefined,
         onCallAlarmPattern:  data.onCallAlarmPattern  || undefined,
@@ -229,7 +257,7 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
           <Button
             size="sm"
             onClick={() => {
-              reset({ name: '', description: '', order: 0, slackChannelId: '', defaultAwsAccountId: '', defaultAwsRegion: '', onCallAlarmPattern: '' })
+              reset({ name: '', description: '', order: 0, slackChannelId: '', slackIngestorEnabled: false, slackParserId: 'amazon-q', defaultAwsAccountId: '', defaultAwsRegion: '', onCallAlarmPattern: '' })
               setShowCreateDialog(true)
             }}
           >
@@ -280,6 +308,7 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
                   <TableCell className="font-mono text-xs text-muted-foreground">
                     {env.slackChannelId ? (
                       <span className="flex items-center gap-1">
+                        <span className={`h-2 w-2 rounded-full ${env.slackIngestorEnabled ? 'bg-emerald-500' : 'bg-muted-foreground/30'}`} title={env.slackIngestorEnabled ? `Abilitato · ${env.slackParserId ?? 'parser non configurato'}` : 'Disabilitato'} />
                         {env.slackChannelId}
                         {slackWorkspaceUrl && (
                           <a
@@ -349,7 +378,7 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
               size="sm"
               className="mt-5"
               onClick={() => {
-                reset({ name: '', description: '', order: 0, slackChannelId: '', defaultAwsAccountId: '', defaultAwsRegion: '', onCallAlarmPattern: '' })
+                reset({ name: '', description: '', order: 0, slackChannelId: '', slackIngestorEnabled: false, slackParserId: 'amazon-q', defaultAwsAccountId: '', defaultAwsRegion: '', onCallAlarmPattern: '' })
                 setShowCreateDialog(true)
               }}
             >
@@ -434,6 +463,35 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
             </div>
             <div className="space-y-3 rounded-lg border border-dashed p-3">
               <p className="text-xs font-medium text-muted-foreground">Ingestione Slack</p>
+              <div className="flex items-center justify-between rounded-md border bg-muted/20 p-3">
+                <div>
+                  <Label htmlFor="env-slack-enabled" className="text-xs">Canale abilitato</Label>
+                  <p className="text-[11px] text-muted-foreground">Se disabilitato il cursore non viene avanzato.</p>
+                </div>
+                <Switch
+                  id="env-slack-enabled"
+                  checked={watch('slackIngestorEnabled')}
+                  onCheckedChange={(checked) => setValue('slackIngestorEnabled', checked, { shouldDirty: true, shouldValidate: true })}
+                  disabled={isMutating}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="env-slack-parser" className="text-xs">Parser</Label>
+                <Select
+                  value={watch('slackParserId')}
+                  onValueChange={(value: EnvironmentFormData['slackParserId']) => setValue('slackParserId', value, { shouldDirty: true })}
+                  disabled={isMutating}
+                >
+                  <SelectTrigger id="env-slack-parser"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {SLACK_PARSER_IDS.map((parserId) => (
+                      <SelectItem key={parserId} value={parserId}>
+                        {SLACK_PARSER_LABELS[parserId].label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="env-slack-channel" className="text-xs">
                   Slack Channel ID
@@ -446,6 +504,7 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
                   {...register('slackChannelId')}
                   disabled={isMutating}
                 />
+                {errors.slackChannelId && <p className="text-xs text-destructive">{errors.slackChannelId.message}</p>}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
@@ -460,6 +519,7 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
                     {...register('defaultAwsAccountId')}
                     disabled={isMutating}
                   />
+                  {errors.defaultAwsAccountId && <p className="text-xs text-destructive">{errors.defaultAwsAccountId.message}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="env-aws-region" className="text-xs">
@@ -473,6 +533,7 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
                     {...register('defaultAwsRegion')}
                     disabled={isMutating}
                   />
+                  {errors.defaultAwsRegion && <p className="text-xs text-destructive">{errors.defaultAwsRegion.message}</p>}
                 </div>
               </div>
               <div className="space-y-2">

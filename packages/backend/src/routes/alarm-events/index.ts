@@ -70,6 +70,9 @@ function formatResponse(event: {
   priorityResolvedAt: Date | null;
   linkedAt: Date | null;
   resolvedAt: Date | null;
+  automationDecision: string | null;
+  automationDecisionMetadata: unknown;
+  automationDecidedAt: Date | null;
   createdAt: Date;
   product: { id: string; name: string };
   environment: { id: string; name: string };
@@ -96,6 +99,7 @@ function formatResponse(event: {
     firedAt:    event.firedAt.toISOString(),
     linkedAt:   event.linkedAt?.toISOString() ?? null,
     resolvedAt: event.resolvedAt?.toISOString() ?? null,
+    automationDecidedAt: event.automationDecidedAt?.toISOString() ?? null,
     createdAt:  event.createdAt.toISOString(),
   };
 }
@@ -118,7 +122,7 @@ export async function alarmEventRoutes(app: FastifyInstance) {
       },
     },
     async (request, reply) => {
-      const { productId, environmentId, alarmId, analysisId, awsAccountId, awsRegion, priorityCode, dateFrom, dateTo, createdFrom, hasAnalysis, name, sortBy = 'firedAt', page = 1, pageSize = 20 } = request.query;
+      const { productId, environmentId, alarmId, analysisId, awsAccountId, awsRegion, priorityCode, dateFrom, dateTo, createdFrom, hasAnalysis, name, automationDecision, sortBy = 'firedAt', page = 1, pageSize = 20 } = request.query;
       const priorityCodes = priorityCode
         ? (Array.isArray(priorityCode) ? priorityCode : [priorityCode]).map(normalizeAlertPriorityCode)
         : undefined;
@@ -141,6 +145,7 @@ export async function alarmEventRoutes(app: FastifyInstance) {
         ...(hasAnalysis === 'false' && { analysisId: null }),
         ...(createdFrom && { createdAt: { gt: new Date(createdFrom) } }),
         ...(name && { name: { contains: name, mode: 'insensitive' as const } }),
+        ...(automationDecision && { automationDecision }),
       };
 
       const [totalItems, data] = await Promise.all([

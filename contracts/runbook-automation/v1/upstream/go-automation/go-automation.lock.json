@@ -1,10 +1,10 @@
 {
-  "$comment": "Lock file dell'handoff GA → WT (CONTRACT-03 §3.4), CONTENT-ADDRESSED: i file in questa cartella sono copie NON modificate degli artefatti go-automation, pinnati per hash sha256 (nessuna dipendenza dal commit SHA upstream). La generazione/validazione CI DEVE fallire se gli hash divergono da questo lock (vedi test queue-registry-contract). La revision-canonicalization è riconciliata: WT riproduce byte-per-byte la revision delle fixture valid/missing-region e rifiuta invalid-revision.",
+  "$comment": "Lock file dell'handoff GA → WT, content-addressed. Queue registry e catalogo runbook restano contratti separati; le copie vendorizzate non possono divergere dagli hash senza fallire i contract test.",
   "contractVersion": "1.0.0",
   "ownerRepository": "go-automation",
   "consumerRepository": "go-watchtower",
   "addressing": "content-sha256",
-  "vendoredAt": "2026-06-23",
+  "vendoredAt": "2026-07-02",
   "artifacts": [
     {
       "path": "execute-runbook-queue-registry-v1.schema.json",
@@ -12,7 +12,7 @@
     },
     {
       "path": "go-automation-contract-manifest.json",
-      "sha256": "10f06bed8e2d565bbc534d9e71fd1e82a003fcea6becd33ae0efe0195a2b937e"
+      "sha256": "637513afa18d0127a0aead33cf421f2ab809b1639205ed76ea5c1a3b90e2e444"
     },
     {
       "path": "fixtures/queue-registry.valid.json",
@@ -25,6 +25,18 @@
     {
       "path": "fixtures/queue-registry.missing-region.json",
       "sha256": "355541a4cdb6c85036f85fd5aa31c9ea2a4dd3ce2546d3c4fc11f31a3e20cc8d"
+    },
+    {
+      "path": "automatic-runbook-catalog-v1.schema.json",
+      "sha256": "a898bdf20636285cb96c13fa3c98f9fe440c9a174428bd134c002ff2ee0e41df"
+    },
+    {
+      "path": "fixtures/automatic-runbook-catalog.valid.json",
+      "sha256": "bfe1728f68dd5e34e433eb5af14c288b0caaa088d8fa6f394d5c1a4d0a8274c0"
+    },
+    {
+      "path": "fixtures/automatic-runbook-catalog.invalid-revision.json",
+      "sha256": "640c855d4c040441d4067eb74078d3249c4653e21b87621763e53861c235ebe3"
     }
   ]
 }

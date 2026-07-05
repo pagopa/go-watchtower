@@ -2,6 +2,7 @@ import { env } from "./config/env.js";
 import { buildApp } from "./app.js";
 import { cleanupExpiredTokens } from "./services/token.service.js";
 import { startReconcilerScheduler } from "./services/automation/reconciler-scheduler.js";
+import { startCapabilityCatalogScheduler } from "./services/automation/catalog-scheduler.js";
 
 const TOKEN_CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000; // every 6 hours
 
@@ -27,10 +28,12 @@ async function main() {
 
     // Runbook Automation reconciler/reaper/safety-net/finalizer (+ dispatch se configurato)
     const stopReconciler = startReconcilerScheduler(app.log);
+    const stopCatalogSync = startCapabilityCatalogScheduler(app.log);
 
     const shutdown = async (signal: string): Promise<void> => {
       app.log.info(`${signal} received, shutting down`);
       stopReconciler();
+      stopCatalogSync();
       await app.close();
       process.exit(0);
     };

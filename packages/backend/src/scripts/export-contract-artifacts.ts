@@ -92,6 +92,13 @@ async function main(): Promise<void> {
       awsAccountId: "170533023216",
       awsRegion: "eu-south-1",
     },
+    runbook: {
+      key: "pn-core-runbook",
+      version: "1.0.0",
+      definitionDigest: "sha256-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      catalogRevision: "sha256-catalog",
+      workerRevision: "build-1",
+    },
     trigger: { kind: "SLACK_INGESTOR" },
   };
   writeJson(path.join(fixturesDir, "sqs-command.valid.json"), validCommand);

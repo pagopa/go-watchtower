@@ -21,6 +21,7 @@ import {
   Layers,
   Flag,
   Bot,
+  RadioTower,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -85,6 +86,13 @@ const navGroups: NavGroup[] = [
         href: '/automatic-runbooks',
         icon: Bot,
         resource: 'AUTOMATIC_RUNBOOK_EXECUTION',
+        action: 'read',
+      },
+      {
+        title: 'Slack Ingestor',
+        href: '/slack-ingestor',
+        icon: RadioTower,
+        resource: 'SYSTEM_SETTING',
         action: 'read',
       },
       {

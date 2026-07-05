@@ -89,9 +89,20 @@ enum AutomationExecutionOutcome {
   KNOWN_CASE
   UNKNOWN_CASE
   NO_DATA
-  NO_RUNBOOK
+  CAPABILITY_WITHDRAWN
   CONFIGURATION_ERROR
   EXECUTION_ERROR
+}
+
+enum SlackAutomationDecision {
+  EXECUTION_CREATED
+  EXECUTION_POLICY_OFF
+  UNLINKED_ALARM
+  CATALOG_UNAVAILABLE
+  NO_CAPABILITY
+  SCOPE_CONFIGURATION_UNSAFE
+  SCOPE_DENIED
+  LEGACY_EVENT_NOT_EVALUATED
 }
 
 enum AutomationTriggerKind {
@@ -208,26 +219,26 @@ model UserPermissionOverride {
 // ═══════════════════════════════════════════════════════════
 
 model User {
-  id            String        @id @default(uuid(7)) @db.Uuid
-  email         String        @unique
-  passwordHash  String?       @map("password_hash")
-  name          String
-  roleId        String        @map("role_id") @db.Uuid
-  provider      AuthProvider  @default(LOCAL)
-  providerId    String?       @map("provider_id")
-  isActive      Boolean       @default(true) @map("is_active")
+  id                 String        @id @default(uuid(7)) @db.Uuid
+  email              String        @unique
+  passwordHash       String?       @map("password_hash")
+  name               String
+  roleId             String        @map("role_id") @db.Uuid
+  provider           AuthProvider  @default(LOCAL)
+  providerId         String?       @map("provider_id")
+  isActive           Boolean       @default(true) @map("is_active")
   // D4/A1: identità tecnica tipizzata e segregata dagli utenti umani.
   // CHECK in migration: SERVICE ⇒ serviceId NOT NULL; HUMAN ⇒ serviceId NULL.
-  principalType PrincipalType @default(HUMAN) @map("principal_type")
-  serviceId     String?       @unique @map("service_id")
-  cliTokenHash       String?   @unique @map("cli_token_hash")
-  cliTokenHint       String?   @map("cli_token_hint")
-  cliTokenCreatedAt  DateTime? @map("cli_token_created_at")
-  cliTokenLastUsedAt DateTime? @map("cli_token_last_used_at")
-  cliTokenExpiresAt  DateTime? @map("cli_token_expires_at")
-  preferences   Json          @default("{}") @map("preferences")
-  createdAt     DateTime      @default(now()) @map("created_at")
-  updatedAt     DateTime      @updatedAt @map("updated_at")
+  principalType      PrincipalType @default(HUMAN) @map("principal_type")
+  serviceId          String?       @unique @map("service_id")
+  cliTokenHash       String?       @unique @map("cli_token_hash")
+  cliTokenHint       String?       @map("cli_token_hint")
+  cliTokenCreatedAt  DateTime?     @map("cli_token_created_at")
+  cliTokenLastUsedAt DateTime?     @map("cli_token_last_used_at")
+  cliTokenExpiresAt  DateTime?     @map("cli_token_expires_at")
+  preferences        Json          @default("{}") @map("preferences")
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
 
   role                           Role                        @relation(fields: [roleId], references: [id])
   permissionOverrides            UserPermissionOverride[]    @relation("UserOverrides")
@@ -247,17 +258,17 @@ model User {
 }
 
 model RefreshToken {
-  id         String    @id @default(uuid(7)) @db.Uuid
-  tokenHash  String    @unique @map("token_hash")
-  userId     String    @map("user_id") @db.Uuid
-  userAgent  String?   @map("user_agent")
-  ipAddress  String?   @map("ip_address")
-  source     RefreshTokenSource @default(HUMAN_LOGIN)
-  cliTokenHash String? @map("cli_token_hash")
-  expiresAt  DateTime  @map("expires_at")
-  createdAt  DateTime  @default(now()) @map("created_at")
-  revokedAt  DateTime? @map("revoked_at")
-  replacedBy String?   @map("replaced_by")
+  id           String             @id @default(uuid(7)) @db.Uuid
+  tokenHash    String             @unique @map("token_hash")
+  userId       String             @map("user_id") @db.Uuid
+  userAgent    String?            @map("user_agent")
+  ipAddress    String?            @map("ip_address")
+  source       RefreshTokenSource @default(HUMAN_LOGIN)
+  cliTokenHash String?            @map("cli_token_hash")
+  expiresAt    DateTime           @map("expires_at")
+  createdAt    DateTime           @default(now()) @map("created_at")
+  revokedAt    DateTime?          @map("revoked_at")
+  replacedBy   String?            @map("replaced_by")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -291,17 +302,19 @@ model Product {
 }
 
 model Environment {
-  id                  String   @id @default(uuid(7)) @db.Uuid
-  name                String
-  description         String?
-  order               Int      @default(0)
-  productId           String   @map("product_id") @db.Uuid
-  slackChannelId      String?  @map("slack_channel_id")
-  defaultAwsAccountId String?  @map("default_aws_account_id")
-  defaultAwsRegion    String?  @map("default_aws_region")
-  onCallAlarmPattern  String?  @map("on_call_alarm_pattern")
-  createdAt           DateTime @default(now()) @map("created_at")
-  updatedAt           DateTime @updatedAt @map("updated_at")
+  id                   String   @id @default(uuid(7)) @db.Uuid
+  name                 String
+  description          String?
+  order                Int      @default(0)
+  productId            String   @map("product_id") @db.Uuid
+  slackChannelId       String?  @map("slack_channel_id")
+  defaultAwsAccountId  String?  @map("default_aws_account_id")
+  defaultAwsRegion     String?  @map("default_aws_region")
+  slackIngestorEnabled Boolean  @default(false) @map("slack_ingestor_enabled")
+  slackParserId        String?  @map("slack_parser_id")
+  onCallAlarmPattern   String?  @map("on_call_alarm_pattern")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
 
   product       Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
   analyses      AlarmAnalysis[]
@@ -310,6 +323,7 @@ model Environment {
   alarmEvents   AlarmEvent[]
 
   @@unique([productId, name])
+  @@unique([slackChannelId])
   @@map("environments")
 }
 
@@ -615,26 +629,29 @@ model AnalysisFinalAction {
 // ═══════════════════════════════════════════════════════════
 
 model AlarmEvent {
-  id                 String    @id @default(uuid(7)) @db.Uuid
-  name               String
-  firedAt            DateTime  @map("fired_at")
-  description        String?
-  reason             String?
-  awsRegion          String    @map("aws_region")
-  awsAccountId       String    @map("aws_account_id")
-  productId          String    @map("product_id") @db.Uuid
-  environmentId      String    @map("environment_id") @db.Uuid
-  alarmId            String?   @map("alarm_id") @db.Uuid
-  analysisId         String?   @map("analysis_id") @db.Uuid
-  priorityCode       String    @default("NORMAL") @map("priority_code")
-  priorityRuleId     String?   @map("priority_rule_id") @db.Uuid
-  priorityResolvedAt DateTime? @map("priority_resolved_at")
-  linkedAt           DateTime? @map("linked_at")
-  resolvedAt         DateTime? @map("resolved_at")
+  id                         String                   @id @default(uuid(7)) @db.Uuid
+  name                       String
+  firedAt                    DateTime                 @map("fired_at")
+  description                String?
+  reason                     String?
+  awsRegion                  String                   @map("aws_region")
+  awsAccountId               String                   @map("aws_account_id")
+  productId                  String                   @map("product_id") @db.Uuid
+  environmentId              String                   @map("environment_id") @db.Uuid
+  alarmId                    String?                  @map("alarm_id") @db.Uuid
+  analysisId                 String?                  @map("analysis_id") @db.Uuid
+  priorityCode               String                   @default("NORMAL") @map("priority_code")
+  priorityRuleId             String?                  @map("priority_rule_id") @db.Uuid
+  priorityResolvedAt         DateTime?                @map("priority_resolved_at")
+  linkedAt                   DateTime?                @map("linked_at")
+  resolvedAt                 DateTime?                @map("resolved_at")
   // Identificatore univoco del messaggio Slack sorgente — formato "{channelId}/{ts}".
   // Usato per prevenire duplicati quando lo script di ingestione rilegge messaggi già processati.
-  slackMessageId     String?   @unique @map("slack_message_id")
-  createdAt          DateTime  @default(now()) @map("created_at")
+  slackMessageId             String?                  @unique @map("slack_message_id")
+  automationDecision         SlackAutomationDecision? @map("automation_decision")
+  automationDecisionMetadata Json?                    @map("automation_decision_metadata")
+  automationDecidedAt        DateTime?                @map("automation_decided_at")
+  createdAt                  DateTime                 @default(now()) @map("created_at")
 
   product           Product                     @relation(fields: [productId], references: [id], onDelete: Restrict)
   environment       Environment                 @relation(fields: [environmentId], references: [id], onDelete: Restrict)
@@ -656,6 +673,7 @@ model AlarmEvent {
   @@index([priorityRuleId])
   @@index([productId, priorityCode, firedAt])
   @@index([environmentId, priorityCode, firedAt])
+  @@index([automationDecision, createdAt])
   @@map("alarm_events")
 }
 
@@ -663,9 +681,16 @@ model AlarmEvent {
 // Ogni record tiene traccia del timestamp Slack (ts) dell'ultimo messaggio
 // processato per canale, evitando reingestioni duplicate.
 model SlackChannelCursor {
-  channelId String   @id @map("channel_id")
-  latestTs  String   @map("latest_ts")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  channelId           String    @id @map("channel_id")
+  latestTs            String?   @map("latest_ts")
+  lastAttemptAt       DateTime? @map("last_attempt_at")
+  lastSuccessAt       DateTime? @map("last_success_at")
+  lastStatus          String?   @map("last_status")
+  lastError           String?   @map("last_error")
+  lastSummary         Json?     @map("last_summary")
+  lastControlRevision Int?      @map("last_control_revision")
+  lastCatalogRevision String?   @map("last_catalog_revision")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
 
   @@map("slack_channel_cursors")
 }
@@ -695,6 +720,23 @@ model SystemSetting {
 
   @@index([category])
   @@map("system_settings")
+}
+
+model AutomationCapabilityCatalog {
+  key               String    @id
+  revision          String?
+  sourcePublishedAt DateTime? @map("source_published_at")
+  sourceVersionId   String?   @map("source_version_id")
+  sourceETag        String?   @map("source_etag")
+  payload           Json?
+  lastAttemptAt     DateTime? @map("last_attempt_at")
+  lastVerifiedAt    DateTime? @map("last_verified_at")
+  validUntil        DateTime? @map("valid_until")
+  lastErrorCode     String?   @map("last_error_code")
+  lastError         String?   @map("last_error")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@map("automation_capability_catalog")
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -758,8 +800,14 @@ model AutomaticRunbookExecution {
   triggeredByUserId       String?                            @map("triggered_by_user_id") @db.Uuid
   triggeredByLabel        String?                            @map("triggered_by_label")
   appliedMode             AutomationMode                     @map("applied_mode")
-  runbookKey              String?                            @map("runbook_key")
-  runbookVersion          String?                            @map("runbook_version")
+  requestedRunbookKey     String                             @map("requested_runbook_key")
+  requestedRunbookVersion String                             @map("requested_runbook_version")
+  requestedRunbookDigest  String                             @map("requested_runbook_digest")
+  catalogRevision         String                             @map("catalog_revision")
+  workerRevision          String                             @map("worker_revision")
+  executedRunbookKey      String?                            @map("executed_runbook_key")
+  executedRunbookVersion  String?                            @map("executed_runbook_version")
+  executedRunbookDigest   String?                            @map("executed_runbook_digest")
   engineExecutionId       String?                            @map("engine_execution_id")
   inputSnapshot           Json                               @map("input_snapshot")
   resultSummary           Json?                              @map("result_summary")

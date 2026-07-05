@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useMemo, useCallback } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { X, Pencil, Trash2, Copy, Check, BellRing, Cloud, Info, BookOpen, ExternalLink, PhoneCall, FileSearch, Unlink, OctagonAlert, AlertTriangle } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { X, Pencil, Trash2, Copy, Check, BellRing, Cloud, Info, BookOpen, ExternalLink, PhoneCall, FileSearch, Unlink, OctagonAlert, AlertTriangle, ShieldOff, Target } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -18,6 +18,76 @@ import { ANALYSIS_STATUS_LABELS, ANALYSIS_TYPE_LABELS } from '../../analyses/_li
 import { IgnoredAlarmDetailsDialog } from '../../analyses/_components/ignored-alarm-warning'
 import { UnlinkAlarmEventDialog } from './unlink-alarm-event-dialog'
 import { ExecuteRunbookButton } from '../../automatic-runbooks/_components/execute-runbook-action'
+import { usePermissions } from '@/hooks/use-permissions'
+import { toast } from 'sonner'
+
+function AlarmAutomationExclusionButton({ alarmId }: { alarmId: string | null }) {
+  const { can } = usePermissions()
+  const canManage = can('SYSTEM_SETTING', 'write')
+  const queryClient = useQueryClient()
+  const controlQuery = useQuery({
+    queryKey: qk.slackIngestor.control,
+    queryFn: api.getSlackIngestorControl,
+    enabled: canManage && Boolean(alarmId),
+  })
+  const excluded = Boolean(alarmId && controlQuery.data?.control.rules.some((rule) => rule.id === `quick-deny:alarm:${alarmId}`))
+  const mutation = useMutation({
+    mutationFn: async (note: string) => {
+      if (!alarmId || !controlQuery.data) throw new Error('Configurazione Slack Ingestor non disponibile')
+      const data = { expectedRevision: controlQuery.data.control.revision, changeNote: note }
+      return excluded ? api.removeAlarmAutomationExclusion(alarmId, data) : api.excludeAlarmFromAutomation(alarmId, data)
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: qk.slackIngestor.control })
+      toast.success(excluded ? 'Esclusione allarme rimossa' : 'Allarme escluso dalle execution automatiche')
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+  const onlyMutation = useMutation({
+    mutationFn: async (note: string) => {
+      if (!alarmId || !controlQuery.data) throw new Error('Configurazione Slack Ingestor non disponibile')
+      return api.applyOnlyAlarmPreset(alarmId, { expectedRevision: controlQuery.data.control.revision, changeNote: note, confirm: true })
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: qk.slackIngestor.control })
+      toast.success('Scope limitato all’allarme selezionato')
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+
+  if (!canManage || !alarmId) return null
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8"
+        disabled={!controlQuery.data || onlyMutation.isPending}
+        title="Consenti execution automatiche solo per questo allarme"
+        onClick={() => {
+          if (!window.confirm('Sostituire tutte le scope rules e consentire solo questo allarme?')) return
+          const note = window.prompt('Motivazione della modifica')?.trim()
+          if (note) onlyMutation.mutate(note)
+        }}
+      >
+        <Target className="h-4 w-4" />
+      </Button>
+      <Button
+      variant="ghost"
+      size="icon"
+      className={cn('h-8 w-8', excluded && 'text-destructive hover:text-destructive')}
+      disabled={!controlQuery.data || mutation.isPending}
+      title={excluded ? 'Rimuovi esclusione globale dell’allarme' : 'Escludi questo allarme dalle execution automatiche'}
+      onClick={() => {
+        const note = window.prompt(excluded ? 'Motivazione della rimozione' : 'Motivazione dell’esclusione')?.trim()
+        if (note) mutation.mutate(note)
+      }}
+      >
+        <ShieldOff className="h-4 w-4" />
+      </Button>
+    </>
+  )
+}
 
 // ─── Linked analysis section ──────────────────────────────────────────────────
 
@@ -387,6 +457,7 @@ export function AlarmEventDetailPanel({
                   variant="ghost"
                   className="h-8 w-8 text-primary hover:text-primary"
                 />
+                <AlarmAutomationExclusionButton alarmId={event.alarmId} />
                 {canWrite && (
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(event)} title="Modifica">
                     <Pencil className="h-4 w-4" />

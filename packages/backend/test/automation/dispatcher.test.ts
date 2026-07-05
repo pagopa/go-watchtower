@@ -9,6 +9,7 @@ import {
   type SsmParameterReader,
 } from "../../src/services/automation/queue-registry.js";
 import type { AutomaticAlarmAnalysisCommandV1 } from "../../src/services/automation/sqs-command.js";
+import type { CapabilityCatalogProvider } from "../../src/services/automation/capability-catalog.js";
 
 function reg(region = "eu-south-1"): ExecuteRunbookQueueRegistryV1 {
   const base: ExecuteRunbookQueueRegistryV1 = {
@@ -40,6 +41,13 @@ function command(region = "eu-south-1"): AutomaticAlarmAnalysisCommandV1 {
       firedAt: "2026-06-22T10:00:00.000Z",
       awsAccountId: "170533023216",
       awsRegion: region,
+    },
+    runbook: {
+      key: "pn-core-runbook",
+      version: "1.0.0",
+      definitionDigest: "sha256-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      catalogRevision: "sha256-catalog",
+      workerRevision: "build-1",
     },
     trigger: { kind: "SLACK_INGESTOR" },
   };
@@ -82,4 +90,19 @@ test("dispatch: send failure does not block create → TRANSIENT", async () => {
   const failing: SqsSender = { send: () => Promise.reject(new Error("network")) };
   const res = await dispatchExecution(command(), registryFrom(JSON.stringify(reg())), failing);
   assert.equal(res.kind, "TRANSIENT");
+});
+
+test("dispatch: stale catalog blocks queue resolution and send transiently", async () => {
+  let sent = false;
+  const catalog: CapabilityCatalogProvider = { resolve: () => Promise.resolve({ kind: "CATALOG_UNAVAILABLE", reason: "stale" }) };
+  const sender: SqsSender = { send: () => { sent = true; return Promise.resolve({ messageId: "unexpected" }); } };
+  const res = await dispatchExecution(command(), registryFrom(JSON.stringify(reg())), sender, catalog);
+  assert.equal(res.kind, "CATALOG_UNAVAILABLE");
+  assert.equal(sent, false);
+});
+
+test("dispatch: withdrawn pinned capability is terminal and never sent", async () => {
+  const catalog: CapabilityCatalogProvider = { resolve: () => Promise.resolve({ kind: "CAPABILITY_WITHDRAWN", key: "pn-core-runbook" }) };
+  const res = await dispatchExecution(command(), registryFrom(JSON.stringify(reg())), okSender, catalog);
+  assert.deepEqual(res, { kind: "CAPABILITY_WITHDRAWN", key: "pn-core-runbook" });
 });

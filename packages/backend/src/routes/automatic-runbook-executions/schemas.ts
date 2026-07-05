@@ -131,8 +131,9 @@ export const CompleteExecutionRequestSchema = Type.Object(
   {
     attemptId: Type.String({ format: "uuid" }),
     outcome: enumUnion(AUTOMATION_EXECUTION_OUTCOME_VALUES),
-    runbookKey: Type.Optional(Type.String({ maxLength: 200 })),
-    runbookVersion: Type.Optional(Type.String({ maxLength: 100 })),
+    runbookKey: Type.String({ minLength: 1, maxLength: 200 }),
+    runbookVersion: Type.String({ minLength: 1, maxLength: 100 }),
+    runbookDigest: Type.String({ pattern: "^sha256-[0-9a-fA-F]{64}$" }),
     engineExecutionId: Type.Optional(Type.String({ maxLength: 200 })),
     queryCount: Type.Optional(Type.Integer({ minimum: 0 })),
     bytesScanned: Type.Optional(DecimalString),
@@ -169,6 +170,7 @@ export const ControlConflictResponseSchema = Type.Object({
     Type.Literal("CANCELLATION_REQUEST_MISMATCH"),
     Type.Literal("CANCELLATION_NOT_REQUESTED"),
     Type.Literal("CANNOT_RETRY_CLI"),
+    Type.Literal("RUNBOOK_CAPABILITY_MISMATCH"),
   ]),
   status: Type.Optional(enumUnion(AUTOMATION_EXECUTION_STATUS_VALUES)),
 });
@@ -390,6 +392,14 @@ export const ExecutionContextSchema = Type.Object({
 export const ExecutionDetailDtoSchema = Type.Composite([
   ExecutionDtoSchema,
   Type.Object({
+    requestedRunbookKey: Type.String(),
+    requestedRunbookVersion: Type.String(),
+    requestedRunbookDigest: Type.String(),
+    catalogRevision: Type.String(),
+    workerRevision: Type.String(),
+    executedRunbookKey: Type.Union([Type.String(), Type.Null()]),
+    executedRunbookVersion: Type.Union([Type.String(), Type.Null()]),
+    executedRunbookDigest: Type.Union([Type.String(), Type.Null()]),
     inputSnapshot: Type.Unknown(),
     resultSummary: Type.Unknown(),
     analysisPayload: Type.Unknown(),

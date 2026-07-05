@@ -22,6 +22,8 @@ import { systemEventRoutes } from "./routes/system-events/index.js";
 import { settingRoutes } from "./routes/settings/index.js";
 import { alarmRoutes } from "./routes/alarms/index.js";
 import { automaticRunbookExecutionRoutes } from "./routes/automatic-runbook-executions/index.js";
+import { slackIngestorControlRoutes } from "./routes/slack-ingestor-control/index.js";
+import { automaticRunbookRoutes } from "./routes/automatic-runbooks/index.js";
 import { profileRoutes } from "./routes/profile/index.js";
 import { healthRoutes } from "./routes/health.js";
 
@@ -76,6 +78,8 @@ export async function buildApp() {
   await app.register(settingRoutes, { prefix: "/api" });
   await app.register(alarmRoutes, { prefix: "/api" });
   await app.register(automaticRunbookExecutionRoutes, { prefix: "/api" });
+  await app.register(slackIngestorControlRoutes, { prefix: "/api" });
+  await app.register(automaticRunbookRoutes, { prefix: "/api" });
 
   return app;
 }

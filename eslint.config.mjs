@@ -15,6 +15,8 @@ export default tseslint.config(
       'eslint.config.mjs',
       'packages/backend/test/**',
       'packages/backend/test-integration/**',
+      'packages/shared/test/**',
+      'packages/slack-ingestor/test/**',
       'packages/database/prisma/**',
       'packages/database/prisma.config.ts',
       'packages/database/scripts/**',

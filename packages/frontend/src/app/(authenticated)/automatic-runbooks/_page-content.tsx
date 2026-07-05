@@ -24,7 +24,7 @@ const STATUS_OPTIONS = [
 ] as const
 const OUTCOME_OPTIONS = [
   ['KNOWN_CASE', 'Caso noto'], ['UNKNOWN_CASE', 'Caso non riconosciuto'], ['NO_DATA', 'Nessun dato'],
-  ['NO_RUNBOOK', 'Nessun runbook'], ['CONFIGURATION_ERROR', 'Errore configurazione'], ['EXECUTION_ERROR', 'Errore esecuzione'],
+  ['CAPABILITY_WITHDRAWN', 'Runbook ritirato'], ['CONFIGURATION_ERROR', 'Errore configurazione'], ['EXECUTION_ERROR', 'Errore esecuzione'],
 ] as const
 const REVIEW_OPTIONS = [
   ['NOT_REQUIRED', 'Non richiesta'], ['PENDING', 'Da revisionare'], ['CONFIRMED', 'Confermata'], ['REJECTED', 'Rifiutata'],

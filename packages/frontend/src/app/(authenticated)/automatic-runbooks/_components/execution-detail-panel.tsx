@@ -371,6 +371,10 @@ function PanelBody({ executionId, canWrite, globalModeOverride, onClose }: { exe
             <Field label="Trigger">{TRIGGER_LABELS[execution.triggerKind]}</Field>
             <Field label="Dispatch">{DISPATCH_LABELS[execution.dispatchKind]}</Field>
             <Field label="Runbook">{execution.runbookKey ?? '—'}{execution.runbookVersion ? ` · v${execution.runbookVersion}` : ''}</Field>
+            <Field label="Codice eseguito">{execution.executedRunbookKey ? `${execution.executedRunbookKey} · v${execution.executedRunbookVersion ?? '—'}` : '—'}</Field>
+            {execution.requestedRunbookDigest && <div className="col-span-2"><Field label="Definition digest"><CopyMono value={execution.requestedRunbookDigest} /></Field></div>}
+            {execution.catalogRevision && <div className="col-span-2"><Field label="Catalog revision"><CopyMono value={execution.catalogRevision} /></Field></div>}
+            {execution.workerRevision && <div className="col-span-2"><Field label="Worker revision"><CopyMono value={execution.workerRevision} /></Field></div>}
             <Field label="Tentativi worker">{execution.totalWorkerAttempts} · ciclo {execution.deliveryCycle}</Field>
             <div className="col-span-2">
               <Field label="Modo applicato">

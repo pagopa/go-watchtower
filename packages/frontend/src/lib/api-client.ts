@@ -368,6 +368,8 @@ export interface Environment {
   order: number
   productId: string
   slackChannelId: string | null
+  slackIngestorEnabled?: boolean
+  slackParserId?: string | null
   defaultAwsAccountId: string | null
   defaultAwsRegion: string | null
   onCallAlarmPattern: string | null
@@ -380,6 +382,8 @@ export interface CreateEnvironmentData {
   description?: string
   order?: number
   slackChannelId?: string
+  slackIngestorEnabled?: boolean
+  slackParserId?: string
   defaultAwsAccountId?: string
   defaultAwsRegion?: string
   onCallAlarmPattern?: string
@@ -390,6 +394,8 @@ export interface UpdateEnvironmentData {
   description?: string | null
   order?: number
   slackChannelId?: string | null
+  slackIngestorEnabled?: boolean
+  slackParserId?: string | null
   defaultAwsAccountId?: string | null
   defaultAwsRegion?: string | null
   onCallAlarmPattern?: string | null
@@ -1227,6 +1233,14 @@ export interface AutomaticRunbookExecution {
   appliedMode: AutomationMode
   runbookKey: string | null
   runbookVersion: string | null
+  requestedRunbookKey?: string
+  requestedRunbookVersion?: string
+  requestedRunbookDigest?: string
+  catalogRevision?: string
+  workerRevision?: string
+  executedRunbookKey?: string | null
+  executedRunbookVersion?: string | null
+  executedRunbookDigest?: string | null
   errorCode: string | null
   errorMessage: string | null
   queryCount: number | null
@@ -1337,6 +1351,169 @@ export interface CancelAutomaticExecutionResponse {
   cancelRequestId: string | null
 }
 
+export type SlackIngestorIngestionMode = 'ENABLED' | 'PAUSED'
+export type SlackIngestorExecutionPolicy = 'OFF' | 'AVAILABLE_ONLY'
+export type SlackIngestorRuleEffect = 'ALLOW' | 'DENY'
+export type CatalogReferenceHealth = 'VALID' | 'PARTIALLY_UNRESOLVED' | 'UNRESOLVED' | 'UNSAFE'
+
+export interface SlackIngestorRuleMatcher {
+  channelIds?: string[]
+  productIds?: string[]
+  environmentIds?: string[]
+  alarmIds?: string[]
+  alarmNames?: string[]
+  runbookKeys?: string[]
+  runbookKinds?: string[]
+  runbookCategories?: string[]
+  awsRegions?: string[]
+  awsAccountIds?: string[]
+  priorityCodes?: string[]
+}
+
+export interface SlackIngestorAutomationRule {
+  id: string
+  name: string
+  description?: string
+  enabled: boolean
+  effect: SlackIngestorRuleEffect
+  matcher: SlackIngestorRuleMatcher
+}
+
+export interface SlackIngestorControl {
+  schemaVersion: 1
+  revision: number
+  ingestionMode: SlackIngestorIngestionMode
+  executionPolicy: SlackIngestorExecutionPolicy
+  defaultRuleEffect: SlackIngestorRuleEffect
+  rules: SlackIngestorAutomationRule[]
+}
+
+export interface SlackIngestorControlWarning {
+  code: string
+  message: string
+  ruleId?: string
+  dimension?: string
+  values?: string[]
+}
+
+export interface SlackIngestorControlResponse {
+  control: SlackIngestorControl
+  catalogReferenceHealth: CatalogReferenceHealth
+  warnings: SlackIngestorControlWarning[]
+}
+
+/** SystemEvent di audit sul control: metadata con changeNote e documenti before/after. */
+export interface SlackIngestorControlHistoryEntry {
+  id: string
+  userLabel: string | null
+  createdAt: string
+  metadata: {
+    changeNote?: string
+    before?: SlackIngestorControl
+    after?: SlackIngestorControl
+  } | null
+}
+
+export interface AutomaticRunbookCapability {
+  key: string
+  version: string
+  definitionDigest: string
+  name: string
+  description?: string
+  kind: string
+  categories: string[]
+  alarmNames: string[]
+  ownerTeam?: string
+  tags?: string[]
+  workerRevision?: string
+  globallyExcluded?: boolean
+}
+
+export interface AutomaticRunbookCatalogResponse {
+  data: AutomaticRunbookCapability[]
+  total: number
+  revision: string | null
+  workerArtifactRevision: string | null
+}
+
+export type AutomaticRunbookCatalogHealth = 'UNINITIALIZED' | 'INVALID' | 'HEALTHY' | 'DEGRADED' | 'STALE'
+
+export interface AutomaticRunbookCatalogStatus {
+  health: AutomaticRunbookCatalogHealth
+  revision: string | null
+  workerArtifactRevision: string | null
+  sourceVersionId: string | null
+  sourceETag: string | null
+  sourcePublishedAt: string | null
+  lastAttemptAt: string | null
+  lastVerifiedAt: string | null
+  validUntil: string | null
+  lastErrorCode: string | null
+  lastError: string | null
+}
+
+export interface AutomaticRunbookCatalogCoverage {
+  total: number
+  byKind: Record<string, number>
+  byCategory: Record<string, number>
+}
+
+export interface UpdateSlackIngestorControlData {
+  control: SlackIngestorControl
+  expectedRevision: number
+  changeNote: string
+  confirmGlobalMatchers?: boolean
+}
+
+export interface SlackIngestorControlPreview {
+  sampleSize: number
+  counts: Record<string, number>
+  byRunbook: Record<string, number>
+}
+
+export interface SlackIngestorControlPreviewResponse {
+  validation: {
+    valid: boolean
+    errors: SlackIngestorControlWarning[]
+    warnings: SlackIngestorControlWarning[]
+    catalogReferenceHealth: CatalogReferenceHealth
+  }
+  preview: SlackIngestorControlPreview
+}
+
+export interface SlackIngestorQuickChangeData {
+  expectedRevision: number
+  changeNote: string
+}
+
+export interface SlackIngestorPresetData extends SlackIngestorQuickChangeData {
+  confirm: boolean
+}
+
+export interface SlackIngestorChannel extends Environment {
+  product: { id: string; name: string }
+  routingStatus: string
+  cursor: {
+    latestTs: string | null
+    lastAttemptAt: string | null
+    lastSuccessAt: string | null
+    lastStatus: string | null
+    lastError: string | null
+    lastSummary: unknown | null
+    lastControlRevision: number | null
+    lastCatalogRevision: string | null
+  } | null
+}
+
+export interface SlackIngestorStatus {
+  ingestionMode: SlackIngestorIngestionMode | null
+  executionPolicy: SlackIngestorExecutionPolicy | null
+  controlRevision: number | null
+  controlHealth: CatalogReferenceHealth | 'INVALID'
+  enabledChannels: number
+  decisionStats: Array<{ automationDecision: string | null; _count: number }>
+}
+
 // API methods
 export const api = {
   // Runbook Automation
@@ -1360,6 +1537,44 @@ export const api = {
     request<AutomaticRunbookExecution>(`/api/automatic-runbook-executions/${id}/review`, { method: 'POST', body: data }),
   cancelAutomaticExecution: (id: string, data: { reason?: string }) =>
     request<CancelAutomaticExecutionResponse>(`/api/automatic-runbook-executions/${id}/cancel`, { method: 'POST', body: data }),
+
+  // Slack Ingestor control plane and automatic runbook catalog
+  getSlackIngestorControl: () =>
+    request<SlackIngestorControlResponse>('/api/slack-ingestor/control'),
+  getSlackIngestorChannels: () =>
+    request<SlackIngestorChannel[]>('/api/slack-ingestor/channels'),
+  getSlackIngestorStatus: () =>
+    request<SlackIngestorStatus>('/api/slack-ingestor/status'),
+  checkSlackIngestorChannel: (environmentId: string) =>
+    request<{ ok: true; channel?: { id?: string; name?: string; is_member?: boolean }; parserId: string | null }>(`/api/slack-ingestor/channels/${encodeURIComponent(environmentId)}/check`, { method: 'POST' }),
+  updateSlackIngestorControl: (data: UpdateSlackIngestorControlData) =>
+    request<SlackIngestorControlResponse>('/api/slack-ingestor/control', { method: 'PUT', body: data }),
+  validateSlackIngestorControl: (control: SlackIngestorControl) =>
+    request<SlackIngestorControlResponse>('/api/slack-ingestor/control/validate', { method: 'POST', body: { control } }),
+  previewSlackIngestorControl: (data: { control: SlackIngestorControl; limit?: number; confirmGlobalMatchers?: boolean }) =>
+    request<SlackIngestorControlPreviewResponse>('/api/slack-ingestor/control/preview', { method: 'POST', body: data }),
+  getSlackIngestorControlHistory: () =>
+    request<SlackIngestorControlHistoryEntry[]>('/api/slack-ingestor/control/history'),
+  excludeAutomaticRunbook: (key: string, data: SlackIngestorQuickChangeData) =>
+    request<SlackIngestorControlResponse>(`/api/slack-ingestor/control/exclusions/runbooks/${encodeURIComponent(key)}`, { method: 'PUT', body: data }),
+  removeAutomaticRunbookExclusion: (key: string, data: SlackIngestorQuickChangeData) =>
+    request<SlackIngestorControlResponse>(`/api/slack-ingestor/control/exclusions/runbooks/${encodeURIComponent(key)}`, { method: 'DELETE', body: data }),
+  excludeAlarmFromAutomation: (alarmId: string, data: SlackIngestorQuickChangeData) =>
+    request<SlackIngestorControlResponse>(`/api/slack-ingestor/control/exclusions/alarms/${encodeURIComponent(alarmId)}`, { method: 'PUT', body: data }),
+  removeAlarmAutomationExclusion: (alarmId: string, data: SlackIngestorQuickChangeData) =>
+    request<SlackIngestorControlResponse>(`/api/slack-ingestor/control/exclusions/alarms/${encodeURIComponent(alarmId)}`, { method: 'DELETE', body: data }),
+  applyOnlyAutomaticRunbookPreset: (key: string, data: SlackIngestorPresetData) =>
+    request<{ control: SlackIngestorControl; preview: unknown }>(`/api/slack-ingestor/control/presets/only-runbook/${encodeURIComponent(key)}`, { method: 'POST', body: data }),
+  applyOnlyAlarmPreset: (alarmId: string, data: SlackIngestorPresetData) =>
+    request<{ control: SlackIngestorControl; preview: unknown }>(`/api/slack-ingestor/control/presets/only-alarm/${encodeURIComponent(alarmId)}`, { method: 'POST', body: data }),
+  getAutomaticRunbookCatalog: () =>
+    request<AutomaticRunbookCatalogResponse>('/api/automatic-runbooks/catalog'),
+  getAutomaticRunbookCatalogStatus: () =>
+    request<AutomaticRunbookCatalogStatus>('/api/automatic-runbooks/catalog/status'),
+  getAutomaticRunbookCatalogCoverage: () =>
+    request<AutomaticRunbookCatalogCoverage>('/api/automatic-runbooks/catalog/coverage'),
+  refreshAutomaticRunbookCatalog: () =>
+    request<AutomaticRunbookCatalogStatus>('/api/automatic-runbooks/catalog/refresh', { method: 'POST' }),
 
   // Auth
   me: () => request<User>('/auth/me'),

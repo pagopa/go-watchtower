@@ -3,7 +3,33 @@ export type { PrismaClient } from "./client.js";
 
 // Runbook Automation — Flow 1 outbox primitives (shared by backend + slack-ingestor)
 export { ensureInitialExecution, markQueued } from "./runbook-automation.js";
-export type { EnsureInitialExecutionResult, MarkQueuedResult } from "./runbook-automation.js";
+export type {
+  EnsureInitialExecutionResult,
+  InitialExecutionCapability,
+  MarkQueuedResult,
+} from "./runbook-automation.js";
+
+export {
+  getActiveCapabilityCatalog,
+  upsertVerifiedCapabilityCatalog,
+  renewCapabilityCatalogVerification,
+  recordCapabilityCatalogFailure,
+  withCapabilityCatalogSyncLock,
+} from "./automation-capability-catalog.js";
+export type {
+  ActiveCapabilityCatalog,
+  VerifiedCapabilityCatalogInput,
+  CapabilityCatalogFailureInput,
+  CapabilityCatalogSyncLockResult,
+} from "./automation-capability-catalog.js";
+
+export { createSlackAlarmEventDecision } from "./slack-automation-decision.js";
+export type {
+  SlackExecutionCapabilityInput,
+  SlackExecutionCreateInput,
+  CreateSlackAlarmEventDecisionInput,
+  CreateSlackAlarmEventDecisionResult,
+} from "./slack-automation-decision.js";
 
 // Re-export Prisma namespace (for DbNull, JsonNull, etc.)
 export { Prisma } from "../generated/prisma/client.js";
@@ -28,6 +54,7 @@ export {
   AutomationAttemptStatus,
   AutomationRetryDisposition,
   AutomationCancellationFinalizedBy,
+  SlackAutomationDecision,
   RefreshTokenSource,
   type User,
   type Role,
@@ -52,4 +79,7 @@ export {
   type SystemEvent,
   type AutomaticRunbookExecution,
   type AutomaticRunbookAttempt,
+  type AutomationCapabilityCatalog,
+  type AlarmEvent,
+  type SlackChannelCursor,
 } from "../generated/prisma/client.js";
