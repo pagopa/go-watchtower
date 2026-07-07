@@ -29,6 +29,14 @@ services:
       RECONCILER_INTERVAL_MS: ${RECONCILER_INTERVAL_MS:-60000}
       EXECUTE_RUNBOOK_QUEUE_REGISTRY_PARAMETER: ${EXECUTE_RUNBOOK_QUEUE_REGISTRY_PARAMETER:-}
       EXECUTE_RUNBOOK_QUEUE_REGISTRY_REGION: ${EXECUTE_RUNBOOK_QUEUE_REGISTRY_REGION:-eu-south-1}
+      # Catalogo globale runbook automatici — sync S3 (EVO-SLACKINGRA-CODEX-03 §9).
+      # Bucket vuoto = sync disabilitato; l'environment DEVE coincidere con quello
+      # del catalogo pubblicato da go-automation, altrimenti il sync lo rifiuta.
+      AUTOMATIC_RUNBOOK_CATALOG_BUCKET: ${AUTOMATIC_RUNBOOK_CATALOG_BUCKET:-}
+      AUTOMATIC_RUNBOOK_CATALOG_REGION: ${AUTOMATIC_RUNBOOK_CATALOG_REGION:-eu-south-1}
+      AUTOMATIC_RUNBOOK_CATALOG_ENVIRONMENT: ${AUTOMATIC_RUNBOOK_CATALOG_ENVIRONMENT:-production}
+      # Token bot Slack usato dal backend per il test read-only di accesso ai canali
+      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-}
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/health"]
       interval: 30s
