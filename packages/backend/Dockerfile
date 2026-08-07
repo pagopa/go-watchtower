@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # Build stage
-FROM node:25-alpine AS builder
+FROM node:26-alpine AS builder
 
 # Install pnpm (corepack removed in Node 25)
 RUN npm install -g pnpm@latest --no-fund --no-update-notifier
@@ -30,7 +30,7 @@ RUN pnpm --filter @go-watchtower/database build
 RUN pnpm --filter @go-watchtower/backend build
 
 # Production stage
-FROM node:25-alpine AS runner
+FROM node:26-alpine AS runner
 
 # Install pnpm (corepack removed in Node 25)
 RUN npm install -g pnpm@latest --no-fund --no-update-notifier

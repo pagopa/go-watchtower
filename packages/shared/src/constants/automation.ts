@@ -336,6 +336,13 @@ export const AUTOMATION_ANALYSIS_APPLY_STATUS_VALUES = Object.values(
  * `blockCode` è singolo: al primo blocco la pipeline si ferma.
  */
 export const AnalysisApplyBlockCodes = {
+  /**
+   * L'evento ha perso il collegamento all'allarme fra lo start e il complete
+   * (`AlarmEvent.alarmId` è nullable con onDelete: SetNull) e `AlarmAnalysis`
+   * richiede `alarmId`: il target dell'analisi non esiste più. Rilevato per primo,
+   * subito dopo il lock dell'evento.
+   */
+  ALARM_UNLINKED: "ALARM_UNLINKED",
   DRAFT_TOO_LARGE: "DRAFT_TOO_LARGE",
   MISSING_DRAFT: "MISSING_DRAFT",
   INVALID_DRAFT: "INVALID_DRAFT",

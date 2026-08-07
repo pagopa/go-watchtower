@@ -1,7 +1,6 @@
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../generated/prisma/client.js";
-import pg from "pg";
 import { createReadStream, readFileSync } from "fs";
 import { parse } from "csv-parse";
 import { resolve } from "path";
@@ -27,8 +26,7 @@ if (!connectionString) {
   throw new Error("DATABASE_URL is required");
 }
 
-const pool = new pg.Pool({ connectionString });
-const adapter = new PrismaPg(pool);
+const adapter = new PrismaPg(connectionString);
 const prisma = new PrismaClient({ adapter });
 
 // Parse CLI arguments: <csv-file> <product-name> [link-map.json]
@@ -1498,5 +1496,4 @@ importAnalyses()
   })
   .finally(async () => {
     await prisma.$disconnect();
-    await pool.end();
   });

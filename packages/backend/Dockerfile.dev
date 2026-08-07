@@ -1,5 +1,5 @@
 # Development Dockerfile with hot reloading
-FROM node:25-alpine
+FROM node:26-alpine
 
 # Install pnpm (corepack removed in Node 25)
 RUN npm install -g pnpm@latest

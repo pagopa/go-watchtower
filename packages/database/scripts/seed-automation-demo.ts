@@ -1,7 +1,6 @@
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../generated/prisma/client.js";
-import pg from "pg";
 
 /**
  * Seed DEMO per la console "Runbook automatici" (NON per produzione).
@@ -12,8 +11,10 @@ import pg from "pg";
  *   CLEAN_ONLY=1 pnpm --filter @go-watchtower/database exec tsx scripts/seed-automation-demo.ts
  */
 
-const pool = new pg.Pool({ connectionString: process.env["DATABASE_URL"] });
-const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
+const connectionString = process.env["DATABASE_URL"];
+if (!connectionString) throw new Error("DATABASE_URL is required");
+
+const prisma = new PrismaClient({ adapter: new PrismaPg(connectionString) });
 
 const EID = (n: number) => `0d0e0001-0000-7000-8000-0000000000${String(n).padStart(2, "0")}`;
 const AID = (n: number) => `0d0e0a01-0000-7000-8000-0000000000${String(n).padStart(2, "0")}`;
@@ -220,5 +221,4 @@ main()
   })
   .finally(async () => {
     await prisma.$disconnect();
-    await pool.end();
   });

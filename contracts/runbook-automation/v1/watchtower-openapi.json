@@ -9385,6 +9385,7 @@
               "schema": {
                 "additionalProperties": false,
                 "properties": {
+                  "analysisDraft": {},
                   "analysisPayload": {},
                   "attemptId": {
                     "format": "uuid",
@@ -9569,6 +9570,104 @@
                   "properties": {
                     "alreadyTerminal": {
                       "type": "boolean"
+                    },
+                    "analysisApplyBlockCode": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "ALARM_UNLINKED"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "enum": [
+                            "DRAFT_TOO_LARGE"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "enum": [
+                            "MISSING_DRAFT"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "enum": [
+                            "INVALID_DRAFT"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "enum": [
+                            "TEMPORAL_INCOHERENCE"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "enum": [
+                            "UNRESOLVED_REFERENCES"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "enum": [
+                            "RESOURCE_TYPE_MISMATCH"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "enum": [
+                            "INVALID_IGNORE_DETAILS"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "enum": [
+                            "VALIDATION_ERRORS"
+                          ],
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "analysisApplyStatus": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "PENDING"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "enum": [
+                            "APPLIED"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "enum": [
+                            "BLOCKED"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "enum": [
+                            "NOT_REQUESTED"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "enum": [
+                            "PRESERVED_HUMAN"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "enum": [
+                            "NOT_APPLICABLE"
+                          ],
+                          "type": "string"
+                        }
+                      ]
                     },
                     "analysisId": {
                       "anyOf": [
@@ -9948,6 +10047,12 @@
                               "INTERNAL_INVARIANT"
                             ],
                             "type": "string"
+                          },
+                          {
+                            "enum": [
+                              "CALLBACK"
+                            ],
+                            "type": "string"
                           }
                         ]
                       },
@@ -9980,6 +10085,12 @@
                           {
                             "enum": [
                               "INTERNAL_INVARIANT"
+                            ],
+                            "type": "string"
+                          },
+                          {
+                            "enum": [
+                              "WORKER_CALLBACK_REJECTED"
                             ],
                             "type": "string"
                           }
@@ -10055,6 +10166,12 @@
                               "INTERNAL_INVARIANT"
                             ],
                             "type": "string"
+                          },
+                          {
+                            "enum": [
+                              "CALLBACK"
+                            ],
+                            "type": "string"
                           }
                         ]
                       },
@@ -10087,6 +10204,12 @@
                           {
                             "enum": [
                               "INTERNAL_INVARIANT"
+                            ],
+                            "type": "string"
+                          },
+                          {
+                            "enum": [
+                              "WORKER_CALLBACK_REJECTED"
                             ],
                             "type": "string"
                           }
@@ -22895,28 +23018,32 @@
                   "slackParserId": {
                     "anyOf": [
                       {
-                        "enum": [
-                          "amazon-q"
-                        ],
-                        "type": "string"
-                      },
-                      {
-                        "enum": [
-                          "opsgenie"
-                        ],
-                        "type": "string"
-                      },
-                      {
-                        "enum": [
-                          "email-sns"
-                        ],
-                        "type": "string"
-                      },
-                      {
-                        "enum": [
-                          "jsm"
-                        ],
-                        "type": "string"
+                        "anyOf": [
+                          {
+                            "enum": [
+                              "amazon-q"
+                            ],
+                            "type": "string"
+                          },
+                          {
+                            "enum": [
+                              "opsgenie"
+                            ],
+                            "type": "string"
+                          },
+                          {
+                            "enum": [
+                              "email-sns"
+                            ],
+                            "type": "string"
+                          },
+                          {
+                            "enum": [
+                              "jsm"
+                            ],
+                            "type": "string"
+                          }
+                        ]
                       },
                       {
                         "type": "null"

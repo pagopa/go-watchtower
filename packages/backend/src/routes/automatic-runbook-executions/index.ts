@@ -50,6 +50,7 @@ import {
   type ReviewExecutionRequest,
   type ExecutionListQuery,
   type AttemptsQuery,
+  COMPLETE_ROUTE_BODY_LIMIT_BYTES,
 } from "./schemas.js";
 import {
   startExecution,
@@ -603,6 +604,11 @@ export async function automaticRunbookExecutionRoutes(fastify: FastifyInstance):
     "/automatic-runbook-executions/:id/complete",
     {
       config: { allowCliPat: true },
+      // Tetto esplicito invece del default implicito di Fastify (§5.4): il body
+      // porta anche `analysisPayload`, che è l'intero RunbookOutput. Il worker
+      // degrada il payload prima di superarlo, così un'esecuzione non fallisce
+      // per un allegato diagnostico troppo grande.
+      bodyLimit: COMPLETE_ROUTE_BODY_LIMIT_BYTES,
       onRequest: [app.authenticate, lifecycleGuard],
       schema: {
         tags: ["Automatic Runbook Executions"],

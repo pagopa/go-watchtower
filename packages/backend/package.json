@@ -17,28 +17,30 @@
     "rescore": "tsx src/scripts/rescore-analyses.ts"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1073.0",
-    "@aws-sdk/client-sqs": "^3.1073.0",
-    "@aws-sdk/client-ssm": "^3.1073.0",
-    "@fastify/cookie": "^11.0.2",
-    "@fastify/cors": "^11.2.0",
-    "@fastify/jwt": "^10.1.0",
+    "@aws-sdk/client-s3": "^3.1105.0",
+    "@aws-sdk/client-sqs": "^3.1105.0",
+    "@aws-sdk/client-ssm": "^3.1105.0",
+    "@fastify/cookie": "^11.1.2",
+    "@fastify/cors": "^11.3.0",
+    "@fastify/jwt": "^10.2.1",
     "@fastify/oauth2": "^8.2.0",
-    "@fastify/rate-limit": "^10.3.0",
-    "@fastify/swagger": "^9.7.0",
-    "@fastify/swagger-ui": "^5.2.6",
+    "@fastify/rate-limit": "^11.2.0",
+    "@fastify/swagger": "^9.8.1",
+    "@fastify/swagger-ui": "^6.1.1",
     "@fastify/type-provider-typebox": "^6.1.0",
     "@go-watchtower/database": "workspace:*",
     "@go-watchtower/shared": "workspace:*",
-    "@sinclair/typebox": "^0.34.49",
+    "@sinclair/typebox": "^0.34.52",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
     "bcrypt": "^6.0.0",
     "dotenv": "^17.4.2",
-    "fastify": "^5.8.5",
-    "fastify-plugin": "^5.1.0"
+    "fastify": "^5.11.2",
+    "fastify-plugin": "^6.0.0"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
-    "@types/node": "^25.9.1",
+    "@types/node": "^26.1.2",
     "pino-pretty": "^13.1.3"
   }
 }

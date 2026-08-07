@@ -6,6 +6,8 @@ import {
   AUTOMATION_DISPATCH_KIND_VALUES,
   AUTOMATION_REVIEW_STATUS_VALUES,
   AUTOMATION_MODE_VALUES,
+  AUTOMATION_ANALYSIS_APPLY_STATUS_VALUES,
+  ANALYSIS_APPLY_BLOCK_CODE_VALUES,
   AUTOMATION_ATTEMPT_STATUS_VALUES,
   AUTOMATION_FAIL_ERROR_CODE_VALUES,
   AUTOMATION_FAIL_ERROR_CATEGORY_VALUES,
@@ -127,6 +129,14 @@ export const TrackingEntrySchema = Type.Object(
   { additionalProperties: false },
 );
 
+/**
+ * Tetto del body del callback `complete`, applicato dalla route.
+ *
+ * Copre draft (≤64 KiB per contratto), tracking (≤64 entry) e `analysisPayload`,
+ * che è opaco e non limitato dallo schema: il worker lo degrada prima di superarlo.
+ */
+export const COMPLETE_ROUTE_BODY_LIMIT_BYTES = 1024 * 1024;
+
 export const CompleteExecutionRequestSchema = Type.Object(
   {
     attemptId: Type.String({ format: "uuid" }),
@@ -145,6 +155,13 @@ export const CompleteExecutionRequestSchema = Type.Object(
     tracking: Type.Optional(Type.Array(TrackingEntrySchema, { maxItems: 64 })),
     // Analisi automatica strutturata (autoritativa nel ramo 3, summary nei rami 1/2).
     analysisPayload: Type.Optional(Type.Unknown()),
+    /**
+     * Draft dell'analisi (§5.4). Transport LENIENTE di proposito: `Unknown` non
+     * produce mai un 400 Fastify sul draft, così un draft malformato diventa un
+     * BLOCKED diagnosticabile invece di una tempesta di retry. La validazione
+     * semantica avviene nel materializzatore contro `analysis-draft-v1.schema.json`.
+     */
+    analysisDraft: Type.Optional(Type.Unknown()),
     resultSummary: Type.Optional(Type.Unknown()),
   },
   { additionalProperties: false },
@@ -158,6 +175,10 @@ export const CompleteExecutionResponseSchema = Type.Object({
   staleAttempt: Type.Optional(Type.Boolean()),
   appliedMode: Type.Optional(enumUnion(AUTOMATION_MODE_VALUES)),
   analysisId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  /** Esito dell'apply dell'analisi: il worker non ritenta mai su BLOCKED. */
+  analysisApplyStatus: Type.Optional(enumUnion(AUTOMATION_ANALYSIS_APPLY_STATUS_VALUES)),
+  /** Codice diagnostico sintetico, presente solo su BLOCKED. */
+  analysisApplyBlockCode: Type.Optional(enumUnion(ANALYSIS_APPLY_BLOCK_CODE_VALUES)),
 });
 export type CompleteExecutionResponse = Static<typeof CompleteExecutionResponseSchema>;
 

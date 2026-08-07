@@ -6,6 +6,7 @@
  * Output: contracts/runbook-automation/v1/
  *   ├── watchtower-openapi.json                       (route/schema runtime WT)
  *   ├── automatic-alarm-analysis-command-v1.schema.json (JSON Schema SQS)
+ *   ├── analysis-draft-v1.schema.json                  (JSON Schema draft analisi)
  *   ├── watchtower-contract-manifest.json             (manifest + sha256)
  *   └── fixtures/
  *       ├── sqs-command.valid.json
@@ -19,6 +20,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
+
 
 // Env fittizio per il boot dell'app (nessun secret reale; solo per leggere lo Swagger).
 process.env["JWT_SECRET"] ??= "contract-export-dummy-secret";
@@ -77,6 +79,17 @@ async function main(): Promise<void> {
   };
   const sqsSchemaPath = path.join(outDir, "automatic-alarm-analysis-command-v1.schema.json");
   writeJson(sqsSchemaPath, sqsSchema);
+
+  // 2b. JSON Schema semantico del draft di analisi (§5.4). Il trasporto resta
+  //     leniente: questo schema è applicato nel materializzatore e genera il
+  //     tipo worker via json2ts.
+  const { AnalysisDraftV1Schema } = await import("../services/automation/analysis-draft-schema.js");
+  const draftSchema = {
+    $schema: "http://json-schema.org/draft-07/schema#",
+    $id: "AnalysisDraftV1",
+    ...(sortKeysDeep(AnalysisDraftV1Schema) as Record<string, unknown>),
+  };
+  writeJson(path.join(outDir, "analysis-draft-v1.schema.json"), draftSchema);
 
   // 3. Fixtures.
   const validCommand = {
@@ -147,6 +160,7 @@ async function main(): Promise<void> {
   const artifactFiles = [
     "watchtower-openapi.json",
     "automatic-alarm-analysis-command-v1.schema.json",
+    "analysis-draft-v1.schema.json",
     "fixtures/sqs-command.valid.json",
     "fixtures/sqs-command.invalid-version.json",
     "fixtures/start-responses.json",
