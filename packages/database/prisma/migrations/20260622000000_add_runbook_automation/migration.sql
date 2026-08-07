@@ -18,6 +18,7 @@ CREATE TYPE "SlackAutomationDecision" AS ENUM ('EXECUTION_CREATED', 'EXECUTION_P
 CREATE TYPE "AutomationTriggerKind" AS ENUM ('SLACK_INGESTOR', 'WATCHTOWER_UI', 'WATCHTOWER_API', 'RETRY', 'WATCHTOWER_CLI');
 CREATE TYPE "AutomationDispatchKind" AS ENUM ('SQS', 'CLI');
 CREATE TYPE "AutomationReviewStatus" AS ENUM ('NOT_REQUIRED', 'PENDING', 'CONFIRMED', 'REJECTED');
+CREATE TYPE "AutomationAnalysisApplyStatus" AS ENUM ('PENDING', 'APPLIED', 'BLOCKED', 'NOT_REQUESTED', 'PRESERVED_HUMAN', 'NOT_APPLICABLE');
 CREATE TYPE "AutomationMode" AS ENUM ('SHADOW', 'APPLY_KNOWN', 'APPLY_ALL');
 CREATE TYPE "AutomationAttemptStatus" AS ENUM ('RUNNING', 'COMPLETED', 'INTERRUPTED', 'FAILED', 'CANCELLED');
 CREATE TYPE "AutomationRetryDisposition" AS ENUM ('COMPLETE_OUTCOME', 'CANCEL_EXECUTION', 'RETRY_MESSAGE', 'FAIL_EXECUTION');
@@ -170,6 +171,10 @@ CREATE TABLE "automatic_runbook_executions" (
   "reviewed_by_user_id" UUID,
   "reviewed_by_label" TEXT,
   "reviewed_at" TIMESTAMP(3),
+  "review_note" TEXT,
+  "analysis_apply_status" "AutomationAnalysisApplyStatus" NOT NULL DEFAULT 'PENDING',
+  "analysis_apply_diagnostics" JSONB,
+  "analysis_draft" JSONB,
   "cancel_requested_by_user_id" UUID,
   "cancel_requested_by_label" TEXT,
   "cancel_request_id" UUID,
@@ -273,6 +278,7 @@ CREATE INDEX "automatic_runbook_executions_status_deadline_at_idx" ON "automatic
 CREATE INDEX "automatic_runbook_executions_product_id_environment_id_crea_idx" ON "automatic_runbook_executions" ("product_id", "environment_id", "created_at" DESC);
 CREATE INDEX "automatic_runbook_executions_alarm_id_outcome_created_at_idx" ON "automatic_runbook_executions" ("alarm_id", "outcome", "created_at" DESC);
 CREATE INDEX "automatic_runbook_executions_review_status_created_at_idx" ON "automatic_runbook_executions" ("review_status", "created_at");
+CREATE INDEX "automatic_runbook_executions_apply_status_product_id_crea_idx" ON "automatic_runbook_executions" ("analysis_apply_status", "product_id", "created_at");
 CREATE INDEX "automatic_runbook_executions_analysis_id_idx" ON "automatic_runbook_executions" ("analysis_id");
 CREATE INDEX "automatic_runbook_executions_parent_execution_id_idx" ON "automatic_runbook_executions" ("parent_execution_id");
 CREATE INDEX "automatic_runbook_executions_status_dispatch_kind_idx" ON "automatic_runbook_executions" ("status", "dispatch_kind");

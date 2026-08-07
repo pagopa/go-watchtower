@@ -7,14 +7,31 @@ import type {
   ValidationIssue,
   QualityImprovement,
 } from './types.js';
+import { AUTOMATION_EXEMPT_RULE_IDS } from './automationExemptions.js';
+
+/**
+ * Regole che si applicano al subject.
+ *
+ * Le analisi automatiche saltano le regole-promemoria (§4.7); qualunque altra
+ * provenienza — inclusa l'assenza del campo — usa l'insieme completo.
+ */
+function rulesFor<T extends { id: string; appliesTo?: (a: AnalysisSubject) => boolean }>(
+  analysis: AnalysisSubject,
+  rules: T[]
+): T[] {
+  const exempt = analysis.origin === 'AUTOMATIC';
+  return rules.filter(
+    (r) =>
+      !(exempt && AUTOMATION_EXEMPT_RULE_IDS.has(r.id)) &&
+      (!r.appliesTo || r.appliesTo(analysis))
+  );
+}
 
 export function runValidation(
   analysis: AnalysisSubject,
   rules: ValidationRule[]
 ): ValidationResult {
-  const applicableRules = rules.filter(
-    (r) => !r.appliesTo || r.appliesTo(analysis)
-  );
+  const applicableRules = rulesFor(analysis, rules);
 
   const maxWeight = applicableRules.reduce((sum, r) => sum + r.weight, 0);
   const failedRules = applicableRules.filter((r) => !r.validate(analysis));
@@ -41,9 +58,7 @@ export function runQuality(
   analysis: AnalysisSubject,
   rules: QualityRule[]
 ): QualityResult {
-  const applicableRules = rules.filter(
-    (r) => !r.appliesTo || r.appliesTo(analysis)
-  );
+  const applicableRules = rulesFor(analysis, rules);
 
   const maxWeight = applicableRules.reduce((sum, r) => sum + r.weight, 0);
   const satisfiedRules = applicableRules.filter((r) => r.assess(analysis));

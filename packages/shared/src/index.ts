@@ -106,6 +106,10 @@ export {
   AUTOMATION_DISPATCH_KIND_VALUES,
   AutomationReviewStatuses,
   AUTOMATION_REVIEW_STATUS_VALUES,
+  AutomationAnalysisApplyStatuses,
+  AUTOMATION_ANALYSIS_APPLY_STATUS_VALUES,
+  AnalysisApplyBlockCodes,
+  ANALYSIS_APPLY_BLOCK_CODE_VALUES,
   AutomationModes,
   AUTOMATION_MODE_VALUES,
   AUTOMATION_DEFAULT_MODE_SETTING_KEY,
@@ -138,6 +142,8 @@ export type {
   AutomationTriggerKind,
   AutomationDispatchKind,
   AutomationReviewStatus,
+  AutomationAnalysisApplyStatus,
+  AnalysisApplyBlockCode,
   AutomationMode,
   AutomationAttemptStatus,
   AutomationRetryDisposition,
@@ -217,6 +223,12 @@ export type { ErrorResponse, MessageResponse } from "./types/api-responses.js";
 // ─── Tipi di dominio ───────────────────────────────────────────────────────────
 
 export type { AnalysisLink, TrackingEntry } from "./types/analysis.js";
+export { ANALYSIS_APPLY_DIAGNOSTICS_LIMITS } from "./types/analysis-apply-diagnostics.js";
+export type {
+  AnalysisApplyDiagnosticsV1,
+  AnalysisApplyRuleIssue,
+  AnalysisApplyUnresolvedReferences,
+} from "./types/analysis-apply-diagnostics.js";
 export type {
   IgnoreReasonFieldDef,
   IgnoreReasonDetailsSchema,
@@ -385,6 +397,7 @@ export {
   assessQuality,
   ALL_VALIDITY_RULES,
   ALL_QUALITY_RULES,
+  AUTOMATION_EXEMPT_RULE_IDS,
 } from "./validation/index.js";
 export type {
   AnalysisSubject,

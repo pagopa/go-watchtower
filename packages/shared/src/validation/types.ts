@@ -37,6 +37,14 @@ export interface AnalysisSubject {
 
   // Conteggio eventi allarme collegati (opzionale — presente quando il dato è disponibile)
   linkedEventsCount?: number
+
+  /**
+   * Provenienza dell'analisi. Opzionale di proposito: quando manca valgono TUTTE
+   * le regole, così un chiamante che non lo popola non ottiene mai esenzioni per
+   * omissione. Solo 'AUTOMATIC' attiva le esenzioni (§4.7); 'HYBRID' e 'MANUAL'
+   * tornano alle regole piene.
+   */
+  origin?: 'MANUAL' | 'AUTOMATIC' | 'HYBRID'
 }
 
 // ─── Rule types ───────────────────────────────────────────────────────────────

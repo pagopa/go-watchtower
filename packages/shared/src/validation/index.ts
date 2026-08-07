@@ -19,6 +19,8 @@ export const ALL_VALIDITY_RULES = [
 
 export const ALL_QUALITY_RULES = [...documentationRules];
 
+export { AUTOMATION_EXEMPT_RULE_IDS } from './automationExemptions.js';
+
 export function validateAnalysis(analysis: AnalysisSubject): ValidationResult {
   return runValidation(analysis, ALL_VALIDITY_RULES);
 }

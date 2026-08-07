@@ -265,6 +265,13 @@ export const AutomationFailErrorCodes = {
   RUNBOOK_CAPABILITY_MISMATCH: "RUNBOOK_CAPABILITY_MISMATCH",
   WORKER_CONFIGURATION_ERROR: "WORKER_CONFIGURATION_ERROR",
   INTERNAL_INVARIANT: "INTERNAL_INVARIANT",
+  /**
+   * Il backend ha respinto un callback del worker con un 4xx permanente (§5.3).
+   * Codice dedicato invece di riusare WORKER_CONFIGURATION_ERROR: un rifiuto lato
+   * Watchtower non è un problema di configurazione del worker e inquinerebbe
+   * metriche e diagnosi.
+   */
+  WORKER_CALLBACK_REJECTED: "WORKER_CALLBACK_REJECTED",
 } as const;
 
 export type AutomationFailErrorCode =
@@ -279,6 +286,8 @@ export const AutomationFailErrorCategories = {
   CAPABILITY: "CAPABILITY",
   WORKER_CONFIGURATION: "WORKER_CONFIGURATION",
   INTERNAL_INVARIANT: "INTERNAL_INVARIANT",
+  /** Callback worker → backend respinto in modo permanente (§5.3). */
+  CALLBACK: "CALLBACK",
 } as const;
 
 export type AutomationFailErrorCategory =
@@ -298,7 +307,51 @@ export const FAIL_ERROR_CODE_TO_CATEGORY: Readonly<
   WORKER_CONFIGURATION_ERROR:
     AutomationFailErrorCategories.WORKER_CONFIGURATION,
   INTERNAL_INVARIANT: AutomationFailErrorCategories.INTERNAL_INVARIANT,
+  WORKER_CALLBACK_REJECTED: AutomationFailErrorCategories.CALLBACK,
 };
+
+// ─── Esito dell'apply dell'analisi automatica (§5.8, §5.9) ───────────────────
+
+export const AutomationAnalysisApplyStatuses = {
+  /** Stato iniziale: ogni percorso terminale deve lasciarlo diverso da PENDING. */
+  PENDING: "PENDING",
+  APPLIED: "APPLIED",
+  BLOCKED: "BLOCKED",
+  NOT_REQUESTED: "NOT_REQUESTED",
+  PRESERVED_HUMAN: "PRESERVED_HUMAN",
+  NOT_APPLICABLE: "NOT_APPLICABLE",
+} as const;
+
+export type AutomationAnalysisApplyStatus =
+  (typeof AutomationAnalysisApplyStatuses)[keyof typeof AutomationAnalysisApplyStatuses];
+
+export const AUTOMATION_ANALYSIS_APPLY_STATUS_VALUES = Object.values(
+  AutomationAnalysisApplyStatuses,
+) as [AutomationAnalysisApplyStatus, ...AutomationAnalysisApplyStatus[]];
+
+/**
+ * Motivi di blocco dell'apply, allowlisted: mai stringhe libere.
+ *
+ * L'ordine di valutazione è quello della pipeline di materializzazione (§5.6) e
+ * `blockCode` è singolo: al primo blocco la pipeline si ferma.
+ */
+export const AnalysisApplyBlockCodes = {
+  DRAFT_TOO_LARGE: "DRAFT_TOO_LARGE",
+  MISSING_DRAFT: "MISSING_DRAFT",
+  INVALID_DRAFT: "INVALID_DRAFT",
+  TEMPORAL_INCOHERENCE: "TEMPORAL_INCOHERENCE",
+  UNRESOLVED_REFERENCES: "UNRESOLVED_REFERENCES",
+  RESOURCE_TYPE_MISMATCH: "RESOURCE_TYPE_MISMATCH",
+  INVALID_IGNORE_DETAILS: "INVALID_IGNORE_DETAILS",
+  VALIDATION_ERRORS: "VALIDATION_ERRORS",
+} as const;
+
+export type AnalysisApplyBlockCode =
+  (typeof AnalysisApplyBlockCodes)[keyof typeof AnalysisApplyBlockCodes];
+
+export const ANALYSIS_APPLY_BLOCK_CODE_VALUES = Object.values(
+  AnalysisApplyBlockCodes,
+) as [AnalysisApplyBlockCode, ...AnalysisApplyBlockCode[]];
 
 // ─── Versione canonicalizzazione completamento (§9.7, owned-by-backend) ────────
 

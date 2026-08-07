@@ -125,6 +125,17 @@ enum AutomationReviewStatus {
   REJECTED
 }
 
+/// Esito dell'apply dell'analisi automatica (§5.9): nasce PENDING, ogni
+/// percorso terminale deve lasciarlo diverso da PENDING.
+enum AutomationAnalysisApplyStatus {
+  PENDING
+  APPLIED
+  BLOCKED
+  NOT_REQUESTED
+  PRESERVED_HUMAN
+  NOT_APPLICABLE
+}
+
 enum AutomationMode {
   SHADOW
   APPLY_KNOWN
@@ -774,66 +785,70 @@ model SystemEvent {
 // ═══════════════════════════════════════════════════════════
 
 model AutomaticRunbookExecution {
-  id                      String                             @id @default(uuid(7)) @db.Uuid // = executionId: SQS MessageDeduplicationId + chiave apply-once
-  parentExecutionId       String?                            @map("parent_execution_id") @db.Uuid
-  requestKey              String?                            @unique @map("request_key") // idempotenza CREAZIONE iniziale: "SLACK:<alarmEventId>"; null per manuale/re-launch
-  alarmEventId            String                             @map("alarm_event_id") @db.Uuid
-  analysisId              String?                            @map("analysis_id") @db.Uuid
-  productId               String                             @map("product_id") @db.Uuid
-  environmentId           String                             @map("environment_id") @db.Uuid
-  alarmId                 String?                            @map("alarm_id") @db.Uuid
-  status                  AutomationExecutionStatus
-  outcome                 AutomationExecutionOutcome?
-  reviewStatus            AutomationReviewStatus             @default(NOT_REQUIRED) @map("review_status")
-  reviewedByUserId        String?                            @map("reviewed_by_user_id") @db.Uuid
-  reviewedByLabel         String?                            @map("reviewed_by_label")
-  reviewedAt              DateTime?                          @map("reviewed_at")
-  cancelRequestedByUserId String?                            @map("cancel_requested_by_user_id") @db.Uuid
-  cancelRequestedByLabel  String?                            @map("cancel_requested_by_label")
-  cancelRequestId         String?                            @unique @map("cancel_request_id") @db.Uuid
-  cancelReason            String?                            @map("cancel_reason") @db.VarChar(500)
-  cancelRequestedAt       DateTime?                          @map("cancel_requested_at")
-  cancelledAt             DateTime?                          @map("cancelled_at")
-  cancellationFinalizedBy AutomationCancellationFinalizedBy? @map("cancellation_finalized_by")
-  triggerKind             AutomationTriggerKind              @map("trigger_kind")
-  dispatchKind            AutomationDispatchKind             @default(SQS) @map("dispatch_kind")
-  triggeredByUserId       String?                            @map("triggered_by_user_id") @db.Uuid
-  triggeredByLabel        String?                            @map("triggered_by_label")
-  appliedMode             AutomationMode                     @map("applied_mode")
-  requestedRunbookKey     String                             @map("requested_runbook_key")
-  requestedRunbookVersion String                             @map("requested_runbook_version")
-  requestedRunbookDigest  String                             @map("requested_runbook_digest")
-  catalogRevision         String                             @map("catalog_revision")
-  workerRevision          String                             @map("worker_revision")
-  executedRunbookKey      String?                            @map("executed_runbook_key")
-  executedRunbookVersion  String?                            @map("executed_runbook_version")
-  executedRunbookDigest   String?                            @map("executed_runbook_digest")
-  engineExecutionId       String?                            @map("engine_execution_id")
-  inputSnapshot           Json                               @map("input_snapshot")
-  resultSummary           Json?                              @map("result_summary")
-  analysisPayload         Json?                              @map("analysis_payload")
-  errorCode               String?                            @map("error_code")
-  errorMessage            String?                            @map("error_message")
-  failedStepId            String?                            @map("failed_step_id")
-  queryCount              Int?                               @map("query_count")
-  bytesScanned            BigInt?                            @map("bytes_scanned")
-  recordsScanned          BigInt?                            @map("records_scanned")
-  recordsMatched          BigInt?                            @map("records_matched")
-  dispatchAttempts        Int                                @default(0) @map("dispatch_attempts")
-  totalWorkerAttempts     Int                                @default(0) @map("total_worker_attempts")
-  deliveryCycle           Int                                @default(1) @map("delivery_cycle")
-  cycleReceiveCount       Int                                @default(0) @map("cycle_receive_count")
-  sqsMessageId            String?                            @map("sqs_message_id")
-  queuedAt                DateTime?                          @map("queued_at")
-  startedAt               DateTime?                          @map("started_at")
-  lastHeartbeatAt         DateTime?                          @map("last_heartbeat_at")
-  activeAttemptId         String?                            @unique @map("active_attempt_id") @db.Uuid
-  workerDeadlineAt        DateTime?                          @map("worker_deadline_at")
-  deadlineAt              DateTime                           @map("deadline_at")
-  completedAt             DateTime?                          @map("completed_at")
-  durationMs              Int?                               @map("duration_ms")
-  createdAt               DateTime                           @default(now()) @map("created_at")
-  updatedAt               DateTime                           @updatedAt @map("updated_at")
+  id                       String                             @id @default(uuid(7)) @db.Uuid // = executionId: SQS MessageDeduplicationId + chiave apply-once
+  parentExecutionId        String?                            @map("parent_execution_id") @db.Uuid
+  requestKey               String?                            @unique @map("request_key") // idempotenza CREAZIONE iniziale: "SLACK:<alarmEventId>"; null per manuale/re-launch
+  alarmEventId             String                             @map("alarm_event_id") @db.Uuid
+  analysisId               String?                            @map("analysis_id") @db.Uuid
+  productId                String                             @map("product_id") @db.Uuid
+  environmentId            String                             @map("environment_id") @db.Uuid
+  alarmId                  String?                            @map("alarm_id") @db.Uuid
+  status                   AutomationExecutionStatus
+  outcome                  AutomationExecutionOutcome?
+  reviewStatus             AutomationReviewStatus             @default(NOT_REQUIRED) @map("review_status")
+  reviewedByUserId         String?                            @map("reviewed_by_user_id") @db.Uuid
+  reviewedByLabel          String?                            @map("reviewed_by_label")
+  reviewedAt               DateTime?                          @map("reviewed_at")
+  reviewNote               String?                            @map("review_note")
+  analysisApplyStatus      AutomationAnalysisApplyStatus      @default(PENDING) @map("analysis_apply_status")
+  analysisApplyDiagnostics Json?                              @map("analysis_apply_diagnostics")
+  analysisDraft            Json?                              @map("analysis_draft")
+  cancelRequestedByUserId  String?                            @map("cancel_requested_by_user_id") @db.Uuid
+  cancelRequestedByLabel   String?                            @map("cancel_requested_by_label")
+  cancelRequestId          String?                            @unique @map("cancel_request_id") @db.Uuid
+  cancelReason             String?                            @map("cancel_reason") @db.VarChar(500)
+  cancelRequestedAt        DateTime?                          @map("cancel_requested_at")
+  cancelledAt              DateTime?                          @map("cancelled_at")
+  cancellationFinalizedBy  AutomationCancellationFinalizedBy? @map("cancellation_finalized_by")
+  triggerKind              AutomationTriggerKind              @map("trigger_kind")
+  dispatchKind             AutomationDispatchKind             @default(SQS) @map("dispatch_kind")
+  triggeredByUserId        String?                            @map("triggered_by_user_id") @db.Uuid
+  triggeredByLabel         String?                            @map("triggered_by_label")
+  appliedMode              AutomationMode                     @map("applied_mode")
+  requestedRunbookKey      String                             @map("requested_runbook_key")
+  requestedRunbookVersion  String                             @map("requested_runbook_version")
+  requestedRunbookDigest   String                             @map("requested_runbook_digest")
+  catalogRevision          String                             @map("catalog_revision")
+  workerRevision           String                             @map("worker_revision")
+  executedRunbookKey       String?                            @map("executed_runbook_key")
+  executedRunbookVersion   String?                            @map("executed_runbook_version")
+  executedRunbookDigest    String?                            @map("executed_runbook_digest")
+  engineExecutionId        String?                            @map("engine_execution_id")
+  inputSnapshot            Json                               @map("input_snapshot")
+  resultSummary            Json?                              @map("result_summary")
+  analysisPayload          Json?                              @map("analysis_payload")
+  errorCode                String?                            @map("error_code")
+  errorMessage             String?                            @map("error_message")
+  failedStepId             String?                            @map("failed_step_id")
+  queryCount               Int?                               @map("query_count")
+  bytesScanned             BigInt?                            @map("bytes_scanned")
+  recordsScanned           BigInt?                            @map("records_scanned")
+  recordsMatched           BigInt?                            @map("records_matched")
+  dispatchAttempts         Int                                @default(0) @map("dispatch_attempts")
+  totalWorkerAttempts      Int                                @default(0) @map("total_worker_attempts")
+  deliveryCycle            Int                                @default(1) @map("delivery_cycle")
+  cycleReceiveCount        Int                                @default(0) @map("cycle_receive_count")
+  sqsMessageId             String?                            @map("sqs_message_id")
+  queuedAt                 DateTime?                          @map("queued_at")
+  startedAt                DateTime?                          @map("started_at")
+  lastHeartbeatAt          DateTime?                          @map("last_heartbeat_at")
+  activeAttemptId          String?                            @unique @map("active_attempt_id") @db.Uuid
+  workerDeadlineAt         DateTime?                          @map("worker_deadline_at")
+  deadlineAt               DateTime                           @map("deadline_at")
+  completedAt              DateTime?                          @map("completed_at")
+  durationMs               Int?                               @map("duration_ms")
+  createdAt                DateTime                           @default(now()) @map("created_at")
+  updatedAt                DateTime                           @updatedAt @map("updated_at")
 
   parent            AutomaticRunbookExecution?  @relation("ExecutionChain", fields: [parentExecutionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   children          AutomaticRunbookExecution[] @relation("ExecutionChain")
@@ -854,6 +869,7 @@ model AutomaticRunbookExecution {
   @@index([productId, environmentId, createdAt(sort: Desc)])
   @@index([alarmId, outcome, createdAt(sort: Desc)])
   @@index([reviewStatus, createdAt])
+  @@index([analysisApplyStatus, productId, createdAt])
   @@index([analysisId])
   @@index([parentExecutionId])
   @@index([status, dispatchKind])
