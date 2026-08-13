@@ -210,6 +210,15 @@ export const UpdateAlarmAnalysisBodySchema = Type.Object({
   downstreamIds: Type.Optional(Type.Array(Type.String({ format: "uuid" }))),
   links: Type.Optional(Type.Array(LinkSchema)),
   trackingIds: Type.Optional(Type.Array(TrackingEntrySchema)),
+  // Concorrenza ottimistica: la `lastAppliedExecutionId` che il client aveva
+  // sotto gli occhi quando ha composto la modifica. Modificare un'analisi con
+  // una proposta automatica pendente **la conferma** (§4.8.3), quindi senza
+  // questo token una conferma potrebbe finire su una versione riapplicata nel
+  // frattempo e mai vista dall'operatore. `null` dichiara "nessuna proposta
+  // applicata"; se il valore non combacia più, la rotta risponde 409.
+  expectedLastAppliedExecutionId: Type.Optional(
+    Type.Union([Type.String({ format: "uuid" }), Type.Null()]),
+  ),
 });
 
 export type UpdateAlarmAnalysisBody = Static<typeof UpdateAlarmAnalysisBodySchema>;

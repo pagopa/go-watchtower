@@ -531,17 +531,17 @@ function ValueDisplay({ setting }: { setting: SystemSetting }) {
 // Per queste chiavi il valore non si digita: si sceglie da un menu a tendina, così
 // non è possibile salvare un valore non valido (che il backend ignorerebbe).
 const ENUM_SETTING_OPTIONS: Record<string, readonly { value: string; label: string }[]> = {
+  // APPLY_ALL è chiuso a ogni ingresso in v1 (§4.5): il backend rifiuta il
+  // salvataggio, quindi non va offerto in nessuno dei due menu.
   'automation.defaultMode': [
     { value: 'SHADOW', label: 'Shadow (solo osservazione)' },
     { value: 'APPLY_KNOWN', label: 'Apply known (solo casi noti)' },
-    { value: 'APPLY_ALL', label: 'Apply all (sempre)' },
   ],
   // Override globale (kill-switch): "" = disattivato.
   'automation.modeOverride': [
     { value: '', label: 'Nessuno (override disattivato)' },
     { value: 'SHADOW', label: 'Shadow — ferma: solo osservazione' },
     { value: 'APPLY_KNOWN', label: 'Apply known — forza solo casi noti' },
-    { value: 'APPLY_ALL', label: 'Apply all — forza sempre' },
   ],
 }
 

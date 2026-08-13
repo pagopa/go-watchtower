@@ -91,6 +91,7 @@ export function UnlinkAlarmEventDialog({
       if (canDecrement && decrementOccurrences) {
         await api.updateAnalysis(analysis.productId, analysis.id, {
           occurrences: analysis.occurrences - 1,
+          expectedLastAppliedExecutionId: analysis.lastAppliedExecutionId ?? null,
         })
       }
     },

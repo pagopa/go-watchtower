@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import type { SlackIngestorControl } from "@go-watchtower/shared";
 import {
   DEFAULT_SLACK_INGESTOR_CONTROL,
   evaluateScope,
@@ -17,6 +18,8 @@ const runbook: RunbookDescriptor = {
   key: "send-apigw",
   version: "1.0.0",
   name: "SEND API Gateway",
+  description: "Analizza gli errori dell'API Gateway SEND",
+  team: "GO",
   definitionDigest: "sha256:abc",
   alarmNames: ["send-api-errors"],
   kind: "APIGW",
@@ -37,7 +40,7 @@ const context: ScopeContext = {
 };
 
 test("first matching rule wins and dimensions compose with AND", () => {
-  const control = {
+  const control: SlackIngestorControl = {
     ...DEFAULT_SLACK_INGESTOR_CONTROL,
     executionPolicy: "AVAILABLE_ONLY" as const,
     defaultRuleEffect: "DENY" as const,

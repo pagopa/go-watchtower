@@ -2,6 +2,8 @@ import { prisma, Prisma, markQueued } from "@go-watchtower/database";
 import {
   AutomationExecutionStatuses as ES,
   AutomationAttemptStatuses as ATS,
+  AutomationAnalysisApplyStatuses as AAS,
+  TERMINAL_EXECUTION_STATUSES,
   AutomationSystemErrorCodes as ERR,
   AutomationDispatchKinds,
   AutomationLifecycleBudgets,
@@ -40,6 +42,8 @@ export interface ReconcilerTickResult {
   readonly heartbeatStaleAlerts: number;
   readonly terminalized: number;
   readonly finalizedCancellations: number;
+  /** Terminali trovati con apply status `PENDING` e riportati a `NOT_APPLICABLE` (§5.9). */
+  readonly applyStatusRepaired: number;
 }
 
 /** Dipendenze opzionali per il re-dispatch dei PENDING_DISPATCH (Flow 1/2 outbox). */
@@ -98,6 +102,7 @@ async function reapStaleRunning(
             activeAttemptId: null,
             workerDeadlineAt: null,
             completedAt: now,
+            analysisApplyStatus: AAS.NOT_APPLICABLE,
           },
         });
         await auditSystem(tx, SystemEventActions.AUTOMATION_EXECUTION_FAILED, id, { reason: ERR.LOCAL_RUN_TIMED_OUT });
@@ -161,6 +166,7 @@ async function runSafetyNet(now: Date, maxReceiveCount: number, batchSize: numbe
           activeAttemptId: null,
           workerDeadlineAt: null,
           completedAt: now,
+          analysisApplyStatus: AAS.NOT_APPLICABLE,
         },
       });
       await auditSystem(tx, SystemEventActions.AUTOMATION_EXECUTION_FAILED, id, { reason: decision.errorCode });
@@ -201,6 +207,7 @@ async function runFinalizer(now: Date, marginMs: number, batchSize: number): Pro
           cancelledAt: now,
           completedAt: now,
           cancellationFinalizedBy: "SYSTEM",
+          analysisApplyStatus: AAS.NOT_APPLICABLE,
         },
       });
       await auditSystem(tx, SystemEventActions.AUTOMATION_EXECUTION_CANCELLED, id, { finalizedBy: "SYSTEM" });
@@ -297,6 +304,7 @@ async function terminalizeCapabilityWithdrawn(id: string, now: Date): Promise<vo
       outcome: AutomationExecutionOutcomes.CAPABILITY_WITHDRAWN,
       errorCode: "CAPABILITY_WITHDRAWN",
       completedAt: now,
+      analysisApplyStatus: AAS.NOT_APPLICABLE,
     },
   });
   if (res.count === 1) {
@@ -319,7 +327,7 @@ async function terminalizePendingDispatch(
 ): Promise<void> {
   const res = await prisma.automaticRunbookExecution.updateMany({
     where: { id, status: ES.PENDING_DISPATCH },
-    data: { status: ES.FAILED, errorCode, completedAt: now },
+    data: { status: ES.FAILED, errorCode, completedAt: now, analysisApplyStatus: AAS.NOT_APPLICABLE },
   });
   if (res.count === 1) {
     await prisma.systemEvent.create({
@@ -335,6 +343,48 @@ async function terminalizePendingDispatch(
 }
 
 /** Esegue un tick completo del reconciler (es. ogni minuto). */
+/**
+ * Assert/repair dell'invariante «terminale ⇒ `analysis_apply_status ≠ PENDING`» (§5.9).
+ *
+ * I terminal writer impostano il campo esplicitamente, ma la colonna nasce
+ * `PENDING` e una riga scritta da un percorso non ancora allineato resterebbe a
+ * dichiarare per sempre un apply in sospeso che nessuno deciderà. Qui la si
+ * corregge a `NOT_APPLICABLE` lasciando traccia: il SystemEvent è il segnale che
+ * *esiste* un writer da correggere, non un'operazione di routine attesa.
+ *
+ * @param batchSize - Tetto di righe riparate per tick
+ * @returns Numero di esecuzioni riparate
+ */
+async function repairTerminalApplyStatus(batchSize: number): Promise<number> {
+  const violations = await prisma.automaticRunbookExecution.findMany({
+    where: {
+      status: { in: [...TERMINAL_EXECUTION_STATUSES] },
+      analysisApplyStatus: AAS.PENDING,
+    },
+    select: { id: true, status: true, outcome: true },
+    take: batchSize,
+  });
+  if (violations.length === 0) return 0;
+
+  let repaired = 0;
+  for (const violation of violations) {
+    await prisma.$transaction(async (tx) => {
+      const res = await tx.automaticRunbookExecution.updateMany({
+        where: { id: violation.id, analysisApplyStatus: AAS.PENDING },
+        data: { analysisApplyStatus: AAS.NOT_APPLICABLE },
+      });
+      if (res.count === 0) return;
+      repaired += 1;
+      await auditSystem(tx, SystemEventActions.AUTOMATION_APPLY_STATUS_REPAIRED, violation.id, {
+        reason: "TERMINAL_APPLY_STATUS_PENDING",
+        executionStatus: violation.status,
+        outcome: violation.outcome,
+      });
+    });
+  }
+  return repaired;
+}
+
 export async function runReconcilerTick(
   config: ReconcilerConfig = {},
   deps?: DispatchDeps,
@@ -352,6 +402,8 @@ export async function runReconcilerTick(
   const reap = await reapStaleRunning(now, marginMs, heartbeatStaleThresholdMs, batchSize);
   const terminalized = await runSafetyNet(now, maxReceiveCount, batchSize);
   const finalizedCancellations = await runFinalizer(now, marginMs, batchSize);
+  // Dopo i terminalizzatori: ripara ciò che loro non hanno impostato.
+  const applyStatusRepaired = await repairTerminalApplyStatus(batchSize);
 
   return {
     dispatched,
@@ -359,7 +411,8 @@ export async function runReconcilerTick(
     heartbeatStaleAlerts: reap.heartbeatStaleAlerts,
     terminalized,
     finalizedCancellations,
+    applyStatusRepaired,
   };
 }
 
-export { reapStaleRunning, runSafetyNet, runFinalizer, dispatchPendingExecutions };
+export { reapStaleRunning, runSafetyNet, runFinalizer, dispatchPendingExecutions, repairTerminalApplyStatus };

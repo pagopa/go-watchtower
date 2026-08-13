@@ -120,12 +120,18 @@ export type CreateAlarmEventBody = Static<typeof CreateAlarmEventBodySchema>;
 
 // ─── Update ───────────────────────────────────────────────────────────────────
 
-// firedAt, name, awsRegion, awsAccountId sono immutabili (dati originali AWS)
+// firedAt, name, awsRegion, awsAccountId sono immutabili (dati originali AWS).
+//
+// `analysisId` NON è aggiornabile da qui: l'associazione a un'analisi passa solo
+// da `PATCH /alarm-events/:id/link-analysis`, l'unico punto che applica gli
+// invarianti di lifecycle (analisi `AUTOMATIC` non collegabili a mano §9.10,
+// coerenza di prodotto, timestamp `linkedAt`/`resolvedAt`). Accettarlo qui
+// significherebbe permettere la stessa associazione con il solo permesso
+// `ALARM_EVENT:write` e senza nessuno di quei controlli.
 export const UpdateAlarmEventBodySchema = Type.Object({
   description: Type.Optional(Type.Union([Type.String({ maxLength: 5000 }), Type.Null()])),
   reason:      Type.Optional(Type.Union([Type.String({ maxLength: 2000 }), Type.Null()])),
   alarmId:     Type.Optional(Type.Union([Type.String({ format: "uuid" }), Type.Null()])),
-  analysisId:  Type.Optional(Type.Union([Type.String({ format: "uuid" }), Type.Null()])),
   linkedAt:    Type.Optional(Type.Union([Type.String({ format: "date-time" }), Type.Null()])),
   resolvedAt:  Type.Optional(Type.Union([Type.String({ format: "date-time" }), Type.Null()])),
 });

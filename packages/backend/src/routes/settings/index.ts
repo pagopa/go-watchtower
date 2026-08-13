@@ -20,6 +20,25 @@ type FormatValidator = (value: unknown) => string | null | Promise<string | null
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Chiavi che governano il modo di rollout dell'automazione. */
+const AUTOMATION_MODE_SETTING_KEYS = new Set(["automation.defaultMode", "automation.modeOverride"]);
+
+/**
+ * Rifiuta esplicitamente un modo non lanciabile sulle setting dell'automazione.
+ *
+ * @param key - Chiave della setting in aggiornamento
+ * @param value - Valore proposto
+ * @returns Il messaggio d'errore, oppure `null` se il valore è ammesso
+ */
+function validateAutomationModeSetting(key: string, value: unknown): string | null {
+  if (!AUTOMATION_MODE_SETTING_KEYS.has(key)) return null;
+  if (typeof value !== "string") return null;
+  if (value === "APPLY_ALL") {
+    return `APPLY_ALL non è disponibile in v1: '${key}' accetta SHADOW o APPLY_KNOWN`;
+  }
+  return null;
+}
+
 const FORMAT_VALIDATORS: Record<string, FormatValidator> = {
   WORKING_HOURS: (value) => {
     const v = value as { timezone?: unknown; start?: unknown; end?: unknown; days?: unknown };
@@ -224,6 +243,12 @@ export async function settingRoutes(app: FastifyInstance): Promise<void> {
         const formatError = await (FORMAT_VALIDATORS[existing.format]?.(value) ?? null);
         if (formatError) return HttpError.badRequest(reply, formatError);
       }
+
+      // `APPLY_ALL` non è raggiungibile in v1 (§4.5): il valore resta nell'enum
+      // per l'evoluzione futura del contratto bozza, ma non deve poter essere
+      // configurato — un modo residuo produrrebbe apply non previsti.
+      const modeError = validateAutomationModeSetting(existing.key, value);
+      if (modeError) return HttpError.badRequest(reply, modeError);
 
       const updated = await prisma.systemSetting.update({
         where: { key: request.params.key },

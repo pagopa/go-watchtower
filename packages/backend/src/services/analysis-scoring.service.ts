@@ -1,63 +1,27 @@
 import type { PrismaClient } from "@go-watchtower/database";
-import { validateAnalysis, assessQuality, type AnalysisSubject, type TrackingEntry } from "@go-watchtower/shared";
+import { validateAnalysis, assessQuality } from "@go-watchtower/shared";
+
+import { buildScoringSubject } from "./automation/analysis-scoring-subject.js";
 
 type TransactionClient = Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends">;
 type ScoringClient = PrismaClient | TransactionClient;
 
-async function fetchSubjectForScoring(
-  id: string,
-  prisma: ScoringClient
-): Promise<AnalysisSubject> {
-  const a = await prisma.alarmAnalysis.findUniqueOrThrow({
-    where: { id },
-    select: {
-      analysisDate:     true,
-      firstAlarmAt:     true,
-      lastAlarmAt:      true,
-      occurrences:      true,
-      isOnCall:         true,
-      analysisType:     true,
-      ignoreReasonCode: true,
-      errorDetails:     true,
-      conclusionNotes:  true,
-      runbook:          { select: { id: true } },
-      finalActions:     { include: { finalAction: { select: { id: true, name: true } } } },
-      resources:        { include: { resource: { select: { id: true } } } },
-      downstreams:      { include: { downstream: { select: { id: true } } } },
-      links:            true,
-      trackingIds:      true,
-      _count:           { select: { alarmEvents: true } },
-    },
-  });
-
-  return {
-    analysisDate:     a.analysisDate.toISOString(),
-    firstAlarmAt:     a.firstAlarmAt.toISOString(),
-    lastAlarmAt:      a.lastAlarmAt.toISOString(),
-    occurrences:      a.occurrences,
-    isOnCall:         a.isOnCall,
-    analysisType:     a.analysisType as 'ANALYZABLE' | 'IGNORABLE',
-    ignoreReasonCode: a.ignoreReasonCode,
-    errorDetails:     a.errorDetails,
-    conclusionNotes:  a.conclusionNotes,
-    runbook:          a.runbook ? { id: a.runbook.id } : null,
-    finalActions:     a.finalActions.map((af) => ({ id: af.finalAction.id, name: af.finalAction.name })),
-    resources:        a.resources.map((ar) => ({ id: ar.resource.id })),
-    downstreams:      a.downstreams.map((ad) => ({ id: ad.downstream.id })),
-    links:            (a.links as unknown as { url: string }[]),
-    trackingIds:      (a.trackingIds as unknown as TrackingEntry[]),
-    linkedEventsCount: a._count.alarmEvents,
-  };
-}
-
-export async function scoreAnalysis(
-  id: string,
-  prisma: ScoringClient
-): Promise<void> {
-  const subject = await fetchSubjectForScoring(id, prisma);
+/**
+ * Ricalcola e persiste gli score di un'analisi.
+ *
+ * Il subject arriva da `buildScoringSubject`, la stessa funzione usata dall'apply
+ * e dalla review: include `origin`, quindi le esenzioni delle analisi automatiche
+ * (§4.7) valgono identiche qui, e un rescore non può divergere dal punteggio
+ * calcolato al momento dell'apply.
+ *
+ * @param id - Analisi da valutare
+ * @param prisma - Client Prisma o di transazione
+ */
+export async function scoreAnalysis(id: string, prisma: ScoringClient): Promise<void> {
+  const subject = await buildScoringSubject(prisma as never, id);
 
   const { score: validationScore } = validateAnalysis(subject);
-  const { score: qualityScore }    = assessQuality(subject);
+  const { score: qualityScore } = assessQuality(subject);
 
   await prisma.alarmAnalysis.update({
     where: { id },

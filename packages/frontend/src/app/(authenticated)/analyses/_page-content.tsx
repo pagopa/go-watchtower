@@ -828,7 +828,13 @@ function AnalysesPageContent() {
       updateMutation.mutate({
         productId: targetProductId,
         id: editItem.id,
-        data: payload,
+        data: {
+          ...payload,
+          // Proposta automatica che l'operatore aveva davanti al momento
+          // dell'apertura: salvare la conferma, quindi il backend rifiuta con
+          // 409 se un re-apply l'ha sostituita nel frattempo.
+          expectedLastAppliedExecutionId: editItem.lastAppliedExecutionId ?? null,
+        },
       });
     } else {
       createMutation.mutate({ ...payload, productId: targetProductId });

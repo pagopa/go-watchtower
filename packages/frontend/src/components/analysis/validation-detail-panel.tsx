@@ -7,6 +7,7 @@ import {
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { useAnalysisScores } from '@/hooks/use-analysis-scores'
+import { ScoreProfileBadge } from './score-profile-badge'
 import type { AlarmAnalysis } from '@/lib/api-client'
 
 interface ValidationDetailPanelProps {
@@ -151,25 +152,28 @@ export function ValidationDetailPanel({
 
             {/* ── Score summary row ── */}
             {validation && quality && (
-              <div className="flex gap-3">
-                <ScoreCard
-                  label="Integrità"
-                  value={`${Math.round(validation.score)}%`}
-                  colorClass={validityColorClass(validation.score)}
-                  progressPct={Math.round(validation.score)}
-                  subtitle={
-                    validation.issues.length > 0
-                      ? `${validation.errors.length}e ${validation.warnings.length}w`
-                      : undefined
-                  }
-                />
-                <ScoreCard
-                  label="Qualità"
-                  value={`${quality.score}/10`}
-                  colorClass={qualityColorClass(quality.score)}
-                  progressPct={Math.round((quality.score / 10) * 100)}
-                  subtitle={`${quality.satisfiedCount}/${quality.totalApplicable} criteri`}
-                />
+              <div className="space-y-2">
+                <ScoreProfileBadge origin={analysis.origin} />
+                <div className="flex gap-3">
+                  <ScoreCard
+                    label="Integrità"
+                    value={`${Math.round(validation.score)}%`}
+                    colorClass={validityColorClass(validation.score)}
+                    progressPct={Math.round(validation.score)}
+                    subtitle={
+                      validation.issues.length > 0
+                        ? `${validation.errors.length}e ${validation.warnings.length}w`
+                        : undefined
+                    }
+                  />
+                  <ScoreCard
+                    label="Qualità"
+                    value={`${quality.score}/10`}
+                    colorClass={qualityColorClass(quality.score)}
+                    progressPct={Math.round((quality.score / 10) * 100)}
+                    subtitle={`${quality.satisfiedCount}/${quality.totalApplicable} criteri`}
+                  />
+                </div>
               </div>
             )}
 

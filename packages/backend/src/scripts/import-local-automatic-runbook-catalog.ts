@@ -29,6 +29,10 @@ async function main(): Promise<void> {
     JSON.stringify(
       {
         status: "IMPORTED",
+        // Su quale database: `DATABASE_URL` in shell vince sul .env (dotenv non
+        // sovrascrive), quindi «importato» senza dire *dove* è un'informazione
+        // che sembra completa e non lo è.
+        database: describeDatabase(process.env["DATABASE_URL"]),
         file: options.file,
         environment: prepared.catalog.environment,
         revision: prepared.catalog.revision,
@@ -40,6 +44,17 @@ async function main(): Promise<void> {
       2,
     ),
   );
+}
+
+/** Host e nome del database, senza credenziali. */
+function describeDatabase(url: string | undefined): string {
+  if (url === undefined || url === "") return "<DATABASE_URL non impostata>";
+  try {
+    const parsed = new URL(url);
+    return `${parsed.host}${parsed.pathname}`;
+  } catch {
+    return "<DATABASE_URL non interpretabile>";
+  }
 }
 
 main()

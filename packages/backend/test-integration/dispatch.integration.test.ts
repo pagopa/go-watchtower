@@ -16,6 +16,7 @@ import {
   type SsmParameterReader,
 } from "../src/services/automation/queue-registry.js";
 import type { SqsSender } from "../src/services/automation/dispatcher.js";
+import { registerCapabilityCatalogFor } from "./helpers/capability-catalog.js";
 
 let productId: string;
 let environmentId: string;
@@ -32,7 +33,9 @@ before(async () => {
   const suffix = crypto.randomUUID().slice(0, 8);
   productId = (await prisma.product.create({ data: { name: `dtest-${suffix}` } })).id;
   environmentId = (await prisma.environment.create({ data: { name: `env-${suffix}`, productId } })).id;
-  alarmId = (await prisma.alarm.create({ data: { name: `alarm-${suffix}`, productId } })).id;
+  const alarmName = `alarm-${suffix}`;
+  alarmId = (await prisma.alarm.create({ data: { name: alarmName, productId } })).id;
+  await registerCapabilityCatalogFor([alarmName]);
 });
 
 after(async () => {

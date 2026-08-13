@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
-import { StatusBadge, OutcomeBadge, ReviewBadge, TRIGGER_LABELS, DISPATCH_LABELS, STATUS_ACCENT } from './_components/badges'
+import { StatusBadge, OutcomeBadge, ReviewBadge, TRIGGER_LABELS, DISPATCH_LABELS, STATUS_ACCENT, ApplyStatusBadge} from './_components/badges'
 import { ExecutionDetailPanel } from './_components/execution-detail-panel'
 import { ExecuteRunbookPicker } from './_components/execute-runbook-picker'
 import { GlobalOverrideBanner } from './_components/global-override-banner'
@@ -29,6 +29,10 @@ const OUTCOME_OPTIONS = [
 const REVIEW_OPTIONS = [
   ['NOT_REQUIRED', 'Non richiesta'], ['PENDING', 'Da revisionare'], ['CONFIRMED', 'Confermata'], ['REJECTED', 'Rifiutata'],
 ] as const
+const APPLY_OPTIONS = [
+  ['APPLIED', 'Materializzata'], ['BLOCKED', 'Bloccata'], ['NOT_REQUESTED', 'Non richiesta'],
+  ['PRESERVED_HUMAN', 'Analisi umana'], ['NOT_APPLICABLE', 'Non applicabile'],
+] as const
 const TRIGGER_OPTIONS = [
   ['SLACK_INGESTOR', 'Slack'], ['WATCHTOWER_UI', 'UI'], ['WATCHTOWER_API', 'API'], ['WATCHTOWER_CLI', 'CLI'], ['RETRY', 'Retry'],
 ] as const
@@ -44,16 +48,25 @@ function relTime(iso: string): string {
 }
 
 function StatCard({
-  label, value, icon: Icon, accent, attention,
+  label, value, icon: Icon, accent, attention, onClick, active,
 }: {
   label: string
   value: number | undefined
   icon: React.ElementType
   accent: string
   attention?: boolean
+  /** Rende la card una scorciatoia verso la coda corrispondente. */
+  onClick?: () => void
+  active?: boolean
 }) {
+  const interactive = onClick !== undefined
   return (
-    <div className={`relative overflow-hidden rounded-lg border border-l-[3px] bg-card p-4 ${accent} ${attention && value ? 'ring-1 ring-amber-400/40' : ''}`}>
+    <div
+      role={interactive ? 'button' : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={interactive ? (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onClick?.() } } : undefined}
+      className={`relative overflow-hidden rounded-lg border border-l-[3px] bg-card p-4 ${accent} ${attention && value ? 'ring-1 ring-amber-400/40' : ''} ${interactive ? 'cursor-pointer transition-colors hover:bg-accent/40' : ''} ${active ? 'ring-2 ring-primary/50' : ''}`}>
       <div className="flex items-start justify-between">
         <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{label}</span>
         <Icon className="h-4 w-4 text-muted-foreground/60" />
@@ -91,6 +104,7 @@ export function AutomaticRunbooksPageContent() {
   const [outcome, setOutcome] = useState(ALL)
   const [reviewStatus, setReviewStatus] = useState(ALL)
   const [triggerKind, setTriggerKind] = useState(ALL)
+  const [analysisApplyStatus, setAnalysisApplyStatus] = useState(ALL)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
 
@@ -106,6 +120,9 @@ export function AutomaticRunbooksPageContent() {
     ...(status !== ALL ? { status: status as AutomaticExecutionListParams['status'] } : {}),
     ...(outcome !== ALL ? { outcome: outcome as AutomaticExecutionListParams['outcome'] } : {}),
     ...(reviewStatus !== ALL ? { reviewStatus: reviewStatus as AutomaticExecutionListParams['reviewStatus'] } : {}),
+    ...(analysisApplyStatus !== ALL
+      ? { analysisApplyStatus: analysisApplyStatus as AutomaticExecutionListParams['analysisApplyStatus'] }
+      : {}),
     ...(triggerKind !== ALL ? { triggerKind: triggerKind as AutomaticExecutionListParams['triggerKind'] } : {}),
   }
 
@@ -121,7 +138,15 @@ export function AutomaticRunbooksPageContent() {
   const totalPages = listQuery.data?.totalPages ?? 1
   const total = listQuery.data?.total ?? 0
   const resetPageAnd = (fn: (v: string) => void) => (v: string) => { setPage(1); fn(v) }
-  const activeFilters = [status, outcome, reviewStatus, triggerKind].filter((v) => v !== ALL).length
+  const activeFilters = [status, outcome, reviewStatus, triggerKind, analysisApplyStatus].filter((v) => v !== ALL).length
+
+  // Le due code del §5.10 sono distinte: `Review` chiede una decisione umana su
+  // una proposta materializzata, `Remediation` chiede di correggere una
+  // configurazione. Non vanno mai mescolate in un unico elenco.
+  const showReviewQueue = () => { setPage(1); setAnalysisApplyStatus(ALL); setReviewStatus('PENDING') }
+  const showRemediationQueue = () => { setPage(1); setReviewStatus(ALL); setAnalysisApplyStatus('BLOCKED') }
+  const reviewQueueActive = reviewStatus === 'PENDING' && analysisApplyStatus === ALL
+  const remediationQueueActive = analysisApplyStatus === 'BLOCKED' && reviewStatus === ALL
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -152,7 +177,8 @@ export function AutomaticRunbooksPageContent() {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <StatCard label="In coda" value={inQueue} icon={Inbox} accent="border-l-amber-400" />
         <StatCard label="In esecuzione" value={stats?.byStatus['RUNNING']} icon={Loader2} accent="border-l-sky-500" />
-        <StatCard label="Da revisionare" value={stats?.pendingReview} icon={ListChecks} accent="border-l-amber-500" attention />
+        <StatCard label="Da revisionare" value={stats?.pendingReview} icon={ListChecks} accent="border-l-amber-500" attention onClick={showReviewQueue} active={reviewQueueActive} />
+        <StatCard label="Da correggere" value={stats?.blockedRemediation} icon={AlertTriangle} accent="border-l-rose-500" attention onClick={showRemediationQueue} active={remediationQueueActive} />
         <StatCard label="In DLQ / retry" value={stats?.inDlq} icon={AlertTriangle} accent="border-l-orange-500" attention />
         <StatCard label="Completate" value={stats?.byStatus['SUCCEEDED']} icon={CheckCircle2} accent="border-l-emerald-500" />
         <StatCard label="Fallite" value={stats?.byStatus['FAILED']} icon={XCircle} accent="border-l-rose-500" />
@@ -162,9 +188,10 @@ export function AutomaticRunbooksPageContent() {
         <FilterSelect label="Stato" value={status} onChange={resetPageAnd(setStatus)} options={STATUS_OPTIONS} />
         <FilterSelect label="Esito" value={outcome} onChange={resetPageAnd(setOutcome)} options={OUTCOME_OPTIONS} />
         <FilterSelect label="Revisione" value={reviewStatus} onChange={resetPageAnd(setReviewStatus)} options={REVIEW_OPTIONS} />
+        <FilterSelect label="Analisi" value={analysisApplyStatus} onChange={resetPageAnd(setAnalysisApplyStatus)} options={APPLY_OPTIONS} />
         <FilterSelect label="Trigger" value={triggerKind} onChange={resetPageAnd(setTriggerKind)} options={TRIGGER_OPTIONS} />
         {activeFilters > 0 && (
-          <Button variant="ghost" size="sm" onClick={() => { setPage(1); setStatus(ALL); setOutcome(ALL); setReviewStatus(ALL); setTriggerKind(ALL) }}>
+          <Button variant="ghost" size="sm" onClick={() => { setPage(1); setStatus(ALL); setOutcome(ALL); setReviewStatus(ALL); setTriggerKind(ALL); setAnalysisApplyStatus(ALL) }}>
             Azzera filtri ({activeFilters})
           </Button>
         )}
@@ -179,6 +206,7 @@ export function AutomaticRunbooksPageContent() {
               <TableHead>Allarme</TableHead>
               <TableHead>Trigger</TableHead>
               <TableHead>Runbook</TableHead>
+              <TableHead>Analisi</TableHead>
               <TableHead>Revisione</TableHead>
               <TableHead className="text-right">Tentativi</TableHead>
               <TableHead className="text-right">Creata</TableHead>
@@ -187,10 +215,10 @@ export function AutomaticRunbooksPageContent() {
           <TableBody>
             {listQuery.isLoading ? (
               Array.from({ length: 6 }).map((_, i) => (
-                <TableRow key={i}><TableCell colSpan={8}><Skeleton className="h-7 w-full" /></TableCell></TableRow>
+                <TableRow key={i}><TableCell colSpan={9}><Skeleton className="h-7 w-full" /></TableCell></TableRow>
               ))
             ) : rows.length === 0 ? (
-              <TableRow><TableCell colSpan={8} className="py-12 text-center text-muted-foreground">Nessuna esecuzione corrisponde ai filtri.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={9} className="py-12 text-center text-muted-foreground">Nessuna esecuzione corrisponde ai filtri.</TableCell></TableRow>
             ) : (
               rows.map((e, i) => (
                 <TableRow
@@ -211,6 +239,7 @@ export function AutomaticRunbooksPageContent() {
                     )}
                   </TableCell>
                   <TableCell className="max-w-[160px] truncate text-sm" title={e.runbookKey ?? ''}>{e.runbookKey ?? '—'}</TableCell>
+                  <TableCell><ApplyStatusBadge status={e.analysisApplyStatus} /></TableCell>
                   <TableCell><ReviewBadge reviewStatus={e.reviewStatus} /></TableCell>
                   <TableCell className="text-right font-mono tabular-nums">{e.totalWorkerAttempts}</TableCell>
                   <TableCell className="whitespace-nowrap text-right text-sm text-muted-foreground" title={new Date(e.createdAt).toLocaleString('it-IT')}>{relTime(e.createdAt)}</TableCell>

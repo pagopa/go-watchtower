@@ -299,11 +299,16 @@ export const CancelExecutionResponseSchema = Type.Object({
   cancelRequestId: Type.Union([Type.String(), Type.Null()]),
 });
 
+/** Modi lanciabili in v1: `APPLY_ALL` resta nell'enum ma non è raggiungibile. */
+const LAUNCHABLE_MODE = Type.Union([Type.Literal("SHADOW"), Type.Literal("APPLY_KNOWN")]);
+
 export const CreateExecutionRequestSchema = Type.Object(
   {
     alarmEventId: Type.String({ format: "uuid" }),
     // Override del modo solo per questo lancio; assente = usa il default di sistema.
-    mode: Type.Optional(enumUnion(AUTOMATION_MODE_VALUES)),
+    // Union ristretta: APPLY_ALL non è lanciabile in v1 (§4.5), e una richiesta di
+    // lancio non è un callback worker — qui un 400 esplicito è la risposta giusta.
+    mode: Type.Optional(LAUNCHABLE_MODE),
   },
   { additionalProperties: false },
 );
@@ -312,20 +317,36 @@ export type CreateExecutionRequest = Static<typeof CreateExecutionRequestSchema>
 export const CreateCliExecutionRequestSchema = Type.Object(
   {
     alarmEventId: Type.String({ format: "uuid" }),
-    mode: Type.Optional(enumUnion(AUTOMATION_MODE_VALUES)),
+    mode: Type.Optional(LAUNCHABLE_MODE),
   },
   { additionalProperties: false },
 );
 export type CreateCliExecutionRequest = Static<typeof CreateCliExecutionRequestSchema>;
 
-export const ReviewExecutionRequestSchema = Type.Object(
-  {
-    decision: Type.Union([Type.Literal("CONFIRMED"), Type.Literal("REJECTED")]),
-    note: Type.Optional(Type.String({ maxLength: 2000 })),
-  },
-  { additionalProperties: false },
-);
+/**
+ * Decisione umana come unione discriminata (§5.9.1).
+ *
+ * La nota è obbligatoria e non vuota sul rifiuto: un'analisi automatica scartata
+ * senza motivazione non è ispezionabile a posteriori.
+ */
+export const ReviewExecutionRequestSchema = Type.Union([
+  Type.Object(
+    {
+      decision: Type.Literal("CONFIRMED"),
+      note: Type.Optional(Type.String({ maxLength: 2000 })),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      decision: Type.Literal("REJECTED"),
+      note: Type.String({ minLength: 1, maxLength: 2000 }),
+    },
+    { additionalProperties: false },
+  ),
+]);
 export type ReviewExecutionRequest = Static<typeof ReviewExecutionRequestSchema>;
+
 
 // ─── read DTOs ────────────────────────────────────────────────────────────────
 
@@ -340,6 +361,7 @@ export const ExecutionDtoSchema = Type.Object({
   status: enumUnion(AUTOMATION_EXECUTION_STATUS_VALUES),
   outcome: Type.Union([enumUnion(AUTOMATION_EXECUTION_OUTCOME_VALUES), Type.Null()]),
   reviewStatus: enumUnion(AUTOMATION_REVIEW_STATUS_VALUES),
+  analysisApplyStatus: enumUnion(AUTOMATION_ANALYSIS_APPLY_STATUS_VALUES),
   triggerKind: enumUnion(AUTOMATION_TRIGGER_KIND_VALUES),
   dispatchKind: enumUnion(AUTOMATION_DISPATCH_KIND_VALUES),
   appliedMode: enumUnion(AUTOMATION_MODE_VALUES),
@@ -365,6 +387,26 @@ export const ExecutionDtoSchema = Type.Object({
   createdAt: Type.String(),
   updatedAt: Type.String(),
 });
+
+/** Esito della review: l'execution aggiornata più il flag di replay idempotente. */
+export const ReviewExecutionResponseSchema = Type.Object({
+  execution: ExecutionDtoSchema,
+  alreadyReviewed: Type.Boolean(),
+});
+
+/** 409 allowlisted della review (§5.9.1): mai stringhe libere. */
+export const ReviewConflictResponseSchema = Type.Object({
+  conflict: Type.Union([
+    Type.Literal("REVIEW_NOT_APPLICABLE"),
+    Type.Literal("REVIEW_NOT_TERMINAL"),
+    Type.Literal("REVIEW_ALREADY_DECIDED"),
+    Type.Literal("REVIEW_SUPERSEDED"),
+    Type.Literal("REVIEW_TARGET_CHANGED"),
+    Type.Literal("REVIEW_INVARIANT_VIOLATION"),
+  ]),
+  reviewStatus: Type.Optional(enumUnion(AUTOMATION_REVIEW_STATUS_VALUES)),
+});
+export type ReviewConflictResponse = Static<typeof ReviewConflictResponseSchema>;
 
 export const CliExecutionCommandResponseSchema = Type.Object({
   execution: Type.Optional(ExecutionDtoSchema),
@@ -424,6 +466,13 @@ export const ExecutionDetailDtoSchema = Type.Composite([
     inputSnapshot: Type.Unknown(),
     resultSummary: Type.Unknown(),
     analysisPayload: Type.Unknown(),
+    /** Diagnostica versionata dell'apply: blockCode, riferimenti irrisolti, warning. */
+    analysisApplyDiagnostics: Type.Unknown(),
+    /** Draft persistito: senza id WT, oppure solo `{sha256, byteLength}` se oversize. */
+    analysisDraft: Type.Unknown(),
+    reviewedByLabel: Type.Union([Type.String(), Type.Null()]),
+    reviewedAt: Type.Union([Type.String(), Type.Null()]),
+    reviewNote: Type.Union([Type.String(), Type.Null()]),
     context: ExecutionContextSchema,
   }),
 ])
@@ -453,6 +502,7 @@ export const ExecutionListQuerySchema = Type.Object({
   status: Type.Optional(enumUnion(AUTOMATION_EXECUTION_STATUS_VALUES)),
   outcome: Type.Optional(enumUnion(AUTOMATION_EXECUTION_OUTCOME_VALUES)),
   reviewStatus: Type.Optional(enumUnion(AUTOMATION_REVIEW_STATUS_VALUES)),
+  analysisApplyStatus: Type.Optional(enumUnion(AUTOMATION_ANALYSIS_APPLY_STATUS_VALUES)),
   triggerKind: Type.Optional(enumUnion(AUTOMATION_TRIGGER_KIND_VALUES)),
   productId: Type.Optional(Type.String({ format: "uuid" })),
   environmentId: Type.Optional(Type.String({ format: "uuid" })),
@@ -483,10 +533,60 @@ export type AttemptsQuery = Static<typeof AttemptsQuerySchema>;
 export const ExecutionStatsResponseSchema = Type.Object({
   byStatus: Type.Record(Type.String(), Type.Integer()),
   byOutcome: Type.Record(Type.String(), Type.Integer()),
+  /** Esecuzioni per esito di apply: la dimensione «applicazione» di §4.8.5. */
+  byApplyStatus: Type.Record(Type.String(), Type.Integer()),
+  /** Coda remediation: apply bloccati, distinta dalla coda review. */
+  blockedRemediation: Type.Integer(),
+  /** Blocchi per causa: dice *cosa* correggere, non solo quanti sono. */
+  blockedByCode: Type.Record(Type.String(), Type.Integer()),
   pendingReview: Type.Integer(),
+  /** Adozione umana (§4.8.5): esiti delle review già decise. */
+  reviewConfirmed: Type.Integer(),
+  reviewRejected: Type.Integer(),
+  /** Anzianità della review pendente più vecchia, in ore; null se la coda è vuota. */
+  oldestPendingReviewHours: Type.Union([Type.Number(), Type.Null()]),
   inDlq: Type.Integer(),
   // Modo predefinito proposto al lancio.
   defaultMode: Type.Union([Type.Literal("SHADOW"), Type.Literal("APPLY_KNOWN"), Type.Literal("APPLY_ALL")]),
   // Override globale (kill-switch) attivo, oppure null se disattivato.
   modeOverride: Type.Union([Type.Literal("SHADOW"), Type.Literal("APPLY_KNOWN"), Type.Literal("APPLY_ALL"), Type.Null()]),
 });
+
+// ─── shadow readiness report (§5.12/Fase 5) ──────────────────────────────────
+
+export const ShadowReportQuerySchema = Type.Object({
+  /** Finestra di osservazione in giorni; oltre, i dati non descrivono più la configurazione attuale. */
+  days: Type.Optional(Type.Integer({ minimum: 1, maximum: 90, default: 14 })),
+  productId: Type.Optional(Type.String({ format: "uuid" })),
+});
+export type ShadowReportQuery = Static<typeof ShadowReportQuerySchema>;
+
+const ShadowCapabilityReportSchema = Type.Object({
+  runbookKey: Type.Union([Type.String(), Type.Null()]),
+  productId: Type.String(),
+  productName: Type.String(),
+  /** Esecuzioni valutate senza scritture in questa finestra. */
+  evaluated: Type.Integer(),
+  /** Known case che in modo applicante sarebbero stati materializzati. */
+  wouldApply: Type.Integer(),
+  /** Known case che sarebbero stati bloccati, con il motivo. */
+  wouldBlock: Type.Integer(),
+  blockedByCode: Type.Record(Type.String(), Type.Integer()),
+  /** Riferimenti dichiarati e non risolti, deduplicati: la lista di lavoro del censimento. */
+  unresolvedReferences: Type.Array(Type.String()),
+  /** Contesto degli unknown: segnale di readiness, non promessa di materializzazione. */
+  contextValid: Type.Integer(),
+  contextInvalid: Type.Integer(),
+  /** `true` quando ogni known case valutato sarebbe stato applicato. */
+  ready: Type.Boolean(),
+});
+
+export const ShadowReportResponseSchema = Type.Object({
+  windowDays: Type.Integer(),
+  since: Type.String({ format: "date-time" }),
+  capabilities: Type.Array(ShadowCapabilityReportSchema),
+  /** Aggregato: quante capability sono pronte per l'attivazione di `APPLY_KNOWN`. */
+  readyCapabilities: Type.Integer(),
+  totalCapabilities: Type.Integer(),
+});
+export type ShadowReportResponse = Static<typeof ShadowReportResponseSchema>;

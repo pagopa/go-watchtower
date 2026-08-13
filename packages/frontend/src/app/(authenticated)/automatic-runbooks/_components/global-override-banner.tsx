@@ -16,7 +16,8 @@ const OPTIONS: readonly { value: string; label: string }[] = [
   { value: NONE, label: 'Nessuno (disattivato)' },
   { value: 'SHADOW', label: `${MODE_LABELS.SHADOW} — ferma l’applicazione` },
   { value: 'APPLY_KNOWN', label: `${MODE_LABELS.APPLY_KNOWN} — forza solo casi noti` },
-  { value: 'APPLY_ALL', label: `${MODE_LABELS.APPLY_ALL} — forza sempre` },
+  // APPLY_ALL è chiuso a ogni ingresso in v1 (§4.5): offrirlo qui produrrebbe
+  // solo un 400 sul salvataggio dell'impostazione.
 ]
 
 /**

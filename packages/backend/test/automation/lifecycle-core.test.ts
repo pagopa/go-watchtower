@@ -19,12 +19,14 @@ import {
   decideReaper,
   decideFinalizer,
   routeAnalysis,
+  isApplyingMode,
 } from "../../src/services/automation/lifecycle-core.js";
 import type {
   ActiveAttemptSnapshot,
   ExecutionSnapshot,
   DeliveryMetadata,
   LifecycleBudgets,
+  SafetyNetDecision,
 } from "../../src/services/automation/lifecycle-types.js";
 
 const NOW = new Date("2026-06-22T12:00:00.000Z");
@@ -281,12 +283,17 @@ test("cancel/ack: only owner with matching requestId+attemptId finalizes", () =>
 
 // ─── safety-net / reaper / finalizer ──────────────────────────────────────────
 
+/** Narrowing esplicito: `NONE` non ha `errorCode`, e leggerlo alla cieca nasconderebbe un NONE inatteso. */
+function terminalizeCode(decision: SafetyNetDecision): string {
+  return decision.kind === "TERMINALIZE" ? decision.errorCode : `unexpected:${decision.kind}`;
+}
+
 test("safety-net: state-aware error code mapping past deadline", () => {
   const past = new Date(NOW.getTime() - 1000);
-  assert.equal(decideSafetyNet(exec({ status: S.PENDING_DISPATCH, deadlineAt: past }), NOW, false).kind === "TERMINALIZE" && decideSafetyNet(exec({ status: S.PENDING_DISPATCH, deadlineAt: past }), NOW, false).errorCode, "DISPATCH_FAILED");
-  assert.equal(decideSafetyNet(exec({ status: S.QUEUED, deadlineAt: past, totalWorkerAttempts: 0 }), NOW, false).errorCode, "QUEUE_DELIVERY_TIMED_OUT");
-  assert.equal(decideSafetyNet(exec({ status: S.RUNNING, deadlineAt: past, activeAttemptId: "a", workerDeadlineAt: past }), NOW, true).errorCode, "DEAD_LETTERED");
-  assert.equal(decideSafetyNet(exec({ status: S.RUNNING, deadlineAt: past, activeAttemptId: "a", workerDeadlineAt: past }), NOW, false).errorCode, "TIMED_OUT");
+  assert.equal(terminalizeCode(decideSafetyNet(exec({ status: S.PENDING_DISPATCH, deadlineAt: past }), NOW, false)), "DISPATCH_FAILED");
+  assert.equal(terminalizeCode(decideSafetyNet(exec({ status: S.QUEUED, deadlineAt: past, totalWorkerAttempts: 0 }), NOW, false)), "QUEUE_DELIVERY_TIMED_OUT");
+  assert.equal(terminalizeCode(decideSafetyNet(exec({ status: S.RUNNING, deadlineAt: past, activeAttemptId: "a", workerDeadlineAt: past }), NOW, true)), "DEAD_LETTERED");
+  assert.equal(terminalizeCode(decideSafetyNet(exec({ status: S.RUNNING, deadlineAt: past, activeAttemptId: "a", workerDeadlineAt: past }), NOW, false)), "TIMED_OUT");
 });
 
 test("safety-net: CLI executions terminalize as LOCAL_RUN_TIMED_OUT past deadline", () => {
@@ -332,7 +339,7 @@ test("finalizer: closes CANCEL_REQUESTED only past worker deadline + margin", ()
 // ─── routing (3 branches) ──────────────────────────────────────────────────────
 
 test("routeAnalysis: non-analysis-bearing outcomes → EXECUTION_ONLY even if analysisId null", () => {
-  for (const outcome of [AutomationExecutionOutcomes.NO_DATA, AutomationExecutionOutcomes.NO_RUNBOOK, AutomationExecutionOutcomes.CONFIGURATION_ERROR, AutomationExecutionOutcomes.EXECUTION_ERROR]) {
+  for (const outcome of [AutomationExecutionOutcomes.NO_DATA, AutomationExecutionOutcomes.CAPABILITY_WITHDRAWN, AutomationExecutionOutcomes.CONFIGURATION_ERROR, AutomationExecutionOutcomes.EXECUTION_ERROR]) {
     assert.equal(routeAnalysis({ outcome, appliedMode: AutomationModes.APPLY_ALL, alarmEventAnalysisId: null, existingAnalysisOrigin: null }).kind, "EXECUTION_ONLY");
   }
 });
@@ -343,8 +350,33 @@ test("routeAnalysis: SHADOW and non-applying mode → EXECUTION_ONLY", () => {
 });
 
 test("routeAnalysis: 3 branches on analysisId + origin when mode applies", () => {
-  assert.equal(routeAnalysis({ outcome: AutomationExecutionOutcomes.KNOWN_CASE, appliedMode: AutomationModes.APPLY_ALL, alarmEventAnalysisId: null, existingAnalysisOrigin: null }).kind, "CREATE_ANALYSIS");
-  assert.equal(routeAnalysis({ outcome: AutomationExecutionOutcomes.KNOWN_CASE, appliedMode: AutomationModes.APPLY_KNOWN, alarmEventAnalysisId: "an-1", existingAnalysisOrigin: AnalysisOrigins.AUTOMATIC }).kind, "UPDATE_AUTOMATIC_ANALYSIS");
-  assert.equal(routeAnalysis({ outcome: AutomationExecutionOutcomes.UNKNOWN_CASE, appliedMode: AutomationModes.APPLY_ALL, alarmEventAnalysisId: "an-1", existingAnalysisOrigin: AnalysisOrigins.MANUAL }).kind, "HUMAN_ANALYSIS_PAYLOAD_ONLY");
-  assert.equal(routeAnalysis({ outcome: AutomationExecutionOutcomes.UNKNOWN_CASE, appliedMode: AutomationModes.APPLY_ALL, alarmEventAnalysisId: "an-1", existingAnalysisOrigin: AnalysisOrigins.HYBRID }).kind, "HUMAN_ANALYSIS_PAYLOAD_ONLY");
+  const known = { outcome: AutomationExecutionOutcomes.KNOWN_CASE, appliedMode: AutomationModes.APPLY_KNOWN } as const;
+  assert.equal(routeAnalysis({ ...known, alarmEventAnalysisId: null, existingAnalysisOrigin: null }).kind, "CREATE_ANALYSIS");
+  assert.equal(routeAnalysis({ ...known, alarmEventAnalysisId: "an-1", existingAnalysisOrigin: AnalysisOrigins.AUTOMATIC }).kind, "UPDATE_AUTOMATIC_ANALYSIS");
+  assert.equal(routeAnalysis({ ...known, alarmEventAnalysisId: "an-1", existingAnalysisOrigin: AnalysisOrigins.MANUAL }).kind, "HUMAN_ANALYSIS_PAYLOAD_ONLY");
+  assert.equal(routeAnalysis({ ...known, alarmEventAnalysisId: "an-1", existingAnalysisOrigin: AnalysisOrigins.HYBRID }).kind, "HUMAN_ANALYSIS_PAYLOAD_ONLY");
+});
+
+test("routeAnalysis: APPLY_ALL non applica piu (§4.5) e UNKNOWN_CASE non materializza mai", () => {
+  // Il valore resta nell'enum per l'evoluzione futura del contratto bozza, ma
+  // nessun ingresso lo produce e il routing non lo onora piu.
+  for (const outcome of [AutomationExecutionOutcomes.KNOWN_CASE, AutomationExecutionOutcomes.UNKNOWN_CASE]) {
+    assert.equal(routeAnalysis({ outcome, appliedMode: AutomationModes.APPLY_ALL, alarmEventAnalysisId: null, existingAnalysisOrigin: null }).kind, "EXECUTION_ONLY");
+  }
+  assert.equal(routeAnalysis({ outcome: AutomationExecutionOutcomes.UNKNOWN_CASE, appliedMode: AutomationModes.APPLY_KNOWN, alarmEventAnalysisId: null, existingAnalysisOrigin: null }).kind, "EXECUTION_ONLY");
+});
+
+test("isApplyingMode: solo APPLY_KNOWN applica; distingue il modo dal routing", () => {
+  assert.equal(isApplyingMode(AutomationModes.APPLY_KNOWN), true);
+  assert.equal(isApplyingMode(AutomationModes.SHADOW), false);
+  // APPLY_ALL e chiuso a ogni ingresso (§4.5): non e un modo applicante.
+  assert.equal(isApplyingMode(AutomationModes.APPLY_ALL), false);
+  // Un UNKNOWN_CASE non materializza mai, ma in modo applicante la review
+  // dell'esito deve comunque nascere: il modo resta applicante anche dove il
+  // routing risponde EXECUTION_ONLY (§4.8).
+  assert.equal(
+    routeAnalysis({ outcome: AutomationExecutionOutcomes.UNKNOWN_CASE, appliedMode: AutomationModes.APPLY_KNOWN, alarmEventAnalysisId: null, existingAnalysisOrigin: null }).kind,
+    "EXECUTION_ONLY",
+  );
+  assert.equal(isApplyingMode(AutomationModes.APPLY_KNOWN), true);
 });

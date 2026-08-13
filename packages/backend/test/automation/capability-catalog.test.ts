@@ -12,7 +12,7 @@ const {
 type AutomaticRunbookCatalogV1 = AutomaticRunbookCatalog;
 
 function catalog(): AutomaticRunbookCatalogV1 {
-  const base = {
+  const base: Omit<AutomaticRunbookCatalogV1, "revision"> = {
     schemaVersion: 1 as const,
     publishedAt: "2026-07-02T10:00:00.000Z",
     environment: "production",
@@ -31,7 +31,7 @@ function catalog(): AutomaticRunbookCatalogV1 {
       definitionDigest: `sha256-${"a".repeat(64)}`,
     }],
   };
-  return { ...base, revision: computeCatalogRevision(base as AutomaticRunbookCatalogV1) };
+  return { ...base, revision: computeCatalogRevision(base) };
 }
 
 test("catalog validates environment and canonical revision", () => {

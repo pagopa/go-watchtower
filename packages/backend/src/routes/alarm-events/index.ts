@@ -5,6 +5,8 @@ import { prisma, SystemComponent, PermissionScope } from "@go-watchtower/databas
 import { buildDiff } from "../../services/system-event.service.js";
 import { resolvePersistedAlarmPriority, toAlarmEventPriorityDto } from "../../services/alarm-priority.service.js";
 import { getPermissionScope } from "../../services/permission.service.js";
+import { lockEventExecutions, supersedePendingReviews } from "../../services/automation/review-supersede.js";
+import { withTransactionRetry } from "../../utils/transaction-retry.js";
 import { SystemEventActions, SystemEventResources, AnalysisStatuses, normalizeAlertPriorityCode } from "@go-watchtower/shared";
 import { HttpError } from "../../utils/http-errors.js";
 import { requirePermission } from "../../lib/require-permission.js";
@@ -303,7 +305,6 @@ export async function alarmEventRoutes(app: FastifyInstance) {
           environmentId: true,
           firedAt: true,
           alarmId: true,
-          analysisId: true,
           priorityCode: true,
           priorityRuleId: true,
           priorityResolvedAt: true,
@@ -322,7 +323,6 @@ export async function alarmEventRoutes(app: FastifyInstance) {
       if (request.body.description !== undefined) data.description = request.body.description || null;
       if (request.body.reason !== undefined)      data.reason      = request.body.reason || null;
       if (request.body.alarmId !== undefined)     data.alarmId     = request.body.alarmId || null;
-      if (request.body.analysisId !== undefined)  data.analysisId  = request.body.analysisId || null;
       if (request.body.linkedAt !== undefined)    data.linkedAt    = request.body.linkedAt ? new Date(request.body.linkedAt) : null;
       if (request.body.resolvedAt !== undefined)  data.resolvedAt  = request.body.resolvedAt ? new Date(request.body.resolvedAt) : null;
 
@@ -339,18 +339,38 @@ export async function alarmEventRoutes(app: FastifyInstance) {
         data.priorityResolvedAt = priority.priorityResolvedAt;
       }
 
-      const updated = await prisma.alarmEvent.update({
-        where: { id: request.params.id },
-        data,
-        include,
+      // Mutare l'evento a mano invalida la review automatica pendente, in due
+      // modi diversi e in entrambi i casi silenziosi:
+      // - `resolvedAt`: `loadAndVerifyTarget` rifiuterebbe la decisione per
+      //   sempre come `REVIEW_TARGET_CHANGED`, lasciando la voce in coda;
+      // - `alarmId`: la review resterebbe invece decidibile e confermerebbe una
+      //   proposta costruita per l'allarme precedente, mentre la priorità
+      //   dell'evento è già stata ricalcolata qui sopra sul nuovo allarme.
+      // Chiusura e update nella stessa transazione, altrimenti un fallimento
+      // lascerebbe i due stati disallineati (§5.10).
+      const supersedesReview =
+        (request.body.alarmId !== undefined && (request.body.alarmId || null) !== existing.alarmId) ||
+        (request.body.resolvedAt !== undefined && request.body.resolvedAt !== null && existing.resolvedAt === null);
+
+      const runTransaction = () => prisma.$transaction(async (tx) => {
+        if (supersedesReview) {
+          await lockEventExecutions(tx, request.params.id);
+          await supersedePendingReviews(
+            tx,
+            { alarmEventId: request.params.id },
+            { reason: "HUMAN_EVENT_CHANGE", actorUserId: request.user.userId },
+          );
+        }
+        return await tx.alarmEvent.update({ where: { id: request.params.id }, data, include });
       });
+      const updated = await withTransactionRetry(runTransaction);
 
       request.auditEvents.push({
         action:        SystemEventActions.ALARM_EVENT_UPDATED,
         resource:      SystemEventResources.ALARM_EVENTS,
         resourceId:    updated.id,
         resourceLabel: updated.name,
-        metadata:      { changes: buildDiff(existing, updated, ["description", "reason", "alarmId", "analysisId", "priorityCode", "priorityRuleId", "linkedAt", "resolvedAt"]) },
+        metadata:      { changes: buildDiff(existing, updated, ["description", "reason", "alarmId", "priorityCode", "priorityRuleId", "linkedAt", "resolvedAt"]) },
       });
 
       return reply.send(formatResponse(updated));
@@ -404,7 +424,7 @@ export async function alarmEventRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const existing = await prisma.alarmEvent.findUnique({
         where: { id: request.params.id },
-        select: { id: true, name: true, analysisId: true },
+        select: { id: true, name: true, analysisId: true, productId: true },
       });
 
       if (!existing) {
@@ -414,20 +434,34 @@ export async function alarmEventRoutes(app: FastifyInstance) {
       const analysisId = request.body.analysisId || null;
       const updates = request.body.analysisUpdates;
 
+      // Unica lettura dell'analisi bersaglio: serve a tre controlli distinti
+      // (origine, prodotto, ownership) che altrimenti farebbero tre query.
+      const target = analysisId
+        ? await prisma.alarmAnalysis.findUnique({
+            where: { id: analysisId },
+            select: { origin: true, productId: true, createdById: true },
+          })
+        : null;
+
       // §9.10: le analisi origin=AUTOMATIC sono automation-owned e per-occorrenza
       // (1:1). Vietato collegarle manualmente (aggiungere occorrenze o forzare il
       // +1 di occurrences su un'analisi AUTOMATIC).
-      if (analysisId) {
-        const target = await prisma.alarmAnalysis.findUnique({
-          where: { id: analysisId },
-          select: { origin: true },
-        });
-        if (target?.origin === "AUTOMATIC") {
-          return HttpError.conflict(
-            reply,
-            "Analisi automatica per-occorrenza: non collegabile manualmente",
-          );
-        }
+      if (target?.origin === "AUTOMATIC") {
+        return HttpError.conflict(
+          reply,
+          "Analisi automatica per-occorrenza: non collegabile manualmente",
+        );
+      }
+
+      // Il prodotto non è protetto da nessun vincolo di schema: la FK garantisce
+      // che l'analisi esista, non che appartenga al prodotto dell'evento. Senza
+      // questo controllo un evento resterebbe associato ad analisi di un altro
+      // prodotto, invisibile alle viste filtrate per prodotto.
+      if (target && target.productId !== existing.productId) {
+        return HttpError.conflict(
+          reply,
+          "L'analisi appartiene a un prodotto diverso da quello dell'evento",
+        );
       }
 
       // Scope-aware ownership check for analysis updates
@@ -441,10 +475,6 @@ export async function alarmEventRoutes(app: FastifyInstance) {
         if (writeScope === PermissionScope.ALL) {
           canUpdateAnalysis = true;
         } else if (writeScope === PermissionScope.OWN) {
-          const target = await prisma.alarmAnalysis.findUnique({
-            where: { id: analysisId },
-            select: { createdById: true },
-          });
           canUpdateAnalysis = target?.createdById === request.user.userId;
         }
         if (!canUpdateAnalysis && Object.keys(updates).some((k) => updates[k as keyof typeof updates])) {
@@ -453,7 +483,21 @@ export async function alarmEventRoutes(app: FastifyInstance) {
       }
 
       // Apply link + optional analysis updates in a single transaction
-      const updated = await prisma.$transaction(async (tx) => {
+      const runTransaction = () => prisma.$transaction(async (tx) => {
+        // Gli audit dell'analisi nascono qui dentro e vengono consegnati al
+        // termine: accodarli direttamente su `request.auditEvents` li farebbe
+        // sopravvivere al rollback, e un retry li duplicherebbe.
+        const analysisAudits: typeof request.auditEvents = [];
+        // Ricollegare l'evento a un'altra analisi rende non più decidibile la
+        // review automatica pendente su questo evento (§5.10).
+        if (analysisId !== existing.analysisId) {
+          await lockEventExecutions(tx, request.params.id);
+          await supersedePendingReviews(
+            tx,
+            { alarmEventId: request.params.id },
+            { reason: "HUMAN_EVENT_CHANGE", actorUserId: request.user.userId },
+          );
+        }
         // When linking, determine linked/resolved timestamps
         const eventData: Record<string, unknown> = { analysisId }
         if (analysisId) {
@@ -498,7 +542,7 @@ export async function alarmEventRoutes(app: FastifyInstance) {
               if (Object.keys(data).length > 0) {
                 await tx.alarmAnalysis.update({ where: { id: analysisId }, data });
 
-                request.auditEvents.push({
+                analysisAudits.push({
                   action:        SystemEventActions.ANALYSIS_UPDATED,
                   resource:      SystemEventResources.ALARM_ANALYSES,
                   resourceId:    analysis.id,
@@ -518,8 +562,10 @@ export async function alarmEventRoutes(app: FastifyInstance) {
           }
         }
 
-        return event;
+        return { event, analysisAudits };
       });
+      const { event: updated, analysisAudits } = await withTransactionRetry(runTransaction);
+      request.auditEvents.push(...analysisAudits);
 
       request.auditEvents.push({
         action:        SystemEventActions.ALARM_EVENT_UPDATED,

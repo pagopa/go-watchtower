@@ -752,6 +752,13 @@ export interface UpdateAlarmAnalysisData {
   downstreamIds?: string[]
   links?: Array<{ url: string; name?: string; type?: string }>
   trackingIds?: TrackingEntry[]
+  /**
+   * `lastAppliedExecutionId` dell'analisi come era quando la si è aperta.
+   * Salvare una modifica su un'analisi con proposta automatica pendente la
+   * conferma a nome di chi salva: il backend pretende questo token proprio lì, e
+   * risponde 409 se nel frattempo un re-apply ha sostituito la proposta.
+   */
+  expectedLastAppliedExecutionId?: string | null
 }
 
 // FinalAction type
@@ -1206,16 +1213,70 @@ export interface CreateAlarmEventData {
   reason?: string | null
 }
 
+// `analysisId` non è aggiornabile da questa rotta: per associare o scollegare
+// un'analisi si usa `linkAlarmEventAnalysis`, l'unico punto che applica gli
+// invarianti di lifecycle lato backend.
 export interface UpdateAlarmEventData {
   description?: string | null
   reason?: string | null
   alarmId?: string | null
-  analysisId?: string | null
   linkedAt?: string | null
   resolvedAt?: string | null
 }
 
 // ─── Runbook Automation (EVO-WATCHTINTEG-OPUS-03 §15.1) ────────────────────────
+
+export type AutomationAnalysisApplyStatus =
+  | 'PENDING'
+  | 'APPLIED'
+  | 'BLOCKED'
+  | 'NOT_REQUESTED'
+  | 'PRESERVED_HUMAN'
+  | 'NOT_APPLICABLE'
+
+export type AnalysisApplyBlockCode =
+  | 'ALARM_UNLINKED'
+  | 'DRAFT_TOO_LARGE'
+  | 'MISSING_DRAFT'
+  | 'INVALID_DRAFT'
+  | 'TEMPORAL_INCOHERENCE'
+  | 'UNRESOLVED_REFERENCES'
+  | 'RESOURCE_TYPE_MISMATCH'
+  | 'INVALID_IGNORE_DETAILS'
+  | 'VALIDATION_ERRORS'
+
+/** Contratto versionato della diagnostica di apply (§5.8). */
+export interface AnalysisApplyDiagnosticsV1 {
+  schemaVersion: 1
+  blockCode?: AnalysisApplyBlockCode
+  wouldApplyStatus?: 'APPLIED' | 'BLOCKED'
+  contextValidationStatus?: 'VALID' | 'INVALID'
+  evaluatedOnly?: boolean
+  unresolvedReferences?: {
+    resources?: string[]
+    downstreams?: string[]
+    finalActions?: string[]
+    ignoreReasonCode?: string
+  }
+  errors?: { ruleId: string; message: string }[]
+  warnings?: { ruleId: string; message: string }[]
+  draftDigest?: { sha256: string; byteLength: number }
+}
+
+/** Conflitti allowlisted della review (§5.9.1). */
+export type ReviewConflictCode =
+  | 'REVIEW_NOT_APPLICABLE'
+  | 'REVIEW_NOT_TERMINAL'
+  | 'REVIEW_ALREADY_DECIDED'
+  | 'REVIEW_SUPERSEDED'
+  | 'REVIEW_TARGET_CHANGED'
+  | 'REVIEW_INVARIANT_VIOLATION'
+
+export interface ReviewExecutionResponse {
+  execution: AutomaticRunbookExecution
+  /** Replay della stessa decisione: nessun nuovo effetto. */
+  alreadyReviewed: boolean
+}
 
 export interface AutomaticRunbookExecution {
   id: string
@@ -1228,6 +1289,13 @@ export interface AutomaticRunbookExecution {
   status: AutomationExecutionStatus
   outcome: AutomationExecutionOutcome | null
   reviewStatus: AutomationReviewStatus
+  /** Esito dell'apply dell'analisi: governa la coda remediation. */
+  analysisApplyStatus: AutomationAnalysisApplyStatus
+  reviewedByLabel?: string | null
+  reviewedAt?: string | null
+  reviewNote?: string | null
+  analysisApplyDiagnostics?: AnalysisApplyDiagnosticsV1 | null
+  analysisDraft?: unknown
   triggerKind: AutomationTriggerKind
   dispatchKind: AutomationDispatchKind
   appliedMode: AutomationMode
@@ -1326,7 +1394,18 @@ export interface AutomaticAttemptListResponse {
 export interface AutomaticExecutionStats {
   byStatus: Record<string, number>
   byOutcome: Record<string, number>
+  /** Esecuzioni per esito di apply (§4.8.5). */
+  byApplyStatus: Record<string, number>
   pendingReview: number
+  /** Review già decise: adozione umana (§4.8.5). */
+  reviewConfirmed: number
+  reviewRejected: number
+  /** Anzianità della review pendente più vecchia, in ore; null se la coda è vuota. */
+  oldestPendingReviewHours: number | null
+  /** Coda remediation: apply bloccati, distinta dalla coda review. */
+  blockedRemediation: number
+  /** Blocchi per causa: dice cosa correggere, non solo quanti sono. */
+  blockedByCode: Record<string, number>
   inDlq: number
   /** Modo predefinito proposto al lancio. */
   defaultMode: AutomationMode
@@ -1340,6 +1419,7 @@ export interface AutomaticExecutionListParams {
   status?: AutomationExecutionStatus
   outcome?: AutomationExecutionOutcome
   reviewStatus?: AutomationReviewStatus
+  analysisApplyStatus?: AutomationAnalysisApplyStatus
   triggerKind?: AutomationTriggerKind
   productId?: string
   environmentId?: string
@@ -1533,8 +1613,10 @@ export const api = {
     request<AutomaticRunbookExecution>('/api/automatic-runbook-executions', { method: 'POST', body: data }),
   retryAutomaticExecution: (id: string) =>
     request<AutomaticRunbookExecution>(`/api/automatic-runbook-executions/${id}/retry`, { method: 'POST' }),
-  reviewAutomaticExecution: (id: string, data: { decision: 'CONFIRMED' | 'REJECTED'; note?: string }) =>
-    request<AutomaticRunbookExecution>(`/api/automatic-runbook-executions/${id}/review`, { method: 'POST', body: data }),
+  reviewAutomaticExecution: (
+    id: string,
+    data: { decision: 'CONFIRMED'; note?: string } | { decision: 'REJECTED'; note: string },
+  ) => request<ReviewExecutionResponse>(`/api/automatic-runbook-executions/${id}/review`, { method: 'POST', body: data }),
   cancelAutomaticExecution: (id: string, data: { reason?: string }) =>
     request<CancelAutomaticExecutionResponse>(`/api/automatic-runbook-executions/${id}/cancel`, { method: 'POST', body: data }),
 

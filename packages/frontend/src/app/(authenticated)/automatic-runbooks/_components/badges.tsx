@@ -7,6 +7,8 @@ import type {
   AutomationDispatchKind,
   AutomationMode,
   AutomationAttemptStatus,
+  AutomationAnalysisApplyStatus,
+  AnalysisApplyBlockCode,
 } from '@/lib/api-client'
 
 type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline' | 'success'
@@ -37,6 +39,27 @@ const REVIEW_META: Record<AutomationReviewStatus, { label: string; variant: Badg
   PENDING: { label: 'Da revisionare', variant: 'secondary' },
   CONFIRMED: { label: 'Confermata', variant: 'success' },
   REJECTED: { label: 'Rifiutata', variant: 'destructive' },
+}
+
+const APPLY_META: Record<AutomationAnalysisApplyStatus, { label: string; variant: BadgeVariant; hint: string }> = {
+  PENDING: { label: 'In corso', variant: 'secondary', hint: 'Apply non ancora concluso' },
+  APPLIED: { label: 'Materializzata', variant: 'default', hint: 'Draft applicato: in attesa di conferma umana' },
+  BLOCKED: { label: 'Bloccata', variant: 'destructive', hint: 'Nessuna analisi scritta: serve una correzione' },
+  NOT_REQUESTED: { label: 'Non richiesta', variant: 'outline', hint: 'Modo non applicante o esito unknown' },
+  PRESERVED_HUMAN: { label: 'Analisi umana', variant: 'outline', hint: "Analisi dell'operatore preservata" },
+  NOT_APPLICABLE: { label: 'Non applicabile', variant: 'outline', hint: 'Esito senza analisi' },
+}
+
+const BLOCK_CODE_LABELS: Record<AnalysisApplyBlockCode, string> = {
+  ALARM_UNLINKED: "L'evento non è più collegato a un allarme censito",
+  DRAFT_TOO_LARGE: 'Draft oltre il budget di 64 KiB',
+  MISSING_DRAFT: 'Il worker non ha inviato il draft',
+  INVALID_DRAFT: 'Draft non conforme allo schema',
+  TEMPORAL_INCOHERENCE: 'Date incoerenti fra allarme e analisi',
+  UNRESOLVED_REFERENCES: 'Riferimenti dichiarati non presenti nel censimento',
+  RESOURCE_TYPE_MISMATCH: 'Tipo risorsa diverso da quello censito',
+  INVALID_IGNORE_DETAILS: 'Dettagli di ignore non conformi allo schema',
+  VALIDATION_ERRORS: 'Regole di validità non soddisfatte',
 }
 
 const ATTEMPT_META: Record<AutomationAttemptStatus, { label: string; variant: BadgeVariant }> = {
@@ -125,6 +148,22 @@ export function OutcomeBadge({ outcome }: { outcome: AutomationExecutionOutcome 
 export function ReviewBadge({ reviewStatus }: { reviewStatus: AutomationReviewStatus }) {
   const meta = REVIEW_META[reviewStatus]
   return <Badge variant={meta.variant}>{meta.label}</Badge>
+}
+
+/**
+ * Esito dell'apply dell'analisi.
+ *
+ * Distinto dalla review: `APPLIED` significa «draft materializzato», non
+ * «analisi approvata». `BLOCKED` alimenta la coda remediation, non quella review.
+ */
+export function ApplyStatusBadge({ status }: { status: AutomationAnalysisApplyStatus }) {
+  const meta = APPLY_META[status]
+  return <Badge variant={meta.variant} title={meta.hint}>{meta.label}</Badge>
+}
+
+/** Motivo del blocco, in forma leggibile. */
+export function blockCodeLabel(code: AnalysisApplyBlockCode): string {
+  return BLOCK_CODE_LABELS[code] ?? code
 }
 
 export function AttemptStatusBadge({ status }: { status: AutomationAttemptStatus }) {

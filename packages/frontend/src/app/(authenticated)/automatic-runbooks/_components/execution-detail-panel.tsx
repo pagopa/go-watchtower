@@ -11,6 +11,8 @@ import {
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { usePreferences } from '@/hooks/use-preferences'
+import { ReviewDecisionDialog } from './review-decision-dialog'
+import { AnalysisApplyDiagnostics } from './analysis-apply-diagnostics'
 import { api, type AutomaticRunbookExecution, type AutomationExecutionStatus, type AutomationMode } from '@/lib/api-client'
 import { qk } from '@/lib/query-keys'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
@@ -187,6 +189,31 @@ function LifecycleStepper({ status }: { status: AutomationExecutionStatus }) {
   )
 }
 
+
+/** Traduce i conflitti allowlisted della review in un messaggio comprensibile. */
+function explainReviewFailure(message: string): string {
+  if (message.includes('REVIEW_SUPERSEDED')) {
+    return 'Proposta superata: un nuovo apply ha sostituito questa versione. Ricarica e rivedi la proposta corrente.'
+  }
+  if (message.includes('REVIEW_ALREADY_DECIDED')) return 'Decisione già presa da un altro operatore.'
+  if (message.includes('REVIEW_TARGET_CHANGED')) {
+    return "L'analisi o l'evento sono cambiati nel frattempo: ricarica prima di decidere."
+  }
+  if (message.includes('REVIEW_NOT_APPLICABLE')) return 'Questa esecuzione non ha una proposta da confermare.'
+  if (message.includes('REVIEW_NOT_TERMINAL')) return "L'esecuzione non è ancora terminata."
+  if (message.includes('REVIEW_INVARIANT_VIOLATION')) {
+    return 'La proposta non è più applicabile: nessuna modifica è stata salvata.'
+  }
+  return message
+}
+
+/** Lo stato proposto vive nel draft persistito, non in una colonna dedicata. */
+function proposedStatusOf(execution: AutomaticRunbookExecution): 'IN_PROGRESS' | 'COMPLETED' | undefined {
+  const draft = execution.analysisDraft as { kind?: string; proposedStatus?: string } | null | undefined
+  if (draft?.kind !== 'KNOWN_CASE') return undefined
+  return draft.proposedStatus === 'COMPLETED' || draft.proposedStatus === 'IN_PROGRESS' ? draft.proposedStatus : undefined
+}
+
 export function ExecutionDetailPanel({
   executionId, canWrite, globalModeOverride = null, onClose,
 }: {
@@ -276,10 +303,19 @@ function PanelBody({ executionId, canWrite, globalModeOverride, onClose }: { exe
     onSuccess: () => { toast.success('Rilanciata: nuova esecuzione figlia'); invalidate() },
     onError: (e: Error) => toast.error(e.message),
   })
+  const [reviewDecision, setReviewDecision] = useState<'CONFIRMED' | 'REJECTED' | null>(null)
   const reviewMutation = useMutation({
-    mutationFn: (decision: 'CONFIRMED' | 'REJECTED') => api.reviewAutomaticExecution(executionId, { decision }),
-    onSuccess: () => { toast.success('Revisione registrata'); invalidate() },
-    onError: (e: Error) => toast.error(e.message),
+    mutationFn: ({ decision, note }: { decision: 'CONFIRMED' | 'REJECTED'; note: string }) =>
+      decision === 'REJECTED'
+        ? api.reviewAutomaticExecution(executionId, { decision, note })
+        : api.reviewAutomaticExecution(executionId, { decision, ...(note === '' ? {} : { note }) }),
+    onSuccess: (res) => {
+      toast.success(res.alreadyReviewed ? 'Decisione già registrata' : 'Revisione registrata')
+      setReviewDecision(null)
+      invalidate()
+    },
+    // I 409 sono allowlisted (§5.9.1): vanno spiegati, non mostrati come errori generici.
+    onError: (e: Error) => toast.error(explainReviewFailure(e.message)),
   })
 
   if (isLoading || !execution) {
@@ -375,6 +411,13 @@ function PanelBody({ executionId, canWrite, globalModeOverride, onClose }: { exe
             {execution.requestedRunbookDigest && <div className="col-span-2"><Field label="Definition digest"><CopyMono value={execution.requestedRunbookDigest} /></Field></div>}
             {execution.catalogRevision && <div className="col-span-2"><Field label="Catalog revision"><CopyMono value={execution.catalogRevision} /></Field></div>}
             {execution.workerRevision && <div className="col-span-2"><Field label="Worker revision"><CopyMono value={execution.workerRevision} /></Field></div>}
+            {execution.analysisApplyStatus !== 'NOT_APPLICABLE' && (
+              <AnalysisApplyDiagnostics
+                applyStatus={execution.analysisApplyStatus}
+                diagnostics={execution.analysisApplyDiagnostics}
+                proposedStatus={proposedStatusOf(execution)}
+              />
+            )}
             <Field label="Tentativi worker">{execution.totalWorkerAttempts} · ciclo {execution.deliveryCycle}</Field>
             <div className="col-span-2">
               <Field label="Modo applicato">
@@ -466,10 +509,18 @@ function PanelBody({ executionId, canWrite, globalModeOverride, onClose }: { exe
 
       {/* Sticky actions */}
       <div className="flex flex-wrap items-center justify-end gap-2 border-t bg-muted/30 px-6 py-3 pl-7">
+        <ReviewDecisionDialog
+          open={reviewDecision !== null}
+          decision={reviewDecision ?? 'CONFIRMED'}
+          proposedStatus={proposedStatusOf(execution)}
+          pending={reviewMutation.isPending}
+          onOpenChange={(open) => { if (!open) setReviewDecision(null) }}
+          onConfirm={(note) => { if (reviewDecision) reviewMutation.mutate({ decision: reviewDecision, note }) }}
+        />
         {canReview && (
           <>
-            <Button variant="outline" size="sm" disabled={reviewMutation.isPending} onClick={() => reviewMutation.mutate('CONFIRMED')}><Check className="mr-1 h-4 w-4" /> Conferma</Button>
-            <Button variant="outline" size="sm" disabled={reviewMutation.isPending} onClick={() => reviewMutation.mutate('REJECTED')}><X className="mr-1 h-4 w-4" /> Rifiuta</Button>
+            <Button variant="outline" size="sm" disabled={reviewMutation.isPending} onClick={() => setReviewDecision('CONFIRMED')}><Check className="mr-1 h-4 w-4" /> Conferma</Button>
+            <Button variant="outline" size="sm" disabled={reviewMutation.isPending} onClick={() => setReviewDecision('REJECTED')}><X className="mr-1 h-4 w-4" /> Rifiuta</Button>
           </>
         )}
         {canWrite && (

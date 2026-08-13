@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAnalysisScores } from '@/hooks/use-analysis-scores'
+import { ScoreProfileBadge } from '@/components/analysis/score-profile-badge'
 import { usePermissions } from '@/hooks/use-permissions'
 import { api, type AlarmAnalysis, type AlarmEvent, type PaginatedResponse } from '@/lib/api-client'
 import { invalidate } from '@/lib/query-invalidation'
@@ -912,6 +913,7 @@ export function AnalysisDetailPanel({
             {validation && quality && (
               <section className="space-y-3">
                 <SectionHeader label="Valutazione" icon={ShieldCheck} />
+                <ScoreProfileBadge origin={analysis.origin} />
 
                 {/* Score row */}
                 <div className="flex items-stretch gap-3">

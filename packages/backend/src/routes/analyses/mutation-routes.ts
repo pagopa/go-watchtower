@@ -10,6 +10,8 @@ import {
   AnalysisStatuses,
   SystemEventActions,
   SystemEventResources,
+  AnalysisOrigins,
+  AutomationReviewStatuses,
 } from "@go-watchtower/shared";
 import { requirePermission } from "../../lib/require-permission.js";
 import { getPermissionScope } from "../../services/permission.service.js";
@@ -17,6 +19,8 @@ import { scoreAnalysis } from "../../services/analysis-scoring.service.js";
 import { buildDiff } from "../../services/system-event.service.js";
 import { HttpError } from "../../utils/http-errors.js";
 import { toJsonInput } from "../../utils/json-cast.js";
+import { supersedePendingReviews } from "../../services/automation/review-supersede.js";
+import { withTransactionRetry } from "../../utils/transaction-retry.js";
 import {
   AlarmAnalysisParamsSchema,
   AlarmAnalysisResponseSchema,
@@ -36,6 +40,61 @@ import {
   processLinks,
   type TransactionClient,
 } from "./shared.js";
+
+/**
+ * Conflitto di concorrenza segnalato **abortendo** la transazione.
+ *
+ * Ritornarlo invece che lanciarlo lascerebbe committate le scritture che la
+ * risposta 409 dichiara non applicate: `$transaction` committa se il callback
+ * ritorna normalmente.
+ */
+class AnalysisConcurrencyConflict extends Error {
+  constructor(readonly detail: string) {
+    super(detail);
+    this.name = "AnalysisConcurrencyConflict";
+  }
+}
+
+/**
+ * Verifica che la proposta automatica su cui l'operatore sta scrivendo sia
+ * ancora quella che aveva davanti (§4.8.3).
+ *
+ * Salvare una modifica su un'analisi con review pendente **la conferma** a nome
+ * di chi salva: se nel frattempo un re-apply ha sostituito il contenuto, quella
+ * firma finisce su una versione mai vista. È l'unico modo silenzioso di
+ * attribuire a un operatore una decisione che non ha preso, e per questo il
+ * token è obbligatorio esattamente lì e solo lì — altrove resta facoltativo, e i
+ * client che non lo inviano continuano a funzionare.
+ *
+ * @param tx - Transazione con i lock già acquisiti
+ * @param currentExecutionId - `lastAppliedExecutionId` riletta sotto lock
+ * @param expected - Token dichiarato dal client, `undefined` se assente
+ * @throws AnalysisConcurrencyConflict se il token manca dove serve o non combacia
+ */
+async function assertProposalStillTheOneSeen(
+  tx: TransactionClient,
+  currentExecutionId: string | null,
+  expected: string | null | undefined,
+): Promise<void> {
+  if (expected !== undefined) {
+    if (expected !== currentExecutionId) {
+      throw new AnalysisConcurrencyConflict(
+        "La proposta automatica è cambiata da quando hai aperto l'analisi: ricarica e riprova",
+      );
+    }
+    return;
+  }
+  if (currentExecutionId === null) return;
+  const pending = await tx.automaticRunbookExecution.findFirst({
+    where: { id: currentExecutionId, reviewStatus: AutomationReviewStatuses.PENDING },
+    select: { id: true },
+  });
+  if (pending !== null) {
+    throw new AnalysisConcurrencyConflict(
+      "L'analisi ha una proposta automatica in attesa di revisione: la modifica deve dichiarare expectedLastAppliedExecutionId",
+    );
+  }
+}
 
 export async function registerAnalysisMutationRoutes(
   fastify: FastifyInstance,
@@ -262,6 +321,7 @@ export async function registerAnalysisMutationRoutes(
           400: ErrorResponseSchema,
           403: ErrorResponseSchema,
           404: ErrorResponseSchema,
+          409: ErrorResponseSchema,
           500: ErrorResponseSchema,
         },
       },
@@ -423,7 +483,44 @@ export async function registerAnalysisMutationRoutes(
           );
         }
 
-        const analysis = await prisma.$transaction(async (tx: TransactionClient) => {
+        const runTransaction = () => prisma.$transaction(async (tx: TransactionClient) => {
+          // Ordine di lock canonico: execution → eventi → analisi, lo stesso che
+          // tengono `complete` e la review. Prendere l'analisi per prima — cioè
+          // lasciare che sia l'`update` ad acquisirne il lock — invertirebbe
+          // l'ordine rispetto al `complete` e aprirebbe un ciclo di attesa.
+          //
+          // `lastAppliedExecutionId` va letta prima di poterla bloccare, quindi
+          // la si rilegge quando i lock sono tutti in mano: se è cambiata, il
+          // lock preso sopra è su una execution che non è più il bersaglio.
+          const before = await tx.alarmAnalysis.findUnique({
+            where: { id },
+            select: { lastAppliedExecutionId: true },
+          });
+          if (before === null) return null;
+          if (before.lastAppliedExecutionId !== null) {
+            await tx.$queryRaw(
+              Prisma.sql`SELECT id FROM automatic_runbook_executions WHERE id = ${before.lastAppliedExecutionId}::uuid FOR UPDATE`,
+            );
+          }
+          // Gli eventi collegati sono il punto di sincronizzazione con il
+          // `complete`, che tiene il lock sull'evento per tutta la
+          // materializzazione: è qui che una riapplicazione in corso ci ferma.
+          await tx.$queryRaw(Prisma.sql`SELECT id FROM alarm_events WHERE analysis_id = ${id}::uuid FOR UPDATE`);
+          await tx.$queryRaw(Prisma.sql`SELECT id FROM alarm_analyses WHERE id = ${id}::uuid FOR UPDATE`);
+
+          const locked = await tx.alarmAnalysis.findUnique({
+            where: { id },
+            select: { origin: true, lastAppliedExecutionId: true },
+          });
+          if (locked === null) return null;
+          if (locked.lastAppliedExecutionId !== before.lastAppliedExecutionId) {
+            throw new AnalysisConcurrencyConflict(
+              "L'analisi è stata riapplicata mentre la modifica era in corso: ricarica e riprova",
+            );
+          }
+
+          await assertProposalStillTheOneSeen(tx, locked.lastAppliedExecutionId, request.body.expectedLastAppliedExecutionId);
+
           if (request.body.resourceIds !== undefined) {
             await tx.analysisResource.deleteMany({ where: { analysisId: id } });
             if (request.body.resourceIds.length > 0) {
@@ -463,6 +560,14 @@ export async function registerAnalysisMutationRoutes(
           const updateData: Record<string, unknown> = {
             updatedById: request.user.userId,
           };
+
+          // Prima modifica umana di un'analisi automatica: da qui in poi il dato è
+          // ibrido e torna soggetto alle regole piene (§4.7). L'origine si legge
+          // da `locked`, sotto lock: quella di `existing` è di prima della
+          // transazione e un re-apply può averla riportata ad `AUTOMATIC`.
+          if (locked.origin === AnalysisOrigins.AUTOMATIC) {
+            updateData.origin = AnalysisOrigins.HYBRID;
+          }
 
           if (request.body.analysisDate !== undefined) {
             updateData.analysisDate = new Date(request.body.analysisDate);
@@ -540,8 +645,69 @@ export async function registerAnalysisMutationRoutes(
             });
           }
 
+          // La modifica umana di una proposta ancora pendente è una conferma con
+          // modifiche: chiude la review nella stessa transazione, così non resta
+          // una decisione in sospeso su un contenuto che l'operatore ha già
+          // riscritto (§4.8.3).
+          //
+          // Il bersaglio è **solo** la proposta corrente, letta da `updated` e
+          // quindi dentro la transazione: `existing` è stato letto prima e un
+          // re-apply concorrente può averla sostituita. Confermare tutte le
+          // pendenti registrerebbe come approvate dall'operatore anche versioni
+          // che non ha mai visto.
+          const currentExecutionId = updated.lastAppliedExecutionId;
+          if (currentExecutionId !== null) {
+            // Compare-and-set su `PENDING`: fra la lettura e la scrittura la
+            // review può essere stata decisa altrove, e uno stato finale è
+            // immutabile.
+            const confirmed = await tx.automaticRunbookExecution.updateMany({
+              where: { id: currentExecutionId, reviewStatus: AutomationReviewStatuses.PENDING },
+              data: {
+                reviewStatus: AutomationReviewStatuses.CONFIRMED,
+                reviewedByUserId: request.user.userId,
+                reviewedByLabel: request.user.email ?? request.user.userId,
+                reviewedAt: new Date(),
+              },
+            });
+            if (confirmed.count === 1) {
+              await tx.systemEvent.create({
+                data: {
+                  action: SystemEventActions.AUTOMATION_ANALYSIS_CONFIRMED,
+                  resource: SystemEventResources.AUTOMATIC_RUNBOOK_EXECUTIONS,
+                  resourceId: currentExecutionId,
+                  userId: request.user.userId,
+                  metadata: {
+                    actorType: "HUMAN",
+                    analysisId: id,
+                    confirmationMode: "EDITED",
+                  },
+                },
+              });
+            }
+          }
+
+          // Eventuali proposte pendenti diverse da quella corrente non sono
+          // state riviste da nessuno: l'analisi ora è `HYBRID` e la loro review
+          // risponderebbe per sempre `REVIEW_TARGET_CHANGED`. Si chiudono come
+          // superate, non come confermate.
+          await supersedePendingReviews(
+            tx,
+            { analysisId: id },
+            {
+              reason: "HUMAN_ANALYSIS_EDIT",
+              actorUserId: request.user.userId,
+              ...(currentExecutionId === null ? {} : { exceptExecutionId: currentExecutionId }),
+            },
+          );
+
           return updated;
         });
+
+        const analysis = await withTransactionRetry(runTransaction);
+        // L'analisi è sparita fra il controllo dei permessi e i lock.
+        if (analysis === null) {
+          return HttpError.notFound(reply, "Analysis");
+        }
 
         const eventBase = {
           resource: SystemEventResources.ALARM_ANALYSES,
@@ -643,6 +809,11 @@ export async function registerAnalysisMutationRoutes(
           );
         });
       } catch (error) {
+        // Prima del ramo generico: un conflitto di concorrenza non è una
+        // richiesta malformata e non va degradato a 400.
+        if (error instanceof AnalysisConcurrencyConflict) {
+          return HttpError.conflict(reply, error.detail);
+        }
         const message =
           error instanceof Error ? error.message : "Failed to update analysis";
         if (message.includes("Record to update not found")) {
@@ -713,7 +884,23 @@ export async function registerAnalysisMutationRoutes(
           }
         }
 
-        await prisma.alarmAnalysis.delete({ where: { id: request.params.id } });
+        // La FK `AutomaticRunbookExecution.analysisId` è `SetNull`: cancellare
+        // l'analisi lascia la review pendente senza bersaglio, e da lì ogni
+        // decisione risponde `REVIEW_NOT_APPLICABLE` — una voce in coda che
+        // nessuna azione umana può più togliere (§4.8.2). Chiusura e delete nella
+        // stessa transazione, altrimenti un fallimento lascerebbe i due stati
+        // disallineati.
+        await prisma.$transaction(async (tx: TransactionClient) => {
+          await supersedePendingReviews(
+            tx,
+            { analysisId: request.params.id },
+            {
+              reason: "HUMAN_ANALYSIS_DELETE",
+              actorUserId: request.user.userId,
+            },
+          );
+          await tx.alarmAnalysis.delete({ where: { id: request.params.id } });
+        });
 
         request.auditEvents.push({
           action: SystemEventActions.ANALYSIS_DELETED,

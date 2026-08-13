@@ -7,7 +7,9 @@ import {
   type AutomaticRunbookAttempt,
 } from "@go-watchtower/database";
 import { RUNBOOK_AUTOMATION_SERVICE_ID } from "@go-watchtower/shared";
+import { reviewExecution } from "../../services/automation/review.service.js";
 import { requirePermission } from "../../lib/require-permission.js";
+import { buildShadowReport } from "../../services/automation/shadow-report.service.js";
 import { requireHumanPrincipal, requireServiceOrCliHuman } from "../../lib/require-principal.js";
 import { HttpError } from "../../utils/http-errors.js";
 import {
@@ -31,12 +33,16 @@ import {
   CreateCliExecutionRequestSchema,
   CliExecutionCommandResponseSchema,
   ReviewExecutionRequestSchema,
+  ReviewExecutionResponseSchema,
+  ReviewConflictResponseSchema,
   ExecutionDtoSchema,
   ExecutionListQuerySchema,
   ExecutionListResponseSchema,
   AttemptListResponseSchema,
   AttemptsQuerySchema,
   ExecutionStatsResponseSchema,
+  ShadowReportQuerySchema,
+  ShadowReportResponseSchema,
   ErrorResponseSchema,
   type ExecutionIdParams,
   type StartExecutionRequest,
@@ -50,6 +56,7 @@ import {
   type ReviewExecutionRequest,
   type ExecutionListQuery,
   type AttemptsQuery,
+  type ShadowReportQuery,
   COMPLETE_ROUTE_BODY_LIMIT_BYTES,
 } from "./schemas.js";
 import {
@@ -59,7 +66,6 @@ import {
   failExecution,
   acknowledgeCancellation,
   requestCancel,
-  reviewExecution,
   createManualExecution,
   createCliExecution,
   previewCliExecutionCommand,
@@ -93,6 +99,7 @@ function toExecutionDto(e: AutomaticRunbookExecution) {
     status: e.status,
     outcome: e.outcome,
     reviewStatus: e.reviewStatus,
+    analysisApplyStatus: e.analysisApplyStatus,
     triggerKind: e.triggerKind,
     dispatchKind: e.dispatchKind,
     appliedMode: e.appliedMode,
@@ -135,6 +142,11 @@ function toExecutionDetailDto(e: AutomaticRunbookExecution) {
     inputSnapshot: e.inputSnapshot ?? null,
     resultSummary: e.resultSummary ?? null,
     analysisPayload: e.analysisPayload ?? null,
+    analysisApplyDiagnostics: e.analysisApplyDiagnostics ?? null,
+    analysisDraft: e.analysisDraft ?? null,
+    reviewedByLabel: e.reviewedByLabel,
+    reviewedAt: iso(e.reviewedAt),
+    reviewNote: e.reviewNote,
   };
 }
 
@@ -235,6 +247,7 @@ export async function automaticRunbookExecutionRoutes(fastify: FastifyInstance):
         ...(q.status ? { status: q.status } : {}),
         ...(q.outcome ? { outcome: q.outcome } : {}),
         ...(q.reviewStatus ? { reviewStatus: q.reviewStatus } : {}),
+        ...(q.analysisApplyStatus ? { analysisApplyStatus: q.analysisApplyStatus } : {}),
         ...(q.triggerKind ? { triggerKind: q.triggerKind } : {}),
         ...(q.productId ? { productId: q.productId } : {}),
         ...(q.environmentId ? { environmentId: q.environmentId } : {}),
@@ -358,6 +371,24 @@ export async function automaticRunbookExecutionRoutes(fastify: FastifyInstance):
     },
   );
 
+  app.get<{ Querystring: ShadowReportQuery }>(
+    "/automatic-runbook-executions/shadow-report",
+    {
+      onRequest: [app.authenticate, requireHumanPrincipal(), requirePermission(RESOURCE, "read")],
+      schema: {
+        tags: ["Automatic Runbook Executions"],
+        summary: "Shadow readiness per capability and product",
+        security: BEARER,
+        querystring: ShadowReportQuerySchema,
+        response: { 200: ShadowReportResponseSchema, 403: ErrorResponseSchema },
+      },
+    },
+    async (request, reply) => {
+      const report = await buildShadowReport(request.query.days ?? 14, request.query.productId);
+      reply.send(report);
+    },
+  );
+
   app.get(
     "/automatic-runbook-executions/stats",
     {
@@ -370,10 +401,32 @@ export async function automaticRunbookExecutionRoutes(fastify: FastifyInstance):
       },
     },
     async (_request, reply) => {
-      const [byStatus, byOutcome, pendingReview, inDlq, defaultSetting, overrideSetting] = await Promise.all([
+      const [
+        byStatus,
+        byOutcome,
+        byApplyStatus,
+        byReviewStatus,
+        blockedRows,
+        oldestPending,
+        inDlq,
+        defaultSetting,
+        overrideSetting,
+      ] = await Promise.all([
         prisma.automaticRunbookExecution.groupBy({ by: ["status"], _count: true }),
         prisma.automaticRunbookExecution.groupBy({ by: ["outcome"], _count: true }),
-        prisma.automaticRunbookExecution.count({ where: { reviewStatus: "PENDING" } }),
+        prisma.automaticRunbookExecution.groupBy({ by: ["analysisApplyStatus"], _count: true }),
+        prisma.automaticRunbookExecution.groupBy({ by: ["reviewStatus"], _count: true }),
+        // `blockCode` vive nel JSON di diagnostica, non in colonna: niente groupBy.
+        // La coda remediation è per costruzione piccola, quindi si aggrega qui.
+        prisma.automaticRunbookExecution.findMany({
+          where: { analysisApplyStatus: "BLOCKED" },
+          select: { analysisApplyDiagnostics: true },
+        }),
+        prisma.automaticRunbookExecution.findFirst({
+          where: { reviewStatus: "PENDING" },
+          orderBy: { completedAt: "asc" },
+          select: { completedAt: true },
+        }),
         prisma.automaticRunbookExecution.count({ where: { status: "RETRY_PENDING" } }),
         prisma.systemSetting.findUnique({ where: { key: "automation.defaultMode" } }),
         prisma.systemSetting.findUnique({ where: { key: "automation.modeOverride" } }),
@@ -382,11 +435,41 @@ export async function automaticRunbookExecutionRoutes(fastify: FastifyInstance):
       for (const s of byStatus) statusMap[s.status] = s._count;
       const outcomeMap: Record<string, number> = {};
       for (const o of byOutcome) if (o.outcome) outcomeMap[o.outcome] = o._count;
-      const isMode = (v: unknown): v is "SHADOW" | "APPLY_KNOWN" | "APPLY_ALL" =>
-        v === "SHADOW" || v === "APPLY_KNOWN" || v === "APPLY_ALL";
+      const applyMap: Record<string, number> = {};
+      for (const a of byApplyStatus) applyMap[a.analysisApplyStatus] = a._count;
+      const reviewMap: Record<string, number> = {};
+      for (const r of byReviewStatus) reviewMap[r.reviewStatus] = r._count;
+
+      const blockedByCode: Record<string, number> = {};
+      for (const row of blockedRows) {
+        const code = (row.analysisApplyDiagnostics as { blockCode?: string } | null)?.blockCode ?? "UNKNOWN";
+        blockedByCode[code] = (blockedByCode[code] ?? 0) + 1;
+      }
+      const oldestPendingReviewHours =
+        oldestPending?.completedAt == null
+          ? null
+          : Math.round(((Date.now() - oldestPending.completedAt.getTime()) / 3_600_000) * 10) / 10;
+      // Modo **effettivo**: un APPLY_ALL residuo in configurazione non governa
+      // più nulla (§4.5) e non va mostrato come se fosse operativo; l'anomalia
+      // emerge dal SystemEvent AUTOMATION_CONFIG_INVALID, non da qui.
+      const isMode = (v: unknown): v is "SHADOW" | "APPLY_KNOWN" =>
+        v === "SHADOW" || v === "APPLY_KNOWN";
       const defaultMode = isMode(defaultSetting?.value) ? defaultSetting.value : "SHADOW";
       const modeOverride = isMode(overrideSetting?.value) ? overrideSetting.value : null;
-      reply.send({ byStatus: statusMap, byOutcome: outcomeMap, pendingReview, inDlq, defaultMode, modeOverride });
+      reply.send({
+        byStatus: statusMap,
+        byOutcome: outcomeMap,
+        byApplyStatus: applyMap,
+        pendingReview: reviewMap["PENDING"] ?? 0,
+        reviewConfirmed: reviewMap["CONFIRMED"] ?? 0,
+        reviewRejected: reviewMap["REJECTED"] ?? 0,
+        oldestPendingReviewHours,
+        blockedRemediation: applyMap["BLOCKED"] ?? 0,
+        blockedByCode,
+        inDlq,
+        defaultMode,
+        modeOverride,
+      });
     },
   );
 
@@ -496,15 +579,30 @@ export async function automaticRunbookExecutionRoutes(fastify: FastifyInstance):
         security: BEARER,
         params: ExecutionIdParamsSchema,
         body: ReviewExecutionRequestSchema,
-        response: { 200: ExecutionDtoSchema, 403: ErrorResponseSchema, 404: ErrorResponseSchema },
+        response: {
+          200: ReviewExecutionResponseSchema,
+          403: ErrorResponseSchema,
+          404: ErrorResponseSchema,
+          409: ReviewConflictResponseSchema,
+        },
       },
     },
     async (request, reply) => {
-      const result = await reviewExecution(request.params.id, request.body.decision, actorOf(request));
+      const result = await reviewExecution(
+        request.params.id,
+        request.body.decision,
+        request.body.note,
+        actorOf(request),
+      );
       if (result.kind === "NOT_FOUND") return HttpError.notFound(reply, "Execution");
-      const row = await prisma.automaticRunbookExecution.findUnique({ where: { id: request.params.id } });
-      if (!row) return HttpError.notFound(reply, "Execution");
-      reply.send(toExecutionDto(row));
+      if (result.kind === "CONFLICT") {
+        reply.status(409).send({
+          conflict: result.conflict,
+          ...(result.reviewStatus === undefined ? {} : { reviewStatus: result.reviewStatus }),
+        });
+        return;
+      }
+      reply.send({ execution: toExecutionDto(result.execution), alreadyReviewed: result.alreadyReviewed });
     },
   );
 
@@ -634,23 +732,13 @@ export async function automaticRunbookExecutionRoutes(fastify: FastifyInstance):
         reply.status(500).send({ error: error instanceof Error ? error.message : "Completion actor resolution failed" });
         return;
       }
-      const result = await completeExecution(request.params.id, actors, {
-        attemptId: body.attemptId,
-        outcome: body.outcome,
-        ...(body.bytesScanned !== undefined ? { bytesScanned: body.bytesScanned } : {}),
-        ...(body.recordsScanned !== undefined ? { recordsScanned: body.recordsScanned } : {}),
-        ...(body.recordsMatched !== undefined ? { recordsMatched: body.recordsMatched } : {}),
-        ...(body.queryCount !== undefined ? { queryCount: body.queryCount } : {}),
-        ...(body.runbookKey !== undefined ? { runbookKey: body.runbookKey } : {}),
-        ...(body.runbookVersion !== undefined ? { runbookVersion: body.runbookVersion } : {}),
-        ...(body.runbookDigest !== undefined ? { runbookDigest: body.runbookDigest } : {}),
-        ...(body.engineExecutionId !== undefined ? { engineExecutionId: body.engineExecutionId } : {}),
-        ...(body.errorCode !== undefined ? { errorCode: body.errorCode } : {}),
-        ...(body.errorMessage !== undefined ? { errorMessage: body.errorMessage } : {}),
-        ...(body.analysisPayload !== undefined ? { analysisPayload: body.analysisPayload } : {}),
-        ...(body.resultSummary !== undefined ? { resultSummary: body.resultSummary } : {}),
-        ...(body.tracking !== undefined ? { tracking: body.tracking } : {}),
-      });
+      // Il body si passa **intero**, senza ricopiarlo campo per campo: quella
+      // copia manuale ha già fatto sparire in silenzio `analysisDraft` e
+      // `failedStepId`, perché un campo opzionale dimenticato non rompe né i
+      // tipi né i test. Lo schema ha `additionalProperties: false`, quindi qui
+      // arriva esattamente ciò che il contratto dichiara, e se lo schema
+      // divergesse da `CompletionRequest` sarebbe questa riga a non compilare.
+      const result = await completeExecution(request.params.id, actors, body);
       switch (result.kind) {
         case "NOT_FOUND":
           return HttpError.notFound(reply, "Execution");
@@ -673,7 +761,16 @@ export async function automaticRunbookExecutionRoutes(fastify: FastifyInstance):
           reply.send({ status: result.status, outcome: body.outcome, alreadyTerminal: true });
           return;
         case "OK":
-          reply.send({ status: result.status, outcome: result.outcome, appliedMode: result.appliedMode, analysisId: result.analysisId });
+          reply.send({
+            status: result.status,
+            outcome: result.outcome,
+            appliedMode: result.appliedMode,
+            analysisId: result.analysisId,
+            analysisApplyStatus: result.analysisApplyStatus,
+            ...(result.analysisApplyBlockCode === undefined
+              ? {}
+              : { analysisApplyBlockCode: result.analysisApplyBlockCode }),
+          });
           return;
         default: {
           const exhaustive: never = result;

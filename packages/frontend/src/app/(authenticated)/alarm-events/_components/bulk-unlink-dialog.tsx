@@ -379,6 +379,7 @@ export function BulkUnlinkDialog({
           if (newOcc > 0 && newOcc !== analysis.occurrences) {
             await api.updateAnalysis(group.productId, group.analysisId, {
               occurrences: newOcc,
+              expectedLastAppliedExecutionId: analysis.lastAppliedExecutionId ?? null,
             })
           }
         }

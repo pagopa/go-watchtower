@@ -10,6 +10,7 @@ import {
   ANALYSIS_BEARING_OUTCOMES,
   isTerminalExecutionStatus,
 } from "@go-watchtower/shared";
+import type { AutomationMode } from "@go-watchtower/shared";
 import type {
   ActiveAttemptSnapshot,
   AnalysisRouting,
@@ -450,6 +451,20 @@ export function decideFinalizer(
 // ─── routing analisi a 3 rami (§9.2/§9.3) ─────────────────────────────────────
 
 /**
+ * Un modo è «applicante» quando il rollout autorizza scritture su `AlarmAnalysis`.
+ *
+ * In v1 solo `APPLY_KNOWN` lo è: `APPLY_ALL` è chiuso a ogni ingresso (§4.5) e
+ * va trattato come non applicante ovunque. Vive qui, accanto a `routeAnalysis`,
+ * perché la stessa nozione serve anche a chi non materializza nulla — l'esito
+ * unknown, che in modo applicante richiede comunque una review dell'esito (§4.8).
+ *
+ * @param mode - Modo effettivo dell'esecuzione
+ */
+export function isApplyingMode(mode: AutomationMode): boolean {
+  return mode === AutomationModes.APPLY_KNOWN;
+}
+
+/**
  * Decide se e come scrivere `AlarmAnalysis` (§9.2). Gate sull'esito + modo:
  * solo KNOWN_CASE/UNKNOWN_CASE creano analisi e solo se il modo li applica.
  */
@@ -459,11 +474,11 @@ export function routeAnalysis(input: AnalysisRoutingInput): AnalysisRouting {
     return { kind: "EXECUTION_ONLY" };
   }
 
-  // gate sul modo di rollout
+  // gate sul modo di rollout. `APPLY_ALL` non è raggiungibile in v1 (§4.5) e un
+  // UNKNOWN_CASE non materializza mai: solo APPLY_KNOWN sui known applica.
   const modeApplies =
-    input.appliedMode === AutomationModes.APPLY_ALL ||
-    (input.appliedMode === AutomationModes.APPLY_KNOWN &&
-      input.outcome === AutomationExecutionOutcomes.KNOWN_CASE);
+    isApplyingMode(input.appliedMode) &&
+    input.outcome === AutomationExecutionOutcomes.KNOWN_CASE;
   if (!modeApplies) {
     // SHADOW o modo che non applica quell'esito → execution.analysisPayload (2c).
     return { kind: "EXECUTION_ONLY" };

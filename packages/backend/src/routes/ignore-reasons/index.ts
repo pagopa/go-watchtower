@@ -4,6 +4,7 @@ import { prisma, Prisma, SystemComponent } from "@go-watchtower/database";
 import { buildDiff } from "../../services/system-event.service.js";
 import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
 import type { IgnoreReasonDetailsSchema } from "@go-watchtower/shared";
+import { compileIgnoreDetailsValidator } from "../../services/automation/ignore-details-validator.js";
 import { HttpError } from "../../utils/http-errors.js";
 import { toJsonInput, fromJson } from "../../utils/json-cast.js";
 import { requirePermission } from "../../lib/require-permission.js";
@@ -19,6 +20,22 @@ import {
   type CreateIgnoreReasonBody,
   type UpdateIgnoreReasonBody,
 } from "./schemas.js";
+
+/**
+ * Verifica che il `detailsSchema` salvato sia un JSON Schema compilabile.
+ *
+ * Il campo è un `Record<string, unknown>` libero sullo schema di trasporto: senza
+ * questo controllo un admin può salvare qualcosa che Ajv non compila, e il difetto
+ * emergerebbe solo a runtime dentro l'apply.
+ *
+ * @param schema - Schema proposto; `null`/`undefined` = nessun vincolo
+ * @returns Il messaggio d'errore, oppure `null` se compila
+ */
+function validateDetailsSchema(schema: unknown): string | null {
+  if (schema === null || schema === undefined) return null;
+  const compiled = compileIgnoreDetailsValidator(schema);
+  return compiled.kind === "SCHEMA_INVALID" ? `detailsSchema non è un JSON Schema valido: ${compiled.detail}` : null;
+}
 
 export async function ignoreReasonRoutes(app: FastifyInstance) {
   const server = app.withTypeProvider<TypeBoxTypeProvider>();
@@ -110,6 +127,12 @@ export async function ignoreReasonRoutes(app: FastifyInstance) {
         return HttpError.conflict(reply, `Ignore reason '${request.body.code}' already exists`);
       }
 
+      // Uno schema non compilabile deve fallire qui, dove l'errore è
+      // comprensibile: se passasse, romperebbe la validazione degli ignoreDetails
+      // dentro la transazione di apply e farebbe ripartire il worker in loop.
+      const schemaError = validateDetailsSchema(request.body.detailsSchema);
+      if (schemaError !== null) return HttpError.badRequest(reply, schemaError);
+
       const reason = await prisma.ignoreReason.create({
         data: {
           code:          request.body.code,
@@ -163,6 +186,12 @@ export async function ignoreReasonRoutes(app: FastifyInstance) {
       if (!existing) {
         return HttpError.notFound(reply, "Ignore reason");
       }
+
+      // Uno schema non compilabile deve fallire qui, dove l'errore è
+      // comprensibile: se passasse, romperebbe la validazione degli ignoreDetails
+      // dentro la transazione di apply e farebbe ripartire il worker in loop.
+      const schemaError = validateDetailsSchema(request.body.detailsSchema);
+      if (schemaError !== null) return HttpError.badRequest(reply, schemaError);
 
       const updated = await prisma.ignoreReason.update({
         where: { code: request.params.code },

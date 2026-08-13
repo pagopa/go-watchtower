@@ -14,7 +14,8 @@
     "test:integration": "node --import tsx --test --test-concurrency=1 \"test-integration/**/*.test.ts\"",
     "gen:contracts": "tsx src/scripts/export-contract-artifacts.ts",
     "catalog:import-local": "tsx src/scripts/import-local-automatic-runbook-catalog.ts",
-    "rescore": "tsx src/scripts/rescore-analyses.ts"
+    "rescore": "tsx src/scripts/rescore-analyses.ts",
+    "type-check:test": "tsc -p tsconfig.test.json"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1105.0",

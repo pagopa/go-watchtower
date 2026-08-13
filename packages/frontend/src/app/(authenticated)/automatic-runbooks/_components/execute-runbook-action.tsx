@@ -81,7 +81,8 @@ export function ModeSelect({ value, onChange, defaultLabel }: {
         <SelectItem value={DEFAULT_VALUE}>Predefinito di sistema{defaultLabel ? ` · ${defaultLabel}` : ''}</SelectItem>
         <SelectItem value="SHADOW">{MODE_LABELS.SHADOW} · solo osservazione</SelectItem>
         <SelectItem value="APPLY_KNOWN">{MODE_LABELS.APPLY_KNOWN} · solo casi noti</SelectItem>
-        <SelectItem value="APPLY_ALL">{MODE_LABELS.APPLY_ALL} · sempre</SelectItem>
+        {/* APPLY_ALL non è lanciabile in v1 (§4.5): il backend risponde 400.
+            Resta in MODE_LABELS solo per rendere le esecuzioni storiche. */}
       </SelectContent>
     </Select>
   )

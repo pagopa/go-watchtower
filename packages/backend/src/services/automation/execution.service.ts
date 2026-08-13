@@ -12,17 +12,18 @@ import {
   AutomationDispatchKinds,
   AutomationTriggerKinds,
   AutomationReviewStatuses,
-  AutomationExecutionOutcomes,
+  AutomationAnalysisApplyStatuses,
   AutomationLifecycleBudgets,
   AutomationFailErrorCodes,
   OUTCOME_TO_STATUS,
-  ANALYSIS_BEARING_OUTCOMES,
   SystemEventActions,
   SystemEventResources,
   type AutomationExecutionOutcome,
-  type AnalysisOrigin,
+  type AutomationAnalysisApplyStatus,
+  type AnalysisApplyBlockCode,
   type AutomationTriggerKind,
 } from "@go-watchtower/shared";
+import { materializeAutomaticAnalysis } from "./analysis-materializer.js";
 import {
   decideStart,
   decideProgress,
@@ -30,7 +31,6 @@ import {
   decideFail,
   decideCancel,
   decideCancelAck,
-  routeAnalysis,
 } from "./lifecycle-core.js";
 import crypto from "node:crypto";
 import { AUTOMATIC_ALARM_ANALYSIS_COMMAND_VERSION, type AutomaticAlarmAnalysisCommandV1 } from "./sqs-command.js";
@@ -43,6 +43,7 @@ import type {
   LifecycleBudgets,
 } from "./lifecycle-types.js";
 import { computeCompletionHash } from "./completion-hash.js";
+import { withTransactionRetry } from "../../utils/transaction-retry.js";
 
 /**
  * Servizio transazionale del lifecycle automation (OPUS-03 §9.3/§9.7).
@@ -306,8 +307,25 @@ export async function progressExecution(
   });
 }
 
+/** Esiti di apply che meritano un SystemEvent dedicato (§5.10). */
+const APPLY_STATUS_EVENT_ACTIONS: Partial<Record<AutomationAnalysisApplyStatus, string>> = {
+  [AutomationAnalysisApplyStatuses.APPLIED]: SystemEventActions.AUTOMATION_ANALYSIS_APPLIED,
+  [AutomationAnalysisApplyStatuses.BLOCKED]: SystemEventActions.AUTOMATION_ANALYSIS_BLOCKED,
+  [AutomationAnalysisApplyStatuses.PRESERVED_HUMAN]: SystemEventActions.AUTOMATION_ANALYSIS_PRESERVED_HUMAN,
+};
+
 export type CompleteResult =
-  | { kind: "OK"; status: string; outcome: AutomationExecutionOutcome | null; analysisId: string | null; appliedMode: string }
+  | {
+      kind: "OK";
+      status: string;
+      outcome: AutomationExecutionOutcome | null;
+      analysisId: string | null;
+      appliedMode: string;
+      /** Esito dell'apply: il worker non ritenta mai su `BLOCKED`. */
+      analysisApplyStatus: AutomationAnalysisApplyStatus;
+      /** Causa sintetica del blocco, presente solo su `BLOCKED`. */
+      analysisApplyBlockCode?: AnalysisApplyBlockCode;
+    }
   | { kind: "ALREADY_TERMINAL"; status: string }
   | { kind: "IDEMPOTENCY_PAYLOAD_MISMATCH"; status: string }
   | { kind: "STALE_ATTEMPT"; status: string }
@@ -327,10 +345,36 @@ export interface CompletionActors extends LifecycleActor {
   readonly analysisOperatorUserId: string;
 }
 
-function conclusionForOutcome(outcome: AutomationExecutionOutcome, runbookKey: string | undefined): string {
-  const label =
-    outcome === AutomationExecutionOutcomes.KNOWN_CASE ? "Caso noto" : "Caso non riconosciuto (da revisionare)";
-  return runbookKey ? `${label} — runbook ${runbookKey} (analisi automatica)` : `${label} (analisi automatica)`;
+
+/**
+ * Payload di completamento accettato dal service.
+ *
+ * Deve restare **assegnabile dal body della rotta**: la rotta gli passa il body
+ * così com'è, senza ricopiare campo per campo. È una scelta deliberata — la
+ * copia manuale ha già fatto sparire in silenzio `analysisDraft` e
+ * `failedStepId`, e un campo opzionale dimenticato non è visibile né a `tsc` né
+ * ai test del service. Se questo tipo e lo schema divergono, la rotta non
+ * compila: è il compilatore a fare da guardia, non una convenzione.
+ */
+export interface CompletionRequest {
+  attemptId: string;
+  outcome: AutomationExecutionOutcome;
+  bytesScanned?: string;
+  recordsScanned?: string;
+  recordsMatched?: string;
+  queryCount?: number;
+  runbookKey?: string;
+  runbookVersion?: string;
+  runbookDigest?: string;
+  engineExecutionId?: string;
+  /** Passo in cui il runbook si è rotto, sugli esiti di errore (§9.3). */
+  failedStepId?: string;
+  errorCode?: string;
+  errorMessage?: string;
+  analysisPayload?: unknown;
+  analysisDraft?: unknown;
+  resultSummary?: unknown;
+  tracking?: unknown;
 }
 
 /**
@@ -342,23 +386,7 @@ function conclusionForOutcome(outcome: AutomationExecutionOutcome, runbookKey: s
 export async function completeExecution(
   id: string,
   actors: CompletionActors,
-  request: {
-    attemptId: string;
-    outcome: AutomationExecutionOutcome;
-    bytesScanned?: string;
-    recordsScanned?: string;
-    recordsMatched?: string;
-    queryCount?: number;
-    runbookKey?: string;
-    runbookVersion?: string;
-    runbookDigest?: string;
-    engineExecutionId?: string;
-    errorCode?: string;
-    errorMessage?: string;
-    analysisPayload?: unknown;
-    resultSummary?: unknown;
-    tracking?: unknown;
-  },
+  request: CompletionRequest,
   now: Date = new Date(),
 ): Promise<CompleteResult> {
   // Hash canonico sul DTO normalizzato (chiavi senza attemptId? il contratto usa
@@ -366,7 +394,16 @@ export async function completeExecution(
   const { attemptId: _omit, ...hashable } = request;
   const { hash, version } = computeCompletionHash(hashable);
 
-  return prisma.$transaction(
+  // Ordine di lock: execution → evento (`lockAndReadEvent`) → analisi
+  // (`writeAnalysis`). È l'ordine canonico di tutto il lifecycle e la review lo
+  // segue: invertirlo qui riaprirebbe il ciclo di attesa con la review.
+  //
+  // Il corpo è ritentabile: ogni effetto sta dentro la transazione, quindi il
+  // rollback non lascia nulla fuori, e i gate di idempotenza reggono il secondo
+  // passaggio. Senza retry locale un deadlock diventerebbe un 500 al worker, che
+  // ritenterebbe l'intero callback via SQS: stesso esito, un giro di rete e un
+  // attempt in più.
+  const runTransaction = (): Promise<CompleteResult> => prisma.$transaction(
     async (tx) => {
       const row = await lockExecution(tx, id);
       if (!row) return { kind: "NOT_FOUND" };
@@ -418,6 +455,7 @@ export async function completeExecution(
             activeAttemptId: null,
             workerDeadlineAt: null,
             completedAt: now,
+            analysisApplyStatus: AutomationAnalysisApplyStatuses.NOT_APPLICABLE,
           },
         });
         await tx.systemEvent.create({
@@ -450,87 +488,23 @@ export async function completeExecution(
         },
       });
 
-      // Routing a 3 rami (§9.2/§9.3 2b): solo esiti analysis-bearing + modo che applica.
-      const trackingJson = (request.tracking ?? []) as Prisma.InputJsonValue;
-      let resolvedAnalysisId: string | null = row.analysisId;
-      let analysisApplied = false;
+      // Materializzazione fail-closed dell'analisi automatica (§5.6): gate su
+      // esito e modo, valutazione del draft, apply o BLOCKED con diagnostica.
+      // Nessun percorso lascia `analysis_apply_status` su PENDING (§5.9).
+      const materialization = await materializeAutomaticAnalysis({
+        tx,
+        executionId: id,
+        alarmEventId: row.alarmEventId,
+        outcome: request.outcome,
+        effectiveMode,
+        analysisDraft: request.analysisDraft,
+        tracking: request.tracking,
+        operatorUserId: actors.analysisOperatorUserId,
+        now,
+      });
+      const resolvedAnalysisId = materialization.analysisId ?? row.analysisId;
 
-      if (ANALYSIS_BEARING_OUTCOMES.includes(request.outcome)) {
-        // Lock AlarmEvent + re-read analysisId (serializza run concorrenti).
-        await tx.$queryRaw(
-          Prisma.sql`SELECT id FROM alarm_events WHERE id = ${row.alarmEventId}::uuid FOR UPDATE`,
-        );
-        const event = await tx.alarmEvent.findUnique({
-          where: { id: row.alarmEventId },
-          select: { analysisId: true, firedAt: true, alarmId: true, productId: true, environmentId: true },
-        });
-        if (event) {
-          let existingOrigin: AnalysisOrigin | null = null;
-          if (event.analysisId) {
-            const linked = await tx.alarmAnalysis.findUnique({
-              where: { id: event.analysisId },
-              select: { origin: true },
-            });
-            existingOrigin = linked?.origin ?? null;
-          }
-          const routing = routeAnalysis({
-            outcome: request.outcome,
-            appliedMode: effectiveMode,
-            alarmEventAnalysisId: event.analysisId,
-            existingAnalysisOrigin: existingOrigin,
-          });
-          const conclusion = conclusionForOutcome(request.outcome, request.runbookKey);
-
-          if (routing.kind === "CREATE_ANALYSIS" && event.alarmId) {
-            // Ramo 1: crea analisi AUTOMATIC (occurrences=1) e linka l'evento.
-            const created = await tx.alarmAnalysis.create({
-              data: {
-                analysisDate: event.firedAt,
-                firstAlarmAt: event.firedAt,
-                lastAlarmAt: event.firedAt,
-                occurrences: 1,
-                origin: "AUTOMATIC",
-                alarmId: event.alarmId,
-                productId: event.productId,
-                environmentId: event.environmentId,
-                operatorId: actors.analysisOperatorUserId,
-                createdById: actors.analysisOperatorUserId,
-                conclusionNotes: conclusion,
-                trackingIds: trackingJson,
-                lastAppliedExecutionId: id,
-              },
-            });
-            await tx.alarmEvent.update({
-              where: { id: row.alarmEventId },
-              data: { analysisId: created.id, linkedAt: now },
-            });
-            resolvedAnalysisId = created.id;
-            analysisApplied = true;
-          } else if (routing.kind === "UPDATE_AUTOMATIC_ANALYSIS" && event.analysisId) {
-            // Ramo 2: aggiorna in place; avanza lastAppliedExecutionId; occurrences resta 1.
-            await tx.alarmAnalysis.update({
-              where: { id: event.analysisId },
-              data: {
-                conclusionNotes: conclusion,
-                trackingIds: trackingJson,
-                lastAlarmAt: event.firedAt,
-                lastAppliedExecutionId: id,
-              },
-            });
-            resolvedAnalysisId = event.analysisId;
-            analysisApplied = true;
-          } else {
-            // Ramo 3 (analisi umana) o EXECUTION_ONLY (SHADOW/modo non-applicante):
-            // nessuna scrittura su alarm_analyses; cross-ref all'eventuale analisi linkata.
-            resolvedAnalysisId = event.analysisId;
-          }
-        }
-      }
-
-      const reviewStatus =
-        request.outcome === AutomationExecutionOutcomes.UNKNOWN_CASE
-          ? AutomationReviewStatuses.PENDING
-          : AutomationReviewStatuses.NOT_REQUIRED;
+      const reviewStatus = materialization.reviewStatus;
 
       await tx.automaticRunbookExecution.update({
         where: { id },
@@ -539,6 +513,12 @@ export async function completeExecution(
           outcome: request.outcome,
           // appliedMode NON viene riscritto: resta l'intento del lancio.
           reviewStatus,
+          analysisApplyStatus: materialization.applyStatus,
+          analysisApplyDiagnostics:
+            materialization.diagnostics === null
+              ? Prisma.DbNull
+              : (materialization.diagnostics as unknown as Prisma.InputJsonValue),
+          analysisDraft: materialization.draftToPersist ?? Prisma.DbNull,
           analysisId: resolvedAnalysisId,
           activeAttemptId: null,
           workerDeadlineAt: null,
@@ -548,6 +528,7 @@ export async function completeExecution(
           engineExecutionId: request.engineExecutionId ?? row.engineExecutionId,
           errorCode: request.errorCode ?? null,
           errorMessage: request.errorMessage ?? null,
+          failedStepId: request.failedStepId ?? null,
           queryCount: request.queryCount ?? null,
           bytesScanned: request.bytesScanned !== undefined ? BigInt(request.bytesScanned) : null,
           recordsScanned: request.recordsScanned !== undefined ? BigInt(request.recordsScanned) : null,
@@ -579,10 +560,15 @@ export async function completeExecution(
           },
         },
       });
-      if (analysisApplied) {
+      // Un evento per ogni esito di apply che ha un destinatario operativo:
+      // APPLIED è l'audit della scrittura, BLOCKED alimenta la coda remediation,
+      // PRESERVED_HUMAN registra che l'automazione si è fermata davanti a un
+      // contenuto umano. Gli esiti evaluate-only non hanno nulla da notificare.
+      const applyAction = APPLY_STATUS_EVENT_ACTIONS[materialization.applyStatus];
+      if (applyAction !== undefined) {
         await tx.systemEvent.create({
           data: {
-            action: SystemEventActions.AUTOMATION_ANALYSIS_APPLIED,
+            action: applyAction,
             resource: SystemEventResources.AUTOMATIC_RUNBOOK_EXECUTIONS,
             resourceId: id,
             userId: actors.lifecycleActorUserId,
@@ -592,6 +578,9 @@ export async function completeExecution(
               analysisOperatorUserId: actors.analysisOperatorUserId,
               analysisId: resolvedAnalysisId,
               outcome: request.outcome,
+              ...(materialization.diagnostics?.blockCode === undefined
+                ? {}
+                : { blockCode: materialization.diagnostics.blockCode }),
             },
           },
         });
@@ -603,19 +592,51 @@ export async function completeExecution(
         outcome: request.outcome,
         analysisId: resolvedAnalysisId,
         appliedMode: effectiveMode,
+        analysisApplyStatus: materialization.applyStatus,
+        ...(materialization.diagnostics?.blockCode === undefined
+          ? {}
+          : { analysisApplyBlockCode: materialization.diagnostics.blockCode }),
       };
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   );
+
+  return withTransactionRetry(runTransaction);
 }
 
-async function resolveAutomationMode(tx: Tx): Promise<"SHADOW" | "APPLY_KNOWN" | "APPLY_ALL"> {
+async function resolveAutomationMode(tx: Tx): Promise<"SHADOW" | "APPLY_KNOWN"> {
   const setting = await tx.systemSetting.findUnique({ where: { key: "automation.defaultMode" } });
   const value = typeof setting?.value === "string" ? setting.value : AutomationModes.SHADOW;
-  if (value === AutomationModes.APPLY_ALL || value === AutomationModes.APPLY_KNOWN) {
-    return value;
+  if (value === AutomationModes.APPLY_KNOWN) return value;
+  if (value !== AutomationModes.SHADOW) {
+    // Valore residuo o non riconosciuto: mai un decadimento silenzioso (§4.5).
+    await reportInvalidAutomationConfig(tx, "automation.defaultMode", value, AutomationModes.SHADOW);
   }
   return AutomationModes.SHADOW;
+}
+
+/**
+ * Registra una configurazione di modo non valida.
+ *
+ * `APPLY_ALL` resta nell'enum per l'evoluzione futura del contratto bozza ma non
+ * è raggiungibile in v1: un valore residuo in DB/SSM deve produrre diagnostica,
+ * non un fallback muto che nasconde una configurazione sbagliata.
+ */
+async function reportInvalidAutomationConfig(
+  tx: Tx,
+  key: string,
+  value: string,
+  fallback: string,
+): Promise<void> {
+  await tx.systemEvent.create({
+    data: {
+      action: SystemEventActions.AUTOMATION_CONFIG_INVALID,
+      resource: SystemEventResources.AUTOMATIC_RUNBOOK_EXECUTIONS,
+      resourceId: null,
+      userId: null,
+      metadata: { actorType: "SYSTEM", settingKey: key, value, fallback },
+    },
+  });
 }
 
 /**
@@ -623,11 +644,12 @@ async function resolveAutomationMode(tx: Tx): Promise<"SHADOW" | "APPLY_KNOWN" |
  * con un modo valido sovrascrive l'appliedMode di OGNI esecuzione al completamento;
  * vuoto/assente/non valido = nessun override (null).
  */
-async function resolveModeOverride(tx: Tx): Promise<"SHADOW" | "APPLY_KNOWN" | "APPLY_ALL" | null> {
+async function resolveModeOverride(tx: Tx): Promise<"SHADOW" | "APPLY_KNOWN" | null> {
   const setting = await tx.systemSetting.findUnique({ where: { key: "automation.modeOverride" } });
   const value = typeof setting?.value === "string" ? setting.value : "";
-  if (value === AutomationModes.SHADOW || value === AutomationModes.APPLY_KNOWN || value === AutomationModes.APPLY_ALL) {
-    return value;
+  if (value === AutomationModes.SHADOW || value === AutomationModes.APPLY_KNOWN) return value;
+  if (value !== "") {
+    await reportInvalidAutomationConfig(tx, "automation.modeOverride", value, "nessun override");
   }
   return null;
 }
@@ -691,6 +713,7 @@ export async function failExecution(
         activeAttemptId: null,
         workerDeadlineAt: null,
         completedAt: now,
+        analysisApplyStatus: AutomationAnalysisApplyStatuses.NOT_APPLICABLE,
       },
     });
     await tx.systemEvent.create({
@@ -764,6 +787,7 @@ export async function acknowledgeCancellation(
         completedAt: now,
         cancellationFinalizedBy: "WORKER",
         reviewStatus: AutomationReviewStatuses.NOT_REQUIRED,
+        analysisApplyStatus: AutomationAnalysisApplyStatuses.NOT_APPLICABLE,
         resultSummary: (request.partialTelemetry ?? Prisma.DbNull),
       },
     });
@@ -831,6 +855,7 @@ export async function requestCancel(
             completedAt: now,
             cancellationFinalizedBy: "IMMEDIATE",
             reviewStatus: AutomationReviewStatuses.NOT_REQUIRED,
+            analysisApplyStatus: AutomationAnalysisApplyStatuses.NOT_APPLICABLE,
           },
         });
         return { kind: "OK", status: ES.CANCELLED, cancelRequestId };
@@ -856,30 +881,6 @@ export async function requestCancel(
       }
     }
   });
-}
-
-export type ReviewResult =
-  | { kind: "OK"; reviewStatus: string }
-  | { kind: "NOT_FOUND" };
-
-export async function reviewExecution(
-  id: string,
-  decision: "CONFIRMED" | "REJECTED",
-  actor: Actor,
-  now: Date = new Date(),
-): Promise<ReviewResult> {
-  const existing = await prisma.automaticRunbookExecution.findUnique({ where: { id }, select: { id: true } });
-  if (!existing) return { kind: "NOT_FOUND" };
-  await prisma.automaticRunbookExecution.update({
-    where: { id },
-    data: {
-      reviewStatus: decision === "CONFIRMED" ? AutomationReviewStatuses.CONFIRMED : AutomationReviewStatuses.REJECTED,
-      reviewedByUserId: actor.userId,
-      reviewedByLabel: actor.label,
-      reviewedAt: now,
-    },
-  });
-  return { kind: "OK", reviewStatus: decision };
 }
 
 export type CreateResult =

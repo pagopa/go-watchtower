@@ -1,5 +1,5 @@
 {
-  "$comment": "Lock file dell'handoff GA → WT, content-addressed. Queue registry e catalogo runbook restano contratti separati; le copie vendorizzate non possono divergere dagli hash senza fallire i contract test.",
+  "$comment": "Lock file dell'handoff GA \u2192 WT, content-addressed. Queue registry e catalogo runbook restano contratti separati; le copie vendorizzate non possono divergere dagli hash senza fallire i contract test.",
   "contractVersion": "1.0.0",
   "ownerRepository": "go-automation",
   "consumerRepository": "go-watchtower",
@@ -12,7 +12,7 @@
     },
     {
       "path": "go-automation-contract-manifest.json",
-      "sha256": "637513afa18d0127a0aead33cf421f2ab809b1639205ed76ea5c1a3b90e2e444"
+      "sha256": "53ac1abe83220ee180aba137c6bba437b6c0b4c2765a86ce5abe397208def872"
     },
     {
       "path": "fixtures/queue-registry.valid.json",
@@ -37,6 +37,14 @@
     {
       "path": "fixtures/automatic-runbook-catalog.invalid-revision.json",
       "sha256": "640c855d4c040441d4067eb74078d3249c4653e21b87621763e53861c235ebe3"
+    },
+    {
+      "path": "fixtures/analysis-draft.known-case.json",
+      "sha256": "5055ceabb58548cb40c6cea8ee2ebcbca63e586dd3cf04c0383eba670dc7370a"
+    },
+    {
+      "path": "fixtures/analysis-draft.unknown-context.json",
+      "sha256": "38f9dc736fbc23eeb12c40c4cb4099fd20401e7ded050208b2ce56b49e5a9fcd"
     }
   ]
 }

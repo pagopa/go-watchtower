@@ -1,8 +1,12 @@
 /**
  * Integration test del lifecycle automation contro un PostgreSQL reale
  * (gated su DATABASE_URL: il runner CI fornisce un DB migrato + seedato).
- * Esercita race, idempotenza, fencing, cancellazione e apply a 3 rami sul
- * servizio transazionale reale (non via HTTP).
+ * Esercita race, idempotenza, fencing e cancellazione sul servizio
+ * transazionale reale (non via HTTP).
+ *
+ * La materializzazione dell'analisi ha una suite dedicata
+ * (`analysis-materializer.integration.test.ts`): qui si verifica solo che il
+ * `complete` instradi correttamente e che il lifecycle resti coerente.
  *
  * Setup: `prisma migrate deploy` + `prisma db seed` su un DB usa-e-getta, poi
  * `DATABASE_URL=... pnpm --filter @go-watchtower/backend test:integration`.
@@ -11,199 +15,285 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import test, { before, after } from "node:test";
 import { prisma } from "@go-watchtower/database";
-import { RUNBOOK_AUTOMATION_SERVICE_ID } from "@go-watchtower/shared";
 import {
   startExecution,
   completeExecution,
   requestCancel,
-  createManualExecution,
 } from "../src/services/automation/execution.service.js";
+import {
+  createWorld,
+  createEvent,
+  createPendingExecution,
+  delivery,
+  knownDraft,
+  setDefaultMode,
+  startFreshExecution,
+  type AutomationWorld,
+} from "./helpers/fixtures.js";
 
-const RUNBOOK_AUTOMATION_SERVICE_ID_VALUE = RUNBOOK_AUTOMATION_SERVICE_ID;
-
-let actorUserId: string;
-let productId: string;
-let environmentId: string;
-let alarmId: string;
-let humanUserId: string;
-
-const created = { products: [] as string[] };
+let world: AutomationWorld;
 
 before(async () => {
-  const svc = await prisma.user.findUnique({ where: { serviceId: RUNBOOK_AUTOMATION_SERVICE_ID_VALUE } });
-  assert.ok(svc, "service principal must be seeded (run prisma db seed)");
-  actorUserId = svc.id;
-
-  const human = await prisma.user.findFirst({ where: { principalType: "HUMAN" } });
-  assert.ok(human, "a human user must exist (seed admin)");
-  humanUserId = human.id;
-
-  const suffix = crypto.randomUUID().slice(0, 8);
-  const product = await prisma.product.create({ data: { name: `itest-${suffix}` } });
-  productId = product.id;
-  created.products.push(product.id);
-  const env = await prisma.environment.create({ data: { name: `env-${suffix}`, productId } });
-  environmentId = env.id;
-  const alarm = await prisma.alarm.create({ data: { name: `alarm-${suffix}`, productId } });
-  alarmId = alarm.id;
+  world = await createWorld("itest");
 });
 
 after(async () => {
-  // Best-effort cleanup (DB usa-e-getta; le execution sono append-only/Restrict).
   await prisma.$disconnect();
 });
 
-async function freshEvent(): Promise<string> {
-  const e = await prisma.alarmEvent.create({
-    data: {
-      name: `evt-${crypto.randomUUID().slice(0, 8)}`,
-      firedAt: new Date("2026-06-22T10:00:00.000Z"),
-      awsRegion: "eu-south-1",
-      awsAccountId: "170533023216",
-      productId,
-      environmentId,
-      alarmId,
-    },
-  });
-  return e.id;
-}
-
-async function newExecution(): Promise<string> {
-  const eventId = await freshEvent();
-  const res = await createManualExecution(eventId, "WATCHTOWER_API", { userId: humanUserId, label: "tester" });
-  assert.equal(res.kind, "OK");
-  if (res.kind !== "OK") throw new Error("setup failed");
-  return res.execution.id;
-}
-
-async function setMode(mode: "SHADOW" | "APPLY_KNOWN" | "APPLY_ALL"): Promise<void> {
-  await prisma.systemSetting.update({ where: { key: "automation.defaultMode" }, data: { value: mode } });
-}
-
-const delivery = (msg: string, recv = 1) => ({
-  sqsMessageId: msg,
-  approximateReceiveCount: recv,
-  workerDeadlineAt: new Date(Date.now() + 12 * 60 * 1000).toISOString(),
-});
-
 test("start acquires the lease and creates a RUNNING attempt", async () => {
-  const id = await newExecution();
-  const r = await startExecution(id, delivery("m-1"));
-  assert.equal(r.response.disposition, "START");
-  const row = await prisma.automaticRunbookExecution.findUnique({ where: { id } });
+  const { executionId } = await startFreshExecution(world);
+  const row = await prisma.automaticRunbookExecution.findUnique({ where: { id: executionId } });
   assert.equal(row?.status, "RUNNING");
   assert.ok(row?.activeAttemptId);
-  const attempts = await prisma.automaticRunbookAttempt.count({ where: { executionId: id, status: "RUNNING" } });
+  const attempts = await prisma.automaticRunbookAttempt.count({ where: { executionId, status: "RUNNING" } });
   assert.equal(attempts, 1);
 });
 
-test("two concurrent start (different tuples): exactly one START, the other ALREADY_RUNNING; one RUNNING attempt", async () => {
-  const id = await newExecution();
-  const [a, b] = await Promise.all([startExecution(id, delivery("m-A", 1)), startExecution(id, delivery("m-B", 1))]);
+test("two concurrent start (tuple diverse): esattamente uno START, l'altro ALREADY_RUNNING", async () => {
+  const executionId = await createPendingExecution(world);
+  const [a, b] = await Promise.all([
+    startExecution(executionId, delivery("m-A")),
+    startExecution(executionId, delivery("m-B")),
+  ]);
+  assert.ok("response" in a && "response" in b);
   const dispositions = [a.response.disposition, b.response.disposition].sort();
   assert.deepEqual(dispositions, ["ALREADY_RUNNING", "START"]);
-  const running = await prisma.automaticRunbookAttempt.count({ where: { executionId: id, status: "RUNNING" } });
-  assert.equal(running, 1, "partial unique index guarantees a single RUNNING attempt");
+  const running = await prisma.automaticRunbookAttempt.count({ where: { executionId, status: "RUNNING" } });
+  assert.equal(running, 1, "l'indice unico parziale garantisce un solo attempt RUNNING");
 });
 
-test("complete KNOWN_CASE with APPLY_ALL → branch 1 creates AUTOMATIC analysis, links event, SUCCEEDED", async () => {
-  await setMode("APPLY_ALL");
-  const id = await newExecution();
-  const start = await startExecution(id, delivery("m-1"));
-  assert.equal(start.response.disposition, "START");
-  const attemptId = "attemptId" in start.response ? start.response.attemptId : "";
-  const res = await completeExecution(id, actorUserId, { attemptId, outcome: "KNOWN_CASE", queryCount: 2, bytesScanned: "1024", runbookKey: "alarm-x" });
-  assert.equal(res.kind, "OK");
-  if (res.kind === "OK") {
-    assert.equal(res.status, "SUCCEEDED");
-    assert.ok(res.analysisId, "analysis must be created and cross-referenced");
-    const analysis = await prisma.alarmAnalysis.findUnique({ where: { id: res.analysisId! } });
-    assert.equal(analysis?.origin, "AUTOMATIC");
-    assert.equal(analysis?.occurrences, 1);
-    assert.equal(analysis?.operatorId, actorUserId);
-    assert.equal(analysis?.lastAppliedExecutionId, id);
-    const row = await prisma.automaticRunbookExecution.findUnique({ where: { id } });
-    assert.equal(row?.analysisId, res.analysisId);
-    assert.equal(row?.reviewStatus, "NOT_REQUIRED"); // KNOWN_CASE
-  }
+test("complete KNOWN_CASE in APPLY_KNOWN: analisi IN_PROGRESS, review PENDING, evento aperto", async () => {
+  await setDefaultMode("APPLY_KNOWN");
+  const { executionId, attemptId, alarmEventId } = await startFreshExecution(world);
+  const res = await completeExecution(executionId, world.actors, {
+    attemptId,
+    outcome: "KNOWN_CASE",
+    analysisDraft: knownDraft({ proposedStatus: "COMPLETED" }),
+    queryCount: 2,
+    bytesScanned: "1024",
+  });
+
+  assert.equal(res.kind, "OK", JSON.stringify(res));
+  if (res.kind !== "OK") return;
+  assert.equal(res.status, "SUCCEEDED");
+  assert.ok(res.analysisId, "l'analisi deve essere creata e referenziata");
+
+  const analysis = await prisma.alarmAnalysis.findUniqueOrThrow({ where: { id: res.analysisId } });
+  assert.equal(analysis.origin, "AUTOMATIC");
+  assert.equal(analysis.occurrences, 1);
+  assert.equal(analysis.operatorId, world.serviceUserId);
+  assert.equal(analysis.lastAppliedExecutionId, executionId);
+  // L'apply non promuove mai `proposedStatus`: lo fa solo la conferma (§4.8).
+  assert.equal(analysis.status, "IN_PROGRESS");
+
+  const event = await prisma.alarmEvent.findUniqueOrThrow({ where: { id: alarmEventId } });
+  assert.equal(event.resolvedAt, null, "l'evento resta aperto finché non c'è conferma");
+
+  const row = await prisma.automaticRunbookExecution.findUniqueOrThrow({ where: { id: executionId } });
+  assert.equal(row.analysisId, res.analysisId);
+  assert.equal(row.analysisApplyStatus, "APPLIED");
+  assert.equal(row.reviewStatus, "PENDING");
 });
 
-test("complete idempotency: same attempt+payload → ALREADY_TERMINAL; different payload → IDEMPOTENCY_PAYLOAD_MISMATCH", async () => {
-  await setMode("APPLY_ALL");
-  const id = await newExecution();
-  const start = await startExecution(id, delivery("m-1"));
-  const attemptId = "attemptId" in start.response ? start.response.attemptId : "";
-  const first = await completeExecution(id, actorUserId, { attemptId, outcome: "KNOWN_CASE", queryCount: 1 });
+test("complete idempotency: stesso attempt+payload → ALREADY_TERMINAL; payload diverso → IDEMPOTENCY_PAYLOAD_MISMATCH", async () => {
+  await setDefaultMode("APPLY_KNOWN");
+  const { executionId, attemptId } = await startFreshExecution(world);
+  const draft = knownDraft();
+
+  const first = await completeExecution(executionId, world.actors, { attemptId, outcome: "KNOWN_CASE", analysisDraft: draft, queryCount: 1 });
   assert.equal(first.kind, "OK");
-  const replaySame = await completeExecution(id, actorUserId, { attemptId, outcome: "KNOWN_CASE", queryCount: 1 });
+  const replaySame = await completeExecution(executionId, world.actors, { attemptId, outcome: "KNOWN_CASE", analysisDraft: draft, queryCount: 1 });
   assert.equal(replaySame.kind, "ALREADY_TERMINAL");
-  const replayDiff = await completeExecution(id, actorUserId, { attemptId, outcome: "KNOWN_CASE", queryCount: 999 });
+  const replayDiff = await completeExecution(executionId, world.actors, { attemptId, outcome: "KNOWN_CASE", analysisDraft: draft, queryCount: 999 });
   assert.equal(replayDiff.kind, "IDEMPOTENCY_PAYLOAD_MISMATCH");
 });
 
-test("fencing: complete with a stale attemptId does not terminalize", async () => {
-  const id = await newExecution();
-  await startExecution(id, delivery("m-1"));
-  const res = await completeExecution(id, actorUserId, { attemptId: crypto.randomUUID(), outcome: "KNOWN_CASE" });
+test("il draft entra nell'hash di idempotenza: stesso attempt, draft diverso → MISMATCH", async () => {
+  await setDefaultMode("APPLY_KNOWN");
+  const { executionId, attemptId } = await startFreshExecution(world);
+  const first = await completeExecution(executionId, world.actors, {
+    attemptId,
+    outcome: "KNOWN_CASE",
+    analysisDraft: knownDraft({ conclusionNotes: "prima conclusione" }),
+  });
+  assert.equal(first.kind, "OK");
+  const replay = await completeExecution(executionId, world.actors, {
+    attemptId,
+    outcome: "KNOWN_CASE",
+    analysisDraft: knownDraft({ conclusionNotes: "conclusione diversa" }),
+  });
+  assert.equal(replay.kind, "IDEMPOTENCY_PAYLOAD_MISMATCH", "due draft diversi non sono lo stesso completamento");
+});
+
+test("fencing: complete con attemptId stale non terminalizza", async () => {
+  const { executionId } = await startFreshExecution(world);
+  const res = await completeExecution(executionId, world.actors, {
+    attemptId: crypto.randomUUID(),
+    outcome: "KNOWN_CASE",
+    analysisDraft: knownDraft(),
+  });
   assert.equal(res.kind, "STALE_ATTEMPT");
-  const row = await prisma.automaticRunbookExecution.findUnique({ where: { id } });
-  assert.equal(row?.status, "RUNNING", "stale callback must not change lifecycle");
+  const row = await prisma.automaticRunbookExecution.findUnique({ where: { id: executionId } });
+  assert.equal(row?.status, "RUNNING", "un callback stale non muove il lifecycle");
 });
 
-test("cancel/complete race: cancel wins → complete applies nothing (CANCELLATION_REQUESTED)", async () => {
-  await setMode("APPLY_ALL");
-  const id = await newExecution();
-  const start = await startExecution(id, delivery("m-1"));
-  const attemptId = "attemptId" in start.response ? start.response.attemptId : "";
-  const cancel = await requestCancel(id, "operator stop", { userId: humanUserId, label: "tester" });
+test("cancel/complete race: vince il cancel → complete non applica nulla", async () => {
+  await setDefaultMode("APPLY_KNOWN");
+  const { executionId, attemptId } = await startFreshExecution(world);
+  const cancel = await requestCancel(executionId, "operator stop", { userId: world.humanUserId, label: "itest" });
   assert.equal(cancel.kind, "OK");
-  const complete = await completeExecution(id, actorUserId, { attemptId, outcome: "KNOWN_CASE" });
+
+  const complete = await completeExecution(executionId, world.actors, {
+    attemptId,
+    outcome: "KNOWN_CASE",
+    analysisDraft: knownDraft(),
+  });
   assert.equal(complete.kind, "CANCELLATION_REQUESTED");
-  const row = await prisma.automaticRunbookExecution.findUnique({ where: { id } });
-  assert.equal(row?.status, "CANCEL_REQUESTED");
-  assert.equal(row?.outcome, null, "no outcome applied after cancel won");
+  const row = await prisma.automaticRunbookExecution.findUniqueOrThrow({ where: { id: executionId } });
+  assert.equal(row.status, "CANCEL_REQUESTED");
+  assert.equal(row.outcome, null, "nessun esito applicato dopo che il cancel ha vinto");
+  const analyses = await prisma.alarmAnalysis.count({ where: { lastAppliedExecutionId: executionId } });
+  assert.equal(analyses, 0, "nessuna analisi scritta");
 });
 
-test("re-run on an AUTOMATIC-linked event → branch 2 updates in place, occurrences stays 1, lastApplied advances", async () => {
-  await setMode("APPLY_ALL");
-  const eventId = await freshEvent();
-  // first run: branch 1
-  const r1 = await createManualExecution(eventId, "WATCHTOWER_API", { userId: humanUserId, label: "t" });
-  assert.equal(r1.kind, "OK");
-  const id1 = r1.kind === "OK" ? r1.execution.id : "";
-  const s1 = await startExecution(id1, delivery("m-1"));
-  const a1 = "attemptId" in s1.response ? s1.response.attemptId : "";
-  const c1 = await completeExecution(id1, actorUserId, { attemptId: a1, outcome: "KNOWN_CASE" });
-  assert.equal(c1.kind, "OK");
-  const analysisId = c1.kind === "OK" ? c1.analysisId : null;
-  assert.ok(analysisId);
+test("SHADOW: KNOWN_CASE non scrive analisi, conserva analysisPayload, apply NOT_REQUESTED", async () => {
+  await setDefaultMode("SHADOW");
+  const { executionId, attemptId } = await startFreshExecution(world);
+  const res = await completeExecution(executionId, world.actors, {
+    attemptId,
+    outcome: "KNOWN_CASE",
+    analysisDraft: knownDraft(),
+    analysisPayload: { shadow: true },
+  });
 
-  // second run on the SAME event: branch 2 (update in place)
-  const r2 = await createManualExecution(eventId, "WATCHTOWER_API", { userId: humanUserId, label: "t" });
-  const id2 = r2.kind === "OK" ? r2.execution.id : "";
-  const s2 = await startExecution(id2, delivery("m-2"));
-  const a2 = "attemptId" in s2.response ? s2.response.attemptId : "";
-  const c2 = await completeExecution(id2, actorUserId, { attemptId: a2, outcome: "UNKNOWN_CASE" });
-  assert.equal(c2.kind, "OK");
-  if (c2.kind === "OK") assert.equal(c2.analysisId, analysisId, "same analysis updated in place");
-  const analysis = await prisma.alarmAnalysis.findUnique({ where: { id: analysisId! } });
-  assert.equal(analysis?.occurrences, 1, "AUTOMATIC analysis stays 1:1");
-  assert.equal(analysis?.lastAppliedExecutionId, id2, "lastApplied advanced to the re-run");
-  const exec2 = await prisma.automaticRunbookExecution.findUnique({ where: { id: id2 } });
-  assert.equal(exec2?.reviewStatus, "PENDING", "UNKNOWN_CASE → review PENDING");
-});
-
-test("SHADOW mode: KNOWN_CASE writes no AlarmAnalysis, stores analysisPayload, execution SUCCEEDED", async () => {
-  await setMode("SHADOW");
-  const id = await newExecution();
-  const start = await startExecution(id, delivery("m-1"));
-  const attemptId = "attemptId" in start.response ? start.response.attemptId : "";
-  const res = await completeExecution(id, actorUserId, { attemptId, outcome: "KNOWN_CASE", analysisPayload: { shadow: true } });
   assert.equal(res.kind, "OK");
   if (res.kind === "OK") {
     assert.equal(res.status, "SUCCEEDED");
-    assert.equal(res.analysisId, null, "SHADOW does not link/create an analysis");
+    assert.equal(res.analysisId, null, "SHADOW non crea né collega un'analisi");
   }
-  const row = await prisma.automaticRunbookExecution.findUnique({ where: { id } });
-  assert.notEqual(row?.analysisPayload, null);
+  const row = await prisma.automaticRunbookExecution.findUniqueOrThrow({ where: { id: executionId } });
+  assert.notEqual(row.analysisPayload, null);
+  assert.equal(row.analysisApplyStatus, "NOT_REQUESTED");
+  assert.equal(row.reviewStatus, "NOT_REQUIRED");
+});
+
+test("outcome non analysis-bearing → apply NOT_APPLICABLE, nessuna review", async () => {
+  await setDefaultMode("APPLY_KNOWN");
+  const { executionId, attemptId } = await startFreshExecution(world);
+  const res = await completeExecution(executionId, world.actors, { attemptId, outcome: "NO_DATA" });
+  assert.equal(res.kind, "OK");
+
+  const row = await prisma.automaticRunbookExecution.findUniqueOrThrow({ where: { id: executionId } });
+  assert.equal(row.analysisApplyStatus, "NOT_APPLICABLE");
+  assert.equal(row.reviewStatus, "NOT_REQUIRED");
+});
+
+test("invariante §5.9: nessuna execution terminale resta con apply status PENDING", async () => {
+  // Copre tutti i terminal writer esercitati dalla suite in un colpo solo:
+  // è l'invariante che il reconciler ripara, e qui non deve avere nulla da fare.
+  const pendingTerminals = await prisma.automaticRunbookExecution.count({
+    where: {
+      productId: world.productId,
+      status: { in: ["SUCCEEDED", "SKIPPED", "FAILED", "CANCELLED"] },
+      analysisApplyStatus: "PENDING",
+    },
+  });
+  assert.equal(pendingTerminals, 0);
+});
+
+test("un evento senza allarme collegato blocca con ALARM_UNLINKED e non scrive nulla", async () => {
+  await setDefaultMode("APPLY_KNOWN");
+  const alarmEventId = await createEvent(world);
+  const { executionId, attemptId } = await startFreshExecution(world, alarmEventId);
+  // L'allarme viene scollegato dopo il lancio: il comando era valido, il
+  // bersaglio dell'analisi non esiste più al momento del callback.
+  await prisma.alarmEvent.update({ where: { id: alarmEventId }, data: { alarmId: null } });
+
+  const res = await completeExecution(executionId, world.actors, {
+    attemptId,
+    outcome: "KNOWN_CASE",
+    analysisDraft: knownDraft(),
+  });
+  assert.equal(res.kind, "OK", "un blocco non è un errore di trasporto: HTTP 200");
+
+  const row = await prisma.automaticRunbookExecution.findUniqueOrThrow({ where: { id: executionId } });
+  assert.equal(row.analysisApplyStatus, "BLOCKED");
+  assert.equal(row.reviewStatus, "NOT_REQUIRED", "un BLOCKED non è una review da approvare");
+  const diagnostics = row.analysisApplyDiagnostics as { blockCode?: string } | null;
+  assert.equal(diagnostics?.blockCode, "ALARM_UNLINKED");
+  const analyses = await prisma.alarmAnalysis.count({ where: { lastAppliedExecutionId: executionId } });
+  assert.equal(analyses, 0, "zero scritture");
+});
+
+test("esito di errore: failedStepId arriva in colonna insieme a codice e messaggio", async () => {
+  await setDefaultMode("APPLY_KNOWN");
+  const { executionId, attemptId } = await startFreshExecution(world);
+  const res = await completeExecution(executionId, world.actors, {
+    attemptId,
+    outcome: "EXECUTION_ERROR",
+    failedStepId: "fetch-cloudwatch-metrics",
+    errorCode: "QUERY_TIMEOUT",
+    errorMessage: "timeout dopo 30s",
+  });
+  assert.equal(res.kind, "OK");
+
+  const row = await prisma.automaticRunbookExecution.findUniqueOrThrow({ where: { id: executionId } });
+  // Il "dove" deve sopravvivere quanto il "cosa": senza il passo, la diagnosi
+  // di un errore di esecuzione resta a metà.
+  assert.equal(row.failedStepId, "fetch-cloudwatch-metrics");
+  assert.equal(row.errorCode, "QUERY_TIMEOUT");
+  assert.equal(row.errorMessage, "timeout dopo 30s");
+  assert.equal(row.analysisApplyStatus, "NOT_APPLICABLE", "un esito di errore non porta analisi");
+});
+
+test("body completo: ogni campo dichiarato dallo schema arriva a destinazione", async () => {
+  // Controprova end-to-end del drift guard: se un campo smettesse di essere
+  // inoltrato, qui si vedrebbe come valore mancante invece che in silenzio.
+  await setDefaultMode("APPLY_KNOWN");
+  const { executionId, attemptId } = await startFreshExecution(world);
+  const draft = knownDraft({ conclusionNotes: "payload completo" });
+
+  const res = await completeExecution(executionId, world.actors, {
+    attemptId,
+    outcome: "KNOWN_CASE",
+    runbookKey: "send-apigw-analysis",
+    runbookVersion: "1.0.0",
+    runbookDigest: `sha256-${"a".repeat(64)}`,
+    engineExecutionId: "engine-42",
+    queryCount: 7,
+    bytesScanned: "2048",
+    recordsScanned: "10",
+    recordsMatched: "3",
+    failedStepId: "step-diagnostico",
+    errorCode: "WARN_PARTIAL",
+    errorMessage: "dati parziali",
+    tracking: [{ identifierType: "TRACE_ID", identifierValue: "trace-abc" }],
+    analysisPayload: { full: true },
+    analysisDraft: draft,
+    resultSummary: { rows: 3 },
+  });
+  assert.equal(res.kind, "OK", JSON.stringify(res));
+  if (res.kind !== "OK") return;
+
+  const row = await prisma.automaticRunbookExecution.findUniqueOrThrow({ where: { id: executionId } });
+  assert.equal(row.executedRunbookKey, "send-apigw-analysis");
+  assert.equal(row.executedRunbookVersion, "1.0.0");
+  assert.equal(row.engineExecutionId, "engine-42");
+  assert.equal(row.queryCount, 7);
+  assert.equal(row.bytesScanned, 2048n);
+  assert.equal(row.recordsScanned, 10n);
+  assert.equal(row.recordsMatched, 3n);
+  assert.equal(row.failedStepId, "step-diagnostico");
+  assert.equal(row.errorCode, "WARN_PARTIAL");
+  assert.equal(row.errorMessage, "dati parziali");
+  assert.notEqual(row.analysisPayload, null);
+  assert.notEqual(row.resultSummary, null);
+  assert.notEqual(row.analysisDraft, null, "il draft persistito è la prova che è stato inoltrato");
+  assert.equal(row.analysisApplyStatus, "APPLIED");
+
+  assert.ok(res.analysisId);
+  const analysis = await prisma.alarmAnalysis.findUniqueOrThrow({ where: { id: res.analysisId } });
+  const tracking = analysis.trackingIds as { traceId: string }[];
+  assert.deepEqual(tracking, [{ traceId: "trace-abc" }], "il tracking è stato proiettato, quindi è arrivato");
 });

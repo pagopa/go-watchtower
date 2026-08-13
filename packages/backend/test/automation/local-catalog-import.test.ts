@@ -11,6 +11,14 @@ function validCatalog(environment = "development") {
   const payload = {
     schemaVersion: 1 as const,
     environment,
+    // Nel payload, non aggiunti dopo: la revision è l'hash del catalogo
+    // completo, quindi calcolarla su un oggetto parziale produrrebbe una
+    // revision che in produzione non tornerebbe mai.
+    publishedAt: "2026-07-02T10:00:00.000Z",
+    release: {
+      actorArn: "local-development",
+      changeNote: "Local development catalog",
+    },
     worker: {
       artifactRevision: "local-abcdef123456",
       commandSchemaVersion: "1.0.0" as const,
@@ -33,11 +41,6 @@ function validCatalog(environment = "development") {
   return {
     ...payload,
     revision: computeCatalogRevision(payload),
-    publishedAt: "2026-07-02T10:00:00.000Z",
-    release: {
-      actorArn: "local-development",
-      changeNote: "Local development catalog",
-    },
   };
 }
 

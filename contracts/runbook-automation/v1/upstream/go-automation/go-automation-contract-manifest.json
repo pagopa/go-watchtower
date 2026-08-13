@@ -37,6 +37,16 @@
       "logicalName": "AutomaticRunbookCatalogInvalidRevisionFixture",
       "path": "contracts/runbook-automation/v1/fixtures/automatic-runbook-catalog.invalid-revision.json",
       "sha256": "640c855d4c040441d4067eb74078d3249c4653e21b87621763e53861c235ebe3"
+    },
+    {
+      "logicalName": "fixtures:analysis-draft.known-case",
+      "path": "fixtures/analysis-draft.known-case.json",
+      "sha256": "5055ceabb58548cb40c6cea8ee2ebcbca63e586dd3cf04c0383eba670dc7370a"
+    },
+    {
+      "logicalName": "fixtures:analysis-draft.unknown-context",
+      "path": "fixtures/analysis-draft.unknown-context.json",
+      "sha256": "38f9dc736fbc23eeb12c40c4cb4099fd20401e7ded050208b2ce56b49e5a9fcd"
     }
   ]
 }
