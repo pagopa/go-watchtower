@@ -8,14 +8,13 @@ import { qk } from '@/lib/query-keys'
 import type { ColumnDef } from '@/lib/column-registry'
 import type { AnalysisFiltersState } from './analysis-filters'
 import type { WorkingHours, OnCallHours } from '@go-watchtower/shared'
-import {
-  OnCallNavigation,
-  ONCALL_BUCKETS,
-  buildShiftRange,
-  isOnCallAllDay,
-} from '../../alarm-events/_components/alarm-event-oncall-view'
-import { todayUTC } from '../../alarm-events/_components/alarm-event-daily-view'
-import { AnalysisBucketSection, partitionShiftAnalyses } from './analysis-daily-view'
+import { OnCallNavigation } from '../../alarm-events/_components/alarm-event-oncall-view'
+import { ONCALL_BUCKETS } from '../../alarm-events/_lib/buckets'
+import { buildShiftRange, isOnCallAllDay } from '../../alarm-events/_lib/oncall-shift'
+import { todayUTC } from '../../alarm-events/_lib/date-utils'
+import { AnalysisBucketSection } from './analysis-daily-view'
+import { partitionShiftAnalyses } from '../_lib/partition'
+import type { AnalysisActionPolicy, AnalysisRowPlacement } from '../_lib/row-appearance'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -27,18 +26,11 @@ export interface AnalysisOnCallViewProps {
   visibleColumns:     ColumnDef[]
   getWidth:           (id: string) => number | undefined
   totalMinWidth:      number
-  canWrite:           boolean
-  canDelete:          boolean
-  selectedAnalysisId: string | null
-  showDetailPanel:    boolean
-  lingeringId:        string | null
+  placement:          AnalysisRowPlacement
+  actionPolicy:       AnalysisActionPolicy
   onRowClick:         (a: AlarmAnalysis) => void
   onEdit:             (a: AlarmAnalysis) => void
   onDelete:           (a: AlarmAnalysis) => void
-  canEditAnalysis:    (a: AlarmAnalysis) => boolean
-  canDeleteAnalysis:  (a: AlarmAnalysis) => boolean
-  isAnalysisLocked:   (a: AlarmAnalysis) => boolean
-  lockDays:           number | null
   onValidationClick:  (a: AlarmAnalysis) => void
 }
 
@@ -49,10 +41,8 @@ const DEFAULT_WH: WorkingHours = { timezone: 'Europe/Rome', start: '09:00', end:
 export function AnalysisOnCallView({
   workingHours, onCallHours, filters, productId,
   visibleColumns, getWidth, totalMinWidth,
-  canWrite, canDelete,
-  selectedAnalysisId, showDetailPanel, lingeringId,
+  placement, actionPolicy,
   onRowClick, onEdit, onDelete,
-  canEditAnalysis, canDeleteAnalysis, isAnalysisLocked, lockDays,
   onValidationClick,
 }: AnalysisOnCallViewProps) {
   const [referenceDate, setReferenceDate] = useState<string>(() => todayUTC())
@@ -108,10 +98,8 @@ export function AnalysisOnCallView({
   )
 
   const bucketProps = {
-    visibleColumns, getWidth, totalMinWidth, canWrite, canDelete,
-    selectedAnalysisId, showDetailPanel, lingeringId,
+    visibleColumns, getWidth, totalMinWidth, placement, actionPolicy,
     onRowClick, onEdit, onDelete,
-    canEditAnalysis, canDeleteAnalysis, isAnalysisLocked, lockDays,
     onValidationClick,
   }
 

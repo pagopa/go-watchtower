@@ -14,19 +14,20 @@ import {
   Table, TableBody, TableCell, TableHeader, TableRow,
 } from '@/components/ui/table'
 import { ResizableTableHead } from '@/components/ui/resizable-table-head'
-import { AlarmEventCell, isHighEvent } from '../_helpers/cell-renderers'
 import type { AlarmEventOnCallViewProps } from './alarm-event-oncall-view'
+import type { SelectionProps } from './alarm-event-daily-view'
+import { todayUTC } from '../_lib/date-utils'
+import { type BucketCfg, ONCALL_BUCKETS } from '../_lib/buckets'
 import {
-  todayUTC,
-  type BucketCfg,
-  type SelectionProps,
-} from './alarm-event-daily-view'
-import {
-  ONCALL_BUCKETS, partitionShiftEvents,
-  buildShiftRange, isOnCallAllDay, OnCallNavigation,
-} from './alarm-event-oncall-view'
+  hasRowActions,
+  resolveAlarmEventRowState,
+  type AlarmEventPermissions,
+  type AlarmEventRowPlacement,
+} from '../_lib/row-appearance'
+import { partitionShiftEvents, buildShiftRange, isOnCallAllDay } from '../_lib/oncall-shift'
+import { OnCallNavigation } from './alarm-event-oncall-view'
 import { Inbox } from 'lucide-react'
-import { AlarmEventRowActions } from './alarm-event-row-actions'
+import { AlarmEventTableRow } from './alarm-event-table-row'
 
 import type { WorkingHours } from '@go-watchtower/shared'
 
@@ -119,113 +120,8 @@ const GroupHeaderRow = forwardRef<HTMLTableRowElement, {
 
 // ── Event row (single event, optionally indented when inside a group) ────────
 
-const EventRow = forwardRef<HTMLTableRowElement, {
-  event: AlarmEvent
-  visibleColumns: ColumnDef[]
-  getWidth: (id: string) => number | undefined
-  canWrite: boolean
-  canDelete: boolean
-  canWriteAnalysis: boolean
-  selectedEventId: string | null
-  showDetailPanel: boolean
-  lingeringId: string | null
-  onRowClick: (e: AlarmEvent) => void
-  onEdit: (e: AlarmEvent) => void
-  onDelete: (e: AlarmEvent) => void
-  isOnCallEvent?: (e: AlarmEvent) => boolean
-  isIgnoredEvent?: (e: AlarmEvent) => boolean
-  onAlarmClick?: (alarm: NonNullable<AlarmEvent['alarm']>, productId: string) => void
-  onCreateAnalysis?: (e: AlarmEvent) => void
-  onCreateIgnorableAnalysis?: (e: AlarmEvent) => void
-  onAssociateAnalysis?: (e: AlarmEvent) => void
-  onUnlinkAnalysis?: (e: AlarmEvent) => void
-  selection: SelectionProps
-  indented?: boolean
-  dataIndex?: number
-}>(function EventRow({
-  event, visibleColumns, getWidth, canWrite, canDelete, canWriteAnalysis,
-  selectedEventId, showDetailPanel, lingeringId,
-  onRowClick, onEdit, onDelete, isOnCallEvent, isIgnoredEvent, onAlarmClick,
-  onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
-  selection, indented, dataIndex,
-}, ref) {
-  const isChecked   = selection.selectedIds.has(event.id)
-  const isSelected  = event.id === selectedEventId && showDetailPanel
-  const isLingering = event.id === lingeringId && !showDetailPanel
-  const isOnCall    = isOnCallEvent ? isOnCallEvent(event) : false
-  const isIgnored   = isIgnoredEvent ? isIgnoredEvent(event) : false
-
-  return (
-    <TableRow
-      ref={ref}
-      data-index={dataIndex}
-      className={
-        'group cursor-pointer border-b border-border/50 border-l-[3px] ' +
-        (isChecked
-          ? 'border-l-transparent bg-primary/[0.05] hover:bg-primary/[0.08]'
-          : isSelected
-            ? 'border-l-transparent analysis-row-selected hover:bg-primary/[0.09]'
-            : isLingering
-              ? 'border-l-transparent analysis-row-lingering hover:bg-muted/30'
-              : isOnCall
-                ? 'border-l-rose-500/60 bg-rose-500/[0.04] hover:bg-rose-500/[0.06] transition-colors'
-                : isHighEvent(event)
-                  ? 'border-l-amber-500/60 bg-amber-500/[0.04] hover:bg-amber-500/[0.06] transition-colors'
-                  : isIgnored
-                    ? 'border-l-transparent opacity-50 transition-colors hover:opacity-70 hover:bg-muted/30'
-                    : 'border-l-transparent transition-colors hover:bg-muted/30')
-      }
-      onClick={(e) => {
-        if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('input[type="checkbox"]')) return
-        onRowClick(event)
-      }}
-    >
-      <TableCell className="w-10 px-2 py-2.5">
-        <input
-          type="checkbox"
-          aria-label={`Seleziona ${event.name}`}
-          className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
-          checked={isChecked}
-          onChange={() => selection.onToggleSelect(event)}
-        />
-      </TableCell>
-      {visibleColumns.map((col, idx) => {
-        const isLast = idx === visibleColumns.length - 1
-        return (
-          <TableCell
-            key={col.id}
-            className="overflow-hidden py-2.5"
-            style={(!isLast && getWidth(col.id))
-              ? { width: `${getWidth(col.id)}px`, ...(indented && idx === 0 ? { paddingLeft: '2rem' } : {}) }
-              : (indented && idx === 0 ? { paddingLeft: '2rem' } : undefined)}
-          >
-            <AlarmEventCell columnId={col.id} event={event} isOnCall={isOnCall} isIgnored={isIgnored} onAlarmClick={onAlarmClick} />
-          </TableCell>
-        )
-      })}
-      {(canWrite || canDelete || canWriteAnalysis) && (
-        <TableCell className={
-          'relative sticky right-0 z-10 border-l border-border/40 py-2 ' +
-          (isSelected
-            ? 'bg-primary/[0.07] group-hover:bg-primary/[0.09]'
-            : 'bg-card group-hover:bg-muted')
-        }>
-          <AlarmEventRowActions
-            event={event}
-            canWrite={canWrite}
-            canDelete={canDelete}
-            onEdit={onEdit}
-            onDelete={onDelete}
-            onCreateAnalysis={canWriteAnalysis ? onCreateAnalysis : undefined}
-            onCreateIgnorableAnalysis={canWriteAnalysis ? onCreateIgnorableAnalysis : undefined}
-            onAssociateAnalysis={canWriteAnalysis ? onAssociateAnalysis : undefined}
-            onUnlinkAnalysis={canWriteAnalysis ? onUnlinkAnalysis : undefined}
-          />
-        </TableCell>
-      )}
-    </TableRow>
-  )
-})
+// Rows are rendered by the shared `AlarmEventTableRow`; `indented` nests an
+// event under its group header.
 
 // ── Flat item types for virtualization ────────────────────────────────────────
 
@@ -241,9 +137,8 @@ const VIRTUALIZE_THRESHOLD = 100
 function GroupedBucketSection({
   cfg, events, timeRange,
   visibleColumns, getWidth, totalMinWidth,
-  canWrite, canDelete, canWriteAnalysis,
-  selectedEventId, showDetailPanel, lingeringId,
-  onRowClick, onEdit, onDelete, isOnCallEvent, isIgnoredEvent, onAlarmClick,
+  permissions, placement,
+  onRowClick, onEdit, onDelete, onAlarmClick,
   onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
   selection,
 }: {
@@ -253,17 +148,11 @@ function GroupedBucketSection({
   visibleColumns:  ColumnDef[]
   getWidth:        (id: string) => number | undefined
   totalMinWidth:   number
-  canWrite:        boolean
-  canDelete:       boolean
-  canWriteAnalysis: boolean
-  selectedEventId: string | null
-  showDetailPanel: boolean
-  lingeringId:     string | null
+  permissions:     AlarmEventPermissions
+  placement:       AlarmEventRowPlacement
   onRowClick:      (e: AlarmEvent) => void
   onEdit:          (e: AlarmEvent) => void
   onDelete:        (e: AlarmEvent) => void
-  isOnCallEvent?:  (e: AlarmEvent) => boolean
-  isIgnoredEvent?: (e: AlarmEvent) => boolean
   onAlarmClick?:   (alarm: NonNullable<AlarmEvent['alarm']>, productId: string) => void
   onCreateAnalysis?:           (e: AlarmEvent) => void
   onCreateIgnorableAnalysis?:  (e: AlarmEvent) => void
@@ -287,7 +176,7 @@ function GroupedBucketSection({
     })
   }
 
-  const hasActions = canWrite || canDelete || canWriteAnalysis
+  const hasActions = hasRowActions(permissions)
   const totalColSpan = visibleColumns.length + (hasActions ? 1 : 0) + 1 /* checkbox col */
 
   // Flatten groups into a virtual list
@@ -320,17 +209,28 @@ function GroupedBucketSection({
   })
 
   const rowProps = {
-    visibleColumns, getWidth, canWrite, canDelete, canWriteAnalysis,
-    selectedEventId, showDetailPanel, lingeringId,
-    onRowClick, onEdit, onDelete, isOnCallEvent, isIgnoredEvent, onAlarmClick,
+    visibleColumns, getWidth, permissions,
+    onRowClick, onEdit, onDelete, onAlarmClick,
     onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
-    selection,
+    onToggleSelect: selection.onToggleSelect,
   }
+
+  const renderEventRow = (event: AlarmEvent, indented: boolean, ref?: (el: HTMLTableRowElement | null) => void, dataIndex?: number) => (
+    <AlarmEventTableRow
+      key={event.id}
+      event={event}
+      state={resolveAlarmEventRowState(event, placement, selection.selectedIds)}
+      indented={indented}
+      ref={ref}
+      dataIndex={dataIndex}
+      {...rowProps}
+    />
+  )
 
   const renderFlatItem = (item: FlatItem, ref?: (el: HTMLTableRowElement | null) => void, dataIndex?: number) => {
     switch (item.type) {
       case 'single':
-        return <EventRow key={item.event.id} event={item.event} ref={ref} dataIndex={dataIndex} {...rowProps} />
+        return renderEventRow(item.event, false, ref, dataIndex)
       case 'groupHeader':
         return (
           <GroupHeaderRow
@@ -346,7 +246,7 @@ function GroupedBucketSection({
           />
         )
       case 'groupEvent':
-        return <EventRow key={item.event.id} event={item.event} indented ref={ref} dataIndex={dataIndex} {...rowProps} />
+        return renderEventRow(item.event, true, ref, dataIndex)
     }
   }
 
@@ -467,9 +367,8 @@ const DEFAULT_WH: WorkingHours = { timezone: 'Europe/Rome', start: '09:00', end:
 export function AlarmEventGroupedView({
   workingHours, onCallHours, filters,
   visibleColumns, getWidth, totalMinWidth,
-  canWrite, canDelete, canWriteAnalysis,
-  selectedEventId, showDetailPanel, lingeringId,
-  onRowClick, onEdit, onDelete, isOnCallEvent, isIgnoredEvent, onAlarmClick,
+  permissions, placement,
+  onRowClick, onEdit, onDelete, onAlarmClick,
   onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
   selection,
 }: AlarmEventGroupedViewProps) {
@@ -510,8 +409,8 @@ export function AlarmEventGroupedView({
     [data?.data, splitAt],
   )
 
-  const bucketProps = { visibleColumns, getWidth, totalMinWidth, canWrite, canDelete, canWriteAnalysis,
-    selectedEventId, showDetailPanel, lingeringId, onRowClick, onEdit, onDelete, isOnCallEvent, isIgnoredEvent, onAlarmClick,
+  const bucketProps = { visibleColumns, getWidth, totalMinWidth, permissions, placement,
+    onRowClick, onEdit, onDelete, onAlarmClick,
     onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis, selection }
 
   return (

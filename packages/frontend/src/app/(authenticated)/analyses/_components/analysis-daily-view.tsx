@@ -22,14 +22,23 @@ import { ResizableTableHead } from '@/components/ui/resizable-table-head'
 import { AnalysisCell } from '../_helpers/cell-renderers'
 import { validateAnalysis, assessQuality, type ValidationResult, type QualityResult } from '@/lib/analysis-validation'
 import { ValidationScoreBadge } from '@/components/analysis/validation-score-badge'
+import {
+  analysisActionsCellClassName,
+  analysisRowClassName,
+  resolveAnalysisRowActions,
+  resolveShiftAnalysisRowVariant,
+  type AnalysisActionPolicy,
+  type AnalysisRowPlacement,
+} from '../_lib/row-appearance'
 import { AnalysisRowActions } from './analysis-row-actions'
 
 import type { WorkingHours } from '@go-watchtower/shared'
+import { DayNavigation } from '../../alarm-events/_components/alarm-event-daily-view'
+import { type BucketCfg, BUCKETS } from '../../alarm-events/_lib/buckets'
 import {
-  type BucketCfg, BUCKETS,
-  DayNavigation, localDayBoundsUTC,
+  localDayBoundsUTC,
   toMinutes, minuteOfDayInTz, isoWeekdayInTz,
-} from '../../alarm-events/_components/alarm-event-daily-view'
+} from '../../alarm-events/_lib/date-utils'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -42,54 +51,31 @@ interface AnalysisDailyViewProps {
   visibleColumns:    ColumnDef[]
   getWidth:          (id: string) => number | undefined
   totalMinWidth:     number
-  canWrite:          boolean
-  canDelete:         boolean
-  selectedAnalysisId: string | null
-  showDetailPanel:   boolean
-  lingeringId:       string | null
+  placement:         AnalysisRowPlacement
+  actionPolicy:      AnalysisActionPolicy
   onRowClick:        (a: AlarmAnalysis) => void
   onEdit:            (a: AlarmAnalysis) => void
   onDelete:          (a: AlarmAnalysis) => void
-  canEditAnalysis:   (a: AlarmAnalysis) => boolean
-  canDeleteAnalysis: (a: AlarmAnalysis) => boolean
-  isAnalysisLocked:  (a: AlarmAnalysis) => boolean
-  lockDays:          number | null
   onValidationClick: (a: AlarmAnalysis) => void
 }
 
 // ─── Analysis partitioning ───────────────────────────────────────────────────
 
 function partitionAnalyses(analyses: AlarmAnalysis[], wh: WorkingHours) {
-  const tz      = wh.timezone ?? 'Europe/Rome'
-  const whStart = toMinutes(wh.start)
-  const whEnd   = toMinutes(wh.end)
+  const tz       = wh.timezone ?? 'Europe/Rome'
+  const whStart  = toMinutes(wh.start)
+  const whEnd    = toMinutes(wh.end)
+  const workDays = new Set(wh.days)
   const pre: AlarmAnalysis[] = [], work: AlarmAnalysis[] = [], post: AlarmAnalysis[] = []
   for (const a of analyses) {
     const mod       = minuteOfDayInTz(a.analysisDate, tz)
     const weekday   = isoWeekdayInTz(a.analysisDate, tz)
-    const isWorkDay = wh.days.includes(weekday)
+    const isWorkDay = workDays.has(weekday)
     if (isWorkDay && mod >= whStart && mod < whEnd) work.push(a)
     else if (isWorkDay && mod < whStart)             pre.push(a)
     else                                             post.push(a)
   }
   return { pre, work, post }
-}
-
-// ─── Shared: partition by split timestamp (for oncall view) ──────────────────
-
-export function partitionShiftAnalyses(
-  analyses: AlarmAnalysis[],
-  splitAt: string | null,
-): { oncall: AlarmAnalysis[]; work: AlarmAnalysis[] } {
-  if (splitAt === null) return { oncall: analyses, work: [] }
-  const splitMs = new Date(splitAt).getTime()
-  const oncall: AlarmAnalysis[] = []
-  const work:   AlarmAnalysis[] = []
-  for (const a of analyses) {
-    if (new Date(a.analysisDate).getTime() < splitMs) oncall.push(a)
-    else work.push(a)
-  }
-  return { oncall, work }
 }
 
 // ─── Bucket section for analyses ─────────────────────────────────────────────
@@ -99,10 +85,8 @@ const VIRTUALIZE_THRESHOLD = 100
 export function AnalysisBucketSection({
   cfg, analyses, timeRange,
   visibleColumns, getWidth, totalMinWidth,
-  canWrite, canDelete,
-  selectedAnalysisId, showDetailPanel, lingeringId,
+  placement, actionPolicy,
   onRowClick, onEdit, onDelete,
-  canEditAnalysis, canDeleteAnalysis, isAnalysisLocked, lockDays,
   onValidationClick,
 }: {
   cfg:                BucketCfg
@@ -111,18 +95,11 @@ export function AnalysisBucketSection({
   visibleColumns:     ColumnDef[]
   getWidth:           (id: string) => number | undefined
   totalMinWidth:      number
-  canWrite:           boolean
-  canDelete:          boolean
-  selectedAnalysisId: string | null
-  showDetailPanel:    boolean
-  lingeringId:        string | null
+  placement:          AnalysisRowPlacement
+  actionPolicy:       AnalysisActionPolicy
   onRowClick:         (a: AlarmAnalysis) => void
   onEdit:             (a: AlarmAnalysis) => void
   onDelete:           (a: AlarmAnalysis) => void
-  canEditAnalysis:    (a: AlarmAnalysis) => boolean
-  canDeleteAnalysis:  (a: AlarmAnalysis) => boolean
-  isAnalysisLocked:   (a: AlarmAnalysis) => boolean
-  lockDays:           number | null
   onValidationClick:  (a: AlarmAnalysis) => void
 }) {
   const [collapsed, setCollapsed] = useState(analyses.length === 0)
@@ -144,28 +121,18 @@ export function AnalysisBucketSection({
     )
   }, [analyses])
 
-  const hasActions = canWrite || canDelete
+  const hasActions = actionPolicy.enabled
   const totalColSpan = visibleColumns.length + (hasActions ? 1 : 0)
 
   const renderRow = (analysis: AlarmAnalysis, ref?: (el: HTMLTableRowElement | null) => void, dataIndex?: number) => {
-    const isSelected  = analysis.id === selectedAnalysisId && showDetailPanel
-    const isLingering = analysis.id === lingeringId && !showDetailPanel
-    const isOnCall    = analysis.isOnCall
+    const variant = resolveShiftAnalysisRowVariant(analysis, placement)
+    const actions = resolveAnalysisRowActions(analysis, actionPolicy)
     return (
       <TableRow
         key={analysis.id}
         ref={ref}
         data-index={dataIndex}
-        className={
-          'group cursor-pointer border-b border-border/50 ' +
-          (isSelected
-            ? 'analysis-row-selected hover:bg-primary/[0.09]'
-            : isLingering
-              ? 'analysis-row-lingering hover:bg-muted/30'
-              : isOnCall
-                ? 'bg-rose-500/[0.04] hover:bg-rose-500/[0.06] transition-colors border-l-[3px] border-l-rose-500/60'
-                : 'transition-colors hover:bg-muted/30')
-        }
+        className={analysisRowClassName(variant)}
         onClick={(e) => {
           if ((e.target as HTMLElement).closest('button')) return
           onRowClick(analysis)
@@ -193,18 +160,13 @@ export function AnalysisBucketSection({
           )
         })}
         {hasActions && (
-          <TableCell className={
-            'relative sticky right-0 z-10 border-l border-border/40 py-2 ' +
-            (isSelected
-              ? 'bg-primary/[0.07] group-hover:bg-primary/[0.09]'
-              : 'bg-card group-hover:bg-muted')
-          }>
+          <TableCell className={analysisActionsCellClassName(variant)}>
             <AnalysisRowActions
               analysis={analysis}
-              canEdit={canEditAnalysis(analysis)}
-              isLocked={isAnalysisLocked(analysis)}
-              canDelete={canDeleteAnalysis(analysis)}
-              lockDays={lockDays}
+              canEdit={actions.canEdit}
+              isLocked={actions.locked}
+              canDelete={actions.canDelete}
+              lockDays={actions.lockDays}
               onEdit={onEdit}
               onDelete={onDelete}
             />
@@ -318,10 +280,8 @@ const DEFAULT_WH: WorkingHours = { timezone: 'Europe/Rome', start: '09:00', end:
 export function AnalysisDailyView({
   selectedDate, onDateChange, workingHours, filters, productId,
   visibleColumns, getWidth, totalMinWidth,
-  canWrite, canDelete,
-  selectedAnalysisId, showDetailPanel, lingeringId,
+  placement, actionPolicy,
   onRowClick, onEdit, onDelete,
-  canEditAnalysis, canDeleteAnalysis, isAnalysisLocked, lockDays,
   onValidationClick,
 }: AnalysisDailyViewProps) {
   const wh = workingHours ?? DEFAULT_WH
@@ -377,10 +337,8 @@ export function AnalysisDailyView({
   )
 
   const bucketProps = {
-    visibleColumns, getWidth, totalMinWidth, canWrite, canDelete,
-    selectedAnalysisId, showDetailPanel, lingeringId,
+    visibleColumns, getWidth, totalMinWidth, placement, actionPolicy,
     onRowClick, onEdit, onDelete,
-    canEditAnalysis, canDeleteAnalysis, isAnalysisLocked, lockDays,
     onValidationClick,
   }
 

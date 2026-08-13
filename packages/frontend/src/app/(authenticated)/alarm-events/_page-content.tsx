@@ -55,7 +55,13 @@ import type { NotificationPreferences } from '@go-watchtower/shared'
 import { NotificationCategoryToggle } from '@/components/notification-category-toggle'
 import { AlarmEventFilters, type AlarmEventFiltersState, type ProductWithEnvironments } from './_components/alarm-event-filters'
 import { AlarmEventDetailPanel } from './_components/alarm-event-detail-panel'
-import { AlarmEventDailyView, todayUTC } from './_components/alarm-event-daily-view'
+import { AlarmEventDailyView } from './_components/alarm-event-daily-view'
+import { todayUTC } from './_lib/date-utils'
+import {
+  resolveAlarmEventRowState,
+  type AlarmEventPermissions,
+  type AlarmEventRowPlacement,
+} from './_lib/row-appearance'
 
 const AlarmEventOnCallView = dynamic(
   () => import('./_components/alarm-event-oncall-view').then((m) => ({ default: m.AlarmEventOnCallView })),
@@ -274,6 +280,10 @@ function AlarmEventsPageContent() {
   const canDelete = !permissionsLoading && can('ALARM_EVENT', 'delete')
   const canWriteAnalysis = !permissionsLoading && can('ALARM_ANALYSIS', 'write')
   const hasRowActions = canWrite || canDelete || canWriteAnalysis
+  const permissions: AlarmEventPermissions = useMemo(
+    () => ({ write: canWrite, delete: canDelete, writeAnalysis: canWriteAnalysis }),
+    [canWrite, canDelete, canWriteAnalysis],
+  )
 
   // Column settings
   const {
@@ -581,6 +591,15 @@ function AlarmEventsPageContent() {
     return event.priority.countsAsOnCall
   }, [])
 
+  // Row placement — what every view needs to style and classify a single row.
+  const placement: AlarmEventRowPlacement = useMemo(() => ({
+    detailEventId: selectedEvent?.id ?? null,
+    showDetailPanel,
+    lingeringId,
+    isOnCallEvent,
+    isIgnoredEvent,
+  }), [selectedEvent?.id, showDetailPanel, lingeringId, isOnCallEvent, isIgnoredEvent])
+
   // --- Notification config (supervisor runs in layout, toggle here) ---
 
   const notificationPrefs = preferences.notifications
@@ -780,17 +799,11 @@ function AlarmEventsPageContent() {
           visibleColumns={visibleColumns}
           getWidth={getWidth}
           totalMinWidth={totalTableMinWidth}
-          canWrite={canWrite}
-          canDelete={canDelete}
-          canWriteAnalysis={canWriteAnalysis}
-          selectedEventId={selectedEvent?.id ?? null}
-          showDetailPanel={showDetailPanel}
-          lingeringId={lingeringId}
+          permissions={permissions}
+          placement={placement}
           onRowClick={handleRowClick}
           onEdit={handleEdit}
           onDelete={handleDelete}
-          isOnCallEvent={isOnCallEvent}
-          isIgnoredEvent={isIgnoredEvent}
           onAlarmClick={handleAlarmClick}
           onCreateAnalysis={handleCreateAnalysisFromEvent}
           onCreateIgnorableAnalysis={handleCreateIgnorableAnalysisFromEvent}
@@ -809,17 +822,11 @@ function AlarmEventsPageContent() {
           visibleColumns={visibleColumns}
           getWidth={getWidth}
           totalMinWidth={totalTableMinWidth}
-          canWrite={canWrite}
-          canDelete={canDelete}
-          canWriteAnalysis={canWriteAnalysis}
-          selectedEventId={selectedEvent?.id ?? null}
-          showDetailPanel={showDetailPanel}
-          lingeringId={lingeringId}
+          permissions={permissions}
+          placement={placement}
           onRowClick={handleRowClick}
           onEdit={handleEdit}
           onDelete={handleDelete}
-          isOnCallEvent={isOnCallEvent}
-          isIgnoredEvent={isIgnoredEvent}
           onAlarmClick={handleAlarmClick}
           onCreateAnalysis={handleCreateAnalysisFromEvent}
           onCreateIgnorableAnalysis={handleCreateIgnorableAnalysisFromEvent}
@@ -838,17 +845,11 @@ function AlarmEventsPageContent() {
           visibleColumns={visibleColumns}
           getWidth={getWidth}
           totalMinWidth={totalTableMinWidth}
-          canWrite={canWrite}
-          canDelete={canDelete}
-          canWriteAnalysis={canWriteAnalysis}
-          selectedEventId={selectedEvent?.id ?? null}
-          showDetailPanel={showDetailPanel}
-          lingeringId={lingeringId}
+          permissions={permissions}
+          placement={placement}
           onRowClick={handleRowClick}
           onEdit={handleEdit}
           onDelete={handleDelete}
-          isOnCallEvent={isOnCallEvent}
-          isIgnoredEvent={isIgnoredEvent}
           onAlarmClick={handleAlarmClick}
           onCreateAnalysis={handleCreateAnalysisFromEvent}
           onCreateIgnorableAnalysis={handleCreateIgnorableAnalysisFromEvent}
@@ -917,16 +918,10 @@ function AlarmEventsPageContent() {
                     <AlarmEventTableRow
                       key={event.id}
                       event={event}
-                      isChecked={selectedIds.has(event.id)}
-                      isDetailSelected={event.id === selectedEvent?.id && showDetailPanel}
-                      isLingering={event.id === lingeringId && !showDetailPanel}
-                      isOnCall={isOnCallEvent(event)}
-                      isIgnored={isIgnoredEvent(event)}
+                      state={resolveAlarmEventRowState(event, placement, selectedIds)}
                       visibleColumns={visibleColumns}
                       getWidth={getWidth}
-                      canWrite={canWrite}
-                      canDelete={canDelete}
-                      canWriteAnalysis={canWriteAnalysis}
+                      permissions={permissions}
                       onRowClick={handleRowClick}
                       onToggleSelect={toggleOne}
                       onEdit={handleEdit}

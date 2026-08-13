@@ -4,7 +4,6 @@ import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   ChevronLeft, ChevronRight,
-  PhoneCall, Sun,
   Loader2, RefreshCw, AlertTriangle,
 } from 'lucide-react'
 import { api, type AlarmEvent, type PaginatedResponse } from '@/lib/api-client'
@@ -13,8 +12,12 @@ import type { ColumnDef } from '@/lib/column-registry'
 import type { AlarmEventFiltersState } from './alarm-event-filters'
 import { Button } from '@/components/ui/button'
 import type { WorkingHours, OnCallHours } from '@go-watchtower/shared'
-import type { BucketCfg, SelectionProps } from './alarm-event-daily-view'
-import { BucketSection, shiftDay, todayUTC, formatDateLong } from './alarm-event-daily-view'
+import type { SelectionProps } from './alarm-event-daily-view'
+import { BucketSection } from './alarm-event-daily-view'
+import { shiftDay, todayUTC, formatDateLong } from '../_lib/date-utils'
+import { ONCALL_BUCKETS } from '../_lib/buckets'
+import { isOnCallAllDay, buildShiftRange, partitionShiftEvents } from '../_lib/oncall-shift'
+import type { AlarmEventPermissions, AlarmEventRowPlacement } from '../_lib/row-appearance'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -25,17 +28,11 @@ export interface AlarmEventOnCallViewProps {
   visibleColumns:  ColumnDef[]
   getWidth:        (id: string) => number | undefined
   totalMinWidth:   number
-  canWrite:        boolean
-  canDelete:       boolean
-  canWriteAnalysis: boolean
-  selectedEventId: string | null
-  showDetailPanel: boolean
-  lingeringId:     string | null
+  permissions:     AlarmEventPermissions
+  placement:       AlarmEventRowPlacement
   onRowClick:      (e: AlarmEvent) => void
   onEdit:          (e: AlarmEvent) => void
   onDelete:        (e: AlarmEvent) => void
-  isOnCallEvent?:  (e: AlarmEvent) => boolean
-  isIgnoredEvent?: (e: AlarmEvent) => boolean
   onAlarmClick?:   (alarm: NonNullable<AlarmEvent['alarm']>, productId: string) => void
   onCreateAnalysis?:           (e: AlarmEvent) => void
   onCreateIgnorableAnalysis?:  (e: AlarmEvent) => void
@@ -44,151 +41,9 @@ export interface AlarmEventOnCallViewProps {
   selection:       SelectionProps
 }
 
-// ─── Bucket configs ───────────────────────────────────────────────────────────
-
-export const ONCALL_BUCKETS: Record<'oncall' | 'work', BucketCfg> = {
-  oncall: {
-    Icon:      PhoneCall,
-    label:     'Reperibilità',
-    headerCls: 'bg-rose-50/70 dark:bg-rose-950/20',
-    textCls:   'text-rose-600 dark:text-rose-400',
-    borderCls: 'border-rose-200/60 dark:border-rose-900/20',
-    countCls:  'bg-rose-200/50 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
-  },
-  work: {
-    Icon:      Sun,
-    label:     'Orario lavorativo',
-    headerCls: 'bg-amber-50 dark:bg-amber-950/20',
-    textCls:   'text-amber-700 dark:text-amber-400',
-    borderCls: 'border-amber-200/80 dark:border-amber-900/30',
-    countCls:  'bg-amber-200/60 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
-  },
-}
-
 const DEFAULT_WH: WorkingHours = { timezone: 'Europe/Rome', start: '09:00', end: '18:00', days: [1, 2, 3, 4, 5] }
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
-
-/** ISO weekday (1=Mon … 7=Sun) from a YYYY-MM-DD string, using UTC noon. */
-function isoWeekdayOfDate(dateStr: string): number {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  const date = new Date(Date.UTC(y!, m! - 1, d!, 12))
-  const jsDay = date.getUTCDay()
-  return jsDay === 0 ? 7 : jsDay
-}
-
-/**
- * Converte "YYYY-MM-DD HH:MM" nell'ora locale della timezone `tz` in un istante UTC.
- * Usa il noon UTC dello stesso giorno per stimare l'offset (preciso per offset fissi
- * e per la maggior parte dei casi DST).
- */
-function localTimeToUTC(dateStr: string, timeHHMM: string, tz: string): string {
-  const [y, mo, d] = dateStr.split('-').map(Number)
-  const [th, tm]   = timeHHMM.split(':').map(Number)
-  const noonUTC    = new Date(Date.UTC(y!, mo! - 1, d!, 12))
-  const parts      = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz, hour: 'numeric', minute: 'numeric', hour12: false,
-  }).formatToParts(noonUTC)
-  const lh       = Number(parts.find((p) => p.type === 'hour')?.value   ?? 12)
-  const lm       = Number(parts.find((p) => p.type === 'minute')?.value ?? 0)
-  const offsetMs = ((lh * 60 + lm) - 12 * 60) * 60_000
-  return new Date(Date.UTC(y!, mo! - 1, d!, th!, tm!, 0) - offsetMs).toISOString()
-}
-
-/** Bound UTC per l'intera giornata locale `dateStr` nella timezone `tz`. */
-function localDayBoundsUTC(dateStr: string, tz: string): { from: string; to: string } {
-  const [y, mo, d] = dateStr.split('-').map(Number)
-  const noonUTC    = new Date(Date.UTC(y!, mo! - 1, d!, 12))
-  const parts      = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz, hour: 'numeric', minute: 'numeric', hour12: false,
-  }).formatToParts(noonUTC)
-  const lh       = Number(parts.find((p) => p.type === 'hour')?.value   ?? 12)
-  const lm       = Number(parts.find((p) => p.type === 'minute')?.value ?? 0)
-  const offsetMs = ((lh * 60 + lm) - 12 * 60) * 60_000
-  return {
-    from: new Date(Date.UTC(y!, mo! - 1, d!, 0)  - offsetMs).toISOString(),
-    to:   new Date(Date.UTC(y!, mo! - 1, d!, 24) - offsetMs - 1).toISOString(),
-  }
-}
-
-/**
- * Returns true if `dateStr` is a full-oncall (weekend) day.
- * Uses allDay.startDay/endDay if configured; falls back to Sat (6) / Sun (7).
- * The endDay itself is NOT "full day" (it terminates at endTime via overnight).
- */
-export function isOnCallAllDay(dateStr: string, oc: OnCallHours | null): boolean {
-  const isoDay = isoWeekdayOfDate(dateStr)
-
-  if (oc?.allDay) {
-    const { startDay, endDay } = oc.allDay
-    if (startDay <= endDay) {
-      // Non-wrapping range (e.g. 6–7): include start up to but not including end
-      return isoDay >= startDay && isoDay < endDay
-    }
-    // Wrapping range (e.g. startDay=6, endDay=1): Sat, Sun — but NOT Mon
-    return isoDay >= startDay || isoDay < endDay
-  }
-
-  return isoDay === 6 || isoDay === 7
-}
-
-interface ShiftRange {
-  dateFrom:       string
-  dateTo:         string
-  splitAt:        string | null
-  overnightStart: string
-  overnightEnd:   string
-  workEnd:        string
-}
-
-export function buildShiftRange(
-  referenceDate: string,
-  wh: WorkingHours,
-  oc: OnCallHours | null,
-  allDay: boolean,
-): ShiftRange {
-  const tz             = oc?.timezone ?? wh.timezone ?? 'Europe/Rome'
-  const overnightStart = oc?.overnight?.start ?? '18:00'
-  const overnightEnd   = oc?.overnight?.end   ?? '09:00'
-  const workEnd        = wh.end
-
-  if (allDay) {
-    const { from, to } = localDayBoundsUTC(referenceDate, tz)
-    return {
-      dateFrom: from,
-      dateTo:   to,
-      splitAt:  null,
-      overnightStart,
-      overnightEnd,
-      workEnd,
-    }
-  }
-
-  const prevDate = shiftDay(referenceDate, -1)
-  return {
-    dateFrom: localTimeToUTC(prevDate,       overnightStart, tz),
-    dateTo:   localTimeToUTC(referenceDate,  workEnd,        tz),
-    splitAt:  localTimeToUTC(referenceDate,  overnightEnd,   tz),
-    overnightStart,
-    overnightEnd,
-    workEnd,
-  }
-}
-
-export function partitionShiftEvents(
-  events: AlarmEvent[],
-  splitAt: string | null,
-): { oncall: AlarmEvent[]; work: AlarmEvent[] } {
-  if (splitAt === null) return { oncall: events, work: [] }
-  const splitMs = new Date(splitAt).getTime()
-  const oncall: AlarmEvent[] = []
-  const work:   AlarmEvent[] = []
-  for (const e of events) {
-    if (new Date(e.firedAt).getTime() < splitMs) oncall.push(e)
-    else work.push(e)
-  }
-  return { oncall, work }
-}
 
 function shortWeekday(dateStr: string): string {
   const [y, m, d] = dateStr.split('-').map(Number)
@@ -289,9 +144,8 @@ export function OnCallNavigation({
 export function AlarmEventOnCallView({
   workingHours, onCallHours, filters,
   visibleColumns, getWidth, totalMinWidth,
-  canWrite, canDelete, canWriteAnalysis,
-  selectedEventId, showDetailPanel, lingeringId,
-  onRowClick, onEdit, onDelete, isOnCallEvent, isIgnoredEvent, onAlarmClick,
+  permissions, placement,
+  onRowClick, onEdit, onDelete, onAlarmClick,
   onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
   selection,
 }: AlarmEventOnCallViewProps) {
@@ -330,8 +184,8 @@ export function AlarmEventOnCallView({
     [data?.data, splitAt],
   )
 
-  const bucketProps = { visibleColumns, getWidth, totalMinWidth, canWrite, canDelete, canWriteAnalysis,
-    selectedEventId, showDetailPanel, lingeringId, onRowClick, onEdit, onDelete, isOnCallEvent, isIgnoredEvent, onAlarmClick,
+  const bucketProps = { visibleColumns, getWidth, totalMinWidth, permissions, placement,
+    onRowClick, onEdit, onDelete, onAlarmClick,
     onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis, selection }
 
   return (

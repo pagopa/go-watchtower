@@ -8,7 +8,6 @@
  * Required fields are validated by the parent Zod schema via ignoreDetails.
  */
 
-import { z } from 'zod'
 import { Controller, type Control, type FieldValues } from 'react-hook-form'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -158,37 +157,6 @@ function DynamicField({
   )
 }
 
-/**
- * Builds a Zod schema for `ignoreDetails` from an IgnoreReasonDetailsSchema.
- * Required fields get `.min(1)` validation; optional fields are `.optional()`.
- * Returns `z.object({}).optional()` if the schema has no properties.
- */
-export function buildIgnoreDetailsZodSchema(
-  schema: IgnoreReasonDetailsSchema | null | undefined,
-): z.ZodTypeAny {
-  if (!schema?.properties || Object.keys(schema.properties).length === 0) {
-    return z.record(z.string(), z.unknown()).optional()
-  }
-
-  const required = new Set(schema.required ?? [])
-  const shape: Record<string, z.ZodTypeAny> = {}
-
-  for (const [key, def] of Object.entries(schema.properties)) {
-    if (def.type === 'number') {
-      shape[key] = required.has(key)
-        ? z.coerce.number({ message: `${def.title} è obbligatorio` })
-        : z.coerce.number().optional()
-    } else {
-      // string (including enum, textarea) — default('') coerces undefined to '' so min(1) shows the right message
-      shape[key] = required.has(key)
-        ? z.string({ message: `${def.title} è obbligatorio` }).default('').pipe(z.string().min(1, `${def.title} è obbligatorio`))
-        : z.string().optional()
-    }
-  }
-
-  return z.object(shape)
-}
-
 export function DynamicIgnoreDetailsForm({
   control,
   schema,
@@ -198,7 +166,8 @@ export function DynamicIgnoreDetailsForm({
 }: DynamicIgnoreDetailsFormProps) {
   if (!schema.properties || Object.keys(schema.properties).length === 0) return null
 
-  const required = schema.required ?? []
+  // Membership set: every rendered field tests against the schema's required list.
+  const required = new Set(schema.required ?? [])
   const detailsErrors = errors?.ignoreDetails
   const orderedKeys = (schema as Record<string, unknown>)['x-order'] as string[] | undefined
   const keys = orderedKeys
@@ -210,13 +179,13 @@ export function DynamicIgnoreDetailsForm({
       {keys.map((key) => {
         const def = schema.properties![key]!
         return preview ? (
-          <PreviewField key={key} name={key} def={def} required={required.includes(key)} />
+          <PreviewField key={key} name={key} def={def} required={required.has(key)} />
         ) : (
           <DynamicField
             key={key}
             name={key}
             def={def}
-            required={required.includes(key)}
+            required={required.has(key)}
             control={control}
             disabled={disabled}
             errors={detailsErrors}

@@ -24,7 +24,7 @@ import { invalidate } from '@/lib/query-invalidation'
 import { usePermissions } from '@/hooks/use-permissions'
 import { ANALYSIS_STATUS_LABELS } from '@go-watchtower/shared'
 import type { AnalysisStatus } from '@go-watchtower/shared'
-import { STATUS_ICONS } from '../../analyses/_helpers/cell-renderers'
+import { STATUS_ICONS } from '../../analyses/_lib/icons'
 import {
   ANALYSIS_STATUS_VARIANTS,
   formatDateTimeRome,

@@ -70,7 +70,8 @@ function SchemaPreview({ schema }: { schema: IgnoreReasonDetailsSchema | null })
     ? orderedKeys.filter((k) => k in schema.properties!)
     : Object.keys(schema.properties)
   const fields = keys.map((k) => [k, schema.properties![k]!] as const)
-  const required = schema.required ?? []
+  // Membership set: every rendered field tests against the schema's required list.
+  const required = new Set(schema.required ?? [])
   return (
     <div className="space-y-1">
       <button
@@ -90,7 +91,7 @@ function SchemaPreview({ schema }: { schema: IgnoreReasonDetailsSchema | null })
                 {key}
               </span>
               <span className="text-muted-foreground">{def.title}</span>
-              {required.includes(key) && (
+              {required.has(key) && (
                 <span className="text-[9px] uppercase tracking-wide font-bold text-destructive/60">req</span>
               )}
             </div>

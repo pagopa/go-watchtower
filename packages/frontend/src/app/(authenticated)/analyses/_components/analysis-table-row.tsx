@@ -11,73 +11,63 @@ import type { AlarmAnalysis } from '@/lib/api-client'
 import type { ValidationResult, QualityResult } from '@/lib/analysis-validation'
 import { ValidationScoreBadge } from '@/components/analysis/validation-score-badge'
 import { AnalysisCell } from '../_helpers/cell-renderers'
+import {
+  analysisActionsCellClassName,
+  analysisRowClassName,
+  type AnalysisRowActionsState,
+  type AnalysisRowVariant,
+} from '../_lib/row-appearance'
 import { AnalysisRowActions } from './analysis-row-actions'
 
 export interface AnalysisTableRowProps {
   analysis: AlarmAnalysis
-  isSelected: boolean
-  isLingering: boolean
+  /** Resolved once by `resolveAnalysisRowVariant` — see `_lib/row-appearance`. */
+  variant: AnalysisRowVariant
   visibleColumns: ColumnDef[]
   getWidth: (id: string) => number | undefined
-  hasActions: boolean
-  showEditAction: boolean
-  isLocked: boolean
-  showDeleteAction: boolean
-  lockDays: number | null
+  /** Resolved once by `resolveAnalysisRowActions`; omit to hide the actions column. */
+  actions?: AnalysisRowActionsState
   validationData: { validation: ValidationResult; quality: QualityResult } | undefined
   onRowClick: (analysis: AlarmAnalysis) => void
   onEdit: (analysis: AlarmAnalysis) => void
   onDelete: (analysis: AlarmAnalysis) => void
   onValidationClick: (analysis: AlarmAnalysis) => void
-  selectable?: boolean
-  checkboxSelected?: boolean
-  onToggleCheckbox?: (id: string) => void
+  selection?: {
+    checked: boolean
+    onToggle: (id: string) => void
+  }
 }
 
 export const AnalysisTableRow = memo(function AnalysisTableRow({
   analysis,
-  isSelected,
-  isLingering,
+  variant,
   visibleColumns,
   getWidth,
-  hasActions,
-  showEditAction,
-  isLocked,
-  showDeleteAction,
-  lockDays,
+  actions,
   validationData,
   onRowClick,
   onEdit,
   onDelete,
   onValidationClick,
-  selectable,
-  checkboxSelected,
-  onToggleCheckbox,
+  selection,
 }: AnalysisTableRowProps) {
   return (
     <TableRow
-      className={
-        'group cursor-pointer border-b border-border/50 ' +
-        (isSelected
-          ? 'analysis-row-selected hover:bg-primary/[0.09]'
-          : isLingering
-            ? 'analysis-row-lingering hover:bg-muted/30'
-            : 'transition-colors hover:bg-muted/30')
-      }
+      className={analysisRowClassName(variant)}
       onClick={(e) => {
         const target = e.target as HTMLElement
         if (target.closest('button') || target.closest('input[type="checkbox"]')) return
         onRowClick(analysis)
       }}
     >
-      {selectable && (
+      {selection && (
         <TableCell
           className="w-10 py-2.5 align-middle"
           onClick={(e) => e.stopPropagation()}
         >
           <Checkbox
-            checked={!!checkboxSelected}
-            onChange={() => onToggleCheckbox?.(analysis.id)}
+            checked={selection.checked}
+            onChange={() => selection.onToggle(analysis.id)}
             aria-label="Seleziona analisi"
           />
         </TableCell>
@@ -102,19 +92,14 @@ export const AnalysisTableRow = memo(function AnalysisTableRow({
           </TableCell>
         )
       })}
-      {hasActions && (
-        <TableCell className={
-          'relative sticky right-0 z-10 border-l border-border/40 py-2 ' +
-          (isSelected
-            ? 'bg-primary/[0.07] group-hover:bg-primary/[0.09]'
-            : 'bg-card group-hover:bg-muted')
-        }>
+      {actions && (
+        <TableCell className={analysisActionsCellClassName(variant)}>
           <AnalysisRowActions
             analysis={analysis}
-            canEdit={showEditAction && !isLocked}
-            isLocked={showEditAction && isLocked}
-            canDelete={showDeleteAction}
-            lockDays={lockDays}
+            canEdit={actions.canEdit}
+            isLocked={actions.locked}
+            canDelete={actions.canDelete}
+            lockDays={actions.lockDays}
             onEdit={onEdit}
             onDelete={onDelete}
           />

@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { DateRangePicker, type DateRangePreset } from '@/components/ui/date-range-picker'
 import { Button } from '@/components/ui/button'
+import { useDebouncedInput } from '@/hooks/use-debounced-input'
 import type { Product, Environment, AlertPriorityLevel } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
 
@@ -168,47 +169,16 @@ export function AlarmEventFilters({
     onFilterChange({ ...filters, [key]: value })
   }
 
-  // Debounced text fields
-  const [awsAccountIdLocal, setAwsAccountIdLocal] = useState(filters.awsAccountId)
-  const [awsRegionLocal, setAwsRegionLocal] = useState(filters.awsRegion)
-  const [alarmNameLocal, setAlarmNameLocal] = useState(filters.alarmName)
-  const awsAccountTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const awsRegionTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const alarmNameTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  useEffect(() => {
-    return () => {
-      if (awsAccountTimer.current) clearTimeout(awsAccountTimer.current)
-      if (awsRegionTimer.current) clearTimeout(awsRegionTimer.current)
-      if (alarmNameTimer.current) clearTimeout(alarmNameTimer.current)
-    }
-  }, [])
-
-  const handleAwsAccountChange = (value: string) => {
-    setAwsAccountIdLocal(value)
-    if (awsAccountTimer.current) clearTimeout(awsAccountTimer.current)
-    awsAccountTimer.current = setTimeout(() => updateFilter('awsAccountId', value), 400)
-  }
-
-  const handleAwsRegionChange = (value: string) => {
-    setAwsRegionLocal(value)
-    if (awsRegionTimer.current) clearTimeout(awsRegionTimer.current)
-    awsRegionTimer.current = setTimeout(() => updateFilter('awsRegion', value), 400)
-  }
-
-  const handleAlarmNameChange = (value: string) => {
-    setAlarmNameLocal(value)
-    if (alarmNameTimer.current) clearTimeout(alarmNameTimer.current)
-    alarmNameTimer.current = setTimeout(() => updateFilter('alarmName', value), 400)
-  }
+  // Debounced text fields — the hook re-syncs the local draft whenever the
+  // incoming filter changes (e.g. saved preferences resolving after mount).
+  const awsAccountId = useDebouncedInput(filters.awsAccountId, (v) => updateFilter('awsAccountId', v))
+  const awsRegion    = useDebouncedInput(filters.awsRegion,    (v) => updateFilter('awsRegion', v))
+  const alarmName    = useDebouncedInput(filters.alarmName,    (v) => updateFilter('alarmName', v))
 
   const handleReset = () => {
-    if (awsAccountTimer.current) { clearTimeout(awsAccountTimer.current); awsAccountTimer.current = null }
-    if (awsRegionTimer.current) { clearTimeout(awsRegionTimer.current); awsRegionTimer.current = null }
-    if (alarmNameTimer.current) { clearTimeout(alarmNameTimer.current); alarmNameTimer.current = null }
-    setAwsAccountIdLocal('')
-    setAwsRegionLocal('')
-    setAlarmNameLocal('')
+    awsAccountId.reset()
+    awsRegion.reset()
+    alarmName.reset()
     onReset()
   }
 
@@ -232,18 +202,15 @@ export function AlarmEventFilters({
       case 'date': updated.dateFrom = ''; updated.dateTo = ''; break
       case 'analysis': updated.hasAnalysis = ''; break
       case 'name':
-        if (alarmNameTimer.current) { clearTimeout(alarmNameTimer.current); alarmNameTimer.current = null }
-        setAlarmNameLocal('')
+        alarmName.reset()
         updated.alarmName = ''
         break
       case 'region':
-        if (awsRegionTimer.current) { clearTimeout(awsRegionTimer.current); awsRegionTimer.current = null }
-        setAwsRegionLocal('')
+        awsRegion.reset()
         updated.awsRegion = ''
         break
       case 'account':
-        if (awsAccountTimer.current) { clearTimeout(awsAccountTimer.current); awsAccountTimer.current = null }
-        setAwsAccountIdLocal('')
+        awsAccountId.reset()
         updated.awsAccountId = ''
         break
     }
@@ -397,8 +364,8 @@ export function AlarmEventFilters({
                 <Input
                   id="filter-alarm-name"
                   placeholder="Cerca allarme..."
-                  value={alarmNameLocal}
-                  onChange={(e) => handleAlarmNameChange(e.target.value)}
+                  value={alarmName.value}
+                  onChange={(e) => alarmName.onChange(e.target.value)}
                   className="pl-8 text-sm"
                 />
               </div>
@@ -412,8 +379,8 @@ export function AlarmEventFilters({
                 <Input
                   id="filter-aws-region"
                   placeholder="es. eu-south-1"
-                  value={awsRegionLocal}
-                  onChange={(e) => handleAwsRegionChange(e.target.value)}
+                  value={awsRegion.value}
+                  onChange={(e) => awsRegion.onChange(e.target.value)}
                   className="pl-8 font-mono text-sm"
                 />
               </div>
@@ -427,8 +394,8 @@ export function AlarmEventFilters({
                 <Input
                   id="filter-aws-account"
                   placeholder="Account ID..."
-                  value={awsAccountIdLocal}
-                  onChange={(e) => handleAwsAccountChange(e.target.value)}
+                  value={awsAccountId.value}
+                  onChange={(e) => awsAccountId.onChange(e.target.value)}
                   className="pl-8 font-mono text-sm"
                 />
               </div>
@@ -483,9 +450,12 @@ function PriorityMultiSelect({
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
+  // Membership set: the option list below tests every level against `selected`.
+  const selectedSet = useMemo(() => new Set(selected), [selected])
+
   const toggle = (code: string) => {
     onChange(
-      selected.includes(code)
+      selectedSet.has(code)
         ? selected.filter((value) => value !== code)
         : [...selected, code]
     )
@@ -530,12 +500,12 @@ function PriorityMultiSelect({
                 <div
                   className={cn(
                     'h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0 transition-colors',
-                    selected.includes(level.code)
+                    selectedSet.has(level.code)
                       ? 'bg-primary border-primary'
                       : 'border-muted-foreground/30'
                   )}
                 >
-                  {selected.includes(level.code) && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
+                  {selectedSet.has(level.code) && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm text-foreground">{level.label}</div>
@@ -577,9 +547,13 @@ function EnvironmentMultiSelect({
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
+  // Membership set: every rendered environment row tests against `selected`,
+  // so the grouped list below would otherwise rescan the array per row.
+  const selectedSet = useMemo(() => new Set(selected), [selected])
+
   const toggle = (envId: string) => {
     onChange(
-      selected.includes(envId)
+      selectedSet.has(envId)
         ? selected.filter((id) => id !== envId)
         : [...selected, envId]
     )
@@ -587,11 +561,12 @@ function EnvironmentMultiSelect({
 
   const toggleProduct = (pe: ProductWithEnvironments) => {
     const envIds = pe.environments.map((e) => e.id)
-    const allSelected = envIds.every((id) => selected.includes(id))
+    const allSelected = envIds.every((id) => selectedSet.has(id))
     if (allSelected) {
-      onChange(selected.filter((id) => !envIds.includes(id)))
+      const envIdSet = new Set(envIds)
+      onChange(selected.filter((id) => !envIdSet.has(id)))
     } else {
-      const toAdd = envIds.filter((id) => !selected.includes(id))
+      const toAdd = envIds.filter((id) => !selectedSet.has(id))
       onChange([...selected, ...toAdd])
     }
   }
@@ -660,8 +635,8 @@ function EnvironmentMultiSelect({
 
             {filteredGroups.map((pe) => {
               const envIds = pe.environments.map((e) => e.id)
-              const allSelected = envIds.every((id) => selected.includes(id))
-              const someSelected = envIds.some((id) => selected.includes(id))
+              const allSelected = envIds.every((id) => selectedSet.has(id))
+              const someSelected = envIds.some((id) => selectedSet.has(id))
 
               return (
                 <div key={pe.product.id} className="mt-1 first:mt-0">
@@ -692,7 +667,7 @@ function EnvironmentMultiSelect({
                   {/* Environment items */}
                   <div className="ml-4 space-y-0.5">
                     {pe.environments.map((env) => {
-                      const isSelected = selected.includes(env.id)
+                      const isSelected = selectedSet.has(env.id)
                       return (
                         <button
                           key={env.id}

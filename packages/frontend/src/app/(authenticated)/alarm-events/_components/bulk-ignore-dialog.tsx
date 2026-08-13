@@ -39,7 +39,8 @@ import {
 import { qk } from '@/lib/query-keys'
 import { invalidate } from '@/lib/query-invalidation'
 import { DateTimePicker } from '@/components/ui/date-time-picker'
-import { DynamicIgnoreDetailsForm, buildIgnoreDetailsZodSchema } from '@/components/ui/json-schema-form'
+import { DynamicIgnoreDetailsForm } from '@/components/ui/json-schema-form'
+import { buildIgnoreDetailsZodSchema } from '@/components/ui/json-schema-zod'
 import { useForm, type FieldValues } from 'react-hook-form'
 import { isoToRomeLocal, romeLocalToISO } from '../../analyses/_components/analysis-form-schemas'
 

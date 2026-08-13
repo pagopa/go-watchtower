@@ -6,7 +6,7 @@ import { it } from 'react-day-picker/locale'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { MONTH_NAMES, MONTH_SHORT_NAMES } from '@go-watchtower/shared'
 import { cn } from '@/lib/utils'
-import { buttonVariants } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button-variants'
 import {
   Select,
   SelectContent,

@@ -44,10 +44,14 @@ export function MultiSelectCombobox({
   const [open, setOpen] = React.useState(false)
   const listId = React.useId()
 
-  const selectedOptions = options.filter((o) => value.includes(o.value))
+  // Membership set: every option is tested against `value` while rendering the
+  // list and while deriving the selected tags.
+  const valueSet = React.useMemo(() => new Set(value), [value])
+
+  const selectedOptions = options.filter((o) => valueSet.has(o.value))
 
   const handleToggle = (optionValue: string) => {
-    if (value.includes(optionValue)) {
+    if (valueSet.has(optionValue)) {
       onValueChange(value.filter((v) => v !== optionValue))
     } else {
       onValueChange([...value, optionValue])
@@ -104,7 +108,7 @@ export function MultiSelectCombobox({
                     <Check
                       className={cn(
                         'mr-2 h-4 w-4',
-                        value.includes(option.value) ? 'opacity-100' : 'opacity-0'
+                        valueSet.has(option.value) ? 'opacity-100' : 'opacity-0'
                       )}
                     />
                     {option.label}

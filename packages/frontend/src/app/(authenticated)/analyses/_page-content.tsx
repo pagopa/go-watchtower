@@ -87,7 +87,13 @@ import {
   type ShortcutType,
 } from "./_components/create-analysis-dropdown";
 import { AnalysisTableRow } from "./_components/analysis-table-row";
-import { todayUTC } from "../alarm-events/_components/alarm-event-daily-view";
+import {
+  resolveAnalysisRowActions,
+  resolveAnalysisRowVariant,
+  type AnalysisActionPolicy,
+  type AnalysisRowPlacement,
+} from "./_lib/row-appearance";
+import { todayUTC } from "../alarm-events/_lib/date-utils";
 
 const AnalysisFormDialog = dynamic(
   () =>
@@ -431,6 +437,34 @@ function AnalysesPageContent() {
       );
     },
     [canDelete, canFor, currentUserId, isAnalysisLocked],
+  );
+
+  // Row placement + action policy — one value each, drilled through the views
+  // instead of the previous canWrite/canDelete/selectedAnalysisId/... prop soup.
+  const rowPlacement: AnalysisRowPlacement = useMemo(
+    () => ({
+      detailAnalysisId: selectedAnalysis?.id ?? null,
+      showDetailPanel,
+      lingeringId,
+    }),
+    [selectedAnalysis?.id, showDetailPanel, lingeringId],
+  );
+
+  const canWriteAnalysis = useCallback(
+    (analysis: AlarmAnalysis): boolean =>
+      canFor("ALARM_ANALYSIS", "write", analysis.createdById, currentUserId),
+    [canFor, currentUserId],
+  );
+
+  const actionPolicy: AnalysisActionPolicy = useMemo(
+    () => ({
+      enabled: canWrite || canDelete,
+      canWriteAnalysis,
+      canDeleteAnalysis,
+      isAnalysisLocked,
+      lockDays,
+    }),
+    [canWrite, canDelete, canWriteAnalysis, canDeleteAnalysis, isAnalysisLocked, lockDays],
   );
 
   // Is this the "all products" view?
@@ -1012,18 +1046,11 @@ function AnalysesPageContent() {
           visibleColumns={visibleColumns}
           getWidth={getWidth}
           totalMinWidth={totalTableMinWidth}
-          canWrite={canWrite}
-          canDelete={canDelete}
-          selectedAnalysisId={selectedAnalysis?.id ?? null}
-          showDetailPanel={showDetailPanel}
-          lingeringId={lingeringId}
+          placement={rowPlacement}
+          actionPolicy={actionPolicy}
           onRowClick={handleRowClick}
           onEdit={handleEdit}
           onDelete={handleDelete}
-          canEditAnalysis={canEditAnalysis}
-          canDeleteAnalysis={canDeleteAnalysis}
-          isAnalysisLocked={isAnalysisLocked}
-          lockDays={lockDays}
           onValidationClick={setValidationPanelAnalysis}
         />
       )}
@@ -1038,18 +1065,11 @@ function AnalysesPageContent() {
           visibleColumns={visibleColumns}
           getWidth={getWidth}
           totalMinWidth={totalTableMinWidth}
-          canWrite={canWrite}
-          canDelete={canDelete}
-          selectedAnalysisId={selectedAnalysis?.id ?? null}
-          showDetailPanel={showDetailPanel}
-          lingeringId={lingeringId}
+          placement={rowPlacement}
+          actionPolicy={actionPolicy}
           onRowClick={handleRowClick}
           onEdit={handleEdit}
           onDelete={handleDelete}
-          canEditAnalysis={canEditAnalysis}
-          canDeleteAnalysis={canDeleteAnalysis}
-          isAnalysisLocked={isAnalysisLocked}
-          lockDays={lockDays}
           onValidationClick={setValidationPanelAnalysis}
         />
       )}
@@ -1139,32 +1159,23 @@ function AnalysesPageContent() {
                     <AnalysisTableRow
                       key={analysis.id}
                       analysis={analysis}
-                      isSelected={
-                        analysis.id === selectedAnalysis?.id && showDetailPanel
-                      }
-                      isLingering={
-                        analysis.id === lingeringId && !showDetailPanel
-                      }
+                      variant={resolveAnalysisRowVariant(analysis, rowPlacement)}
                       visibleColumns={visibleColumns}
                       getWidth={getWidth}
-                      hasActions={canWrite || canDelete}
-                      showEditAction={canFor(
-                        "ALARM_ANALYSIS",
-                        "write",
-                        analysis.createdById,
-                        currentUserId,
-                      )}
-                      isLocked={isAnalysisLocked(analysis)}
-                      showDeleteAction={canDeleteAnalysis(analysis)}
-                      lockDays={lockDays}
+                      actions={
+                        actionPolicy.enabled
+                          ? resolveAnalysisRowActions(analysis, actionPolicy)
+                          : undefined
+                      }
                       validationData={validationCache.get(analysis.id)}
                       onRowClick={handleRowClick}
                       onEdit={handleEdit}
                       onDelete={handleDelete}
                       onValidationClick={setValidationPanelAnalysis}
-                      selectable
-                      checkboxSelected={selectedIds.has(analysis.id)}
-                      onToggleCheckbox={toggleSelected}
+                      selection={{
+                        checked: selectedIds.has(analysis.id),
+                        onToggle: toggleSelected,
+                      }}
                     />
                   ))}
                 </TableBody>

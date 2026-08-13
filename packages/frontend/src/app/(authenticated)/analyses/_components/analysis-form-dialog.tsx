@@ -68,7 +68,8 @@ import {
   TrackingIdsField,
   LinksField,
 } from './analysis-form-fields'
-import { DynamicIgnoreDetailsForm, buildIgnoreDetailsZodSchema } from '@/components/ui/json-schema-form'
+import { DynamicIgnoreDetailsForm } from '@/components/ui/json-schema-form'
+import { buildIgnoreDetailsZodSchema } from '@/components/ui/json-schema-zod'
 
 import { ANALYSIS_TYPE_LABELS, ANALYSIS_STATUS_LABELS } from '../_lib/constants'
 import { IgnoredAlarmWarningBanner } from './ignored-alarm-warning'

@@ -48,7 +48,8 @@ import {
   LastAlarmField,
   ProductSelectorCard,
 } from './analysis-form-fields'
-import { DynamicIgnoreDetailsForm, buildIgnoreDetailsZodSchema } from '@/components/ui/json-schema-form'
+import { DynamicIgnoreDetailsForm } from '@/components/ui/json-schema-form'
+import { buildIgnoreDetailsZodSchema } from '@/components/ui/json-schema-zod'
 
 interface ShortcutIgnorableDialogProps {
   open: boolean

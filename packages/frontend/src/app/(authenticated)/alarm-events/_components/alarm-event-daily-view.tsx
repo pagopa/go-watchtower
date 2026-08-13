@@ -5,7 +5,6 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { useQuery } from '@tanstack/react-query'
 import {
   ChevronLeft, ChevronRight, ChevronDown,
-  Moon, Sun, Sunset,
   Loader2, Inbox, RefreshCw, AlertTriangle,
 } from 'lucide-react'
 import { api, type AlarmEvent, type PaginatedResponse } from '@/lib/api-client'
@@ -14,11 +13,18 @@ import type { ColumnDef } from '@/lib/column-registry'
 import type { AlarmEventFiltersState } from './alarm-event-filters'
 import { Button } from '@/components/ui/button'
 import {
-  Table, TableBody, TableCell, TableHeader, TableRow,
+  Table, TableBody, TableHeader, TableRow,
 } from '@/components/ui/table'
 import { ResizableTableHead } from '@/components/ui/resizable-table-head'
-import { AlarmEventCell, isHighEvent } from '../_helpers/cell-renderers'
-import { AlarmEventRowActions } from './alarm-event-row-actions'
+import { todayUTC, shiftDay, formatDateLong, localDayBoundsUTC } from '../_lib/date-utils'
+import { type BucketCfg, BUCKETS, partitionEvents } from '../_lib/buckets'
+import {
+  hasRowActions,
+  resolveAlarmEventRowState,
+  type AlarmEventPermissions,
+  type AlarmEventRowPlacement,
+} from '../_lib/row-appearance'
+import { AlarmEventTableRow } from './alarm-event-table-row'
 
 import type { WorkingHours } from '@go-watchtower/shared'
 
@@ -40,110 +46,17 @@ export interface AlarmEventDailyViewProps {
   visibleColumns:  ColumnDef[]
   getWidth:        (id: string) => number | undefined
   totalMinWidth:   number
-  canWrite:        boolean
-  canDelete:       boolean
-  canWriteAnalysis: boolean
-  selectedEventId: string | null
-  showDetailPanel: boolean
-  lingeringId:     string | null
+  permissions:     AlarmEventPermissions
+  placement:       AlarmEventRowPlacement
   onRowClick:      (e: AlarmEvent) => void
   onEdit:          (e: AlarmEvent) => void
   onDelete:        (e: AlarmEvent) => void
-  isOnCallEvent?:  (e: AlarmEvent) => boolean
-  isIgnoredEvent?: (e: AlarmEvent) => boolean
   onAlarmClick?:   (alarm: NonNullable<AlarmEvent['alarm']>, productId: string) => void
   onCreateAnalysis?:           (e: AlarmEvent) => void
   onCreateIgnorableAnalysis?:  (e: AlarmEvent) => void
   onAssociateAnalysis?:        (e: AlarmEvent) => void
   onUnlinkAnalysis?:           (e: AlarmEvent) => void
   selection:       SelectionProps
-}
-
-// ─── Date utilities ───────────────────────────────────────────────────────────
-
-export function todayUTC(): string {
-  return new Date().toISOString().slice(0, 10)
-}
-
-export function shiftDay(dateStr: string, delta: number): string {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  const date = new Date(Date.UTC(y!, m! - 1, d!, 12))
-  date.setUTCDate(date.getUTCDate() + delta)
-  return date.toISOString().slice(0, 10)
-}
-
-export function formatDateLong(dateStr: string): string {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  const date = new Date(Date.UTC(y!, m! - 1, d!, 12))
-  const s = date.toLocaleDateString('it-IT', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
-  })
-  return s.charAt(0).toUpperCase() + s.slice(1)
-}
-
-// ─── Event partitioning ───────────────────────────────────────────────────────
-
-export function toMinutes(hhmm: string): number {
-  const [h, m] = hhmm.split(':').map(Number)
-  return (h ?? 0) * 60 + (m ?? 0)
-}
-
-/** Minuto del giorno (0–1439) dell'istante ISO nella timezone indicata. */
-export function minuteOfDayInTz(isoString: string, tz: string): number {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz, hour: 'numeric', minute: 'numeric', hour12: false,
-  }).formatToParts(new Date(isoString))
-  const h = Number(parts.find((p) => p.type === 'hour')?.value   ?? 0)
-  const m = Number(parts.find((p) => p.type === 'minute')?.value ?? 0)
-  return h * 60 + m
-}
-
-/** ISO weekday (1=Lun…7=Dom) del giorno locale dell'istante nella timezone indicata. */
-export function isoWeekdayInTz(isoString: string, tz: string): number {
-  const localDate = new Intl.DateTimeFormat('en-CA', {
-    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
-  }).format(new Date(isoString)) // "YYYY-MM-DD"
-  const [y, mo, d] = localDate.split('-').map(Number)
-  const dow = new Date(Date.UTC(y!, mo! - 1, d!, 12)).getUTCDay()
-  return dow === 0 ? 7 : dow
-}
-
-/**
- * Restituisce i bound UTC per l'intera giornata locale `dateStr` nella timezone `tz`.
- * Usa come riferimento il noon UTC per stimare l'offset (accurato per offset fissi
- * e per la maggior parte dei casi DST).
- */
-export function localDayBoundsUTC(dateStr: string, tz: string): { dateFrom: string; dateTo: string } {
-  const [y, mo, d] = dateStr.split('-').map(Number)
-  const noonUTC = new Date(Date.UTC(y!, mo! - 1, d!, 12))
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz, hour: 'numeric', minute: 'numeric', hour12: false,
-  }).formatToParts(noonUTC)
-  const lh = Number(parts.find((p) => p.type === 'hour')?.value   ?? 12)
-  const lm = Number(parts.find((p) => p.type === 'minute')?.value ?? 0)
-  const offsetMs = ((lh * 60 + lm) - 12 * 60) * 60_000
-  const startMs  = Date.UTC(y!, mo! - 1, d!, 0)  - offsetMs
-  const endMs    = Date.UTC(y!, mo! - 1, d!, 24) - offsetMs - 1
-  return {
-    dateFrom: new Date(startMs).toISOString(),
-    dateTo:   new Date(endMs).toISOString(),
-  }
-}
-
-export function partitionEvents(events: AlarmEvent[], wh: WorkingHours) {
-  const tz      = wh.timezone ?? 'Europe/Rome'
-  const whStart = toMinutes(wh.start)
-  const whEnd   = toMinutes(wh.end)
-  const pre: AlarmEvent[] = [], work: AlarmEvent[] = [], post: AlarmEvent[] = []
-  for (const e of events) {
-    const mod       = minuteOfDayInTz(e.firedAt, tz)
-    const weekday   = isoWeekdayInTz(e.firedAt, tz)
-    const isWorkDay = wh.days.includes(weekday)
-    if (isWorkDay && mod >= whStart && mod < whEnd) work.push(e)
-    else if (isWorkDay && mod < whStart)             pre.push(e)
-    else                                             post.push(e)
-  }
-  return { pre, work, post }
 }
 
 // ─── Day navigation header ────────────────────────────────────────────────────
@@ -219,52 +132,13 @@ export function DayNavigation({
 
 // ─── Bucket section ───────────────────────────────────────────────────────────
 
-type BucketId = 'pre' | 'work' | 'post'
-
-export interface BucketCfg {
-  Icon:        typeof Moon
-  label:       string
-  headerCls:   string
-  textCls:     string
-  borderCls:   string
-  countCls:    string
-}
-
-export const BUCKETS: Record<BucketId, BucketCfg> = {
-  pre: {
-    Icon:      Moon,
-    label:     'Fuori orario — Mattina',
-    headerCls: 'bg-slate-50 dark:bg-slate-950/40',
-    textCls:   'text-slate-600 dark:text-slate-400',
-    borderCls: 'border-slate-200 dark:border-slate-800',
-    countCls:  'bg-slate-200/70 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
-  },
-  work: {
-    Icon:      Sun,
-    label:     'Orario lavorativo',
-    headerCls: 'bg-amber-50 dark:bg-amber-950/20',
-    textCls:   'text-amber-700 dark:text-amber-400',
-    borderCls: 'border-amber-200/80 dark:border-amber-900/30',
-    countCls:  'bg-amber-200/60 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
-  },
-  post: {
-    Icon:      Sunset,
-    label:     'Fuori orario — Sera',
-    headerCls: 'bg-violet-50/70 dark:bg-violet-950/20',
-    textCls:   'text-violet-600 dark:text-violet-400',
-    borderCls: 'border-violet-200/60 dark:border-violet-900/20',
-    countCls:  'bg-violet-200/50 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
-  },
-}
-
 const VIRTUALIZE_THRESHOLD = 100
 
 export function BucketSection({
   cfg, events, timeRange,
   visibleColumns, getWidth, totalMinWidth,
-  canWrite, canDelete, canWriteAnalysis,
-  selectedEventId, showDetailPanel, lingeringId,
-  onRowClick, onEdit, onDelete, isOnCallEvent, isIgnoredEvent, onAlarmClick,
+  permissions, placement,
+  onRowClick, onEdit, onDelete, onAlarmClick,
   onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
   selection,
 }: {
@@ -274,17 +148,11 @@ export function BucketSection({
   visibleColumns:  ColumnDef[]
   getWidth:        (id: string) => number | undefined
   totalMinWidth:   number
-  canWrite:        boolean
-  canDelete:       boolean
-  canWriteAnalysis: boolean
-  selectedEventId: string | null
-  showDetailPanel: boolean
-  lingeringId:     string | null
+  permissions:     AlarmEventPermissions
+  placement:       AlarmEventRowPlacement
   onRowClick:      (e: AlarmEvent) => void
   onEdit:          (e: AlarmEvent) => void
   onDelete:        (e: AlarmEvent) => void
-  isOnCallEvent?:  (e: AlarmEvent) => boolean
-  isIgnoredEvent?: (e: AlarmEvent) => boolean
   onAlarmClick?:   (alarm: NonNullable<AlarmEvent['alarm']>, productId: string) => void
   onCreateAnalysis?:           (e: AlarmEvent) => void
   onCreateIgnorableAnalysis?:  (e: AlarmEvent) => void
@@ -305,87 +173,30 @@ export function BucketSection({
     enabled: shouldVirtualize && !collapsed,
   })
 
-  const hasActions = canWrite || canDelete || canWriteAnalysis
+  const hasActions = hasRowActions(permissions)
   const totalColSpan = visibleColumns.length + (hasActions ? 1 : 0) + 1 /* checkbox col */
 
-  const renderRow = (event: AlarmEvent, ref?: (el: HTMLTableRowElement | null) => void, dataIndex?: number) => {
-    const isChecked   = selection.selectedIds.has(event.id)
-    const isSelected  = event.id === selectedEventId && showDetailPanel
-    const isLingering = event.id === lingeringId && !showDetailPanel
-    const isOnCall    = isOnCallEvent ? isOnCallEvent(event) : false
-    const isIgnored   = isIgnoredEvent ? isIgnoredEvent(event) : false
-    return (
-      <TableRow
-        key={event.id}
-        ref={ref}
-        data-index={dataIndex}
-        className={
-          'group cursor-pointer border-b border-border/50 border-l-[3px] ' +
-          (isChecked
-            ? 'border-l-transparent bg-primary/[0.05] hover:bg-primary/[0.08]'
-            : isSelected
-              ? 'border-l-transparent analysis-row-selected hover:bg-primary/[0.09]'
-              : isLingering
-                ? 'border-l-transparent analysis-row-lingering hover:bg-muted/30'
-                : isOnCall
-                  ? 'border-l-rose-500/60 bg-rose-500/[0.04] hover:bg-rose-500/[0.06] transition-colors'
-                  : isHighEvent(event)
-                    ? 'border-l-amber-500/60 bg-amber-500/[0.04] hover:bg-amber-500/[0.06] transition-colors'
-                    : isIgnored
-                      ? 'border-l-transparent opacity-50 transition-colors hover:opacity-70 hover:bg-muted/30'
-                      : 'border-l-transparent transition-colors hover:bg-muted/30')
-        }
-        onClick={(e) => {
-          if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('input[type="checkbox"]')) return
-          onRowClick(event)
-        }}
-      >
-        <TableCell className="w-10 px-2 py-2.5">
-          <input
-            type="checkbox"
-            aria-label={`Seleziona ${event.name}`}
-            className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
-            checked={isChecked}
-            onChange={() => selection.onToggleSelect(event)}
-          />
-        </TableCell>
-        {visibleColumns.map((col, idx) => {
-          const isLast = idx === visibleColumns.length - 1
-          return (
-            <TableCell
-              key={col.id}
-              className="overflow-hidden py-2.5"
-              style={(!isLast && getWidth(col.id))
-                ? { width: `${getWidth(col.id)}px` }
-                : undefined}
-            >
-              <AlarmEventCell columnId={col.id} event={event} isOnCall={isOnCall} isIgnored={isIgnored} onAlarmClick={onAlarmClick} />
-            </TableCell>
-          )
-        })}
-        {hasActions && (
-          <TableCell className={
-            'relative sticky right-0 z-10 border-l border-border/40 py-2 ' +
-            (isSelected
-              ? 'bg-primary/[0.07] group-hover:bg-primary/[0.09]'
-              : 'bg-card group-hover:bg-muted')
-          }>
-            <AlarmEventRowActions
-              event={event}
-              canWrite={canWrite}
-              canDelete={canDelete}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              onCreateAnalysis={canWriteAnalysis ? onCreateAnalysis : undefined}
-              onCreateIgnorableAnalysis={canWriteAnalysis ? onCreateIgnorableAnalysis : undefined}
-              onAssociateAnalysis={canWriteAnalysis ? onAssociateAnalysis : undefined}
-              onUnlinkAnalysis={canWriteAnalysis ? onUnlinkAnalysis : undefined}
-            />
-          </TableCell>
-        )}
-      </TableRow>
-    )
-  }
+  const renderRow = (event: AlarmEvent, ref?: (el: HTMLTableRowElement | null) => void, dataIndex?: number) => (
+    <AlarmEventTableRow
+      key={event.id}
+      ref={ref}
+      dataIndex={dataIndex}
+      event={event}
+      state={resolveAlarmEventRowState(event, placement, selection.selectedIds)}
+      permissions={permissions}
+      visibleColumns={visibleColumns}
+      getWidth={getWidth}
+      onRowClick={onRowClick}
+      onToggleSelect={selection.onToggleSelect}
+      onEdit={onEdit}
+      onDelete={onDelete}
+      onAlarmClick={onAlarmClick}
+      onCreateAnalysis={onCreateAnalysis}
+      onCreateIgnorableAnalysis={onCreateIgnorableAnalysis}
+      onAssociateAnalysis={onAssociateAnalysis}
+      onUnlinkAnalysis={onUnlinkAnalysis}
+    />
+  )
 
   const bucketAllSelected = selection.isBucketAllSelected(events)
   const bucketIndeterminate = selection.isBucketIndeterminate(events)
@@ -504,9 +315,8 @@ const DEFAULT_WH: WorkingHours = { timezone: 'Europe/Rome', start: '09:00', end:
 export function AlarmEventDailyView({
   selectedDate, onDateChange, workingHours, filters,
   visibleColumns, getWidth, totalMinWidth,
-  canWrite, canDelete, canWriteAnalysis,
-  selectedEventId, showDetailPanel, lingeringId,
-  onRowClick, onEdit, onDelete, isOnCallEvent, isIgnoredEvent, onAlarmClick,
+  permissions, placement,
+  onRowClick, onEdit, onDelete, onAlarmClick,
   onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis,
   selection,
 }: AlarmEventDailyViewProps) {
@@ -545,8 +355,8 @@ export function AlarmEventDailyView({
     [data?.data, wh],
   )
 
-  const bucketProps = { visibleColumns, getWidth, totalMinWidth, canWrite, canDelete, canWriteAnalysis,
-    selectedEventId, showDetailPanel, lingeringId, onRowClick, onEdit, onDelete, isOnCallEvent, isIgnoredEvent, onAlarmClick,
+  const bucketProps = { visibleColumns, getWidth, totalMinWidth, permissions, placement,
+    onRowClick, onEdit, onDelete, onAlarmClick,
     onCreateAnalysis, onCreateIgnorableAnalysis, onAssociateAnalysis, onUnlinkAnalysis, selection }
 
   return (

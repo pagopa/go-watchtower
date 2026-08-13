@@ -724,20 +724,25 @@ function ActionMultiSelect({
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
+  // Membership set: every rendered action row tests against `selected`, so the
+  // grouped list below would otherwise rescan the array once per action.
+  const selectedSet = useMemo(() => new Set(selected), [selected])
+
   const toggle = (action: string) => {
     onChange(
-      selected.includes(action)
+      selectedSet.has(action)
         ? selected.filter((a) => a !== action)
         : [...selected, action]
     )
   }
 
   const toggleCategory = (cat: ActionCategory) => {
-    const allSelected = cat.actions.every((a) => selected.includes(a))
+    const allSelected = cat.actions.every((a) => selectedSet.has(a))
     if (allSelected) {
-      onChange(selected.filter((a) => !cat.actions.includes(a)))
+      const catActionSet = new Set(cat.actions)
+      onChange(selected.filter((a) => !catActionSet.has(a)))
     } else {
-      const toAdd = cat.actions.filter((a) => !selected.includes(a))
+      const toAdd = cat.actions.filter((a) => !selectedSet.has(a))
       onChange([...selected, ...toAdd])
     }
   }
@@ -803,8 +808,8 @@ function ActionMultiSelect({
 
             {filteredCategories.map((cat) => {
               const CatIcon = cat.icon
-              const allCatSelected = cat.actions.every((a) => selected.includes(a))
-              const someCatSelected = cat.actions.some((a) => selected.includes(a))
+              const allCatSelected = cat.actions.every((a) => selectedSet.has(a))
+              const someCatSelected = cat.actions.some((a) => selectedSet.has(a))
 
               return (
                 <div key={cat.label} className="mt-1 first:mt-0">
@@ -834,7 +839,7 @@ function ActionMultiSelect({
 
                   <div className="ml-4 space-y-0.5">
                     {cat.actions.map((action) => {
-                      const isSelected = selected.includes(action)
+                      const isSelected = selectedSet.has(action)
                       const label = SYSTEM_EVENT_ACTION_LABELS[action as SystemEventAction] ?? action
                       return (
                         <button
@@ -945,6 +950,10 @@ export function SystemEventsPage() {
     setExpandedRows(new Set())
   }
 
+
+  // Membership set: the category shortcuts below test every category's actions
+  // against the active action filter.
+  const activeActionSet = useMemo(() => new Set(filters.action ?? []), [filters.action])
 
   const hasActiveFilters = Boolean(
     (filters.action && filters.action.length > 0) ||
@@ -1103,7 +1112,7 @@ export function SystemEventsPage() {
           {ACTION_CATEGORIES.map((cat) => {
             const CatIcon = cat.icon
             const isActive =
-              cat.actions.every((a) => filters.action?.includes(a)) &&
+              cat.actions.every((a) => activeActionSet.has(a)) &&
               filters.action?.length === cat.actions.length
             return (
               <button

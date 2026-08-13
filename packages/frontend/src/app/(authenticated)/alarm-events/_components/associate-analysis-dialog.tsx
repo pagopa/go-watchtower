@@ -1,13 +1,8 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { useSession } from 'next-auth/react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Loader2, Search, AlertTriangle, AlertCircle,
-  Bell, Clock, User, Hash, Calendar, Activity, Siren,
-  FileText, Tag, MousePointerClick, ChevronRight, Link2,
-  type LucideIcon,
+  AlertTriangle, Calendar, Hash, Activity, Siren, Tag,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -15,25 +10,26 @@ import {
   DialogContent,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Switch } from '@/components/ui/switch'
-import { cn } from '@/lib/utils'
-import { usePermissions } from '@/hooks/use-permissions'
-import { api, type AlarmEvent, type AlarmAnalysis } from '@/lib/api-client'
-import { qk } from '@/lib/query-keys'
+import { api, type AlarmEvent } from '@/lib/api-client'
 import { invalidate } from '@/lib/query-invalidation'
-import { ANALYSIS_STATUS_LABELS, ANALYSIS_TYPE_LABELS, AnalysisStatuses } from '@go-watchtower/shared'
+import { ANALYSIS_STATUS_LABELS, AnalysisStatuses } from '@go-watchtower/shared'
 import {
-  STATUS_ICONS,
-  TYPE_ICONS,
-} from '../../analyses/_helpers/cell-renderers'
-import {
-  ANALYSIS_STATUS_VARIANTS,
   formatDateTimeRome,
   formatDateTimeUTC,
 } from '../../analyses/_lib/constants'
+import {
+  useAssociableAnalyses,
+  useAssociationOptions,
+} from '../_lib/use-associate-analysis'
+import {
+  AnalysisPickerPane,
+  AssociationOptionsFooter,
+  DetailField,
+  NoAnalysisSelected,
+  OptionToggle,
+  OptionTransition,
+  SelectedAnalysisSummary,
+} from './associate-analysis-parts'
 
 interface AssociateAnalysisDialogProps {
   open: boolean
@@ -42,141 +38,59 @@ interface AssociateAnalysisDialogProps {
   onAssociated: () => void
 }
 
-// ─── List item ───────────────────────────────────────────────────────────────
+// ─── Event summary (left pane) ───────────────────────────────────────────────
 
-function AnalysisListItem({
-  analysis,
-  selected,
-  onSelect,
-}: {
-  analysis: AlarmAnalysis
-  selected: boolean
-  onSelect: () => void
-}) {
-  const { Icon: StatusIcon, className: statusClassName } = STATUS_ICONS[analysis.status]
-
+function EventSummary({ event }: { event: AlarmEvent }) {
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={cn(
-        'group flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left transition-all duration-150',
-        selected
-          ? 'bg-primary/[0.07] shadow-[inset_3px_0_0_hsl(var(--primary))]'
-          : 'hover:bg-muted/60'
-      )}
-    >
-      <StatusIcon className={cn('h-3.5 w-3.5 shrink-0', statusClassName)} />
-      <div className="min-w-0 flex-1">
-        <p className={cn(
-          'truncate text-sm leading-tight',
-          selected ? 'font-semibold' : 'font-medium text-foreground/80 group-hover:text-foreground'
-        )}>
-          {analysis.alarm.name}
-        </p>
-        <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">
-          {formatDateTimeRome(analysis.analysisDate)}
-          <span className="mx-1 opacity-30">|</span>
-          {analysis.operator.name}
-          <span className="mx-1 opacity-30">|</span>
-          <span className="tabular-nums">{analysis.occurrences}</span> occ.
-        </p>
+    <div className="shrink-0 border-b bg-muted/15 px-4 py-3.5">
+      <div className="flex items-center gap-2 mb-2.5">
+        <Siren className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Evento allarme</h3>
       </div>
-      <Badge
-        variant={ANALYSIS_STATUS_VARIANTS[analysis.status]}
-        className={cn(
-          'shrink-0 text-[9px] px-1.5 py-0 leading-relaxed transition-opacity duration-150',
-          !selected && 'opacity-50 group-hover:opacity-100'
+
+      <p className="text-[15px] font-semibold leading-snug mb-2.5 break-words">{event.name}</p>
+
+      <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+        <DetailField icon={Calendar} label="Data / ora">
+          <span className="font-mono tabular-nums text-xs">{formatDateTimeRome(event.firedAt)}</span>
+        </DetailField>
+
+        <DetailField icon={Tag} label="Prodotto">
+          <span className="font-medium text-xs">{event.product.name}</span>
+        </DetailField>
+
+        <DetailField icon={Activity} label="Ambiente">
+          <span className="text-xs">{event.environment.name}</span>
+        </DetailField>
+
+        {event.awsRegion && (
+          <DetailField icon={Hash} label="Region AWS">
+            <span className="font-mono text-xs">{event.awsRegion}</span>
+          </DetailField>
         )}
-      >
-        {ANALYSIS_STATUS_LABELS[analysis.status]}
-      </Badge>
-    </button>
-  )
-}
 
-function AnalysisListSkeleton({ count = 4 }: { count?: number }) {
-  return (
-    <div className="space-y-1">
-      {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="flex items-center gap-2.5 rounded-md px-2.5 py-2">
-          <Skeleton className="h-3.5 w-3.5 rounded-full shrink-0" />
-          <div className="flex-1 space-y-1.5">
-            <Skeleton className="h-3.5 w-3/4" />
-            <Skeleton className="h-3 w-1/2" />
-          </div>
-        </div>
-      ))}
+        {event.awsAccountId && (
+          <DetailField icon={Hash} label="Account AWS">
+            <span className="font-mono text-xs">{event.awsAccountId}</span>
+          </DetailField>
+        )}
+      </div>
     </div>
   )
 }
 
-// ─── Detail field ────────────────────────────────────────────────────────────
-
-function DetailField({
-  icon: Icon,
-  label,
-  children,
-}: {
-  icon: LucideIcon
-  label: string
-  children: React.ReactNode
-}) {
+function AlarmNameMismatchWarning({ analysisName, eventName }: { analysisName: string; eventName: string }) {
   return (
-    <div className="flex items-start gap-2">
-      <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground/35" />
+    <div className="flex items-start gap-2.5 rounded-md border border-amber-300/50 bg-amber-50/50 px-3.5 py-3 dark:border-amber-800/25 dark:bg-amber-950/15">
+      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500 dark:text-amber-400" />
       <div className="min-w-0">
-        <p className="text-[10px] uppercase tracking-widest text-muted-foreground/40 leading-none mb-0.5 font-medium">{label}</p>
-        <div className="text-sm leading-tight">{children}</div>
+        <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Nome allarme diverso</p>
+        <p className="text-xs text-amber-700/70 dark:text-amber-400/60 mt-0.5 leading-relaxed">
+          L&apos;analisi si riferisce a <span className="font-semibold">&quot;{analysisName}&quot;</span>,
+          l&apos;evento a <span className="font-semibold">&quot;{eventName}&quot;</span>.
+        </p>
       </div>
     </div>
-  )
-}
-
-// ─── Option toggle ───────────────────────────────────────────────────────────
-
-function OptionToggle({
-  id,
-  checked,
-  onCheckedChange,
-  disabled,
-  title,
-  description,
-  children,
-}: {
-  id: string
-  checked: boolean
-  onCheckedChange: (checked: boolean) => void
-  disabled?: boolean
-  title: string
-  description: string
-  children?: React.ReactNode
-}) {
-  return (
-    <label
-      htmlFor={id}
-      className={cn(
-        'flex items-start gap-3 rounded-lg border bg-background px-4 py-3 transition-all duration-150',
-        disabled
-          ? 'opacity-40 cursor-not-allowed'
-          : checked
-            ? 'cursor-pointer border-primary/25 shadow-[inset_3px_0_0_hsl(var(--primary)/0.4)]'
-            : 'cursor-pointer border-border/50 hover:border-border',
-      )}
-    >
-      <Switch
-        id={id}
-        checked={checked}
-        onCheckedChange={onCheckedChange}
-        disabled={disabled}
-        className="mt-0.5"
-      />
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium leading-tight">{title}</p>
-        <p className="text-[12px] text-muted-foreground/60 mt-1 leading-relaxed">{description}</p>
-        {children}
-      </div>
-    </label>
   )
 }
 
@@ -189,62 +103,21 @@ export function AssociateAnalysisDialog({
   onAssociated,
 }: AssociateAnalysisDialogProps) {
   const queryClient = useQueryClient()
-  const { data: session } = useSession()
-  const { getScope } = usePermissions()
-  const currentUserId = session?.user?.id
-  const writeScope = getScope('ALARM_ANALYSIS', 'write')
-  const ownOnly = writeScope === 'OWN'
-
-  const [selectedAnalysisId, setSelectedAnalysisId] = useState<string | null>(null)
-  const [incrementOccurrences, setIncrementOccurrences] = useState(true)
-  const [updateLastAlarmAt, setUpdateLastAlarmAt] = useState(true)
-  const [reopenAnalysis, setReopenAnalysis] = useState(true)
+  const options = useAssociationOptions()
+  const {
+    ownOnly, query, analyses,
+    selectedAnalysisId, setSelectedAnalysisId, selectedAnalysis,
+  } = useAssociableAnalyses(event, open)
 
   const handleOpenChange = (isOpen: boolean) => {
     if (!isOpen) {
       setSelectedAnalysisId(null)
-      setIncrementOccurrences(true)
-      setUpdateLastAlarmAt(true)
-      setReopenAnalysis(true)
+      options.reset()
     }
     onOpenChange(isOpen)
   }
 
-  // ── Query ────────────────────────────────────────────────────────────────
-
-  const analysesQuery = useQuery({
-    queryKey: qk.analyses.forLink(event?.product.id ?? null, event?.environment.id ?? null, event?.alarmId ?? null, ownOnly ? currentUserId ?? null : null),
-    staleTime: 0,
-    queryFn: () => {
-      const e = event!
-      const oneMonthAgo = new Date()
-      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1)
-      return api.getAllAnalyses({
-        productId: e.product.id,
-        environmentId: e.environment.id,
-        ...(e.alarmId && { alarmId: e.alarmId }),
-        ...(ownOnly && currentUserId && { createdById: currentUserId }),
-        dateFrom: oneMonthAgo.toISOString(),
-        pageSize: 50,
-        sortBy: 'analysisDate',
-        sortOrder: 'desc',
-      })
-    },
-    enabled: open && !!event,
-  })
-
-  const analysesData = analysesQuery.data?.data
-  const analyses = analysesData ?? []
-
-  const selectedAnalysis = useMemo(() => {
-    if (!selectedAnalysisId) return null
-    return (analysesData ?? []).find((a) => a.id === selectedAnalysisId) ?? null
-  }, [selectedAnalysisId, analysesData])
-
-  const alarmNameMismatch = !!(
-    event && selectedAnalysis &&
-    selectedAnalysis.alarm.name !== event.name
-  )
+  const alarmNameMismatch = !!(event && selectedAnalysis && selectedAnalysis.alarm.name !== event.name)
 
   const eventIsNewer = !!(
     event && selectedAnalysis &&
@@ -252,8 +125,6 @@ export function AssociateAnalysisDialog({
   )
 
   const isCompleted = selectedAnalysis?.status === AnalysisStatuses.COMPLETED
-
-  // ── Mutation ─────────────────────────────────────────────────────────────
 
   const associateMutation = useMutation({
     mutationFn: async () => {
@@ -265,15 +136,9 @@ export function AssociateAnalysisDialog({
         reopenAnalysis?: boolean
       } = {}
 
-      if (incrementOccurrences) {
-        analysisUpdates.incrementOccurrences = true
-      }
-      if (updateLastAlarmAt && eventIsNewer) {
-        analysisUpdates.lastAlarmAt = event.firedAt
-      }
-      if (reopenAnalysis && isCompleted) {
-        analysisUpdates.reopenAnalysis = true
-      }
+      if (options.incrementOccurrences) analysisUpdates.incrementOccurrences = true
+      if (options.updateLastAlarmAt && eventIsNewer) analysisUpdates.lastAlarmAt = event.firedAt
+      if (options.reopenAnalysis && isCompleted) analysisUpdates.reopenAnalysis = true
 
       const hasUpdates = Object.keys(analysisUpdates).length > 0
       await api.linkAlarmEventAnalysis(
@@ -293,8 +158,6 @@ export function AssociateAnalysisDialog({
     },
   })
 
-  // ── Render ───────────────────────────────────────────────────────────────
-
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[1240px] max-h-[calc(100vh-16rem)] flex flex-col gap-0 p-0 overflow-hidden">
@@ -304,298 +167,91 @@ export function AssociateAnalysisDialog({
 
           {/* ─── Left: Event details + Analysis list ──────────────── */}
           <div className="w-[480px] shrink-0 border-r flex flex-col min-h-0">
-
-            {/* ── Event details ────────────────────────────────────── */}
-            {event && (
-              <div className="shrink-0 border-b bg-muted/15 px-4 py-3.5">
-                <div className="flex items-center gap-2 mb-2.5">
-                  <Siren className="h-4 w-4 text-amber-500 dark:text-amber-400" />
-                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">Evento allarme</h3>
-                </div>
-
-                <p className="text-[15px] font-semibold leading-snug mb-2.5 break-words">{event.name}</p>
-
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                  <DetailField icon={Calendar} label="Data / ora">
-                    <span className="font-mono tabular-nums text-xs">
-                      {formatDateTimeRome(event.firedAt)}
-                    </span>
-                  </DetailField>
-
-                  <DetailField icon={Tag} label="Prodotto">
-                    <span className="font-medium text-xs">{event.product.name}</span>
-                  </DetailField>
-
-                  <DetailField icon={Activity} label="Ambiente">
-                    <span className="text-xs">{event.environment.name}</span>
-                  </DetailField>
-
-                  {event.awsRegion && (
-                    <DetailField icon={Hash} label="Region AWS">
-                      <span className="font-mono text-xs">{event.awsRegion}</span>
-                    </DetailField>
-                  )}
-
-                  {event.awsAccountId && (
-                    <DetailField icon={Hash} label="Account AWS">
-                      <span className="font-mono text-xs">{event.awsAccountId}</span>
-                    </DetailField>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* ── Analysis list ───────────────────────────────────── */}
-            <div className="flex-1 flex flex-col min-h-0">
-              <div className="shrink-0 px-4 py-2.5 border-b bg-background">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-                    Analisi disponibili
-                  </h3>
-                  {analyses.length > 0 && (
-                    <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold tabular-nums text-primary-foreground">
-                      {analyses.length}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex-1 overflow-y-auto px-2 py-2">
-                {analysesQuery.isLoading ? (
-                  <AnalysisListSkeleton />
-                ) : analysesQuery.isError ? (
-                  <div className="flex flex-col items-center gap-1.5 py-10 text-center px-4">
-                    <AlertCircle className="h-5 w-5 text-destructive/50" />
-                    <p className="text-xs text-destructive">Errore nel caricamento delle analisi</p>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-xs h-7"
-                      onClick={() => analysesQuery.refetch()}
-                    >
-                      Riprova
-                    </Button>
-                  </div>
-                ) : analyses.length === 0 ? (
-                  <div className="flex flex-col items-center gap-1.5 py-10 text-center px-4">
-                    <Search className="h-5 w-5 text-muted-foreground/25" />
-                    <p className="text-xs text-muted-foreground">Nessuna analisi trovata</p>
-                    <p className="text-[11px] text-muted-foreground/50 leading-relaxed max-w-[240px]">
-                      Non ci sono analisi corrispondenti a questo allarme
-                      {ownOnly ? ' tra quelle da te create' : ''}.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-0.5">
-                    {analyses.map((analysis) => (
-                      <AnalysisListItem
-                        key={analysis.id}
-                        analysis={analysis}
-                        selected={selectedAnalysisId === analysis.id}
-                        onSelect={() =>
-                          setSelectedAnalysisId(
-                            selectedAnalysisId === analysis.id ? null : analysis.id
-                          )
-                        }
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+            {event && <EventSummary event={event} />}
+            <AnalysisPickerPane
+              className="flex-1 flex flex-col min-h-0"
+              analyses={analyses}
+              isLoading={query.isLoading}
+              isError={query.isError}
+              onRetry={() => query.refetch()}
+              selectedAnalysisId={selectedAnalysisId}
+              onSelectAnalysis={setSelectedAnalysisId}
+              ownOnly={ownOnly}
+            />
           </div>
 
           {/* ─── Right: Selected analysis + Options ───────────────── */}
           <div className="flex-1 flex flex-col min-w-0">
-
             {!selectedAnalysis ? (
-              <div className="flex-1 flex items-center justify-center px-6">
-                <div className="text-center space-y-2">
-                  <MousePointerClick className="mx-auto h-8 w-8 text-muted-foreground/15" />
-                  <p className="text-sm text-muted-foreground/35">
-                    Seleziona un&apos;analisi dalla lista
-                  </p>
-                </div>
-              </div>
+              <NoAnalysisSelected />
             ) : (
               <>
-                {/* ── Analysis detail ──────────────────────────────── */}
-                <div className="flex-1 px-6 py-5 space-y-4 overflow-y-auto">
-                  <div className="flex items-center gap-2 mb-1">
-                    <FileText className="h-4.5 w-4.5 text-primary/50" />
-                    <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">Analisi selezionata</h3>
-                  </div>
+                <SelectedAnalysisSummary
+                  analysis={selectedAnalysis}
+                  warning={alarmNameMismatch && event
+                    ? <AlarmNameMismatchWarning analysisName={selectedAnalysis.alarm.name} eventName={event.name} />
+                    : undefined}
+                />
 
-                  {/* Alarm name + status */}
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="text-lg font-semibold leading-snug break-words">{selectedAnalysis.alarm.name}</p>
-                    <Badge variant={ANALYSIS_STATUS_VARIANTS[selectedAnalysis.status]} className="shrink-0 text-xs px-2.5 py-0.5">
-                      {ANALYSIS_STATUS_LABELS[selectedAnalysis.status]}
-                    </Badge>
-                  </div>
-
-                  {/* Name mismatch warning */}
-                  {alarmNameMismatch && (
-                    <div className="flex items-start gap-2.5 rounded-md border border-amber-300/50 bg-amber-50/50 px-3.5 py-3 dark:border-amber-800/25 dark:bg-amber-950/15">
-                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500 dark:text-amber-400" />
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Nome allarme diverso</p>
-                        <p className="text-xs text-amber-700/70 dark:text-amber-400/60 mt-0.5 leading-relaxed">
-                          L&apos;analisi si riferisce a <span className="font-semibold">&quot;{selectedAnalysis.alarm.name}&quot;</span>,
-                          l&apos;evento a <span className="font-semibold">&quot;{event?.name}&quot;</span>.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Detail grid */}
-                  <div className="grid grid-cols-3 gap-x-6 gap-y-4 pt-1">
-                    <DetailField icon={Siren} label="Tipo">
-                      {(() => {
-                        const { Icon: TIcon, className: tCls } = TYPE_ICONS[selectedAnalysis.analysisType]
-                        return (
-                          <div className="flex items-center gap-1.5">
-                            <TIcon className={cn('h-3.5 w-3.5', tCls)} />
-                            <span className="text-sm">{ANALYSIS_TYPE_LABELS[selectedAnalysis.analysisType]}</span>
-                          </div>
-                        )
-                      })()}
-                    </DetailField>
-
-                    <DetailField icon={User} label="Operatore">
-                      <span className="text-sm font-medium">{selectedAnalysis.operator.name}</span>
-                    </DetailField>
-
-                    <DetailField icon={Calendar} label="Data analisi">
-                      <span className="font-mono text-sm tabular-nums">{formatDateTimeRome(selectedAnalysis.analysisDate)}</span>
-                    </DetailField>
-
-                    <DetailField icon={Hash} label="Occorrenze">
-                      <span className="font-mono text-sm tabular-nums font-semibold">{selectedAnalysis.occurrences}</span>
-                    </DetailField>
-
-                    <DetailField icon={Clock} label="Primo allarme">
-                      <span className="font-mono text-sm tabular-nums">{formatDateTimeUTC(selectedAnalysis.firstAlarmAt)} UTC</span>
-                    </DetailField>
-
-                    <DetailField icon={Clock} label="Ultimo allarme">
-                      <span className="font-mono text-sm tabular-nums">{formatDateTimeUTC(selectedAnalysis.lastAlarmAt)} UTC</span>
-                    </DetailField>
-
-                    <DetailField icon={Tag} label="Prodotto">
-                      <span className="text-sm">{selectedAnalysis.product.name}</span>
-                    </DetailField>
-
-                    <DetailField icon={Activity} label="Ambiente">
-                      <span className="text-sm">{selectedAnalysis.environment.name}</span>
-                    </DetailField>
-
-                    {selectedAnalysis.isOnCall && (
-                      <DetailField icon={Bell} label="Reperibilità">
-                        <Badge variant="outline" className="text-xs px-2 py-0">On-call</Badge>
-                      </DetailField>
-                    )}
-                  </div>
-
-                  {selectedAnalysis.errorDetails && (
-                    <div className="pt-3 border-t border-border/40">
-                      <DetailField icon={FileText} label="Dettagli errore">
-                        <p className="text-sm text-muted-foreground leading-relaxed break-words">
-                          {selectedAnalysis.errorDetails.length > 300
-                            ? `${selectedAnalysis.errorDetails.slice(0, 300)}...`
-                            : selectedAnalysis.errorDetails}
-                        </p>
-                      </DetailField>
-                    </div>
-                  )}
-                </div>
-
-                {/* ── Options + Actions ────────────────────────────── */}
-                <div className="shrink-0 border-t bg-muted/10 px-5 py-4 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Link2 className="h-4 w-4 text-muted-foreground/40" />
-                    <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-                      Opzioni associazione
-                    </h3>
-                  </div>
-
+                <AssociationOptionsFooter
+                  onCancel={() => handleOpenChange(false)}
+                  onConfirm={() => associateMutation.mutate()}
+                  confirmLabel="Associa"
+                  isPending={associateMutation.isPending}
+                  confirmDisabled={!selectedAnalysisId}
+                >
                   <OptionToggle
                     id="increment-occurrences"
-                    checked={incrementOccurrences}
-                    onCheckedChange={setIncrementOccurrences}
+                    checked={options.incrementOccurrences}
+                    onCheckedChange={options.setIncrementOccurrences}
                     title="Incrementa occorrenze"
                     description="Aumenta di 1 il conteggio delle occorrenze dell'analisi, registrando che questo evento rappresenta una nuova manifestazione dello stesso problema."
                   >
-                    {incrementOccurrences && (
-                      <div className="flex items-center gap-2 mt-2 text-xs">
-                        <span className="font-mono tabular-nums text-muted-foreground">{selectedAnalysis.occurrences}</span>
-                        <ChevronRight className="h-3 w-3 text-primary/50" />
-                        <span className="font-mono tabular-nums font-semibold">{selectedAnalysis.occurrences + 1}</span>
-                      </div>
+                    {options.incrementOccurrences && (
+                      <OptionTransition
+                        from={String(selectedAnalysis.occurrences)}
+                        to={String(selectedAnalysis.occurrences + 1)}
+                      />
                     )}
                   </OptionToggle>
 
                   <OptionToggle
                     id="update-last-alarm-at"
-                    checked={updateLastAlarmAt && eventIsNewer}
-                    onCheckedChange={setUpdateLastAlarmAt}
+                    checked={options.updateLastAlarmAt && eventIsNewer}
+                    onCheckedChange={options.setUpdateLastAlarmAt}
                     disabled={!eventIsNewer}
                     title="Aggiorna data ultimo allarme"
                     description={eventIsNewer
                       ? 'Aggiorna la data dell\'ultimo allarme dell\'analisi con la data di questo evento, poiché è più recente di quella attualmente registrata.'
                       : 'L\'evento non è più recente dell\'ultimo allarme registrato nell\'analisi, quindi questa opzione non è disponibile.'}
                   >
-                    {eventIsNewer && updateLastAlarmAt && (
-                      <div className="flex items-center gap-2 mt-2 text-xs">
-                        <span className="font-mono tabular-nums text-muted-foreground">{formatDateTimeUTC(selectedAnalysis.lastAlarmAt)} UTC</span>
-                        <ChevronRight className="h-3 w-3 text-primary/50" />
-                        <span className="font-mono tabular-nums font-semibold">{formatDateTimeUTC(event?.firedAt ?? '')} UTC</span>
-                      </div>
+                    {eventIsNewer && options.updateLastAlarmAt && (
+                      <OptionTransition
+                        from={`${formatDateTimeUTC(selectedAnalysis.lastAlarmAt)} UTC`}
+                        to={`${formatDateTimeUTC(event?.firedAt ?? '')} UTC`}
+                      />
                     )}
                   </OptionToggle>
 
                   <OptionToggle
                     id="reopen-analysis"
-                    checked={reopenAnalysis && isCompleted}
-                    onCheckedChange={setReopenAnalysis}
+                    checked={options.reopenAnalysis && isCompleted}
+                    onCheckedChange={options.setReopenAnalysis}
                     disabled={!isCompleted}
                     title="Riapri analisi"
                     description={isCompleted
                       ? 'L\'analisi è completata. Riportala allo stato "In corso" per segnalare che un nuovo allarme richiede ulteriore analisi.'
                       : 'L\'analisi non è in stato completato, quindi non è necessario riaprirla.'}
                   >
-                    {isCompleted && reopenAnalysis && (
-                      <div className="flex items-center gap-2 mt-2 text-xs">
-                        <span className="text-muted-foreground">{ANALYSIS_STATUS_LABELS[AnalysisStatuses.COMPLETED]}</span>
-                        <ChevronRight className="h-3 w-3 text-primary/50" />
-                        <span className="font-semibold">{ANALYSIS_STATUS_LABELS[AnalysisStatuses.IN_PROGRESS]}</span>
-                      </div>
+                    {isCompleted && options.reopenAnalysis && (
+                      <OptionTransition
+                        mono={false}
+                        from={ANALYSIS_STATUS_LABELS[AnalysisStatuses.COMPLETED]}
+                        to={ANALYSIS_STATUS_LABELS[AnalysisStatuses.IN_PROGRESS]}
+                      />
                     )}
                   </OptionToggle>
-
-                  {/* Actions */}
-                  <div className="flex justify-end gap-2 pt-1">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleOpenChange(false)}
-                      disabled={associateMutation.isPending}
-                    >
-                      Annulla
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => associateMutation.mutate()}
-                      disabled={!selectedAnalysisId || associateMutation.isPending}
-                    >
-                      {associateMutation.isPending && (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      )}
-                      Associa
-                    </Button>
-                  </div>
-                </div>
+                </AssociationOptionsFooter>
               </>
             )}
           </div>

@@ -242,27 +242,36 @@ function CreateRoleForm({ onSubmit, onCancel, isPending }: CreateRoleFormProps) 
 
 // ─── Role Detail Panel ────────────────────────────────────────────────────────
 
+/** What the current user may do to a role. */
+interface RolePermissions {
+  write: boolean
+  delete: boolean
+}
+
+/** Which of the panel's two mutations is currently in flight. */
+interface RolePendingState {
+  update: boolean
+  permissions: boolean
+}
+
 interface RoleDetailPanelProps {
   role: Role
-  canWrite: boolean
-  canDelete: boolean
+  permissions: RolePermissions
+  pending: RolePendingState
   onUpdate: (data: UpdateRoleData) => void
   onUpdatePermissions: (data: UpdateRolePermissionsData) => void
   onDelete: () => void
-  isUpdatePending: boolean
-  isPermissionsPending: boolean
 }
 
 function RoleDetailPanel({
   role,
-  canWrite,
-  canDelete,
+  permissions,
+  pending,
   onUpdate,
   onUpdatePermissions,
   onDelete,
-  isUpdatePending,
-  isPermissionsPending,
 }: RoleDetailPanelProps) {
+  const { write: canWrite, delete: canDelete } = permissions
   const [editName, setEditName] = useState(role.name)
   const [editDescription, setEditDescription] = useState(role.description ?? '')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -404,9 +413,9 @@ function RoleDetailPanel({
               <Button
                 size="sm"
                 onClick={handleSaveMeta}
-                disabled={isUpdatePending || !editName.trim()}
+                disabled={pending.update || !editName.trim()}
               >
-                {isUpdatePending && (
+                {pending.update && (
                   <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
                 )}
                 Salva modifiche
@@ -447,9 +456,9 @@ function RoleDetailPanel({
             <Button
               size="sm"
               onClick={handleSavePermissions}
-              disabled={isPermissionsPending}
+              disabled={pending.permissions}
             >
-              {isPermissionsPending ? (
+              {pending.permissions ? (
                 <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
               ) : (
                 <Save className="mr-1.5 h-4 w-4" />
@@ -695,8 +704,7 @@ export function RolesPage() {
             ) : (
               <RoleDetailPanel
                 role={selectedRole}
-                canWrite={canWrite}
-                canDelete={canDelete}
+                permissions={{ write: canWrite, delete: canDelete }}
                 onUpdate={(data) =>
                   updateMutation.mutate({ id: selectedRole.id, data })
                 }
@@ -704,8 +712,10 @@ export function RolesPage() {
                   permissionsMutation.mutate({ id: selectedRole.id, data })
                 }
                 onDelete={() => deleteMutation.mutate(selectedRole.id)}
-                isUpdatePending={updateMutation.isPending}
-                isPermissionsPending={permissionsMutation.isPending}
+                pending={{
+                  update: updateMutation.isPending,
+                  permissions: permissionsMutation.isPending,
+                }}
               />
             )
           ) : (

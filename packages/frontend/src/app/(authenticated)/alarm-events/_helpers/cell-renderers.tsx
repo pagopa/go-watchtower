@@ -4,11 +4,6 @@ import { PhoneCall, BookOpen, FileSearch, AlertTriangle, EyeOff } from 'lucide-r
 import { formatDateTimeUTC } from '@go-watchtower/shared'
 import type { AlarmEvent } from '@/lib/api-client'
 
-/** Thin wrapper so existing call-sites keep working with an AlarmEvent object. */
-export function isHighEvent(event: AlarmEvent): boolean {
-  return event.priority.rank > 0 && !event.priority.countsAsOnCall
-}
-
 type EmbeddedAlarm = NonNullable<AlarmEvent['alarm']>
 
 export interface AlarmEventCellProps {
