@@ -61,10 +61,10 @@ import {
   PRIORITY_ICON_OPTIONS,
   getPriorityBadgeClass,
   getPriorityColorOption,
-  getPriorityIcon,
   getPriorityIconOption,
   normalizePriorityToken,
 } from '@/lib/priority-presentation'
+import { PriorityIcon } from '@/components/priority-icon'
 import { qk } from '@/lib/query-keys'
 import { cn } from '@/lib/utils'
 import { usePermissions } from '@/hooks/use-permissions'
@@ -115,8 +115,6 @@ function PriorityAppearanceBadge({
   icon: string | null | undefined
   muted?: boolean
 }) {
-  const Icon = getPriorityIcon(icon)
-
   return (
     <span
       className={cn(
@@ -125,7 +123,7 @@ function PriorityAppearanceBadge({
         muted && 'opacity-60'
       )}
     >
-      <Icon className="h-3.5 w-3.5 shrink-0" />
+      <PriorityIcon icon={icon} className="h-3.5 w-3.5 shrink-0" />
       <span className="truncate">{label}</span>
     </span>
   )
@@ -267,10 +265,7 @@ function PriorityIconCombobox({
   const [open, setOpen] = useState(false)
   const normalizedValue = normalizePriorityToken(value)
   const selectedOption = getPriorityIconOption(value)
-  const selectedIcon = getPriorityIcon(value)
-  const AutomaticIcon = getPriorityIcon('')
   const hasCustomToken = Boolean(normalizedValue) && !selectedOption
-  const SelectedIcon = selectedIcon
 
   return (
     <div className="space-y-2">
@@ -291,7 +286,7 @@ function PriorityIconCombobox({
                   getPriorityBadgeClass(color)
                 )}
               >
-                <SelectedIcon className="h-3.5 w-3.5" />
+                <PriorityIcon icon={value} className="h-3.5 w-3.5" />
               </span>
               <span className="min-w-0">
                 <span className="block truncate text-sm font-medium">
@@ -320,7 +315,7 @@ function PriorityIconCombobox({
                   className="gap-2 px-3 py-2"
                 >
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border bg-muted/40">
-                    <AutomaticIcon className="h-3.5 w-3.5" />
+                    <PriorityIcon icon="" className="h-3.5 w-3.5" />
                   </span>
                   <span className="min-w-0 flex-1 truncate text-sm font-medium">
                     Automatico

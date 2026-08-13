@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { X, Pencil, Trash2, Copy, Check, BellRing, Cloud, Info, BookOpen, ExternalLink, PhoneCall, FileSearch, Unlink, OctagonAlert, AlertTriangle, ShieldOff, Target } from 'lucide-react'
 import Link from 'next/link'
@@ -12,7 +12,8 @@ import { api, type AlarmEvent, type AlarmAnalysis, type IgnoredAlarm } from '@/l
 import { qk } from '@/lib/query-keys'
 import { invalidate } from '@/lib/query-invalidation'
 import { sanitizeUrl } from '@/lib/sanitize-url'
-import { usePreferences } from '@/hooks/use-preferences'
+import { useResizablePanel } from '@/hooks/use-resizable-panel'
+import { PanelResizeHandle } from '@/components/ui/panel-resize-handle'
 import { matchIgnoredAlarm } from '@go-watchtower/shared'
 import { ANALYSIS_STATUS_LABELS, ANALYSIS_TYPE_LABELS } from '../../analyses/_lib/constants'
 import { IgnoredAlarmDetailsDialog } from '../../analyses/_components/ignored-alarm-warning'
@@ -278,6 +279,7 @@ function UtcTimestamp({ isoStr }: { isoStr: string }) {
 
 // ─── Resize constants ─────────────────────────────────────────────────────────
 
+const PANEL_STORAGE_KEY = 'alarmEventDetail'
 const MIN_PANEL_WIDTH = 320
 const MAX_PANEL_WIDTH = 1000
 const DEFAULT_PANEL_WIDTH = 560
@@ -294,8 +296,6 @@ export function AlarmEventDetailPanel({
   canDelete,
   onAlarmClick,
 }: AlarmEventDetailPanelProps) {
-  const { preferences, updatePreferences } = usePreferences()
-  const [dragWidth, setDragWidth] = useState<number | null>(null)
   const [showIgnoredDetails, setShowIgnoredDetails] = useState(false)
 
   // Fetch ignored alarm rules for the event's product
@@ -316,85 +316,41 @@ export function AlarmEventDetailPanel({
     })
     if (!match) return null
     return ignoredAlarms.find((ia) => ia.id === match.id) ?? null
-  }, [event?.alarmId, event?.environment.id, event?.firedAt, ignoredAlarms])
+    // `event` intero: le dipendenze in optional chaining non sono tracciabili
+    // dal compiler, che allora rinuncia a memoizzare l'intero componente.
+  }, [event, ignoredAlarms])
 
-  const panelWidth = dragWidth ?? preferences.detailPanelWidth ?? DEFAULT_PANEL_WIDTH
-
-  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    const startX = e.clientX
-    const startWidth = dragWidth ?? (preferences.detailPanelWidth ?? DEFAULT_PANEL_WIDTH)
-
-    const onMove = (ev: MouseEvent) => {
-      const newWidth = Math.min(
-        Math.max(startWidth - (ev.clientX - startX), MIN_PANEL_WIDTH),
-        MAX_PANEL_WIDTH
-      )
-      setDragWidth(newWidth)
-    }
-
-    const onUp = (ev: MouseEvent) => {
-      document.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseup', onUp)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-
-      const finalWidth = Math.min(
-        Math.max(startWidth - (ev.clientX - startX), MIN_PANEL_WIDTH),
-        MAX_PANEL_WIDTH
-      )
-      if (Math.abs(ev.clientX - startX) > 2) {
-        setDragWidth(null)
-        updatePreferences({ detailPanelWidth: finalWidth })
-      } else {
-        setDragWidth(null)
-      }
-    }
-
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
-    document.body.style.cursor = 'ew-resize'
-    document.body.style.userSelect = 'none'
-  }, [dragWidth, preferences.detailPanelWidth, updatePreferences])
+  const { panelRef, panelStyle, handleProps } = useResizablePanel({
+    storageKey: PANEL_STORAGE_KEY,
+    minWidth: MIN_PANEL_WIDTH,
+    maxWidth: MAX_PANEL_WIDTH,
+    defaultWidth: DEFAULT_PANEL_WIDTH,
+  })
 
   return (
     <>
       {/* Backdrop */}
-      <div
-        role="button"
-        tabIndex={0}
+      <button
+        type="button"
         aria-label="Chiudi pannello"
+        disabled={!open}
         className={cn(
           'fixed inset-0 z-40 bg-black/50 transition-opacity',
           open ? 'opacity-100' : 'pointer-events-none opacity-0'
         )}
         onClick={onClose}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClose() }}
       />
 
       {/* Panel */}
       <div
+        ref={panelRef}
         className={cn(
           'fixed right-0 top-0 z-50 flex h-full flex-col bg-background shadow-2xl transition-transform duration-300',
           open ? 'translate-x-0' : 'translate-x-full'
         )}
-        style={{ width: `min(${panelWidth}px, 90vw)` }}
+        style={panelStyle}
       >
-        {/* Resize handle */}
-        <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Ridimensiona pannello"
-          onMouseDown={handleResizeMouseDown}
-          className="group absolute left-0 top-0 z-10 flex h-full w-3 cursor-ew-resize items-center"
-        >
-          <div className="h-full w-px shrink-0 bg-border transition-[width,background-color] duration-150 group-hover:w-0.5 group-hover:bg-primary/60 group-active:bg-primary" />
-          <div className="pointer-events-none absolute left-0 right-0 top-1/2 flex -translate-y-1/2 flex-col items-center gap-[3px] opacity-0 transition-opacity duration-150 group-hover:opacity-100">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-[3px] w-[3px] rounded-full bg-primary" />
-            ))}
-          </div>
-        </div>
+        <PanelResizeHandle {...handleProps} />
 
         {/* Skeleton while no event */}
         {!event && (

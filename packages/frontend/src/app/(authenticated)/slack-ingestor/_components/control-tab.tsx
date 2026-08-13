@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, FlaskConical, History, Loader2, RotateCcw, ShieldAlert } from 'lucide-react'
 import { toast } from 'sonner'
@@ -24,8 +24,18 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EXECUTION_POLICY_META, INGESTION_MODE_META, decisionMeta } from './labels'
 import { RichSelect } from './rich-select'
-import { RuleEditor, isGlobalRule, isQuickRule, type RuleEditorSources } from './rule-editor'
+import { RuleEditor, type RuleEditorSources } from './rule-editor'
+import { isGlobalRule, isQuickRule } from './rule-predicates'
 import { ControlHistorySheet } from './control-history-sheet'
+
+/**
+ * Chiave stabile per errori e warning: l'indice cambierebbe a ogni
+ * revalidazione. Il messaggio contiene l'identificativo puntuale (es. l'id del
+ * product inesistente) ed è quindi ciò che distingue due issue dello stesso codice.
+ */
+function issueKey(issue: SlackIngestorControlWarning): string {
+  return `${issue.ruleId ?? 'global'}:${issue.code}:${issue.message}`
+}
 
 function extractValidationIssues(error: unknown): SlackIngestorControlWarning[] {
   if (!(error instanceof ApiClientError)) return []
@@ -98,6 +108,91 @@ function PreviewDialog({
   )
 }
 
+/** Barra sticky con motivazione, conferme e azioni sulla bozza. */
+function SaveBar({
+  changeNote,
+  onChangeNoteChange,
+  nextRevision,
+  canSave,
+  saving,
+  previewing,
+  hasGlobalRule,
+  confirmGlobal,
+  onConfirmGlobalChange,
+  unnamedRules,
+  onReset,
+  onPreview,
+  onSave,
+}: {
+  changeNote: string
+  onChangeNoteChange: (value: string) => void
+  nextRevision: number
+  canSave: boolean
+  saving: boolean
+  previewing: boolean
+  hasGlobalRule: boolean
+  confirmGlobal: boolean
+  onConfirmGlobalChange: (value: boolean) => void
+  unnamedRules: number
+  onReset: () => void
+  onPreview: () => void
+  onSave: () => void
+}) {
+  return (
+    <div className="sticky bottom-0 z-40 rounded-lg border bg-background/95 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] backdrop-blur">
+      <div className="flex flex-col gap-3 px-4 py-3">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end">
+          <div className="flex-1 space-y-1">
+            <Label htmlFor="change-note" className="text-xs">
+              Motivazione della modifica <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="change-note"
+              value={changeNote}
+              onChange={(event) => onChangeNoteChange(event.target.value)}
+              placeholder="Registrata nell’audit log insieme alla nuova revisione"
+              className="h-9"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={onReset}>
+              <RotateCcw className="mr-2 h-4 w-4" />
+              Ripristina
+            </Button>
+            <Button variant="outline" size="sm" disabled={previewing} onClick={onPreview}>
+              {previewing ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <FlaskConical className="mr-2 h-4 w-4" />
+              )}
+              Anteprima impatto
+            </Button>
+            <Button size="sm" disabled={!canSave || saving} onClick={onSave}>
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Salva revisione {nextRevision}
+            </Button>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-4">
+          {hasGlobalRule && (
+            <label className="flex cursor-pointer items-center gap-2 text-xs">
+              <Checkbox checked={confirmGlobal} onChange={(event) => onConfirmGlobalChange(event.target.checked)} />
+              <span>
+                Confermo la presenza di <span className="font-medium">regole globali senza condizioni</span>
+              </span>
+            </label>
+          )}
+          {unnamedRules > 0 && (
+            <Badge variant="outline" className="border-destructive/50 text-destructive">
+              {unnamedRules === 1 ? '1 regola senza nome' : `${unnamedRules} regole senza nome`}
+            </Badge>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function ControlTab({ canWrite }: { canWrite: boolean }) {
   const queryClient = useQueryClient()
   const query = useQuery({ queryKey: qk.slackIngestor.control, queryFn: api.getSlackIngestorControl })
@@ -110,13 +205,14 @@ export function ControlTab({ canWrite }: { canWrite: boolean }) {
   const [previewData, setPreviewData] = useState<SlackIngestorControlPreview | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
 
-  useEffect(() => {
-    const control = query.data?.control
-    if (!control) return
-    // Reinizializza la bozza solo al primo caricamento o quando la revisione
-    // sul server cambia: un semplice refetch non deve scartare le modifiche.
-    setDraft((current) => (!current || current.revision !== control.revision ? control : current))
-  }, [query.data])
+  // Reinizializza la bozza solo al primo caricamento o quando la revisione sul
+  // server cambia: un semplice refetch non deve scartare le modifiche. Il
+  // confronto sta nel render, non in un effetto, così la bozza è pronta già al
+  // primo paint (https://react.dev/learn/you-might-not-need-an-effect).
+  const serverControl = query.data?.control
+  if (serverControl && (draft === null || draft.revision !== serverControl.revision)) {
+    setDraft(serverControl)
+  }
 
   // ── Sorgenti per le select dell'editor ──────────────────────────────────────
   const productsQuery = useQuery({ queryKey: qk.products.list, queryFn: api.getProducts })
@@ -227,6 +323,13 @@ export function ControlTab({ canWrite }: { canWrite: boolean }) {
     },
   })
 
+  const reset = () => {
+    setDraft(server ?? null)
+    setChangeNote('')
+    setConfirmGlobal(false)
+    setSaveIssues([])
+  }
+
   const save = () => {
     if (!draft || !server) return
     mutation.mutate({
@@ -332,90 +435,42 @@ export function ControlTab({ canWrite }: { canWrite: boolean }) {
 
       {(query.data?.warnings.some((warning) => !warning.ruleId) || saveIssues.length > 0) && (
         <div className="space-y-2">
-          {saveIssues.map((issue, index) => (
-            <div key={`error-${index}`} className="flex gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm">
+          {saveIssues.map((issue) => (
+            <div key={issueKey(issue)} className="flex gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm">
               <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
               <span>{issue.message}</span>
             </div>
           ))}
-          {(query.data?.warnings ?? [])
-            .filter((warning) => !warning.ruleId)
-            .map((warning, index) => (
-              <div key={`warning-${index}`} className="flex gap-2 rounded-md bg-amber-500/10 p-3 text-sm">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-                <span>{warning.message}</span>
-              </div>
-            ))}
+          {(query.data?.warnings ?? []).flatMap((warning) =>
+            warning.ruleId
+              ? []
+              : [
+                  <div key={issueKey(warning)} className="flex gap-2 rounded-md bg-amber-500/10 p-3 text-sm">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                    <span>{warning.message}</span>
+                  </div>,
+                ]
+          )}
         </div>
       )}
 
       {/* Barra di salvataggio: appare solo con modifiche in sospeso */}
       {canWrite && isDirty && (
-        <div className="sticky bottom-0 z-40 rounded-lg border bg-background/95 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] backdrop-blur">
-          <div className="flex flex-col gap-3 px-4 py-3">
-            <div className="flex flex-col gap-3 md:flex-row md:items-end">
-              <div className="flex-1 space-y-1">
-                <Label htmlFor="change-note" className="text-xs">
-                  Motivazione della modifica <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="change-note"
-                  value={changeNote}
-                  onChange={(event) => setChangeNote(event.target.value)}
-                  placeholder="Registrata nell’audit log insieme alla nuova revisione"
-                  className="h-9"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setDraft(server ?? null)
-                    setChangeNote('')
-                    setConfirmGlobal(false)
-                    setSaveIssues([])
-                  }}
-                >
-                  <RotateCcw className="mr-2 h-4 w-4" />
-                  Ripristina
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={previewMutation.isPending}
-                  onClick={() => previewMutation.mutate(draft)}
-                >
-                  {previewMutation.isPending ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <FlaskConical className="mr-2 h-4 w-4" />
-                  )}
-                  Anteprima impatto
-                </Button>
-                <Button size="sm" disabled={!canSave || mutation.isPending} onClick={save}>
-                  {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Salva revisione {draft.revision + 1}
-                </Button>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-4">
-              {hasGlobalRule && (
-                <label className="flex cursor-pointer items-center gap-2 text-xs">
-                  <Checkbox checked={confirmGlobal} onChange={(event) => setConfirmGlobal(event.target.checked)} />
-                  <span>
-                    Confermo la presenza di <span className="font-medium">regole globali senza condizioni</span>
-                  </span>
-                </label>
-              )}
-              {unnamedRules > 0 && (
-                <Badge variant="outline" className="border-destructive/50 text-destructive">
-                  {unnamedRules === 1 ? '1 regola senza nome' : `${unnamedRules} regole senza nome`}
-                </Badge>
-              )}
-            </div>
-          </div>
-        </div>
+        <SaveBar
+          changeNote={changeNote}
+          onChangeNoteChange={setChangeNote}
+          nextRevision={draft.revision + 1}
+          canSave={canSave}
+          saving={mutation.isPending}
+          previewing={previewMutation.isPending}
+          hasGlobalRule={hasGlobalRule}
+          confirmGlobal={confirmGlobal}
+          onConfirmGlobalChange={setConfirmGlobal}
+          unnamedRules={unnamedRules}
+          onReset={reset}
+          onPreview={() => previewMutation.mutate(draft)}
+          onSave={save}
+        />
       )}
 
       <PreviewDialog open={previewOpen} onOpenChange={setPreviewOpen} preview={previewData} />

@@ -33,7 +33,7 @@ import {
 } from '@/components/ui/tooltip'
 import { usePermissions } from '@/hooks/use-permissions'
 import { usePreferences } from '@/hooks/use-preferences'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { api, type Product } from '@/lib/api-client'
 import { qk } from '@/lib/query-keys'
 
@@ -235,11 +235,16 @@ export function Sidebar() {
       return can(item.resource as Parameters<typeof can>[0], item.action)
     })
 
-  // Expansion state per expandable item (keyed by href)
-  const expandState: Record<string, [boolean, () => void]> = {
-    '/analyses': [analysisExpanded, () => setAnalysisExpanded(!analysisExpanded)],
-    '/reports':  [reportsExpanded, () => setReportsExpanded(!reportsExpanded)],
-  }
+  // Expansion state per expandable item (keyed by href). Memoizzato perché
+  // `renderItem` lo cattura: come oggetto letterale cambierebbe identità a ogni
+  // render, e il compiler rinuncerebbe a memoizzare l'intera sidebar.
+  const expandState: Record<string, [boolean, () => void]> = useMemo(
+    () => ({
+      '/analyses': [analysisExpanded, () => setAnalysisExpanded((expanded) => !expanded)],
+      '/reports':  [reportsExpanded, () => setReportsExpanded((expanded) => !expanded)],
+    }),
+    [analysisExpanded, reportsExpanded],
+  )
 
   const renderItem = useCallback((item: NavItem) => {
     const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
@@ -336,7 +341,7 @@ export function Sidebar() {
     }
 
     return <div key={item.href}>{linkContent}</div>
-  }, [pathname, collapsed, analysisExpanded, reportsExpanded, products])
+  }, [pathname, collapsed, expandState, products])
 
   return (
     <TooltipProvider delayDuration={0}>

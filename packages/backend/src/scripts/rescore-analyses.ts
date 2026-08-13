@@ -76,7 +76,7 @@ async function main(): Promise<void> {
       } catch (err) {
         failed++;
         failedIds.push(id);
-        console.error(`\n[rescore] ERR ${id}: ${err instanceof Error ? err.message : err}`);
+        console.error(`\n[rescore] ERR ${id}: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 

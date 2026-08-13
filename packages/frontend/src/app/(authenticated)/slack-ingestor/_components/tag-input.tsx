@@ -5,6 +5,9 @@ import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 
+/** Default stabile: un `[]` inline creerebbe un array nuovo a ogni render. */
+const NO_SUGGESTIONS: string[] = []
+
 interface TagInputProps {
   value: string[]
   onValueChange: (value: string[]) => void
@@ -18,7 +21,7 @@ interface TagInputProps {
  * Input a tag per dimensioni a valore libero: Invio (o virgola) aggiunge il
  * valore digitato, i suggerimenti filtrati si aggiungono con un click.
  */
-export function TagInput({ value, onValueChange, placeholder, suggestions = [], disabled = false }: TagInputProps) {
+export function TagInput({ value, onValueChange, placeholder, suggestions = NO_SUGGESTIONS, disabled = false }: TagInputProps) {
   const [text, setText] = useState('')
   const [focused, setFocused] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -26,8 +29,9 @@ export function TagInput({ value, onValueChange, placeholder, suggestions = [], 
   const matching = useMemo(() => {
     const needle = text.trim().toLowerCase()
     if (!needle) return []
+    const selected = new Set(value)
     return suggestions
-      .filter((candidate) => !value.includes(candidate) && candidate.toLowerCase().includes(needle))
+      .filter((candidate) => !selected.has(candidate) && candidate.toLowerCase().includes(needle))
       .slice(0, 8)
   }, [text, suggestions, value])
 
@@ -59,6 +63,7 @@ export function TagInput({ value, onValueChange, placeholder, suggestions = [], 
             <button
               type="button"
               disabled={disabled}
+              aria-label={`Rimuovi ${entry}`}
               onClick={(event) => {
                 event.stopPropagation()
                 remove(entry)

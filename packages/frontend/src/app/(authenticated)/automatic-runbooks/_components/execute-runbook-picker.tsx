@@ -35,9 +35,13 @@ export function ExecuteRunbookPicker({
     return () => clearTimeout(t)
   }, [term])
 
-  useEffect(() => {
+  // Alla chiusura il picker riparte pulito. L'aggiustamento sta nel render, non
+  // in un effetto (https://react.dev/learn/you-might-not-need-an-effect).
+  const [wasOpen, setWasOpen] = useState(open)
+  if (wasOpen !== open) {
+    setWasOpen(open)
     if (!open) { setTerm(''); setDebounced(''); setMode(undefined) }
-  }, [open])
+  }
 
   const params = { pageSize: 20, sortBy: 'firedAt' as const, ...(debounced ? { name: debounced } : {}) }
   const { data, isFetching } = useQuery({
@@ -105,7 +109,7 @@ export function ExecuteRunbookPicker({
                       </div>
                       <div className="mt-0.5 truncate text-xs text-muted-foreground">
                         {event.product.name} · {event.environment.name} ·{' '}
-                        {new Date(event.firedAt).toLocaleString('it-IT', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        {new Date(event.firedAt).toLocaleString('it-IT', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' })}
                       </div>
                     </div>
                     <Button

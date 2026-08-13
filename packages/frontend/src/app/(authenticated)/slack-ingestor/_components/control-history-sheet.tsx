@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronDown, Minus, Pencil, Plus } from 'lucide-react'
+import { formatDateTimeRome } from '@go-watchtower/shared'
 import { cn } from '@/lib/utils'
 import {
   api,
@@ -18,7 +19,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { EXECUTION_POLICY_META, INGESTION_MODE_META, RULE_EFFECT_META } from './labels'
 
 function formatDate(value: string): string {
-  return new Date(value).toLocaleString('it-IT')
+  return formatDateTimeRome(value)
 }
 
 // ─── Diff tra i documenti before/after di una revisione ───────────────────────

@@ -23,7 +23,6 @@ import {
 import type { IgnoreReasonDetailsSchema, IgnoreReasonFieldDef } from '@/lib/api-client'
 
 interface DynamicIgnoreDetailsFormProps {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   control: Control<FieldValues>
   schema: IgnoreReasonDetailsSchema
   disabled?: boolean
@@ -73,7 +72,6 @@ function DynamicField({
   name: string
   def: IgnoreReasonFieldDef
   required: boolean
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   control: Control<FieldValues>
   disabled?: boolean
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

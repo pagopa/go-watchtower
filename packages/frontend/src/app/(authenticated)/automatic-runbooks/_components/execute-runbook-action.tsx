@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -13,7 +13,7 @@ import {
   AlertDialogTitle, AlertDialogDescription, AlertDialogCancel, AlertDialogAction,
 } from '@/components/ui/alert-dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { MODE_LABELS } from './badges'
+import { MODE_LABELS } from './badge-meta'
 
 /** Target del lancio: l'occorrenza (AlarmEvent) su cui eseguire il runbook. */
 export interface RunTarget {
@@ -120,7 +120,14 @@ export function ExecuteRunbookConfirmDialog({
 }) {
   const run = useRunAutomaticRunbook()
   const [mode, setMode] = useState<AutomationMode | undefined>(undefined)
-  useEffect(() => { if (target) setMode(undefined) }, [target])
+  // Ogni nuovo bersaglio riparte dal modo di default. L'aggiustamento sta nel
+  // render, non in un effetto: evita il frame con il modo scelto per il
+  // bersaglio precedente (https://react.dev/learn/you-might-not-need-an-effect).
+  const [modeTarget, setModeTarget] = useState(target)
+  if (modeTarget !== target) {
+    setModeTarget(target)
+    setMode(undefined)
+  }
   return (
     <AlertDialog open={target !== null} onOpenChange={onOpenChange}>
       <AlertDialogContent>

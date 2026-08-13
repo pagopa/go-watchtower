@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight, Bot, RotateCw, Loader2, ListChecks, Inbox, AlertTriangle, CheckCircle2, XCircle, Play } from 'lucide-react'
+import { formatDateTimeRome } from '@go-watchtower/shared'
 import { api, type AutomaticExecutionListParams } from '@/lib/api-client'
 import { qk } from '@/lib/query-keys'
 import { usePermissions } from '@/hooks/use-permissions'
@@ -10,12 +11,20 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
-import { StatusBadge, OutcomeBadge, ReviewBadge, TRIGGER_LABELS, DISPATCH_LABELS, STATUS_ACCENT, ApplyStatusBadge} from './_components/badges'
+import { StatusBadge, OutcomeBadge, ReviewBadge, ApplyStatusBadge } from './_components/badges'
+import { TRIGGER_LABELS, DISPATCH_LABELS, STATUS_ACCENT } from './_components/badge-meta'
 import { ExecutionDetailPanel } from './_components/execution-detail-panel'
 import { ExecuteRunbookPicker } from './_components/execute-runbook-picker'
 import { GlobalOverrideBanner } from './_components/global-override-banner'
 
 const ALL = 'ALL'
+
+// Il deep-link non cambia dopo il caricamento: nessuna sottoscrizione da
+// mantenere, e sul server `location` non esiste.
+const subscribeDeepLink = () => () => {}
+const readDeepLinkExecutionId = (): string | null =>
+  new URLSearchParams(window.location.search).get('execution')
+const noDeepLink = (): string | null => null
 
 const STATUS_OPTIONS = [
   ['PENDING_DISPATCH', 'In coda (dispatch)'], ['QUEUED', 'In coda'], ['RUNNING', 'In esecuzione'],
@@ -44,7 +53,7 @@ function relTime(iso: string): string {
   if (m < 60) return `${m} min fa`
   const h = Math.round(m / 60)
   if (h < 24) return `${h} h fa`
-  return new Date(iso).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })
+  return new Date(iso).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', timeZone: 'Europe/Rome' })
 }
 
 function StatCard({
@@ -108,11 +117,16 @@ export function AutomaticRunbooksPageContent() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
 
-  // Deep-link: ?execution=<id> apre il dettaglio (es. dal toast "Apri" dopo un lancio).
-  useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get('execution')
-    if (id) setSelectedId(id)
-  }, [])
+  // Deep-link: ?execution=<id> apre il dettaglio (es. dal toast "Apri" dopo un
+  // lancio). `location` è client-only, quindi si legge come store esterno: lo
+  // snapshot server vale `null` e l'idratazione resta allineata, poi il primo
+  // render sul client adotta l'id una volta sola.
+  const deepLinkId = useSyncExternalStore(subscribeDeepLink, readDeepLinkExecutionId, noDeepLink)
+  const [adoptedDeepLink, setAdoptedDeepLink] = useState<string | null>(null)
+  if (deepLinkId !== null && adoptedDeepLink !== deepLinkId) {
+    setAdoptedDeepLink(deepLinkId)
+    setSelectedId(deepLinkId)
+  }
 
   const limit = 50
   const params: AutomaticExecutionListParams = {
@@ -242,7 +256,7 @@ export function AutomaticRunbooksPageContent() {
                   <TableCell><ApplyStatusBadge status={e.analysisApplyStatus} /></TableCell>
                   <TableCell><ReviewBadge reviewStatus={e.reviewStatus} /></TableCell>
                   <TableCell className="text-right font-mono tabular-nums">{e.totalWorkerAttempts}</TableCell>
-                  <TableCell className="whitespace-nowrap text-right text-sm text-muted-foreground" title={new Date(e.createdAt).toLocaleString('it-IT')}>{relTime(e.createdAt)}</TableCell>
+                  <TableCell className="whitespace-nowrap text-right text-sm text-muted-foreground" title={formatDateTimeRome(e.createdAt)}>{relTime(e.createdAt)}</TableCell>
                 </TableRow>
               ))
             )}

@@ -156,10 +156,8 @@ function parseBlocks(blocks: unknown[], message: Message): ParsedAlarmEvent | nu
  * Reads from msg.text → attachments[0].pretext → .text → .fallback (in order).
  * NOTE: attachment.fallback is often truncated by Slack — use only as last resort.
  */
-type AttachmentText = { text?: string; fallback?: string; pretext?: string };
-
 function parseTextOnly(message: Message): ParsedAlarmEvent | null {
-  const attachments = message.attachments as AttachmentText[] | undefined;
+  const attachments = message.attachments;
   const text = (
     message.text?.trim() ||
     attachments?.[0]?.pretext?.trim() ||

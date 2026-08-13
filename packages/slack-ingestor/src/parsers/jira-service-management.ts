@@ -126,7 +126,7 @@ function collectSourceTexts(message: Message): string[] {
     collectBlocksText(attachment.blocks, texts);
   }
 
-  collectBlocksText(message.blocks as unknown[] | undefined, texts);
+  collectBlocksText(message.blocks, texts);
 
   return texts;
 }
@@ -145,7 +145,7 @@ function collectMessageTexts(message: Message): string[] {
     collectBlocksText(attachment.blocks, texts);
   }
 
-  collectBlocksText(message.blocks as unknown[] | undefined, texts);
+  collectBlocksText(message.blocks, texts);
 
   return texts;
 }

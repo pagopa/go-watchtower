@@ -111,16 +111,15 @@ export function ValidationDetailPanel({
   return (
     <>
       {/* Backdrop */}
-      <div
-        role="button"
-        tabIndex={0}
+      <button
+        type="button"
         aria-label="Chiudi pannello"
+        disabled={!open}
         className={cn(
           'fixed inset-0 z-40 bg-black/50 transition-opacity',
           open ? 'opacity-100' : 'pointer-events-none opacity-0'
         )}
         onClick={onClose}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClose() }}
       />
 
       {/* Panel */}

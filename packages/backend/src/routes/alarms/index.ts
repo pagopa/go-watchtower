@@ -160,9 +160,11 @@ export async function alarmRoutes(fastify: FastifyInstance): Promise<void> {
           // KPI averages are computed in JS from the daily rows (avoids 2 extra queries)
           (() => {
             const evtConditions: string[] = ["alarm_id = $1", "linked_at IS NOT NULL"];
-            let evtIdx = 2;
-            if (dateFrom) evtConditions.push(`linked_at >= $${evtIdx++}`);
-            if (dateTo)   evtConditions.push(`linked_at <= $${evtIdx++}`);
+            // I placeholder seguono `sqlParams`, costruito sopra nello stesso
+            // ordine: $1 è alarmId, poi le date effettivamente presenti. Un
+            // contatore locale avrebbe l'ultimo incremento che nessuno rilegge.
+            if (dateFrom) evtConditions.push(`linked_at >= $2`);
+            if (dateTo)   evtConditions.push(`linked_at <= $${dateFrom ? 3 : 2}`);
             return prisma.$queryRawUnsafe<
               Array<{
                 date: string;

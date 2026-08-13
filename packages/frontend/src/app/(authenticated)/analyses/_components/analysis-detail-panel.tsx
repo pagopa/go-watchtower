@@ -19,10 +19,12 @@ import { api, type AlarmAnalysis, type AlarmEvent, type PaginatedResponse } from
 import { invalidate } from '@/lib/query-invalidation'
 import { qk } from '@/lib/query-keys'
 import { sanitizeUrl } from '@/lib/sanitize-url'
-import { usePreferences } from '@/hooks/use-preferences'
+import { useResizablePanel } from '@/hooks/use-resizable-panel'
+import { PanelResizeHandle } from '@/components/ui/panel-resize-handle'
 import { UnlinkAlarmEventDialog } from '../../alarm-events/_components/unlink-alarm-event-dialog'
 import { ExecuteRunbookConfirmDialog, type RunTarget } from '../../automatic-runbooks/_components/execute-runbook-action'
-import { StatusBadge, OutcomeBadge, ReviewBadge, TRIGGER_LABELS, MODE_LABELS } from '../../automatic-runbooks/_components/badges'
+import { StatusBadge, OutcomeBadge, ReviewBadge } from '../../automatic-runbooks/_components/badges'
+import { TRIGGER_LABELS, MODE_LABELS } from '../../automatic-runbooks/_components/badge-meta'
 import { IgnoredAlarmDetailsDialog } from './ignored-alarm-warning'
 import { formatDuration } from '@go-watchtower/shared'
 import { isoToUTCLocal, utcLocalToISO } from './analysis-form-schemas'
@@ -235,7 +237,7 @@ function LinkedAlarmEvents({ analysis }: { analysis: AlarmAnalysis }) {
                           alarmName: event.alarm?.name ?? event.name,
                           hasAlarm: true,
                         })}
-                        className="inline-flex items-center justify-center rounded p-1 text-muted-foreground/30 opacity-0 transition-all group-hover:opacity-100 hover:bg-primary/10 hover:text-primary"
+                        className="inline-flex items-center justify-center rounded p-1 text-muted-foreground/30 opacity-0 transition-[opacity,color,background-color] group-hover:opacity-100 hover:bg-primary/10 hover:text-primary"
                       >
                         <Bot className="h-3.5 w-3.5" />
                       </button>
@@ -244,7 +246,7 @@ function LinkedAlarmEvents({ analysis }: { analysis: AlarmAnalysis }) {
                       type="button"
                       title="Scollega"
                       onClick={() => setUnlinkEvent(event)}
-                      className="inline-flex items-center justify-center rounded p-1 text-muted-foreground/30 opacity-0 transition-all group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
+                      className="inline-flex items-center justify-center rounded p-1 text-muted-foreground/30 opacity-0 transition-[opacity,color,background-color] group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
                     >
                       <Unlink className="h-3.5 w-3.5" />
                     </button>
@@ -643,6 +645,7 @@ function ListedIgnoredAlarmLink({ analysis }: { analysis: AlarmAnalysis }) {
 const MIN_PANEL_WIDTH = 320
 const MAX_PANEL_WIDTH = 1200
 const DEFAULT_PANEL_WIDTH = 640
+const PANEL_STORAGE_KEY = 'analysisDetail'
 
 // ─── Main panel ───────────────────────────────────────────────────────────────
 
@@ -668,47 +671,13 @@ export function AnalysisDetailPanel({
 
   const { validation, quality } = useAnalysisScores(analysis)
   const [validationExpanded, setValidationExpanded] = useState(false)
-  const { preferences, updatePreferences } = usePreferences()
-  const [dragWidth, setDragWidth] = useState<number | null>(null)
 
-  const panelWidth = dragWidth ?? preferences.detailPanelWidth ?? DEFAULT_PANEL_WIDTH
-
-  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    const startX = e.clientX
-    const startWidth = dragWidth ?? (preferences.detailPanelWidth ?? DEFAULT_PANEL_WIDTH)
-
-    const onMove = (ev: MouseEvent) => {
-      const newWidth = Math.min(
-        Math.max(startWidth - (ev.clientX - startX), MIN_PANEL_WIDTH),
-        MAX_PANEL_WIDTH
-      )
-      setDragWidth(newWidth)
-    }
-
-    const onUp = (ev: MouseEvent) => {
-      document.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseup', onUp)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-
-      const finalWidth = Math.min(
-        Math.max(startWidth - (ev.clientX - startX), MIN_PANEL_WIDTH),
-        MAX_PANEL_WIDTH
-      )
-      if (Math.abs(ev.clientX - startX) > 2) {
-        setDragWidth(null)
-        updatePreferences({ detailPanelWidth: finalWidth })
-      } else {
-        setDragWidth(null)
-      }
-    }
-
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
-    document.body.style.cursor = 'ew-resize'
-    document.body.style.userSelect = 'none'
-  }, [dragWidth, preferences.detailPanelWidth, updatePreferences])
+  const { panelRef, panelStyle, handleProps } = useResizablePanel({
+    storageKey: PANEL_STORAGE_KEY,
+    minWidth: MIN_PANEL_WIDTH,
+    maxWidth: MAX_PANEL_WIDTH,
+    defaultWidth: DEFAULT_PANEL_WIDTH,
+  })
 
   // Bug fix: never unmount the panel shell — if we return null when analysis is
   // null, the panel div gets destroyed and re-created with open=true already
@@ -733,46 +702,27 @@ export function AnalysisDetailPanel({
   return (
     <>
       {/* Backdrop */}
-      <div
-        role="button"
-        tabIndex={0}
+      <button
+        type="button"
         aria-label="Chiudi pannello"
+        disabled={!open}
         className={cn(
           'fixed inset-0 z-40 bg-black/50 transition-opacity',
           open ? 'opacity-100' : 'pointer-events-none opacity-0'
         )}
         onClick={onClose}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClose() }}
       />
 
       {/* Panel */}
       <div
+        ref={panelRef}
         className={cn(
           'fixed right-0 top-0 z-50 flex h-full flex-col bg-background shadow-2xl transition-transform duration-300',
           open ? 'translate-x-0' : 'translate-x-full'
         )}
-        style={{ width: `min(${panelWidth}px, 90vw)` }}
+        style={panelStyle}
       >
-        {/* Resize handle */}
-        <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Ridimensiona pannello"
-          onMouseDown={handleResizeMouseDown}
-          className="group absolute left-0 top-0 z-10 flex h-full w-3 cursor-ew-resize items-center"
-        >
-          {/* Border line — 1px resting, 2px on hover */}
-          <div className="h-full w-px shrink-0 bg-border transition-[width,background-color] duration-150 group-hover:w-0.5 group-hover:bg-primary/60 group-active:bg-primary" />
-          {/* Grip dots */}
-          <div className="pointer-events-none absolute left-0 right-0 top-1/2 flex -translate-y-1/2 flex-col items-center gap-[3px] opacity-0 transition-opacity duration-150 group-hover:opacity-100">
-            <div className="h-[3px] w-[3px] rounded-full bg-primary" />
-            <div className="h-[3px] w-[3px] rounded-full bg-primary" />
-            <div className="h-[3px] w-[3px] rounded-full bg-primary" />
-            <div className="h-[3px] w-[3px] rounded-full bg-primary" />
-            <div className="h-[3px] w-[3px] rounded-full bg-primary" />
-            <div className="h-[3px] w-[3px] rounded-full bg-primary" />
-          </div>
-        </div>
+        <PanelResizeHandle {...handleProps} />
 
         {!analysis && (
           <div className="flex flex-1 flex-col gap-5 p-5">

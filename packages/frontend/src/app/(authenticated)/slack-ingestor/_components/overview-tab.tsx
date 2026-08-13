@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { Bot, CheckCircle2, CirclePause, Database, RadioTower } from 'lucide-react'
+import { formatDateTimeRome } from '@go-watchtower/shared'
 import { api } from '@/lib/api-client'
 import { qk } from '@/lib/query-keys'
 import { Badge } from '@/components/ui/badge'
@@ -16,7 +17,7 @@ import {
 
 function formatDate(value: string | null): string {
   if (!value) return '—'
-  return new Date(value).toLocaleString('it-IT')
+  return formatDateTimeRome(value)
 }
 
 function shortHash(value: string | null | undefined): string {

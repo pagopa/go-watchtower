@@ -3,7 +3,6 @@ import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import {
   prisma,
   SystemComponent,
-  PermissionScope,
   AuthProvider,
   type User,
   type Role,
@@ -29,7 +28,7 @@ import { hashPassword } from "../../utils/password.js";
 import { buildDiff } from "../../services/system-event.service.js";
 import { SystemEventActions, SystemEventResources } from "@go-watchtower/shared";
 import { HttpError } from "../../utils/http-errors.js";
-import { fromJsonOr } from "../../utils/json-cast.js";
+import { fromJsonOr, toJsonInput } from "../../utils/json-cast.js";
 import type { UserPreferences } from "@go-watchtower/shared";
 import {
   UserResponseSchema,
@@ -201,7 +200,9 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
 
         const updated = await prisma.user.update({
           where: { id: request.user.userId },
-          data: { preferences: merged as object },
+          // `Record<string, unknown>` non è assegnabile a `InputJsonValue`:
+          // la conversione passa dall'helper dedicato dei campi JSON.
+          data: { preferences: toJsonInput(merged) },
           select: { preferences: true },
         });
 
@@ -689,7 +690,7 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
 
         const removed = await removeUserPermissionOverride(
           request.params.id,
-          request.params.resource as SystemComponent
+          request.params.resource
         );
 
         if (!removed) {
@@ -1023,10 +1024,10 @@ export async function userRoutes(fastify: FastifyInstance): Promise<void> {
         const role = await updateRolePermissions(
           request.params.id,
           request.body.permissions.map((p) => ({
-            resource: p.resource as SystemComponent,
-            canRead: p.canRead as PermissionScope,
-            canWrite: p.canWrite as PermissionScope,
-            canDelete: p.canDelete as PermissionScope,
+            resource: p.resource,
+            canRead: p.canRead,
+            canWrite: p.canWrite,
+            canDelete: p.canDelete,
           }))
         );
         invalidateAllPermissionCaches();

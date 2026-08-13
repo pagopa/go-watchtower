@@ -60,7 +60,10 @@ export function DateRangePicker({
         onChange(_range)
       }
     },
-    [onChange, value?.from, value?.to],
+    // `value` intero, non `value?.from`/`value?.to`: le dipendenze in optional
+    // chaining non sono tracciabili dal compiler, che allora scarta del tutto la
+    // memoizzazione di questo componente.
+    [onChange, value],
   )
 
   return (

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
@@ -10,7 +10,8 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
-import { usePreferences } from '@/hooks/use-preferences'
+import { useResizablePanel } from '@/hooks/use-resizable-panel'
+import { PanelResizeHandle } from '@/components/ui/panel-resize-handle'
 import { ReviewDecisionDialog } from './review-decision-dialog'
 import { AnalysisApplyDiagnostics } from './analysis-apply-diagnostics'
 import { api, type AutomaticRunbookExecution, type AutomationExecutionStatus, type AutomationMode } from '@/lib/api-client'
@@ -23,23 +24,26 @@ import {
   AlertDialogTitle, AlertDialogDescription, AlertDialogCancel, AlertDialogAction,
 } from '@/components/ui/alert-dialog'
 import { Skeleton } from '@/components/ui/skeleton'
+import { StatusBadge, OutcomeBadge, ReviewBadge, AttemptStatusBadge, StatusDot } from './badges'
 import {
-  StatusBadge, OutcomeBadge, ReviewBadge, AttemptStatusBadge, StatusDot,
   TRIGGER_LABELS, DISPATCH_LABELS, MODE_LABELS, MODE_DESCRIPTIONS, statusLabel, STATUS_ACCENT,
-} from './badges'
+} from './badge-meta'
 import { ANALYSIS_TYPE_LABELS, ANALYSIS_STATUS_LABELS } from '../../analyses/_lib/constants'
 
-// ─── Resize (shared `detailPanelWidth` preference, come analisi/allarmi) ───────
+// ─── Resize (larghezza persistita per pannello, vedi useResizablePanel) ───────
 const MIN_PANEL_WIDTH = 380
 const MAX_PANEL_WIDTH = 1200
 const DEFAULT_PANEL_WIDTH = 680
+const PANEL_STORAGE_KEY = 'automaticExecutionDetail'
 
 const TERMINAL = new Set(['SUCCEEDED', 'SKIPPED', 'FAILED', 'CANCELLED'])
 const CANCELLABLE = new Set(['PENDING_DISPATCH', 'QUEUED', 'RUNNING', 'RETRY_PENDING'])
 
+// Fuso esplicito: senza `timeZone` server e browser renderizzano testi diversi
+// e l'idratazione va in mismatch. Rome è il fuso di riferimento del prodotto.
 function fmt(d: string | null | undefined): string {
   if (!d) return '—'
-  return new Date(d).toLocaleString('it-IT', { dateStyle: 'medium', timeStyle: 'medium' })
+  return new Date(d).toLocaleString('it-IT', { dateStyle: 'medium', timeStyle: 'medium', timeZone: 'Europe/Rome' })
 }
 
 function copy(text: string): void {
@@ -223,59 +227,29 @@ export function ExecutionDetailPanel({
   onClose: () => void
 }) {
   const open = executionId !== null
-  const { preferences, updatePreferences } = usePreferences()
-  const [dragWidth, setDragWidth] = useState<number | null>(null)
-  const panelWidth = dragWidth ?? preferences.detailPanelWidth ?? DEFAULT_PANEL_WIDTH
-
-  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    const startX = e.clientX
-    const startWidth = dragWidth ?? (preferences.detailPanelWidth ?? DEFAULT_PANEL_WIDTH)
-    const clamp = (w: number) => Math.min(Math.max(w, MIN_PANEL_WIDTH), MAX_PANEL_WIDTH)
-    const onMove = (ev: MouseEvent) => setDragWidth(clamp(startWidth - (ev.clientX - startX)))
-    const onUp = (ev: MouseEvent) => {
-      document.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseup', onUp)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-      const finalWidth = clamp(startWidth - (ev.clientX - startX))
-      setDragWidth(null)
-      if (Math.abs(ev.clientX - startX) > 2) updatePreferences({ detailPanelWidth: finalWidth })
-    }
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
-    document.body.style.cursor = 'ew-resize'
-    document.body.style.userSelect = 'none'
-  }, [dragWidth, preferences.detailPanelWidth, updatePreferences])
+  const { panelRef, panelStyle, handleProps } = useResizablePanel({
+    storageKey: PANEL_STORAGE_KEY,
+    minWidth: MIN_PANEL_WIDTH,
+    maxWidth: MAX_PANEL_WIDTH,
+    defaultWidth: DEFAULT_PANEL_WIDTH,
+    maxViewportRatio: 0.94,
+  })
 
   return (
     <>
-      <div
-        role="button"
-        tabIndex={0}
+      <button
+        type="button"
         aria-label="Chiudi pannello"
+        disabled={!open}
         className={cn('fixed inset-0 z-40 bg-black/55 backdrop-blur-[2px] transition-opacity', open ? 'opacity-100' : 'pointer-events-none opacity-0')}
         onClick={onClose}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClose() }}
       />
       <div
+        ref={panelRef}
         className={cn('fixed right-0 top-0 z-50 flex h-full flex-col border-l bg-background shadow-2xl transition-transform duration-300', open ? 'translate-x-0' : 'translate-x-full')}
-        style={{ width: `min(${panelWidth}px, 94vw)` }}
+        style={panelStyle}
       >
-        <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Ridimensiona pannello"
-          onMouseDown={handleResizeMouseDown}
-          className="group absolute left-0 top-0 z-10 flex h-full w-3 cursor-ew-resize items-center"
-        >
-          <div className="h-full w-px shrink-0 bg-border transition-[width,background-color] duration-150 group-hover:w-0.5 group-hover:bg-primary/60 group-active:bg-primary" />
-          <div className="pointer-events-none absolute left-0 right-0 top-1/2 flex -translate-y-1/2 flex-col items-center gap-[3px] opacity-0 transition-opacity duration-150 group-hover:opacity-100">
-            <div className="h-[3px] w-[3px] rounded-full bg-primary" />
-            <div className="h-[3px] w-[3px] rounded-full bg-primary" />
-            <div className="h-[3px] w-[3px] rounded-full bg-primary" />
-          </div>
-        </div>
+        <PanelResizeHandle {...handleProps} />
         {executionId && <PanelBody executionId={executionId} canWrite={canWrite} globalModeOverride={globalModeOverride} onClose={onClose} />}
       </div>
     </>

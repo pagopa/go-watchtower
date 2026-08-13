@@ -24,9 +24,8 @@ function Calendar({
   startMonth,
   endMonth,
   numberOfMonths = 1,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- extracted to keep out of ...props
+  // Estratti solo per tenerli fuori da ...props
   month: _externalMonth,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- extracted to keep out of ...props
   onMonthChange: _externalOnMonthChange,
   ...props
 }: CalendarProps) {

@@ -212,7 +212,9 @@ export function ShortcutIgnorableDialog({
       status: 'COMPLETED',
       runbookId: selectedRunbookId || undefined,
     })
-  }, [onSubmit, session?.user?.id, selectedRunbookId, selectedReason?.detailsSchema, setError])
+    // Oggetti interi invece dei campi in optional chaining: quelle dipendenze
+    // non sono tracciabili dal compiler, che allora scarta la memoizzazione.
+  }, [onSubmit, session, selectedRunbookId, selectedReason, setError])
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!isDirty || v) handleOpenChange(v) }}>

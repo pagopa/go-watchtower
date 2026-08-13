@@ -158,7 +158,7 @@ export async function alarmPriorityRuleRoutes(fastify: FastifyInstance): Promise
         orderBy: [{ isActive: "desc" }, { precedence: "desc" }, { createdAt: "asc" }],
       });
 
-      reply.send(rules.map((rule) => formatRuleResponse(rule as RuleWithRelations)));
+      reply.send(rules.map((rule) => formatRuleResponse(rule)));
     },
   );
 
@@ -202,7 +202,7 @@ export async function alarmPriorityRuleRoutes(fastify: FastifyInstance): Promise
         return HttpError.notFound(reply, "Alarm priority rule");
       }
 
-      reply.send(formatRuleResponse(rule as RuleWithRelations));
+      reply.send(formatRuleResponse(rule));
     },
   );
 
@@ -281,14 +281,14 @@ export async function alarmPriorityRuleRoutes(fastify: FastifyInstance): Promise
         resourceId:    created.id,
         resourceLabel: created.name,
         metadata:      {
-          created: formatRuleResponse(created as RuleWithRelations),
+          created: formatRuleResponse(created),
           reclassification: await reclassifyAlarmEventsForRuleCreate(
-            formatAlarmPriorityRule(created as RuleWithRelations),
+            formatAlarmPriorityRule(created),
           ),
         },
       });
 
-      reply.status(201).send(formatRuleResponse(created as RuleWithRelations));
+      reply.status(201).send(formatRuleResponse(created));
     },
   );
 
@@ -387,7 +387,7 @@ export async function alarmPriorityRuleRoutes(fastify: FastifyInstance): Promise
           alarm: { select: { id: true, name: true } },
         },
       });
-      const updatedRule = formatAlarmPriorityRule(updated as RuleWithRelations);
+      const updatedRule = formatAlarmPriorityRule(updated);
       const reclassification = didAlarmPriorityRuleResolutionChange(existingRule, updatedRule)
         ? await reclassifyAlarmEventsForRuleUpdate({
             previousRule: existingRule,
@@ -409,7 +409,7 @@ export async function alarmPriorityRuleRoutes(fastify: FastifyInstance): Promise
         },
       });
 
-      reply.send(formatRuleResponse(updated as RuleWithRelations));
+      reply.send(formatRuleResponse(updated));
     },
   );
 

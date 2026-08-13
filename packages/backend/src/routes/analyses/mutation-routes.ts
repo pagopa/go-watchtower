@@ -762,7 +762,7 @@ export async function registerAnalysisMutationRoutes(
                 finalActionIds: beforeFinalActionIds,
                 links: beforeLinks,
                 trackingIds: beforeTrackingIds,
-              } as Record<string, unknown>,
+              },
               {
                 analysisType: analysis.analysisType,
                 status: analysis.status,
@@ -781,7 +781,7 @@ export async function registerAnalysisMutationRoutes(
                 finalActionIds: afterFinalActionIds,
                 links: afterLinks,
                 trackingIds: afterTrackingIds,
-              } as Record<string, unknown>,
+              },
             ),
           },
         });

@@ -2,7 +2,7 @@
 
 import { Ban, Eye, Info } from 'lucide-react'
 import type { AnalysisApplyDiagnosticsV1, AutomationAnalysisApplyStatus } from '@/lib/api-client'
-import { blockCodeLabel } from './badges'
+import { blockCodeLabel } from './badge-meta'
 
 interface AnalysisApplyDiagnosticsProps {
   readonly applyStatus: AutomationAnalysisApplyStatus

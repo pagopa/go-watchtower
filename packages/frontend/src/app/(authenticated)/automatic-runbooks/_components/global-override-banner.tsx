@@ -8,7 +8,7 @@ import { qk } from '@/lib/query-keys'
 import { usePermissions } from '@/hooks/use-permissions'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { MODE_LABELS } from './badges'
+import { MODE_LABELS } from './badge-meta'
 
 const NONE = '__NONE__'
 

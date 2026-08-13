@@ -371,12 +371,14 @@ function CliTokenSection() {
     staleTime: 30_000,
   })
 
-  useEffect(() => {
-    if (metadata && !ttlInitialized) {
-      setTtlDays(metadata.defaultTtlDays)
-      setTtlInitialized(true)
-    }
-  }, [metadata, ttlInitialized])
+  // Il default arriva dal server: si adotta una volta sola, al primo caricamento,
+  // per non sovrascrivere quello che l'utente ha nel frattempo scelto. Nel render
+  // e non in un effetto, così il campo non mostra mai il 30 di partenza
+  // (https://react.dev/learn/you-might-not-need-an-effect).
+  if (metadata && !ttlInitialized) {
+    setTtlDays(metadata.defaultTtlDays)
+    setTtlInitialized(true)
+  }
 
   const maxTtlDays = metadata?.maxTtlDays ?? 90
   const clampedTtlDays = Math.min(Math.max(1, Math.trunc(ttlDays || 1)), maxTtlDays)
@@ -411,8 +413,13 @@ function CliTokenSection() {
   })
 
   const hasToken = metadata?.hint != null
+  // `Date.now()` durante il render darebbe un valore diverso a ogni render, e il
+  // badge dipenderebbe da quando React decide di ridisegnare. L'istante si fissa
+  // all'apertura della pagina: la scadenza di un token CLI è a giorni, e un
+  // ricaricamento aggiorna comunque il confronto.
+  const [openedAt] = useState(() => Date.now())
   const isExpired = hasToken && metadata?.expiresAt
-    ? new Date(metadata.expiresAt).getTime() <= Date.now()
+    ? new Date(metadata.expiresAt).getTime() <= openedAt
     : false
 
   const copyGeneratedToken = () => {
@@ -598,7 +605,6 @@ export function ProfilePageContent() {
 
   const handleResetAllColumns = useCallback((listKey: string) => {
     const current = preferences.columnSettings ?? {}
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { [listKey]: _removed, ...rest } = current
     updatePreferences({ columnSettings: rest })
     toast.success(`Colonne "${LIST_LABELS[listKey] ?? listKey}" ripristinate`)

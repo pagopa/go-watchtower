@@ -22,7 +22,15 @@ const EXPORT_CHUNK_SIZE = 200;
 
 // ── CSV helpers ─────────────────────────────────────────────────────────────
 
-const CSV_COLUMNS: Array<[string, (a: ReturnType<typeof formatAnalysisResponse>) => unknown]> = [
+/**
+ * Le colonne producono solo primitivi: `formatAnalysisResponse` ha già reso le
+ * date stringhe ISO e appiattito le relazioni. Dichiararlo invece di passare da
+ * `unknown` è ciò che rende sicura la conversione in `csvEscape` — su un oggetto
+ * `String()` scriverebbe "[object Object]" nel CSV senza che nulla protesti.
+ */
+type CsvValue = string | number | boolean | null | undefined;
+
+const CSV_COLUMNS: Array<[string, (a: ReturnType<typeof formatAnalysisResponse>) => CsvValue]> = [
   ["id", (a) => a.id],
   ["analysisDate", (a) => a.analysisDate],
   ["firstAlarmAt", (a) => a.firstAlarmAt],
@@ -59,7 +67,7 @@ const CSV_COLUMNS: Array<[string, (a: ReturnType<typeof formatAnalysisResponse>)
   ["updatedByName", (a) => a.updatedBy?.name ?? ""],
 ];
 
-function csvEscape(value: unknown): string {
+function csvEscape(value: CsvValue): string {
   const str = value == null ? "" : String(value);
   if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
     return `"${str.replace(/"/g, '""')}"`;
@@ -67,7 +75,7 @@ function csvEscape(value: unknown): string {
   return str;
 }
 
-function csvRow(values: unknown[]): string {
+function csvRow(values: CsvValue[]): string {
   return values.map(csvEscape).join(",");
 }
 

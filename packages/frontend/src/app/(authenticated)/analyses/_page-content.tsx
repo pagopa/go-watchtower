@@ -320,11 +320,22 @@ function AnalysesPageContent() {
       else next.add(id);
       return next;
     });
-  }, []);
-  // Reset selection when filters change (productId, search, type, etc.)
-  useEffect(() => {
+  }, [setSelectedIds]);
+  // Reset selection when filters change (productId, search, type, etc.).
+  // L'aggiustamento sta nel render, non in un effetto: così non esiste il frame
+  // intermedio in cui la selezione vecchia convive con i risultati nuovi
+  // (https://react.dev/learn/you-might-not-need-an-effect).
+  const [selectionScope, setSelectionScope] = useState({
+    filters,
+    productId: effectiveProductId,
+  });
+  if (
+    selectionScope.filters !== filters ||
+    selectionScope.productId !== effectiveProductId
+  ) {
+    setSelectionScope({ filters, productId: effectiveProductId });
     setSelectedIds(new Set());
-  }, [filters, effectiveProductId]);
+  }
 
   useEffect(
     () => () => {
@@ -971,7 +982,6 @@ function AnalysesPageContent() {
               selectedIds={Array.from(selectedIds)}
               filteredCount={pagination?.totalItems ?? 0}
               filters={(() => {
-                // eslint-disable-next-line @typescript-eslint/no-unused-vars
                 const { page: _p, pageSize: _ps, sortBy: _sb, sortOrder: _so, ...rest } = analysisQueryParams
                 return rest
               })()}

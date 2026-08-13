@@ -1,5 +1,4 @@
 import type { Theme } from '../constants/themes.js';
-import type { NotificationType } from '../constants/notification-registry.js';
 
 export interface ColumnSettings {
   visible?: string[];
@@ -16,7 +15,10 @@ export interface NotificationPreferences {
   enabled: boolean;
   priority?: PriorityNotificationPreferences;
   // Legacy notification toggles kept for compatibility during migration.
-  types?: Partial<Record<NotificationType | string, boolean>>;
+  // Le chiavi note sono i valori di `NotificationType`, ma il record resta
+  // aperto per quelle già salvate: unire i due tipi non aggiungeva nulla,
+  // perché `string` assorbe le costanti.
+  types?: Partial<Record<string, boolean>>;
 }
 
 export interface UserPreferences {
@@ -32,6 +34,14 @@ export interface UserPreferences {
   alarmEventFiltersCollapsed?: boolean;
   alarmEventViewMode?: 'list' | 'daily' | 'oncall' | 'grouped';
   analysisViewMode?: 'list' | 'daily' | 'oncall';
+  /**
+   * @deprecated Larghezza unica condivisa da tutti i pannelli di dettaglio.
+   * Sostituita da `panelWidths`, che tiene una larghezza per pannello: viene
+   * ancora letta come fallback per non azzerare la preferenza degli utenti
+   * esistenti al primo caricamento dopo la migrazione.
+   */
   detailPanelWidth?: number;
+  /** Larghezza in px di ogni pannello ridimensionabile, per chiave. */
+  panelWidths?: Record<string, number>;
   notifications?: NotificationPreferences;
 }

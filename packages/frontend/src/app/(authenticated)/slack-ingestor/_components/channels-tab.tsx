@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Hash, Loader2, Pencil, PlugZap, Search } from 'lucide-react'
 import { toast } from 'sonner'
+import { formatDateTimeRome } from '@go-watchtower/shared'
 import { cn } from '@/lib/utils'
 import { api, type SlackIngestorChannel } from '@/lib/api-client'
 import { qk } from '@/lib/query-keys'
@@ -16,7 +17,7 @@ import { ChannelEditSheet } from './channel-edit-sheet'
 
 function formatDate(value: string | null): string {
   if (!value) return '—'
-  return new Date(value).toLocaleString('it-IT')
+  return formatDateTimeRome(value)
 }
 
 /** Tempo relativo compatto per l'ultima lettura riuscita (dettaglio esatto nel title). */

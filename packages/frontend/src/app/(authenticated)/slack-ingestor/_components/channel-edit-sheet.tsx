@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -56,11 +56,15 @@ export function ChannelEditSheet({
   onOpenChange: (open: boolean) => void
 }) {
   const queryClient = useQueryClient()
-  const [form, setForm] = useState<FormState | null>(null)
-
-  useEffect(() => {
+  const [form, setForm] = useState<FormState | null>(channel ? toFormState(channel) : null)
+  // Il pannello riparte dai valori del canale a ogni cambio di bersaglio.
+  // L'aggiustamento sta nel render, non in un effetto: il form è già popolato al
+  // primo paint (https://react.dev/learn/you-might-not-need-an-effect).
+  const [formChannel, setFormChannel] = useState(channel)
+  if (formChannel !== channel) {
+    setFormChannel(channel)
     setForm(channel ? toFormState(channel) : null)
-  }, [channel])
+  }
 
   const mutation = useMutation({
     mutationFn: (data: FormState) =>

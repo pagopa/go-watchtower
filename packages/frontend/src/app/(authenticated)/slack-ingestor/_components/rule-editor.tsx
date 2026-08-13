@@ -33,10 +33,9 @@ import {
   RUNBOOK_KIND_META,
   type MatcherDimension,
 } from './labels'
+import { isGlobalRule, isQuickRule } from './rule-predicates'
 import { RichSelect } from './rich-select'
 import { TagInput } from './tag-input'
-
-const QUICK_DENY_PREFIX = 'quick-deny:'
 
 export interface OptionItem {
   value: string
@@ -66,14 +65,6 @@ interface RuleEditorProps {
   sources: RuleEditorSources
   warnings: SlackIngestorControlWarning[]
   disabled?: boolean
-}
-
-export function isQuickRule(rule: SlackIngestorAutomationRule): boolean {
-  return rule.id.startsWith(QUICK_DENY_PREFIX)
-}
-
-export function isGlobalRule(rule: SlackIngestorAutomationRule): boolean {
-  return Object.values(rule.matcher).every((values) => !values || values.length === 0)
 }
 
 function newRule(): SlackIngestorAutomationRule {
@@ -358,8 +349,8 @@ function RuleCard({
 
       {ruleWarnings.length > 0 && (
         <div className="mx-3 mb-2 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
-          {ruleWarnings.map((warning, index) => (
-            <p key={`${warning.code}-${index}`}>{warning.message}</p>
+          {ruleWarnings.map((warning) => (
+            <p key={`${warning.code}:${warning.message}`}>{warning.message}</p>
           ))}
         </div>
       )}
