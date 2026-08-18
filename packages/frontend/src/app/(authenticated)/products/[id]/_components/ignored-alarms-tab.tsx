@@ -517,7 +517,127 @@ interface IgnoredAlarmsTabProps {
   productId: string
 }
 
-export function IgnoredAlarmsTab({ productId }: IgnoredAlarmsTabProps) {
+function IgnoredAlarmCards({
+  items,
+  expandedIds,
+  canWrite,
+  canDelete,
+  onToggle,
+  onEdit,
+  onDelete,
+  onCreate,
+}: {
+  items: IgnoredAlarm[] | undefined
+  expandedIds: Set<string>
+  canWrite: boolean
+  canDelete: boolean
+  onToggle: (id: string) => void
+  onEdit: (item: IgnoredAlarm) => void
+  onDelete: (item: IgnoredAlarm) => void
+  onCreate: () => void
+}) {
+  if (!items?.length) {
+    return (
+      <div className="flex flex-col items-center justify-center py-14 text-center">
+        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-muted">
+          <BellOff className="h-7 w-7 text-muted-foreground" />
+        </div>
+        <p className="text-sm font-medium">Nessun allarme ignorato configurato</p>
+        <p className="mt-1.5 text-sm text-muted-foreground">Aggiungi un allarme ignorato per iniziare.</p>
+        {canWrite && (
+          <Button size="sm" className="mt-5" onClick={onCreate}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            Nuovo
+          </Button>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <ul className="space-y-3">
+      {items.map((item) => {
+        const hasValidity = (item.validity?.length ?? 0) > 0
+        const hasExclusions = (item.exclusions?.length ?? 0) > 0
+        const hasConstraints = hasValidity || hasExclusions
+        const isExpanded = expandedIds.has(item.id)
+        const validityCount = item.validity?.length ?? 0
+        const exclusionCount = item.exclusions?.length ?? 0
+
+        return (
+          <li key={item.id} className="overflow-hidden rounded-lg border border-border bg-card">
+            <div className="flex items-start gap-3 px-4 py-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium">{item.alarm.name}</span>
+                  <span className="inline-flex items-center rounded border border-border bg-muted/50 px-1.5 py-0.5 text-xs text-muted-foreground">
+                    {item.environment.name}
+                  </span>
+                </div>
+                {item.reason && <p className="mt-1 text-xs text-muted-foreground">{item.reason}</p>}
+              </div>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${
+                  item.isActive ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'
+                }`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${item.isActive ? 'bg-success' : 'bg-muted-foreground/40'}`} />
+                  {item.isActive ? 'Attivo' : 'Inattivo'}
+                </span>
+                {canWrite && (
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(item)}>
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+                {canDelete && (
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onDelete(item)}>
+                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {hasConstraints && (
+              <button
+                type="button"
+                onClick={() => onToggle(item.id)}
+                className="flex w-full items-center justify-between gap-3 border-t border-border/60 bg-muted/10 px-4 py-1.5 text-left transition-colors hover:bg-muted/20"
+              >
+                <div className="flex items-center gap-3">
+                  {hasValidity && (
+                    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                      {validityCount} {validityCount === 1 ? 'regola' : 'regole'} di validità
+                    </span>
+                  )}
+                  {hasExclusions && (
+                    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-destructive/60" />
+                      {exclusionCount} {exclusionCount === 1 ? 'esclusione' : 'esclusioni'}
+                    </span>
+                  )}
+                </div>
+                <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-muted-foreground/50 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+              </button>
+            )}
+
+            {hasConstraints && isExpanded && (
+              <div className="grid grid-cols-2 divide-x divide-border/60 border-t border-border/60 bg-muted/20">
+                <div className="p-3">
+                  <ConstraintSection label="Validità" constraints={item.validity || []} dotClass="bg-primary" emptyLabel="Sempre valido" />
+                </div>
+                <div className="p-3">
+                  <ConstraintSection label="Esclusioni" constraints={item.exclusions || []} dotClass="bg-destructive/60" emptyLabel="Nessuna esclusione" />
+                </div>
+              </div>
+            )}
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+function useIgnoredAlarmsTab(productId: string) {
   const queryClient = useQueryClient()
   const { can, isLoading: permissionsLoading } = usePermissions()
   const [showCreateDialog, setShowCreateDialog] = useState(false)
@@ -622,6 +742,22 @@ export function IgnoredAlarmsTab({ productId }: IgnoredAlarmsTabProps) {
     }
   }
 
+  return {
+    ignoredAlarms, isLoading, error, refetch, alarms, environments, expandedIds, toggleExpanded,
+    register, handleSubmit, reset, control, errors, isDirty, handleEdit, canWrite, canDelete,
+    setShowCreateDialog, setDeleteItem, isDialogOpen, isMutating, handleDialogClose,
+    onSubmit, editItem, deleteItem, deleteMutation,
+  }
+}
+
+export function IgnoredAlarmsTab({ productId }: IgnoredAlarmsTabProps) {
+  const {
+    ignoredAlarms, isLoading, error, refetch, alarms, environments, expandedIds, toggleExpanded,
+    register, handleSubmit, reset, control, errors, isDirty, handleEdit, canWrite, canDelete,
+    setShowCreateDialog, setDeleteItem, isDialogOpen, isMutating, handleDialogClose,
+    onSubmit, editItem, deleteItem, deleteMutation,
+  } = useIgnoredAlarmsTab(productId)
+
   if (isLoading && !ignoredAlarms) {
     return (
       <div className="space-y-3">
@@ -691,143 +827,16 @@ export function IgnoredAlarmsTab({ productId }: IgnoredAlarmsTabProps) {
         )}
       </div>
 
-      {/* Card list */}
-      {ignoredAlarms && ignoredAlarms.length > 0 ? (
-        <ul className="space-y-3">
-          {ignoredAlarms.map((ia) => {
-            const hasValidity = (ia.validity?.length ?? 0) > 0
-            const hasExclusions = (ia.exclusions?.length ?? 0) > 0
-            const hasConstraints = hasValidity || hasExclusions
-            const isExpanded = expandedIds.has(ia.id)
-
-            const validityCount = ia.validity?.length ?? 0
-            const exclusionCount = ia.exclusions?.length ?? 0
-
-            return (
-              <li key={ia.id} className="rounded-lg border border-border bg-card overflow-hidden">
-                {/* Card header */}
-                <div className="flex items-start gap-3 px-4 py-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-medium">{ia.alarm.name}</span>
-                      <span className="inline-flex items-center rounded border border-border bg-muted/50 px-1.5 py-0.5 text-xs text-muted-foreground">
-                        {ia.environment.name}
-                      </span>
-                    </div>
-                    {ia.reason && (
-                      <p className="mt-1 text-xs text-muted-foreground">{ia.reason}</p>
-                    )}
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1.5">
-                    <span
-                      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${
-                        ia.isActive
-                          ? 'bg-success/10 text-success'
-                          : 'bg-muted text-muted-foreground'
-                      }`}
-                    >
-                      <span
-                        className={`h-1.5 w-1.5 rounded-full ${ia.isActive ? 'bg-success' : 'bg-muted-foreground/40'}`}
-                      />
-                      {ia.isActive ? 'Attivo' : 'Inattivo'}
-                    </span>
-                    {canWrite && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => handleEdit(ia)}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                    {canDelete && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => setDeleteItem(ia)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Collapsible constraint toggle bar */}
-                {hasConstraints && (
-                  <button
-                    type="button"
-                    onClick={() => toggleExpanded(ia.id)}
-                    className="w-full flex items-center justify-between gap-3 border-t border-border/60 bg-muted/10 px-4 py-1.5 text-left hover:bg-muted/20 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      {hasValidity && (
-                        <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
-                          {validityCount} {validityCount === 1 ? 'regola' : 'regole'} di validità
-                        </span>
-                      )}
-                      {hasExclusions && (
-                        <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <span className="h-1.5 w-1.5 rounded-full bg-destructive/60 shrink-0" />
-                          {exclusionCount} {exclusionCount === 1 ? 'esclusione' : 'esclusioni'}
-                        </span>
-                      )}
-                    </div>
-                    <ChevronDown
-                      className={`h-3.5 w-3.5 shrink-0 text-muted-foreground/50 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
-                    />
-                  </button>
-                )}
-
-                {/* Expanded constraint panels */}
-                {hasConstraints && isExpanded && (
-                  <div className="grid grid-cols-2 divide-x divide-border/60 border-t border-border/60 bg-muted/20">
-                    <div className="p-3">
-                      <ConstraintSection
-                        label="Validità"
-                        constraints={ia.validity || []}
-                        dotClass="bg-primary"
-                        emptyLabel="Sempre valido"
-                      />
-                    </div>
-                    <div className="p-3">
-                      <ConstraintSection
-                        label="Esclusioni"
-                        constraints={ia.exclusions || []}
-                        dotClass="bg-destructive/60"
-                        emptyLabel="Nessuna esclusione"
-                      />
-                    </div>
-                  </div>
-                )}
-              </li>
-            )
-          })}
-        </ul>
-      ) : (
-        <div className="flex flex-col items-center justify-center py-14 text-center">
-          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-muted">
-            <BellOff className="h-7 w-7 text-muted-foreground" />
-          </div>
-          <p className="text-sm font-medium">Nessun allarme ignorato configurato</p>
-          <p className="mt-1.5 text-sm text-muted-foreground">Aggiungi un allarme ignorato per iniziare.</p>
-          {canWrite && (
-            <Button
-              size="sm"
-              className="mt-5"
-              onClick={() => {
-                reset(EMPTY_DEFAULTS)
-                setShowCreateDialog(true)
-              }}
-            >
-              <Plus className="h-4 w-4 mr-1.5" />
-              Nuovo
-            </Button>
-          )}
-        </div>
-      )}
+      <IgnoredAlarmCards
+        items={ignoredAlarms}
+        expandedIds={expandedIds}
+        canWrite={canWrite}
+        canDelete={canDelete}
+        onToggle={toggleExpanded}
+        onEdit={handleEdit}
+        onDelete={setDeleteItem}
+        onCreate={() => { reset(EMPTY_DEFAULTS); setShowCreateDialog(true) }}
+      />
 
       {/* Create/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={(v) => { if (!isDirty || v) handleDialogClose(v) }}>

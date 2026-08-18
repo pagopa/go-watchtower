@@ -58,7 +58,7 @@ function TabCount({ count }: { count: number | undefined }) {
   )
 }
 
-function ProductDetailContent() {
+function useProductDetailPage() {
   const params = useParams()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -183,6 +183,26 @@ function ProductDetailContent() {
     select: (data) => data.length,
     enabled: canReadFinalActions && productLoaded,
   })
+
+  return {
+    productId, product, isLoading, error, refetch, deleteMutation, showDeleteDialog,
+    setShowDeleteDialog, canWrite, canDelete, canReadEnvironments, canReadResources,
+    canReadRunbooks, canReadAlarms, canReadDownstreams, canReadFinalActions,
+    canReadIgnoredAlarms, canReadPriorityRules, hasAnyTab, activeTab, handleTabChange,
+    envCount, resourceCount, runbookCount, alarmCount, ignoredAlarmCount,
+    priorityRuleCount, downstreamCount, finalActionCount,
+  }
+}
+
+function ProductDetailContent() {
+  const {
+    productId, product, isLoading, error, refetch, deleteMutation, showDeleteDialog,
+    setShowDeleteDialog, canWrite, canDelete, canReadEnvironments, canReadResources,
+    canReadRunbooks, canReadAlarms, canReadDownstreams, canReadFinalActions,
+    canReadIgnoredAlarms, canReadPriorityRules, hasAnyTab, activeTab, handleTabChange,
+    envCount, resourceCount, runbookCount, alarmCount, ignoredAlarmCount,
+    priorityRuleCount, downstreamCount, finalActionCount,
+  } = useProductDetailPage()
 
   if (isLoading && !product) {
     return (

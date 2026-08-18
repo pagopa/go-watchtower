@@ -42,7 +42,7 @@ interface AlarmsTabProps {
   productId: string
 }
 
-export function AlarmsTab({ productId }: AlarmsTabProps) {
+function useAlarmsTab(productId: string) {
   const queryClient = useQueryClient()
   const { can, isLoading: permissionsLoading } = usePermissions()
   const [showCreateDialog, setShowCreateDialog] = useState(false)
@@ -172,6 +172,22 @@ export function AlarmsTab({ productId }: AlarmsTabProps) {
       createMutation.mutate(data)
     }
   }
+
+  return {
+    alarms, isLoading, error, refetch, runbooks, sortedAlarms, sortConfig, requestSort,
+    register, handleSubmit, reset, control, errors, isDirty, handleViewDetail, handleEdit,
+    canWrite, canDelete, setShowCreateDialog, setDeleteItem, detailData, setDetailData,
+    isDialogOpen, isMutating, handleDialogClose, onSubmit, editItem, deleteItem, deleteMutation,
+  }
+}
+
+export function AlarmsTab({ productId }: AlarmsTabProps) {
+  const {
+    alarms, isLoading, error, refetch, runbooks, sortedAlarms, sortConfig, requestSort,
+    register, handleSubmit, reset, control, errors, isDirty, handleViewDetail, handleEdit,
+    canWrite, canDelete, setShowCreateDialog, setDeleteItem, detailData, setDetailData,
+    isDialogOpen, isMutating, handleDialogClose, onSubmit, editItem, deleteItem, deleteMutation,
+  } = useAlarmsTab(productId)
 
   if (isLoading && !alarms) {
     return (

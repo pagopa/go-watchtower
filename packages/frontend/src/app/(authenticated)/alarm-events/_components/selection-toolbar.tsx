@@ -36,7 +36,7 @@ export function SelectionToolbar({
 
   return (
     <div
-      className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2 animate-in slide-in-from-bottom-4 fade-in duration-200"
+      className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2 animate-in slide-in-from-bottom-4 fade-in [animation-duration:200ms]"
     >
       <div className="flex items-center gap-2 rounded-full border bg-popover px-4 py-2 shadow-lg shadow-black/10 dark:shadow-black/30">
         {/* Count */}

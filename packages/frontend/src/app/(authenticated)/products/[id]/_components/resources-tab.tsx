@@ -52,7 +52,7 @@ interface ResourcesTabProps {
   productId: string
 }
 
-export function ResourcesTab({ productId }: ResourcesTabProps) {
+function useResourcesTab(productId: string) {
   const queryClient = useQueryClient()
   const { can, isLoading: permissionsLoading } = usePermissions()
   const [showCreateDialog, setShowCreateDialog] = useState(false)
@@ -157,6 +157,22 @@ export function ResourcesTab({ productId }: ResourcesTabProps) {
       createMutation.mutate(data)
     }
   }
+
+  return {
+    items, isLoading, error, refetch, resourceTypes, sortedItems, sortConfig, requestSort,
+    register, handleSubmit, reset, setValue, errors, isDirty, selectedTypeId, handleEdit,
+    canWrite, canDelete, setShowCreateDialog, setDeleteItem, isDialogOpen, isMutating,
+    handleDialogClose, onSubmit, editItem, deleteItem, deleteMutation,
+  }
+}
+
+export function ResourcesTab({ productId }: ResourcesTabProps) {
+  const {
+    items, isLoading, error, refetch, resourceTypes, sortedItems, sortConfig, requestSort,
+    register, handleSubmit, reset, setValue, errors, isDirty, selectedTypeId, handleEdit,
+    canWrite, canDelete, setShowCreateDialog, setDeleteItem, isDialogOpen, isMutating,
+    handleDialogClose, onSubmit, editItem, deleteItem, deleteMutation,
+  } = useResourcesTab(productId)
 
   if (isLoading && !items) {
     return (

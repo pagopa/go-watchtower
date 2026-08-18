@@ -245,13 +245,16 @@ export function AlarmEventFilters({
   return (
     <div className="rounded-lg border">
       {/* ── Header ── */}
-      <button
-        type="button"
-        onClick={onToggleCollapsed}
+      <div
         className="flex w-full items-center gap-3 px-4 py-3 text-sm font-medium hover:bg-muted/50 transition-colors"
       >
         {/* Left: icon + label + count */}
-        <div className="flex items-center gap-2 shrink-0">
+        <button
+          type="button"
+          onClick={onToggleCollapsed}
+          aria-expanded={!collapsed}
+          className="flex shrink-0 items-center gap-2 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
           <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
           <span>Filtri</span>
           {activeFilterCount > 0 && (
@@ -259,22 +262,22 @@ export function AlarmEventFilters({
               {activeFilterCount}
             </span>
           )}
-        </div>
+        </button>
 
         {/* Center: active filter chips (collapsed only) */}
         {collapsed && activeChips.length > 0 && (
           <div className="flex flex-1 items-center gap-1.5 overflow-hidden min-w-0">
             {activeChips.map((chip) => (
-              <span
+              <button
+                type="button"
                 key={chip.key}
+                onClick={() => handleRemoveChip(chip.key)}
+                aria-label={`Rimuovi filtro ${chip.label}`}
                 className="inline-flex shrink-0 items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground"
               >
                 <span className="truncate max-w-[200px]">{chip.label}</span>
-                <X
-                  className="h-3 w-3 shrink-0 cursor-pointer opacity-60 hover:opacity-100 hover:text-foreground transition-opacity"
-                  onClick={(e) => { e.stopPropagation(); handleRemoveChip(chip.key) }}
-                />
-              </span>
+                <X className="h-3 w-3 shrink-0 opacity-60 transition-opacity hover:text-foreground hover:opacity-100" />
+              </button>
             ))}
           </div>
         )}
@@ -282,24 +285,31 @@ export function AlarmEventFilters({
         {/* Right: reset + chevron */}
         <div className="flex items-center gap-1.5 shrink-0 ml-auto">
           {collapsed && activeFilterCount > 0 && (
-            <span
-              role="button"
-              tabIndex={0}
-              onClick={(e) => { e.stopPropagation(); handleReset() }}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); handleReset() } }}
+            <button
+              type="button"
+              onClick={handleReset}
+              aria-label="Pulisci filtri"
               className="inline-flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
               title="Pulisci filtri"
             >
               <X className="h-3.5 w-3.5" />
-            </span>
+            </button>
           )}
-          <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform duration-200', !collapsed && 'rotate-180')} />
+          <button
+            type="button"
+            onClick={onToggleCollapsed}
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? 'Espandi filtri' : 'Comprimi filtri'}
+            className="inline-flex h-6 w-6 items-center justify-center rounded-full"
+          >
+            <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform duration-200', !collapsed && 'rotate-180')} />
+          </button>
         </div>
-      </button>
+      </div>
 
       {/* ── Expanded panel ── */}
       {!collapsed && (
-        <div className="animate-in fade-in slide-in-from-top-1 duration-150 border-t px-4 pb-4 pt-4 space-y-4">
+        <div className="animate-in fade-in slide-in-from-top-1 [animation-duration:150ms] border-t px-4 pb-4 pt-4 space-y-4">
 
           {/* Row 1 — primary scope filters */}
           <div className="grid gap-4 sm:grid-cols-2">

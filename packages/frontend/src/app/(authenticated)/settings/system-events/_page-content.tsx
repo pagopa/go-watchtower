@@ -872,7 +872,116 @@ function ActionMultiSelect({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function SystemEventsPage() {
+type EditableSystemEventFilters = Omit<SystemEventsFilters, 'page' | 'limit' | 'sortBy' | 'sortOrder'>
+
+function SystemEventFiltersPanel({
+  filters,
+  users,
+  allResources,
+  activeActionSet,
+  hasActiveFilters,
+  activeFilterCount,
+  onUpdate,
+  onClear,
+}: {
+  filters: EditableSystemEventFilters
+  users: UserDetail[] | undefined
+  allResources: string[]
+  activeActionSet: Set<string>
+  hasActiveFilters: boolean
+  activeFilterCount: number
+  onUpdate: (patch: Partial<EditableSystemEventFilters>) => void
+  onClear: () => void
+}) {
+  return (
+    <div className="rounded-lg border bg-card">
+      <div className="flex items-center gap-2 border-b px-4 py-3">
+        <span className="text-sm font-medium text-muted-foreground">Filtri</span>
+        {hasActiveFilters && (
+          <>
+            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground">{activeFilterCount}</span>
+            <button type="button" onClick={onClear} className="ml-auto flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground">
+              <X className="h-3.5 w-3.5" />
+              Pulisci filtri
+            </button>
+          </>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <div className="space-y-1.5">
+          <Label className="text-sm text-muted-foreground">Azione</Label>
+          <ActionMultiSelect selected={filters.action ?? []} onChange={(action) => onUpdate({ action: action.length ? action : undefined })} />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-sm text-muted-foreground">Risorsa</Label>
+          <Select value={filters.resource ?? ALL_VALUE} onValueChange={(value) => onUpdate({ resource: value === ALL_VALUE ? undefined : value })}>
+            <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Tutte" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Tutte le risorse</SelectItem>
+              {allResources.map((resource) => (
+                <SelectItem key={resource} value={resource}>{SYSTEM_EVENT_RESOURCE_LABELS[resource as SystemEventResource] ?? resource}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-sm text-muted-foreground">Utente</Label>
+          <Select value={filters.userId ?? ALL_VALUE} onValueChange={(value) => onUpdate({ userId: value === ALL_VALUE ? undefined : value })}>
+            <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Tutti gli utenti" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Tutti gli utenti</SelectItem>
+              {users?.map((user) => <SelectItem key={user.id} value={user.id}>{user.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-sm text-muted-foreground">ID Risorsa</Label>
+          <Input
+            value={filters.resourceId ?? ''}
+            onChange={(event) => onUpdate({ resourceId: event.target.value || undefined })}
+            placeholder="UUID risorsa"
+            className="h-9 font-mono text-sm"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-sm text-muted-foreground">Da</Label>
+          <DateTimePicker value={filters.dateFrom ?? ''} onChange={(value) => onUpdate({ dateFrom: value || undefined })} />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-sm text-muted-foreground">A</Label>
+          <DateTimePicker value={filters.dateTo ?? ''} onChange={(value) => onUpdate({ dateTo: value || undefined })} />
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1.5 border-t px-4 py-2.5">
+        <span className="mr-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">Scorciatoie:</span>
+        {ACTION_CATEGORIES.map((category) => {
+          const CategoryIcon = category.icon
+          const isActive = category.actions.every((action) => activeActionSet.has(action)) && filters.action?.length === category.actions.length
+          return (
+            <button
+              key={category.label}
+              type="button"
+              onClick={() => onUpdate({ action: isActive ? undefined : category.actions })}
+              className={cn(
+                'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-all',
+                isActive
+                  ? `${category.bgColor} ${category.textColor} border-transparent`
+                  : 'border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground',
+              )}
+            >
+              <CategoryIcon className="h-3 w-3" />
+              {category.label}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function useSystemEventsPage() {
   const { can } = usePermissions()
 
   // Column settings (saved to user profile)
@@ -897,7 +1006,7 @@ export function SystemEventsPage() {
 
   const allResources = useMemo(() => Object.values(SystemEventResources), [])
 
-  const [filters, setFilters] = useState<Omit<SystemEventsFilters, 'page' | 'limit' | 'sortBy' | 'sortOrder'>>({})
+  const [filters, setFilters] = useState<EditableSystemEventFilters>({})
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(50)
   const { sortBy, sortOrder, handleSort } = useSort('createdAt')
@@ -938,7 +1047,7 @@ export function SystemEventsPage() {
     })
   }, [])
 
-  const updateFilters = (patch: Partial<Omit<SystemEventsFilters, 'page' | 'limit' | 'sortBy' | 'sortOrder'>>) => {
+  const updateFilters = (patch: Partial<EditableSystemEventFilters>) => {
     setFilters((prev) => ({ ...prev, ...patch }))
     setPage(1)
   }
@@ -972,6 +1081,24 @@ export function SystemEventsPage() {
     (filters.dateFrom ? 1 : 0) +
     (filters.dateTo ? 1 : 0)
 
+  return {
+    visibleColumns, allColumns, isVisible, toggleColumn, getWidth, setWidth, moveColumn,
+    renameColumn, resetColumns, users, allResources, filters, pageSize, setPageSize, setPage,
+    sortBy, sortOrder, handleSort, expandedRows, events, total, currentPage, totalPages,
+    isLoading, isFetching, totalTableMinWidth, toggleExpand, updateFilters, clearFilters,
+    activeActionSet, hasActiveFilters, activeFilterCount,
+  }
+}
+
+export function SystemEventsPage() {
+  const {
+    visibleColumns, allColumns, isVisible, toggleColumn, getWidth, setWidth, moveColumn,
+    renameColumn, resetColumns, users, allResources, filters, pageSize, setPageSize, setPage,
+    sortBy, sortOrder, handleSort, expandedRows, events, total, currentPage, totalPages,
+    isLoading, isFetching, totalTableMinWidth, toggleExpand, updateFilters, clearFilters,
+    activeActionSet, hasActiveFilters, activeFilterCount,
+  } = useSystemEventsPage()
+
   return (
     <div className="space-y-5">
 
@@ -1003,142 +1130,16 @@ export function SystemEventsPage() {
         </div>
       </div>
 
-      {/* ── Filter bar ─────────────────────────────────────────────────────── */}
-      <div className="rounded-lg border bg-card">
-        <div className="flex items-center gap-2 px-4 py-3 border-b">
-          <span className="text-sm font-medium text-muted-foreground">Filtri</span>
-          {hasActiveFilters && (
-            <>
-              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground">
-                {activeFilterCount}
-              </span>
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="ml-auto flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <X className="h-3.5 w-3.5" />
-                Pulisci filtri
-              </button>
-            </>
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          {/* Action multiselect */}
-          <div className="space-y-1.5">
-            <Label className="text-sm text-muted-foreground">Azione</Label>
-            <ActionMultiSelect
-              selected={filters.action ?? []}
-              onChange={(action) => updateFilters({ action: action.length ? action : undefined })}
-            />
-          </div>
-
-          {/* Resource */}
-          <div className="space-y-1.5">
-            <Label className="text-sm text-muted-foreground">Risorsa</Label>
-            <Select
-              value={filters.resource ?? ALL_VALUE}
-              onValueChange={(v) => updateFilters({ resource: v === ALL_VALUE ? undefined : v })}
-            >
-              <SelectTrigger className="h-9 text-sm">
-                <SelectValue placeholder="Tutte" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">Tutte le risorse</SelectItem>
-                {allResources.map((r) => (
-                  <SelectItem key={r} value={r}>
-                    {SYSTEM_EVENT_RESOURCE_LABELS[r as SystemEventResource] ?? r}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* User — dropdown instead of text input */}
-          <div className="space-y-1.5">
-            <Label className="text-sm text-muted-foreground">Utente</Label>
-            <Select
-              value={filters.userId ?? ALL_VALUE}
-              onValueChange={(v) => updateFilters({ userId: v === ALL_VALUE ? undefined : v })}
-            >
-              <SelectTrigger className="h-9 text-sm">
-                <SelectValue placeholder="Tutti gli utenti" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">Tutti gli utenti</SelectItem>
-                {users?.map((u) => (
-                  <SelectItem key={u.id} value={u.id}>
-                    {u.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Resource ID */}
-          <div className="space-y-1.5">
-            <Label className="text-sm text-muted-foreground">ID Risorsa</Label>
-            <Input
-              value={filters.resourceId ?? ''}
-              onChange={(e) => updateFilters({ resourceId: e.target.value || undefined })}
-              placeholder="UUID risorsa"
-              className="h-9 text-sm font-mono"
-            />
-          </div>
-
-          {/* Date from */}
-          <div className="space-y-1.5">
-            <Label className="text-sm text-muted-foreground">Da</Label>
-            <DateTimePicker
-              value={filters.dateFrom ?? ''}
-              onChange={(v) => updateFilters({ dateFrom: v || undefined })}
-            />
-          </div>
-
-          {/* Date to */}
-          <div className="space-y-1.5">
-            <Label className="text-sm text-muted-foreground">A</Label>
-            <DateTimePicker
-              value={filters.dateTo ?? ''}
-              onChange={(v) => updateFilters({ dateTo: v || undefined })}
-            />
-          </div>
-        </div>
-
-        {/* Quick category presets */}
-        <div className="flex flex-wrap items-center gap-1.5 border-t px-4 py-2.5">
-          <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground mr-1">Scorciatoie:</span>
-          {ACTION_CATEGORIES.map((cat) => {
-            const CatIcon = cat.icon
-            const isActive =
-              cat.actions.every((a) => activeActionSet.has(a)) &&
-              filters.action?.length === cat.actions.length
-            return (
-              <button
-                key={cat.label}
-                type="button"
-                onClick={() => {
-                  if (isActive) {
-                    updateFilters({ action: undefined })
-                  } else {
-                    updateFilters({ action: cat.actions })
-                  }
-                }}
-                className={cn(
-                  'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-all',
-                  isActive
-                    ? `${cat.bgColor} ${cat.textColor} border-transparent`
-                    : 'border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground'
-                )}
-              >
-                <CatIcon className="h-3 w-3" />
-                {cat.label}
-              </button>
-            )
-          })}
-        </div>
-      </div>
+      <SystemEventFiltersPanel
+        filters={filters}
+        users={users}
+        allResources={allResources}
+        activeActionSet={activeActionSet}
+        hasActiveFilters={hasActiveFilters}
+        activeFilterCount={activeFilterCount}
+        onUpdate={updateFilters}
+        onClear={clearFilters}
+      />
 
       {/* ── Events table ───────────────────────────────────────────────────── */}
       <div className="rounded-lg border overflow-hidden">

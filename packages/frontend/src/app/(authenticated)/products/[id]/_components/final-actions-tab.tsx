@@ -50,7 +50,7 @@ interface FinalActionsTabProps {
   productId: string
 }
 
-export function FinalActionsTab({ productId }: FinalActionsTabProps) {
+function useFinalActionsTab(productId: string) {
   const queryClient = useQueryClient()
   const { can, isLoading: permissionsLoading } = usePermissions()
   const [showCreateDialog, setShowCreateDialog] = useState(false)
@@ -152,6 +152,22 @@ export function FinalActionsTab({ productId }: FinalActionsTabProps) {
       createMutation.mutate(data)
     }
   }
+
+  return {
+    finalActions, isLoading, error, refetch, sortedFinalActions, sortConfig, requestSort,
+    register, handleSubmit, reset, watch, setValue, errors, isDirty, handleEdit,
+    canWrite, canDelete, setShowCreateDialog, setDeleteItem, isDialogOpen, isMutating,
+    handleDialogClose, onSubmit, editItem, deleteItem, deleteMutation,
+  }
+}
+
+export function FinalActionsTab({ productId }: FinalActionsTabProps) {
+  const {
+    finalActions, isLoading, error, refetch, sortedFinalActions, sortConfig, requestSort,
+    register, handleSubmit, reset, watch, setValue, errors, isDirty, handleEdit,
+    canWrite, canDelete, setShowCreateDialog, setDeleteItem, isDialogOpen, isMutating,
+    handleDialogClose, onSubmit, editItem, deleteItem, deleteMutation,
+  } = useFinalActionsTab(productId)
 
   if (isLoading && !finalActions) {
     return (

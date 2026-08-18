@@ -345,7 +345,7 @@ interface PriorityRulesTabProps {
   productId: string
 }
 
-export function PriorityRulesTab({ productId }: PriorityRulesTabProps) {
+function usePriorityRulesTab(productId: string) {
   const queryClient = useQueryClient()
   const { can, isLoading: permissionsLoading } = usePermissions()
   const [showCreateDialog, setShowCreateDialog] = useState(false)
@@ -429,6 +429,22 @@ export function PriorityRulesTab({ productId }: PriorityRulesTabProps) {
     if (editItem) updateMutation.mutate({ id: editItem.id, data })
     else createMutation.mutate(data)
   }
+
+  return {
+    rules, isLoading, error, refetch, alarms, environments, priorityLevels,
+    register, handleSubmit, reset, control, errors, isDirty, matcherType,
+    canWrite, canDelete, setShowCreateDialog, setEditItem, setDeleteItem, isDialogOpen,
+    isMutating, handleDialogClose, onSubmit, editItem, deleteItem, deleteMutation,
+  }
+}
+
+export function PriorityRulesTab({ productId }: PriorityRulesTabProps) {
+  const {
+    rules, isLoading, error, refetch, alarms, environments, priorityLevels,
+    register, handleSubmit, reset, control, errors, isDirty, matcherType,
+    canWrite, canDelete, setShowCreateDialog, setEditItem, setDeleteItem, isDialogOpen,
+    isMutating, handleDialogClose, onSubmit, editItem, deleteItem, deleteMutation,
+  } = usePriorityRulesTab(productId)
 
   if (isLoading && !rules) {
     return (

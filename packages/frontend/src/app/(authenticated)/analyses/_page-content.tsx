@@ -177,7 +177,7 @@ export function AnalysesPageWrapper() {
   );
 }
 
-function AnalysesPageContent() {
+function useAnalysesPage() {
   const queryClient = useQueryClient();
   const { data: session } = useSession();
   const {
@@ -902,21 +902,48 @@ function AnalysesPageContent() {
     }
   };
 
-  // --- Main Render ---
+  return {
+    currentProduct, filters, handleFilterChange, handleResetFilters, isAllView,
+    environments, alarms, finalActions, priorityLevels, analysisAuthors, ignoreReasons,
+    resources, downstreams, runbooks, linkTypes, filtersCollapsed, handleToggleFiltersCollapsed,
+    viewMode, pagination, analyses, analysesUpdatedAt, refetchAnalyses, analysesFetching,
+    handleSetViewMode, selectedIds, analysisQueryParams, allColumns, isVisible, toggleColumn,
+    moveColumn, renameColumn, resetColumns, canWrite, handleShortcutSelect, selectedDate,
+    setSelectedDate, workingHours, effectiveProductId, visibleColumns, getWidth,
+    totalTableMinWidth, rowPlacement, actionPolicy, handleRowClick, handleEdit, handleDelete,
+    setValidationPanelAnalysis, onCallHours, analysesLoading, analysesError, setWidth,
+    sortBy, sortOrder, handleSort, canDelete, setSelectedIds, validationCache,
+    toggleSelected, pageSize, setPage, setPageSize, selectedAnalysis, showDetailPanel,
+    handleCloseDetailPanel, canEditAnalysis, canDeleteAnalysis, isAnalysisLocked, lockDays,
+    validationPanelAnalysis, activeShortcut, handleDialogClose, editItem, handleFormSubmit,
+    isMutating, users, products, formProductId, setFormProductId, futureOffsetMinutes,
+    deleteItem, setDeleteItem, deleteMutation,
+  };
+}
+
+type AnalysesPageState = ReturnType<typeof useAnalysesPage>;
+
+function AnalysesPageHeader({ state }: { state: AnalysesPageState }) {
+  const {
+    currentProduct, filters, handleFilterChange, handleResetFilters, isAllView,
+    environments, alarms, finalActions, priorityLevels, analysisAuthors, ignoreReasons,
+    resources, downstreams, runbooks, linkTypes, filtersCollapsed, handleToggleFiltersCollapsed,
+    viewMode, pagination, analyses, analysesUpdatedAt, refetchAnalyses, analysesFetching,
+    handleSetViewMode, selectedIds, analysisQueryParams, allColumns, isVisible, toggleColumn,
+    moveColumn, renameColumn, resetColumns, canWrite, handleShortcutSelect,
+  } = state;
 
   return (
-    <div className="space-y-5">
-      {/* Page Header */}
+    <>
       <div className="flex items-baseline gap-3 pb-1">
         <h1 className="text-xl font-semibold tracking-tight">
           {currentProduct ? currentProduct.name : "Analisi Allarmi"}
         </h1>
         <span className="text-xs text-muted-foreground">
-          {currentProduct ? `analisi allarmi` : "tutti i prodotti"}
+          {currentProduct ? "analisi allarmi" : "tutti i prodotti"}
         </span>
       </div>
 
-      {/* Filters */}
       <AnalysisFilters
         filters={filters}
         onFilterChange={handleFilterChange}
@@ -935,21 +962,17 @@ function AnalysesPageContent() {
         onToggleCollapsed={handleToggleFiltersCollapsed}
       />
 
-      {/* Results Bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3 text-sm text-muted-foreground">
           {viewMode === "list" && pagination && (
             <p>
-              <span className="font-medium tabular-nums text-foreground">
-                {pagination.totalItems}
-              </span>{" "}
+              <span className="font-medium tabular-nums text-foreground">{pagination.totalItems}</span>{" "}
               analisi trovate
               {analyses && analyses.length > 0 && (
                 <>
-                  {" "}
-                  &middot;{" "}
+                  {" "}&middot;{" "}
                   <span className="font-medium tabular-nums text-foreground">
-                    {analyses.reduce((sum, a) => sum + (a.occurrences ?? 0), 0)}
+                    {analyses.reduce((sum, analysis) => sum + (analysis.occurrences ?? 0), 0)}
                   </span>{" "}
                   occorrenze
                 </>
@@ -958,8 +981,7 @@ function AnalysesPageContent() {
           )}
           {analysesUpdatedAt > 0 && (
             <span className="text-xs text-muted-foreground/60">
-              agg.{" "}
-              {new Date(analysesUpdatedAt).toLocaleTimeString("it-IT", {
+              agg. {new Date(analysesUpdatedAt).toLocaleTimeString("it-IT", {
                 hour: "2-digit",
                 minute: "2-digit",
                 second: "2-digit",
@@ -974,13 +996,10 @@ function AnalysesPageContent() {
             disabled={analysesFetching}
             title="Aggiorna dati"
           >
-            <RefreshCw
-              className={`h-3.5 w-3.5 ${analysesFetching ? "animate-spin" : ""}`}
-            />
+            <RefreshCw className={`h-3.5 w-3.5 ${analysesFetching ? "animate-spin" : ""}`} />
           </Button>
         </div>
         <div className="flex items-center gap-2">
-          {/* View mode dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="gap-1.5">
@@ -991,22 +1010,13 @@ function AnalysesPageContent() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuItem
-                className={viewMode === "list" ? "bg-accent" : ""}
-                onClick={() => handleSetViewMode("list")}
-              >
+              <DropdownMenuItem className={viewMode === "list" ? "bg-accent" : ""} onClick={() => handleSetViewMode("list")}>
                 <LayoutList className="mr-2 h-4 w-4" /> Lista
               </DropdownMenuItem>
-              <DropdownMenuItem
-                className={viewMode === "daily" ? "bg-accent" : ""}
-                onClick={() => handleSetViewMode("daily")}
-              >
+              <DropdownMenuItem className={viewMode === "daily" ? "bg-accent" : ""} onClick={() => handleSetViewMode("daily")}>
                 <CalendarDays className="mr-2 h-4 w-4" /> Giornaliero
               </DropdownMenuItem>
-              <DropdownMenuItem
-                className={viewMode === "oncall" ? "bg-accent" : ""}
-                onClick={() => handleSetViewMode("oncall")}
-              >
+              <DropdownMenuItem className={viewMode === "oncall" ? "bg-accent" : ""} onClick={() => handleSetViewMode("oncall")}>
                 <PhoneCall className="mr-2 h-4 w-4" /> Reperibilità
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -1016,8 +1026,8 @@ function AnalysesPageContent() {
               selectedIds={Array.from(selectedIds)}
               filteredCount={pagination?.totalItems ?? 0}
               filters={(() => {
-                const { page: _p, pageSize: _ps, sortBy: _sb, sortOrder: _so, ...rest } = analysisQueryParams
-                return rest
+                const { page: _page, pageSize: _pageSize, sortBy: _sortBy, sortOrder: _sortOrder, ...rest } = analysisQueryParams;
+                return rest;
               })()}
             />
           )}
@@ -1029,12 +1039,100 @@ function AnalysesPageContent() {
             renameColumn={renameColumn}
             resetColumns={resetColumns}
           />
-          {canWrite && (
-            <CreateAnalysisDropdown onSelect={handleShortcutSelect} />
-          )}
+          {canWrite && <CreateAnalysisDropdown onSelect={handleShortcutSelect} />}
         </div>
       </div>
+    </>
+  );
+}
 
+function AnalysesDialogs({ state }: { state: AnalysesPageState }) {
+  const {
+    selectedAnalysis, showDetailPanel, handleCloseDetailPanel, handleEdit, handleDelete,
+    canEditAnalysis, canDeleteAnalysis, isAnalysisLocked, lockDays, validationPanelAnalysis,
+    setValidationPanelAnalysis, activeShortcut, handleDialogClose, editItem, handleFormSubmit,
+    isMutating, users, products, isAllView, formProductId, setFormProductId,
+    futureOffsetMinutes, deleteItem, setDeleteItem, deleteMutation,
+  } = state;
+
+  return (
+    <>
+      <AnalysisDetailPanel
+        analysis={selectedAnalysis}
+        open={showDetailPanel}
+        onClose={handleCloseDetailPanel}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        canWrite={selectedAnalysis ? canEditAnalysis(selectedAnalysis) : false}
+        canDelete={selectedAnalysis ? canDeleteAnalysis(selectedAnalysis) : false}
+        isLocked={selectedAnalysis ? isAnalysisLocked(selectedAnalysis) : false}
+        lockDays={lockDays}
+      />
+      <ValidationDetailPanel
+        analysis={validationPanelAnalysis}
+        open={validationPanelAnalysis !== null}
+        onClose={() => setValidationPanelAnalysis(null)}
+      />
+      <AnalysisFormDialog
+        open={activeShortcut === "full"}
+        onOpenChange={handleDialogClose}
+        editItem={editItem}
+        onSubmit={handleFormSubmit}
+        isPending={isMutating}
+        users={users}
+        products={products}
+        showProductSelector={isAllView && !editItem}
+        selectedProductId={formProductId}
+        onProductChange={setFormProductId}
+        futureOffsetMinutes={futureOffsetMinutes}
+      />
+      <ShortcutInCorsoDialog
+        open={activeShortcut === "in-corso"}
+        onOpenChange={handleDialogClose}
+        onSubmit={handleFormSubmit}
+        isPending={isMutating}
+        products={products}
+        showProductSelector={isAllView}
+        selectedProductId={formProductId}
+        onProductChange={setFormProductId}
+      />
+      <ShortcutIgnorableDialog
+        open={activeShortcut === "ignorable"}
+        onOpenChange={handleDialogClose}
+        onSubmit={handleFormSubmit}
+        isPending={isMutating}
+        products={products}
+        showProductSelector={isAllView}
+        selectedProductId={formProductId}
+        onProductChange={setFormProductId}
+      />
+      <DeleteConfirmDialog
+        open={!!deleteItem}
+        onOpenChange={() => setDeleteItem(null)}
+        description={`Sei sicuro di voler eliminare questa analisi del ${deleteItem ? formatDate(deleteItem.analysisDate) : ""} per l'allarme "${deleteItem?.alarm.name}"? Questa azione non può essere annullata.`}
+        onConfirm={() => deleteItem && deleteMutation.mutate({ productId: deleteItem.productId, id: deleteItem.id })}
+        isPending={deleteMutation.isPending}
+      />
+    </>
+  );
+}
+
+function AnalysesPageContent() {
+  const state = useAnalysesPage();
+  const {
+    filters, viewMode, pagination, analyses, selectedIds, canWrite, handleShortcutSelect,
+    selectedDate, setSelectedDate, workingHours, effectiveProductId, visibleColumns,
+    getWidth, totalTableMinWidth, rowPlacement, actionPolicy, handleRowClick, handleEdit,
+    handleDelete, setValidationPanelAnalysis, onCallHours, analysesLoading, analysesError,
+    setWidth, sortBy, sortOrder, handleSort, canDelete, setSelectedIds, validationCache,
+    toggleSelected, pageSize, setPage, setPageSize,
+  } = state;
+
+  // --- Main Render ---
+
+  return (
+    <div className="space-y-5">
+      <AnalysesPageHeader state={state} />
       {/* Daily view */}
       {viewMode === "daily" && (
         <AnalysisDailyView
@@ -1221,80 +1319,7 @@ function AnalysesPageContent() {
         />
       )}
 
-      {/* Detail Side Panel */}
-      <AnalysisDetailPanel
-        analysis={selectedAnalysis}
-        open={showDetailPanel}
-        onClose={handleCloseDetailPanel}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-        canWrite={selectedAnalysis ? canEditAnalysis(selectedAnalysis) : false}
-        canDelete={
-          selectedAnalysis ? canDeleteAnalysis(selectedAnalysis) : false
-        }
-        isLocked={selectedAnalysis ? isAnalysisLocked(selectedAnalysis) : false}
-        lockDays={lockDays}
-      />
-
-      {/* Validation Detail Panel */}
-      <ValidationDetailPanel
-        analysis={validationPanelAnalysis}
-        open={validationPanelAnalysis !== null}
-        onClose={() => setValidationPanelAnalysis(null)}
-      />
-
-      {/* Create/Edit Form Dialog (full form) */}
-      <AnalysisFormDialog
-        open={activeShortcut === "full"}
-        onOpenChange={handleDialogClose}
-        editItem={editItem}
-        onSubmit={handleFormSubmit}
-        isPending={isMutating}
-        users={users}
-        products={products}
-        showProductSelector={isAllView && !editItem}
-        selectedProductId={formProductId}
-        onProductChange={setFormProductId}
-        futureOffsetMinutes={futureOffsetMinutes}
-      />
-
-      {/* Shortcut Dialogs */}
-      <ShortcutInCorsoDialog
-        open={activeShortcut === "in-corso"}
-        onOpenChange={handleDialogClose}
-        onSubmit={handleFormSubmit}
-        isPending={isMutating}
-        products={products}
-        showProductSelector={isAllView}
-        selectedProductId={formProductId}
-        onProductChange={setFormProductId}
-      />
-
-      <ShortcutIgnorableDialog
-        open={activeShortcut === "ignorable"}
-        onOpenChange={handleDialogClose}
-        onSubmit={handleFormSubmit}
-        isPending={isMutating}
-        products={products}
-        showProductSelector={isAllView}
-        selectedProductId={formProductId}
-        onProductChange={setFormProductId}
-      />
-
-      {/* Delete Confirmation Dialog */}
-      <DeleteConfirmDialog
-        open={!!deleteItem}
-        onOpenChange={() => setDeleteItem(null)}
-        description={`Sei sicuro di voler eliminare questa analisi del ${deleteItem ? formatDate(deleteItem.analysisDate) : ""} per l'allarme "${deleteItem?.alarm.name}"? Questa azione non può essere annullata.`}
-        onConfirm={() =>
-          deleteItem &&
-          deleteMutation.mutate({
-            productId: deleteItem.productId,
-            id: deleteItem.id,
-          })
-        }
-        isPending={deleteMutation.isPending}
-      />
+      <AnalysesDialogs state={state} />
     </div>
   );
 }

@@ -519,6 +519,356 @@ function CliTokenSection() {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
+function ProfileHeaderCard({
+  isLoading,
+  hasSession,
+  displayName,
+  email,
+  roleName,
+  provider,
+  isActive,
+}: {
+  isLoading: boolean
+  hasSession: boolean
+  displayName: string
+  email: string
+  roleName: string
+  provider: string
+  isActive: boolean | undefined
+}) {
+  const loading = isLoading || !hasSession
+  return (
+    <div className="rounded-xl border border-border bg-card p-6">
+      <div className="flex items-center gap-5">
+        {loading ? <Skeleton className="h-20 w-20 rounded-full" /> : <Avatar name={displayName} className="h-20 w-20 text-2xl" />}
+        <div className="min-w-0 flex-1">
+          {loading ? (
+            <div className="space-y-2"><Skeleton className="h-7 w-48" /><Skeleton className="h-4 w-64" /><Skeleton className="h-5 w-24" /></div>
+          ) : (
+            <>
+              <h1 className="text-2xl font-bold tracking-tight">{displayName}</h1>
+              <p className="mt-0.5 text-sm text-muted-foreground">{email}</p>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <Badge variant="secondary" className="text-xs"><Shield className="mr-1 h-3 w-3" />{roleName}</Badge>
+                {provider && (
+                  <Badge variant="outline" className="text-xs"><KeyRound className="mr-1 h-3 w-3" />{AUTH_PROVIDER_LABELS[provider as AuthProvider] ?? provider}</Badge>
+                )}
+                {isActive === false && <Badge variant="destructive" className="text-xs">Disattivato</Badge>}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ProfileDetailsGrid({
+  editing,
+  nameValue,
+  isPending,
+  displayName,
+  email,
+  roleName,
+  provider,
+  createdAt,
+  updatedAt,
+  isLoading,
+  ThemeIcon,
+  theme,
+  themeLabel,
+  pageSize,
+  sidebarCollapsed,
+  filtersCollapsed,
+  locale,
+  onNameChange,
+  onStartEditing,
+  onSave,
+  onCancel,
+  onResetTheme,
+  onResetPageSize,
+  onResetSidebar,
+  onResetFilters,
+}: {
+  editing: boolean
+  nameValue: string
+  isPending: boolean
+  displayName: string
+  email: string
+  roleName: string
+  provider: string
+  createdAt: string | undefined
+  updatedAt: string | undefined
+  isLoading: boolean
+  ThemeIcon: React.ElementType
+  theme: string
+  themeLabel: string
+  pageSize: number
+  sidebarCollapsed: boolean
+  filtersCollapsed: boolean
+  locale: string | undefined
+  onNameChange: (value: string) => void
+  onStartEditing: () => void
+  onSave: () => void
+  onCancel: () => void
+  onResetTheme: () => void
+  onResetPageSize: () => void
+  onResetSidebar: () => void
+  onResetFilters: () => void
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+      <div className="rounded-xl border border-border bg-card p-6">
+        <SectionTitle>Dati profilo</SectionTitle>
+        <p className="mb-4 text-sm text-muted-foreground">Puoi modificare solo il tuo nome completo.</p>
+        <div className="mb-2">
+          <Label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground/60">Nome completo</Label>
+          {editing ? (
+            <div className="flex items-center gap-2">
+              <Input
+                value={nameValue}
+                onChange={(event) => onNameChange(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') onSave()
+                  if (event.key === 'Escape') onCancel()
+                }}
+                className="h-9 flex-1"
+                disabled={isPending}
+              />
+              <Button size="icon" className="h-9 w-9 shrink-0" onClick={onSave} disabled={isPending}>
+                {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+              </Button>
+              <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0" onClick={onCancel} disabled={isPending}><X className="h-4 w-4" /></Button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2">
+              <span className="text-sm font-medium">{displayName}</span>
+              <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={onStartEditing}><Pencil className="h-3.5 w-3.5" /></Button>
+            </div>
+          )}
+        </div>
+        <Separator className="my-4" />
+        <div className="divide-y divide-border/60">
+          <InfoRow icon={Mail} label="Email"><span className="text-muted-foreground">{email}</span></InfoRow>
+          <InfoRow icon={Shield} label="Ruolo"><span className="text-muted-foreground">{roleName}</span></InfoRow>
+          <InfoRow icon={KeyRound} label="Accesso tramite">
+            {isLoading ? <Skeleton className="h-4 w-24" /> : <span className="text-muted-foreground">{AUTH_PROVIDER_LABELS[provider as AuthProvider] ?? provider ?? '—'}</span>}
+          </InfoRow>
+          <InfoRow icon={CalendarDays} label="Membro dal">
+            {isLoading ? <Skeleton className="h-4 w-32" /> : <span className="text-muted-foreground">{createdAt ? formatDate(createdAt) : '—'}</span>}
+          </InfoRow>
+          {updatedAt && updatedAt !== createdAt && (
+            <InfoRow icon={CalendarDays} label="Ultimo aggiornamento"><span className="text-muted-foreground">{formatDate(updatedAt)}</span></InfoRow>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-6">
+        <SectionTitle>Preferenze</SectionTitle>
+        <p className="mb-4 text-sm text-muted-foreground">
+          Impostazioni dell&apos;interfaccia. Usa <RotateCcw className="inline h-3 w-3 text-muted-foreground" /> per ripristinare il valore di default.
+        </p>
+        <div className="divide-y divide-border/60">
+          <PrefRow icon={ThemeIcon} label="Tema" onReset={theme !== 'system' ? onResetTheme : undefined}><span>{themeLabel}</span></PrefRow>
+          <PrefRow icon={Rows3} label="Righe per pagina" onReset={pageSize !== 10 ? onResetPageSize : undefined}><span>{pageSize} righe</span></PrefRow>
+          <PrefRow icon={PanelLeft} label="Sidebar" onReset={sidebarCollapsed ? onResetSidebar : undefined}><span>{sidebarCollapsed ? 'Compressa' : 'Espansa'}</span></PrefRow>
+          <PrefRow icon={SlidersHorizontal} label="Filtri analisi" onReset={!filtersCollapsed ? onResetFilters : undefined}><span>{filtersCollapsed ? 'Collassati' : 'Espansi'}</span></PrefRow>
+          {locale && <PrefRow icon={Globe} label="Lingua"><span>{locale}</span></PrefRow>}
+        </div>
+        <Separator className="my-4" />
+        <div className="rounded-lg bg-muted/40 px-4 py-3">
+          <p className="text-xs text-muted-foreground">Le preferenze vengono aggiornate automaticamente mentre usi l&apos;applicazione (tema, sidebar, filtri, righe per pagina).</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ProfileNotificationsCard({
+  enabled,
+  permission,
+  supported,
+  priorityLevels,
+  enabledPriorityCodes,
+  onToggleMaster,
+  onTogglePriority,
+  onRequestPermission,
+}: {
+  enabled: boolean
+  permission: NotificationPermission
+  supported: boolean
+  priorityLevels: AlertPriorityLevel[]
+  enabledPriorityCodes: Set<string>
+  onToggleMaster: () => void | Promise<void>
+  onTogglePriority: (code: string) => void | Promise<void>
+  onRequestPermission: () => void | Promise<unknown>
+}) {
+  return (
+    <div id="notifiche" className="rounded-xl border border-border bg-card p-6">
+      <SectionTitle>Notifiche</SectionTitle>
+      <p className="mb-5 text-sm text-muted-foreground">Ricevi notifiche browser in tempo reale per eventi importanti, anche quando sei su un&apos;altra pagina.</p>
+      <div className={cn('rounded-lg border p-4 transition-colors', enabled ? 'border-primary/20 bg-primary/[0.03]' : 'border-border bg-muted/20')}>
+        <div className="flex items-center gap-3">
+          <div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors', enabled ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground')}>
+            {enabled ? <Bell className="h-4.5 w-4.5" /> : <BellOff className="h-4.5 w-4.5" />}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium">{enabled ? 'Notifiche attive' : 'Notifiche disattivate'}</p>
+            {enabled && <p className="mt-0.5 text-xs text-muted-foreground">Il supervisore monitora gli allarmi ogni 30 secondi</p>}
+          </div>
+          <button
+            type="button"
+            onClick={() => { void onToggleMaster() }}
+            className={cn(
+              'relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border transition-colors',
+              enabled ? 'border-primary bg-primary dark:border-blue-600 dark:bg-blue-600' : 'border-zinc-300 bg-zinc-300 dark:border-zinc-500 dark:bg-zinc-600',
+            )}
+          >
+            <span className={cn('inline-block h-4 w-4 rounded-full bg-white shadow-lg transition-transform', enabled ? 'translate-x-6' : 'translate-x-1')} />
+          </button>
+        </div>
+
+        {enabled && (
+          <div className={cn(
+            'mt-3 flex items-center gap-2 rounded-md px-3 py-2 text-xs',
+            permission === 'granted'
+              ? 'bg-emerald-500/5 text-emerald-700 dark:text-emerald-400'
+              : permission === 'denied'
+                ? 'bg-amber-500/5 text-amber-700 dark:text-amber-400'
+                : 'bg-muted text-muted-foreground',
+          )}>
+            <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', permission === 'granted' ? 'bg-emerald-500' : permission === 'denied' ? 'bg-amber-500' : 'bg-muted-foreground/50')} />
+            <span className="flex-1">
+              {permission === 'granted' && 'Permesso browser concesso — le notifiche verranno inviate'}
+              {permission === 'denied' && <>Permesso browser negato — clicca sull&apos;icona lucchetto (o scudo) nella barra indirizzi, apri &quot;Impostazioni sito&quot; e imposta Notifiche su &quot;Consenti&quot;, poi ricarica la pagina.</>}
+              {permission === 'default' && 'Permesso non ancora richiesto — verrà chiesto al primo evento'}
+            </span>
+            {permission === 'granted' ? (
+              <button
+                type="button"
+                className="shrink-0 rounded px-2 py-0.5 text-[11px] font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                onClick={() => new Notification('Watchtower — Test notifica', { body: 'Le notifiche browser funzionano correttamente.', tag: 'watchtower-test', icon: '/logo1.png' })}
+              >Invia test</button>
+            ) : (
+              <button
+                type="button"
+                className={cn('shrink-0 rounded px-2 py-0.5 text-[11px] font-semibold transition-colors', permission === 'denied' ? 'text-amber-700 hover:bg-amber-500/10 dark:text-amber-400' : 'hover:bg-black/5 dark:hover:bg-white/5')}
+                onClick={() => { void onRequestPermission() }}
+              >Richiedi permesso</button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {enabled && (
+        <div className="mt-5 space-y-4">
+          <div>
+            <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/50">Allarmi scattati</p>
+            <div className="space-y-1">
+              {[...priorityLevels].filter((level) => level.isActive).sort((a, b) => b.rank - a.rank).map((level) => {
+                const isOn = enabledPriorityCodes.has(level.code)
+                return (
+                  <div
+                    key={level.code}
+                    className={cn(
+                      'flex cursor-pointer items-center gap-3 rounded-lg border px-3.5 py-2.5 transition-colors',
+                      isOn ? 'border-primary/15 bg-primary/[0.02] hover:bg-primary/[0.04]' : 'border-transparent bg-muted/30 opacity-60 hover:bg-muted/50',
+                    )}
+                    onClick={() => { void onTogglePriority(level.code) }}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">{level.label}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        Codice {level.code}{level.countsAsOnCall ? ' · conta come on-call' : ''}{level.defaultNotify ? ' · attiva di default' : ''}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className={cn('relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-colors', isOn ? 'border-primary bg-primary dark:border-blue-600 dark:bg-blue-600' : 'border-zinc-300 bg-zinc-300 dark:border-zinc-500 dark:bg-zinc-600')}
+                      tabIndex={-1}
+                    >
+                      <span className={cn('inline-block h-3.5 w-3.5 rounded-full bg-white shadow-lg transition-transform', isOn ? 'translate-x-[18px]' : 'translate-x-0.5')} />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!supported && (
+        <><Separator className="my-4" /><div className="rounded-lg bg-muted/40 px-4 py-3"><p className="text-xs text-muted-foreground">Il browser in uso non supporta le notifiche.</p></div></>
+      )}
+    </div>
+  )
+}
+
+function ProfileColumnSettingsCard({
+  entries,
+  expandedLists,
+  onToggle,
+  onResetAll,
+  onResetWidth,
+  onResetRename,
+}: {
+  entries: [string, ColumnSettings][]
+  expandedLists: Set<string>
+  onToggle: (listKey: string) => void
+  onResetAll: (listKey: string) => void
+  onResetWidth: (listKey: string, columnId: string) => void
+  onResetRename: (listKey: string, columnId: string) => void
+}) {
+  if (!entries.length) return null
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-6">
+      <div className="mb-4 flex items-start justify-between gap-4">
+        <div>
+          <SectionTitle>Impostazioni colonne</SectionTitle>
+          <p className="text-sm text-muted-foreground">
+            Personalizzazioni di visibilità, ordine, larghezze e rinominazioni per le liste.
+            Le celle in <span className="font-medium text-amber-700 dark:text-amber-400">ambra</span> indicano valori modificati rispetto al default.
+          </p>
+        </div>
+      </div>
+      <div className="space-y-4">
+        {entries.map(([listKey, settings]) => {
+          const isExpanded = expandedLists.has(listKey)
+          const definitions = COLUMN_REGISTRY[listKey]
+          const overrideCount = definitions ? buildColumnStates(settings, definitions).filter((column) => column.hasAnyOverride).length : 0
+          return (
+            <div key={listKey} className="overflow-hidden rounded-lg border border-border">
+              <div className="flex items-center justify-between gap-3 bg-muted/20 px-4 py-3">
+                <button className="flex min-w-0 flex-1 items-center gap-2.5 text-left" onClick={() => onToggle(listKey)}>
+                  {isExpanded ? <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />}
+                  <span className="text-sm font-semibold">{LIST_LABELS[listKey] ?? listKey}</span>
+                  {overrideCount > 0 && (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">{overrideCount} personalizzate</span>
+                  )}
+                </button>
+                <Button variant="outline" size="sm" className="h-7 shrink-0 gap-1.5 text-xs" onClick={() => onResetAll(listKey)}>
+                  <RotateCcw className="h-3 w-3" />Ripristina tutto
+                </Button>
+              </div>
+              {isExpanded && (
+                <div className="border-t border-border p-4">
+                  <ColumnSettingsDetail
+                    listKey={listKey}
+                    settings={settings}
+                    onResetWidth={(columnId) => onResetWidth(listKey, columnId)}
+                    onResetRename={(columnId) => onResetRename(listKey, columnId)}
+                  />
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export function ProfilePageContent() {
   const { data: session } = useSession()
   const queryClient = useQueryClient()
@@ -719,455 +1069,65 @@ export function ProfilePageContent() {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
 
-      {/* ── Profile header card ── */}
-      <div className="rounded-xl border border-border bg-card p-6">
-        <div className="flex items-center gap-5">
-          {isLoading || !session ? (
-            <Skeleton className="h-20 w-20 rounded-full" />
-          ) : (
-            <Avatar name={displayName} className="h-20 w-20 text-2xl" />
-          )}
+      <ProfileHeaderCard
+        isLoading={isLoading}
+        hasSession={Boolean(session)}
+        displayName={displayName}
+        email={email}
+        roleName={roleName}
+        provider={provider}
+        isActive={userDetail?.isActive}
+      />
 
-          <div className="min-w-0 flex-1">
-            {isLoading || !session ? (
-              <div className="space-y-2">
-                <Skeleton className="h-7 w-48" />
-                <Skeleton className="h-4 w-64" />
-                <Skeleton className="h-5 w-24" />
-              </div>
-            ) : (
-              <>
-                <h1 className="text-2xl font-bold tracking-tight">{displayName}</h1>
-                <p className="mt-0.5 text-sm text-muted-foreground">{email}</p>
-                <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  <Badge variant="secondary" className="text-xs">
-                    <Shield className="mr-1 h-3 w-3" />
-                    {roleName}
-                  </Badge>
-                  {provider && (
-                    <Badge variant="outline" className="text-xs">
-                      <KeyRound className="mr-1 h-3 w-3" />
-                      {AUTH_PROVIDER_LABELS[provider as AuthProvider] ?? provider}
-                    </Badge>
-                  )}
-                  {userDetail?.isActive === false && (
-                    <Badge variant="destructive" className="text-xs">
-                      Disattivato
-                    </Badge>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Two-column body ── */}
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-
-        {/* ── Dati profilo ── */}
-        <div className="rounded-xl border border-border bg-card p-6">
-          <SectionTitle>Dati profilo</SectionTitle>
-          <p className="mb-4 text-sm text-muted-foreground">
-            Puoi modificare solo il tuo nome completo.
-          </p>
-
-          {/* Editable name */}
-          <div className="mb-2">
-            <Label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground/60">
-              Nome completo
-            </Label>
-            {editing ? (
-              <div className="flex items-center gap-2">
-                <Input
-                  value={nameValue}
-                  onChange={(e) => setNameValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleSave()
-                    if (e.key === 'Escape') handleCancel()
-                  }}
-                  className="h-9 flex-1"
-                  disabled={isPending}
-                />
-                <Button
-                  size="icon"
-                  className="h-9 w-9 shrink-0"
-                  onClick={handleSave}
-                  disabled={isPending}
-                >
-                  {isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Check className="h-4 w-4" />
-                  )}
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-9 w-9 shrink-0"
-                  onClick={handleCancel}
-                  disabled={isPending}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            ) : (
-              <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2">
-                <span className="text-sm font-medium">{displayName}</span>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-7 w-7 shrink-0"
-                  onClick={() => setEditing(true)}
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            )}
-          </div>
-
-          <Separator className="my-4" />
-
-          {/* Readonly fields */}
-          <div className="divide-y divide-border/60">
-            <InfoRow icon={Mail} label="Email">
-              <span className="text-muted-foreground">{email}</span>
-            </InfoRow>
-            <InfoRow icon={Shield} label="Ruolo">
-              <span className="text-muted-foreground">{roleName}</span>
-            </InfoRow>
-            <InfoRow icon={KeyRound} label="Accesso tramite">
-              {isLoading ? (
-                <Skeleton className="h-4 w-24" />
-              ) : (
-                <span className="text-muted-foreground">
-                  {AUTH_PROVIDER_LABELS[provider as AuthProvider] ?? provider ?? '—'}
-                </span>
-              )}
-            </InfoRow>
-            <InfoRow icon={CalendarDays} label="Membro dal">
-              {isLoading ? (
-                <Skeleton className="h-4 w-32" />
-              ) : (
-                <span className="text-muted-foreground">
-                  {createdAt ? formatDate(createdAt) : '—'}
-                </span>
-              )}
-            </InfoRow>
-            {updatedAt && updatedAt !== createdAt && (
-              <InfoRow icon={CalendarDays} label="Ultimo aggiornamento">
-                <span className="text-muted-foreground">{formatDate(updatedAt)}</span>
-              </InfoRow>
-            )}
-          </div>
-        </div>
-
-        {/* ── Preferenze ── */}
-        <div className="rounded-xl border border-border bg-card p-6">
-          <SectionTitle>Preferenze</SectionTitle>
-          <p className="mb-4 text-sm text-muted-foreground">
-            Impostazioni dell&apos;interfaccia. Usa{' '}
-            <RotateCcw className="inline h-3 w-3 text-muted-foreground" />{' '}
-            per ripristinare il valore di default.
-          </p>
-
-          <div className="divide-y divide-border/60">
-            <PrefRow
-              icon={ThemeIcon}
-              label="Tema"
-              onReset={theme !== 'system' ? handleResetTheme : undefined}
-            >
-              <span>{themeLabel}</span>
-            </PrefRow>
-
-            <PrefRow
-              icon={Rows3}
-              label="Righe per pagina"
-              onReset={pageSize !== 10 ? handleResetPageSize : undefined}
-            >
-              <span>{pageSize} righe</span>
-            </PrefRow>
-
-            <PrefRow
-              icon={PanelLeft}
-              label="Sidebar"
-              onReset={sidebarCollapsed ? handleResetSidebar : undefined}
-            >
-              <span>{sidebarCollapsed ? 'Compressa' : 'Espansa'}</span>
-            </PrefRow>
-
-            <PrefRow
-              icon={SlidersHorizontal}
-              label="Filtri analisi"
-              onReset={!filtersCollapsed ? handleResetFilters : undefined}
-            >
-              <span>{filtersCollapsed ? 'Collassati' : 'Espansi'}</span>
-            </PrefRow>
-
-            {preferences.locale && (
-              <PrefRow icon={Globe} label="Lingua">
-                <span>{preferences.locale}</span>
-              </PrefRow>
-            )}
-          </div>
-
-          <Separator className="my-4" />
-
-          <div className="rounded-lg bg-muted/40 px-4 py-3">
-            <p className="text-xs text-muted-foreground">
-              Le preferenze vengono aggiornate automaticamente mentre usi
-              l&apos;applicazione (tema, sidebar, filtri, righe per pagina).
-            </p>
-          </div>
-        </div>
-      </div>
+      <ProfileDetailsGrid
+        editing={editing}
+        nameValue={nameValue}
+        isPending={isPending}
+        displayName={displayName}
+        email={email}
+        roleName={roleName}
+        provider={provider}
+        createdAt={createdAt}
+        updatedAt={updatedAt}
+        isLoading={isLoading}
+        ThemeIcon={ThemeIcon}
+        theme={theme}
+        themeLabel={themeLabel}
+        pageSize={pageSize}
+        sidebarCollapsed={sidebarCollapsed}
+        filtersCollapsed={filtersCollapsed}
+        locale={preferences.locale}
+        onNameChange={setNameValue}
+        onStartEditing={() => setEditing(true)}
+        onSave={handleSave}
+        onCancel={handleCancel}
+        onResetTheme={handleResetTheme}
+        onResetPageSize={handleResetPageSize}
+        onResetSidebar={handleResetSidebar}
+        onResetFilters={handleResetFilters}
+      />
 
       <CliTokenSection />
 
-      {/* ── Notifiche ── */}
-      <div id="notifiche" className="rounded-xl border border-border bg-card p-6">
-        <SectionTitle>Notifiche</SectionTitle>
-        <p className="mb-5 text-sm text-muted-foreground">
-          Ricevi notifiche browser in tempo reale per eventi importanti,
-          anche quando sei su un&apos;altra pagina.
-        </p>
+      <ProfileNotificationsCard
+        enabled={notifEnabled}
+        permission={notifPermission}
+        supported={notifSupported}
+        priorityLevels={priorityLevels}
+        enabledPriorityCodes={enabledPriorityCodes}
+        onToggleMaster={handleToggleNotifMaster}
+        onTogglePriority={handleTogglePriorityCode}
+        onRequestPermission={requestNotifPermission}
+      />
 
-        {/* ── Master toggle + browser status ── */}
-        <div className={cn(
-          'rounded-lg border p-4 transition-colors',
-          notifEnabled
-            ? 'border-primary/20 bg-primary/[0.03]'
-            : 'border-border bg-muted/20',
-        )}>
-          <div className="flex items-center gap-3">
-            <div className={cn(
-              'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors',
-              notifEnabled ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground',
-            )}>
-              {notifEnabled ? <Bell className="h-4.5 w-4.5" /> : <BellOff className="h-4.5 w-4.5" />}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium">
-                {notifEnabled ? 'Notifiche attive' : 'Notifiche disattivate'}
-              </p>
-              {notifEnabled && (
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Il supervisore monitora gli allarmi ogni 30 secondi
-                </p>
-              )}
-            </div>
-            <button
-              onClick={handleToggleNotifMaster}
-              className={cn(
-                'relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border transition-colors',
-                notifEnabled
-                  ? 'bg-primary border-primary dark:bg-blue-600 dark:border-blue-600'
-                  : 'bg-zinc-300 border-zinc-300 dark:bg-zinc-600 dark:border-zinc-500',
-              )}
-            >
-              <span className={cn(
-                'inline-block h-4 w-4 rounded-full bg-white shadow-lg transition-transform',
-                notifEnabled ? 'translate-x-6' : 'translate-x-1',
-              )} />
-            </button>
-          </div>
-
-          {/* Browser permission status bar */}
-          {notifEnabled && (
-            <div className={cn(
-              'mt-3 flex items-center gap-2 rounded-md px-3 py-2 text-xs',
-              notifPermission === 'granted'
-                ? 'bg-emerald-500/5 text-emerald-700 dark:text-emerald-400'
-                : notifPermission === 'denied'
-                  ? 'bg-amber-500/5 text-amber-700 dark:text-amber-400'
-                  : 'bg-muted text-muted-foreground',
-            )}>
-              <span className={cn(
-                'h-1.5 w-1.5 rounded-full shrink-0',
-                notifPermission === 'granted'
-                  ? 'bg-emerald-500'
-                  : notifPermission === 'denied'
-                    ? 'bg-amber-500'
-                    : 'bg-muted-foreground/50',
-              )} />
-              <span className="flex-1">
-                {notifPermission === 'granted' && 'Permesso browser concesso — le notifiche verranno inviate'}
-                {notifPermission === 'denied' && (
-                  <>
-                    Permesso browser negato — clicca sull&apos;icona lucchetto (o scudo) nella barra indirizzi,
-                    apri &quot;Impostazioni sito&quot; e imposta Notifiche su &quot;Consenti&quot;, poi ricarica la pagina.
-                  </>
-                )}
-                {notifPermission === 'default' && 'Permesso non ancora richiesto — verrà chiesto al primo evento'}
-              </span>
-              {notifPermission === 'granted' && (
-                <button
-                  className="shrink-0 rounded px-2 py-0.5 text-[11px] font-medium hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-                  onClick={() => {
-                    new Notification('Watchtower — Test notifica', {
-                      body: 'Le notifiche browser funzionano correttamente.',
-                      tag: 'watchtower-test',
-                      icon: '/logo1.png',
-                    })
-                  }}
-                >
-                  Invia test
-                </button>
-              )}
-              {notifPermission === 'denied' && (
-                <button
-                  className="shrink-0 rounded px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-400 hover:bg-amber-500/10 transition-colors"
-                  onClick={requestNotifPermission}
-                >
-                  Richiedi permesso
-                </button>
-              )}
-              {notifPermission === 'default' && (
-                <button
-                  className="shrink-0 rounded px-2 py-0.5 text-[11px] font-semibold hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-                  onClick={requestNotifPermission}
-                >
-                  Richiedi permesso
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* ── Priority notification types ── */}
-        {notifEnabled && (
-          <div className="mt-5 space-y-4">
-            <div>
-              <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/50">
-                Allarmi scattati
-              </p>
-              <div className="space-y-1">
-                {[...priorityLevels].filter((level) => level.isActive).sort((a, b) => b.rank - a.rank).map((level) => {
-                  const isOn = enabledPriorityCodes.has(level.code)
-                  return (
-                    <div
-                      key={level.code}
-                      className={cn(
-                        'flex items-center gap-3 rounded-lg border px-3.5 py-2.5 transition-colors cursor-pointer',
-                        isOn
-                          ? 'border-primary/15 bg-primary/[0.02] hover:bg-primary/[0.04]'
-                          : 'border-transparent bg-muted/30 hover:bg-muted/50 opacity-60',
-                      )}
-                      onClick={() => void handleTogglePriorityCode(level.code)}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium">{level.label}</p>
-                        <p className="mt-0.5 text-xs text-muted-foreground">
-                          Codice {level.code}
-                          {level.countsAsOnCall ? ' · conta come on-call' : ''}
-                          {level.defaultNotify ? ' · attiva di default' : ''}
-                        </p>
-                      </div>
-                      <button
-                        className={cn(
-                          'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-colors',
-                          isOn
-                            ? 'bg-primary border-primary dark:bg-blue-600 dark:border-blue-600'
-                            : 'bg-zinc-300 border-zinc-300 dark:bg-zinc-600 dark:border-zinc-500',
-                        )}
-                        tabIndex={-1}
-                      >
-                        <span className={cn(
-                          'inline-block h-3.5 w-3.5 rounded-full bg-white shadow-lg transition-transform',
-                          isOn ? 'translate-x-[18px]' : 'translate-x-0.5',
-                        )} />
-                      </button>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {!notifSupported && (
-          <>
-            <Separator className="my-4" />
-            <div className="rounded-lg bg-muted/40 px-4 py-3">
-              <p className="text-xs text-muted-foreground">
-                Il browser in uso non supporta le notifiche.
-              </p>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* ── Impostazioni colonne ── */}
-      {columnSettingsEntries.length > 0 && (
-        <div className="rounded-xl border border-border bg-card p-6">
-          <div className="mb-4 flex items-start justify-between gap-4">
-            <div>
-              <SectionTitle>Impostazioni colonne</SectionTitle>
-              <p className="text-sm text-muted-foreground">
-                Personalizzazioni di visibilità, ordine, larghezze e rinominazioni per le liste.
-                Le celle in <span className="font-medium text-amber-700 dark:text-amber-400">ambra</span> indicano valori modificati rispetto al default.
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            {columnSettingsEntries.map(([listKey, settings]) => {
-              const isExpanded = expandedLists.has(listKey)
-              const definitions = COLUMN_REGISTRY[listKey]
-              const overrideCount = definitions
-                ? buildColumnStates(settings, definitions).filter((c) => c.hasAnyOverride).length
-                : 0
-
-              return (
-                <div key={listKey} className="rounded-lg border border-border overflow-hidden">
-                  {/* List header */}
-                  <div className="flex items-center justify-between gap-3 px-4 py-3 bg-muted/20">
-                    <button
-                      className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
-                      onClick={() => toggleExpand(listKey)}
-                    >
-                      {isExpanded
-                        ? <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        : <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      }
-                      <span className="text-sm font-semibold">
-                        {LIST_LABELS[listKey] ?? listKey}
-                      </span>
-                      {overrideCount > 0 && (
-                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
-                          {overrideCount} personalizzate
-                        </span>
-                      )}
-                    </button>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 shrink-0 gap-1.5 text-xs"
-                      onClick={() => handleResetAllColumns(listKey)}
-                    >
-                      <RotateCcw className="h-3 w-3" />
-                      Ripristina tutto
-                    </Button>
-                  </div>
-
-                  {/* Detail table (expandable) */}
-                  {isExpanded && (
-                    <div className="border-t border-border p-4">
-                      <ColumnSettingsDetail
-                        listKey={listKey}
-                        settings={settings}
-                        onResetWidth={(columnId) => handleResetColumnWidth(listKey, columnId)}
-                        onResetRename={(columnId) => handleResetColumnRename(listKey, columnId)}
-                      />
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
+      <ProfileColumnSettingsCard
+        entries={columnSettingsEntries}
+        expandedLists={expandedLists}
+        onToggle={toggleExpand}
+        onResetAll={handleResetAllColumns}
+        onResetWidth={handleResetColumnWidth}
+        onResetRename={handleResetColumnRename}
+      />
     </div>
   )
 }

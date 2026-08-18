@@ -134,7 +134,7 @@ export function AlarmEventsPageWrapper() {
   )
 }
 
-function AlarmEventsPageContent() {
+function useAlarmEventsPage() {
   const queryClient = useQueryClient()
   const { can, isLoading: permissionsLoading } = usePermissions()
   const { preferences, updatePreferences } = usePreferences()
@@ -685,17 +685,49 @@ function AlarmEventsPageContent() {
     },
   })
 
-  // --- Main Render ---
+  return {
+    queryClient, filters, handleFilterChange, handleResetFilters, productEnvironments,
+    priorityLevels, filtersCollapsed, handleToggleFiltersCollapsed, viewMode, pagination,
+    refetchEvents, eventsFetching, eventsUpdatedAt, notificationPrefs, handleNotificationUpdate,
+    handleSetViewMode, allColumns, isVisible, toggleColumn, moveColumn, renameColumn,
+    resetColumns, canWrite, setEditItem, setFormOpen, newAlarmSignal, selectedDate,
+    setSelectedDate, workingHours, onCallHours, visibleColumns, getWidth, setWidth,
+    totalTableMinWidth, permissions, placement, handleRowClick, handleEdit, handleDelete,
+    handleAlarmClick, handleCreateAnalysisFromEvent, handleCreateIgnorableAnalysisFromEvent,
+    handleAssociateAnalysis, handleUnlinkAnalysis, selectionProps, eventsLoading, eventsError,
+    events, sortBy, sortOrder, handleSort, hasRowActions, isBucketAllSelected,
+    isBucketIndeterminate, toggleBucket, selectedIds, toggleOne, pageSize, setPage,
+    clearSelection, setPageSize, alarmDialogOpen, setAlarmDialogOpen, alarmDialogData,
+    resolvedSelectedEvent, showDetailPanel, handleCloseDetailPanel, canDelete, formOpen,
+    editItem, handleFormSubmit, isSubmitting, deleteItem, setDeleteItem, deleteMutation,
+    analysisFormOpen, setAnalysisFormOpen, setAnalysisSourceEventId, setAnalysisInitialValues,
+    createAnalysisMutation, users, products, analysisProductId, setAnalysisProductId,
+    analysisInitialValues, associateDialogOpen, setAssociateDialogOpen, associateEvent,
+    unlinkEvent, setUnlinkEvent, bulkIgnoreOpen, setBulkIgnoreOpen, selectedEvents,
+    bulkAssociateOpen, setBulkAssociateOpen, bulkUnlinkOpen, setBulkUnlinkOpen,
+    selectedCount, selectionLinkState,
+    canBulkAssociate, canWriteAnalysis,
+  }
+}
+
+type AlarmEventsPageState = ReturnType<typeof useAlarmEventsPage>
+
+function AlarmEventsPageHeader({ state }: { state: AlarmEventsPageState }) {
+  const {
+    queryClient, filters, handleFilterChange, handleResetFilters, productEnvironments,
+    priorityLevels, filtersCollapsed, handleToggleFiltersCollapsed, viewMode, pagination,
+    refetchEvents, eventsFetching, eventsUpdatedAt, notificationPrefs, handleNotificationUpdate,
+    handleSetViewMode, allColumns, isVisible, toggleColumn, moveColumn, renameColumn,
+    resetColumns, canWrite, setEditItem, setFormOpen, newAlarmSignal,
+  } = state
 
   return (
-    <div className="space-y-5">
-      {/* Page Header */}
+    <>
       <div className="flex items-baseline gap-3 pb-1">
         <h1 className="text-xl font-semibold tracking-tight">Allarmi Scattati</h1>
         <span className="text-xs text-muted-foreground">tutti i prodotti</span>
       </div>
 
-      {/* Filters */}
       <AlarmEventFilters
         filters={filters}
         onFilterChange={handleFilterChange}
@@ -706,9 +738,7 @@ function AlarmEventsPageContent() {
         onToggleCollapsed={handleToggleFiltersCollapsed}
       />
 
-      {/* Results Bar */}
       <div className="flex items-center justify-between rounded-lg border bg-card px-4 py-2.5">
-        {/* Left: status block */}
         <div className="flex items-center gap-4">
           {viewMode === 'list' && pagination && (
             <div className="flex items-baseline gap-1.5">
@@ -734,7 +764,6 @@ function AlarmEventsPageContent() {
           </button>
         </div>
 
-        {/* Right: controls */}
         <div className="flex items-center gap-2">
           <NotificationCategoryToggle
             category="ALARM_EVENTS"
@@ -784,10 +813,134 @@ function AlarmEventsPageContent() {
         </div>
       </div>
 
-      {/* New alarms banner — shown when supervisor detects important alarms */}
       {newAlarmSignal && newAlarmSignal.count > 0 && (
         <NewAlarmsBanner signal={newAlarmSignal} onRefresh={() => refetchEvents()} />
       )}
+    </>
+  )
+}
+
+function AlarmEventsDialogs({ state }: { state: AlarmEventsPageState }) {
+  const {
+    alarmDialogOpen, setAlarmDialogOpen, alarmDialogData, resolvedSelectedEvent,
+    showDetailPanel, handleCloseDetailPanel, handleEdit, handleDelete, canWrite, canDelete,
+    handleAlarmClick, formOpen, editItem, setFormOpen, setEditItem, handleFormSubmit,
+    isSubmitting, deleteItem, setDeleteItem, deleteMutation, analysisFormOpen,
+    setAnalysisFormOpen, setAnalysisSourceEventId, setAnalysisInitialValues,
+    createAnalysisMutation, users, products, analysisProductId, setAnalysisProductId,
+    analysisInitialValues, associateDialogOpen, setAssociateDialogOpen, associateEvent,
+    queryClient, unlinkEvent, setUnlinkEvent, bulkIgnoreOpen, setBulkIgnoreOpen,
+    selectedEvents, clearSelection, bulkAssociateOpen, setBulkAssociateOpen,
+    bulkUnlinkOpen, setBulkUnlinkOpen, selectedCount, selectionLinkState,
+    canBulkAssociate, canWriteAnalysis,
+  } = state
+
+  return (
+    <>
+      <AlarmDetailDialog
+        open={alarmDialogOpen}
+        onClose={() => setAlarmDialogOpen(false)}
+        alarm={alarmDialogData}
+      />
+      <AlarmEventDetailPanel
+        event={resolvedSelectedEvent}
+        open={showDetailPanel}
+        onClose={handleCloseDetailPanel}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        canWrite={canWrite}
+        canDelete={canDelete}
+        onAlarmClick={handleAlarmClick}
+      />
+      <AlarmEventFormDialog
+        open={formOpen}
+        editEvent={editItem}
+        onClose={() => { setFormOpen(false); setEditItem(null) }}
+        onSubmit={handleFormSubmit}
+        isSubmitting={isSubmitting}
+      />
+      <DeleteConfirmDialog
+        open={!!deleteItem}
+        onOpenChange={() => setDeleteItem(null)}
+        description={`Sei sicuro di voler eliminare l'allarme "${deleteItem?.name}"? Questa azione non può essere annullata.`}
+        onConfirm={() => deleteItem && deleteMutation.mutate(deleteItem.id)}
+        isPending={deleteMutation.isPending}
+      />
+      <AnalysisFormDialog
+        open={analysisFormOpen}
+        onOpenChange={(open) => {
+          setAnalysisFormOpen(open)
+          if (!open) {
+            setAnalysisSourceEventId(null)
+            setAnalysisInitialValues(undefined)
+          }
+        }}
+        editItem={null}
+        onSubmit={(data) => createAnalysisMutation.mutate(data)}
+        isPending={createAnalysisMutation.isPending}
+        users={users}
+        products={products}
+        selectedProductId={analysisProductId}
+        onProductChange={setAnalysisProductId}
+        initialValues={analysisInitialValues}
+      />
+      <AssociateAnalysisDialog
+        open={associateDialogOpen}
+        onOpenChange={setAssociateDialogOpen}
+        event={associateEvent}
+        onAssociated={() => invalidate(queryClient, 'alarmEvents')}
+      />
+      <UnlinkAlarmEventFromRow unlinkEvent={unlinkEvent} onClose={() => setUnlinkEvent(null)} />
+      <BulkIgnoreDialog
+        open={bulkIgnoreOpen}
+        onOpenChange={setBulkIgnoreOpen}
+        selectedEvents={selectedEvents}
+        onCompleted={clearSelection}
+      />
+      <BulkAssociateAnalysisDialog
+        open={bulkAssociateOpen}
+        onOpenChange={setBulkAssociateOpen}
+        selectedEvents={selectedEvents}
+        onCompleted={clearSelection}
+      />
+      <BulkUnlinkDialog
+        open={bulkUnlinkOpen}
+        onOpenChange={setBulkUnlinkOpen}
+        selectedEvents={selectedEvents}
+        onCompleted={clearSelection}
+      />
+      <SelectionToolbar
+        selectedCount={selectedCount}
+        selectionLinkState={selectionLinkState}
+        onBulkIgnore={() => setBulkIgnoreOpen(true)}
+        onBulkAssociate={() => setBulkAssociateOpen(true)}
+        onBulkUnlink={() => setBulkUnlinkOpen(true)}
+        canBulkAssociate={canBulkAssociate}
+        onClearSelection={clearSelection}
+        canWriteAnalysis={canWriteAnalysis}
+      />
+    </>
+  )
+}
+
+function AlarmEventsPageContent() {
+  const state = useAlarmEventsPage()
+  const {
+    filters, viewMode, pagination, canWrite, setEditItem, setFormOpen, selectedDate,
+    setSelectedDate, workingHours, onCallHours, visibleColumns, getWidth, setWidth,
+    totalTableMinWidth, permissions, placement, handleRowClick, handleEdit, handleDelete,
+    handleAlarmClick, handleCreateAnalysisFromEvent, handleCreateIgnorableAnalysisFromEvent,
+    handleAssociateAnalysis, handleUnlinkAnalysis, selectionProps, eventsLoading, eventsError,
+    events, sortBy, sortOrder, handleSort, hasRowActions, isBucketAllSelected,
+    isBucketIndeterminate, toggleBucket, selectedIds, toggleOne, pageSize, setPage,
+    clearSelection, setPageSize,
+  } = state
+
+  // --- Main Render ---
+
+  return (
+    <div className="space-y-5">
+      <AlarmEventsPageHeader state={state} />
 
       {/* Daily view */}
       {viewMode === 'daily' && (
@@ -967,114 +1120,7 @@ function AlarmEventsPageContent() {
         />
       )}
 
-      {/* Alarm detail dialog */}
-      <AlarmDetailDialog
-        open={alarmDialogOpen}
-        onClose={() => setAlarmDialogOpen(false)}
-        alarm={alarmDialogData}
-      />
-
-      {/* Detail Side Panel */}
-      <AlarmEventDetailPanel
-        event={resolvedSelectedEvent}
-        open={showDetailPanel}
-        onClose={handleCloseDetailPanel}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-        canWrite={canWrite}
-        canDelete={canDelete}
-        onAlarmClick={handleAlarmClick}
-      />
-
-      {/* Create/Edit Form Dialog */}
-      <AlarmEventFormDialog
-        open={formOpen}
-        editEvent={editItem}
-        onClose={() => { setFormOpen(false); setEditItem(null) }}
-        onSubmit={handleFormSubmit}
-        isSubmitting={isSubmitting}
-      />
-
-      {/* Delete Confirmation Dialog */}
-      <DeleteConfirmDialog
-        open={!!deleteItem}
-        onOpenChange={() => setDeleteItem(null)}
-        description={`Sei sicuro di voler eliminare l'allarme "${deleteItem?.name}"? Questa azione non può essere annullata.`}
-        onConfirm={() => deleteItem && deleteMutation.mutate(deleteItem.id)}
-        isPending={deleteMutation.isPending}
-      />
-
-      {/* Create Analysis from Alarm Event */}
-      <AnalysisFormDialog
-        open={analysisFormOpen}
-        onOpenChange={(open) => {
-          setAnalysisFormOpen(open)
-          if (!open) {
-            setAnalysisSourceEventId(null)
-            setAnalysisInitialValues(undefined)
-          }
-        }}
-        editItem={null}
-        onSubmit={(data) => createAnalysisMutation.mutate(data)}
-        isPending={createAnalysisMutation.isPending}
-        users={users}
-        products={products}
-        selectedProductId={analysisProductId}
-        onProductChange={setAnalysisProductId}
-        initialValues={analysisInitialValues}
-      />
-
-      {/* Associate Alarm Event to Existing Analysis */}
-      <AssociateAnalysisDialog
-        open={associateDialogOpen}
-        onOpenChange={setAssociateDialogOpen}
-        event={associateEvent}
-        onAssociated={() => {
-          invalidate(queryClient, 'alarmEvents')
-        }}
-      />
-
-      {/* Unlink Alarm Event from Analysis */}
-      <UnlinkAlarmEventFromRow
-        unlinkEvent={unlinkEvent}
-        onClose={() => setUnlinkEvent(null)}
-      />
-
-      {/* Bulk Ignore Dialog */}
-      <BulkIgnoreDialog
-        open={bulkIgnoreOpen}
-        onOpenChange={setBulkIgnoreOpen}
-        selectedEvents={selectedEvents}
-        onCompleted={clearSelection}
-      />
-
-      {/* Bulk Associate to Existing Analysis */}
-      <BulkAssociateAnalysisDialog
-        open={bulkAssociateOpen}
-        onOpenChange={setBulkAssociateOpen}
-        selectedEvents={selectedEvents}
-        onCompleted={clearSelection}
-      />
-
-      {/* Bulk Unlink from Analysis */}
-      <BulkUnlinkDialog
-        open={bulkUnlinkOpen}
-        onOpenChange={setBulkUnlinkOpen}
-        selectedEvents={selectedEvents}
-        onCompleted={clearSelection}
-      />
-
-      {/* Floating selection toolbar */}
-      <SelectionToolbar
-        selectedCount={selectedCount}
-        selectionLinkState={selectionLinkState}
-        onBulkIgnore={() => setBulkIgnoreOpen(true)}
-        onBulkAssociate={() => setBulkAssociateOpen(true)}
-        onBulkUnlink={() => setBulkUnlinkOpen(true)}
-        canBulkAssociate={canBulkAssociate}
-        onClearSelection={clearSelection}
-        canWriteAnalysis={canWriteAnalysis}
-      />
+      <AlarmEventsDialogs state={state} />
     </div>
   )
 }

@@ -114,7 +114,7 @@ interface YearlySummaryTabProps {
   products?: Product[]
 }
 
-export function YearlySummaryTab({ products }: YearlySummaryTabProps) {
+function useYearlySummary() {
   const now = new Date()
   const [year, setYear] = useState(() => now.getFullYear())
   const [selectedProductId, setSelectedProductId] = useState('')
@@ -219,6 +219,22 @@ export function YearlySummaryTab({ products }: YearlySummaryTabProps) {
   }, [data, year])
 
   const isRefetching = isFetching && !isLoading
+
+  return {
+    now, year, setYear, selectedProductId, setSelectedProductId, data, isLoading,
+    totals, prodAnalyzable, totalAnalyzable, totalCoverage, totalCoverageAll,
+    prodIgnorablePercent, totalIgnorablePercentAll, handleExportCsv, handleExportJson,
+    isRefetching,
+  }
+}
+
+export function YearlySummaryTab({ products }: YearlySummaryTabProps) {
+  const {
+    now, year, setYear, selectedProductId, setSelectedProductId, data, isLoading,
+    totals, prodAnalyzable, totalAnalyzable, totalCoverage, totalCoverageAll,
+    prodIgnorablePercent, totalIgnorablePercentAll, handleExportCsv, handleExportJson,
+    isRefetching,
+  } = useYearlySummary()
 
   // ── Render ──────────────────────────────────────────────────────────────────
 

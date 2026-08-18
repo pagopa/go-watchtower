@@ -57,7 +57,7 @@ interface RunbooksTabProps {
   productId: string
 }
 
-export function RunbooksTab({ productId }: RunbooksTabProps) {
+function useRunbooksTab(productId: string) {
   const queryClient = useQueryClient()
   const { can, isLoading: permissionsLoading } = usePermissions()
   const [showCreateDialog, setShowCreateDialog] = useState(false)
@@ -164,6 +164,22 @@ export function RunbooksTab({ productId }: RunbooksTabProps) {
       createMutation.mutate(data)
     }
   }
+
+  return {
+    runbooks, isLoading, error, refetch, sortedRunbooks, sortConfig, requestSort,
+    register, handleSubmit, reset, setValue, watch, errors, isDirty, handleEdit,
+    canWrite, canDelete, setShowCreateDialog, setDeleteItem, isDialogOpen, isMutating,
+    handleDialogClose, onSubmit, editItem, deleteItem, deleteMutation,
+  }
+}
+
+export function RunbooksTab({ productId }: RunbooksTabProps) {
+  const {
+    runbooks, isLoading, error, refetch, sortedRunbooks, sortConfig, requestSort,
+    register, handleSubmit, reset, setValue, watch, errors, isDirty, handleEdit,
+    canWrite, canDelete, setShowCreateDialog, setDeleteItem, isDialogOpen, isMutating,
+    handleDialogClose, onSubmit, editItem, deleteItem, deleteMutation,
+  } = useRunbooksTab(productId)
 
   if (isLoading && !runbooks) {
     return (

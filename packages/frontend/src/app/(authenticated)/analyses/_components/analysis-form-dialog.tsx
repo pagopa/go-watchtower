@@ -157,17 +157,12 @@ interface AnalysisFormDialogProps {
   initialValues?: Partial<AnalysisFormData>
 }
 
-export function AnalysisFormDialog({
+function useAnalysisFormDialogState({
   open,
-  onOpenChange,
   editItem,
   onSubmit,
-  isPending,
   users,
-  products,
-  showProductSelector,
   selectedProductId,
-  onProductChange,
   futureOffsetMinutes,
   initialValues,
 }: AnalysisFormDialogProps) {
@@ -441,6 +436,158 @@ export function AnalysisFormDialog({
     })
   }
 
+  return {
+    isDirty, handleSubmit, handleFormSubmit, fvControl, fvRegister, errors, dateValidation,
+    availableUsers, isOperatorLocked, alarms, environments, setValue, handleFirstAlarmChange,
+    ignoredAlarmMatch, control, watchedAnalysisType, ignoreReasons, selectedIgnoreReason,
+    register, trackingFields, appendTracking, removeTracking, resources, downstreams,
+    linkFields, appendLink, removeLink, watchedLinkUrls, runbooks, finalActions, hasDateErrors,
+  }
+}
+
+type AnalysisFormDialogState = ReturnType<typeof useAnalysisFormDialogState>
+
+function AnalysisDetailsFormSection({
+  state,
+  isPending,
+}: {
+  state: AnalysisFormDialogState
+  isPending: boolean
+}) {
+  const {
+    control, fvControl, fvRegister, errors, watchedAnalysisType, ignoreReasons,
+    selectedIgnoreReason, register, trackingFields, appendTracking, removeTracking,
+    resources, downstreams, linkFields, appendLink, removeLink, watchedLinkUrls,
+  } = state
+
+  return (
+    <FormSection label="Dettagli Analisi" color="blue" icon={FileSearch}>
+      <div className="grid gap-4 p-5 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label>Stato</Label>
+          <Controller
+            name="status"
+            control={control}
+            render={({ field }) => (
+              <Select value={field.value || 'CREATED'} onValueChange={field.onChange} disabled={isPending}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(ANALYSIS_STATUS_LABELS) as AnalysisStatus[]).map((status) => (
+                    <SelectItem key={status} value={status}>{ANALYSIS_STATUS_LABELS[status]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Tipo analisi</Label>
+          <Controller
+            name="analysisType"
+            control={control}
+            render={({ field }) => (
+              <Select value={field.value || 'ANALYZABLE'} onValueChange={field.onChange} disabled={isPending}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(ANALYSIS_TYPE_LABELS) as AnalysisType[]).map((type) => (
+                    <SelectItem key={type} value={type}>{ANALYSIS_TYPE_LABELS[type]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+        </div>
+
+        {watchedAnalysisType === 'IGNORABLE' && (
+          <>
+            <IgnoreReasonField
+              control={fvControl}
+              disabled={isPending}
+              options={ignoreReasons?.map((reason) => ({ value: reason.code, label: reason.label })) ?? []}
+              errors={errors}
+            />
+            {selectedIgnoreReason?.detailsSchema && (
+              <div className="sm:col-span-2">
+                <DynamicIgnoreDetailsForm control={fvControl} schema={selectedIgnoreReason.detailsSchema} disabled={isPending} errors={errors} />
+              </div>
+            )}
+          </>
+        )}
+
+        <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor="form-error-details">Dettagli errore</Label>
+          <Textarea id="form-error-details" placeholder="Descrizione dell'errore..." rows={3} {...register('errorDetails')} disabled={isPending} />
+        </div>
+        <TrackingIdsField
+          fields={trackingFields}
+          append={appendTracking as (value: FieldValues) => void}
+          remove={removeTracking}
+          register={fvRegister}
+          errors={errors}
+          disabled={isPending}
+        />
+        <div className="space-y-2 sm:col-span-2">
+          <Label>Risorse</Label>
+          <Controller
+            name="resourceIds"
+            control={control}
+            render={({ field }) => (
+              <MultiSelectCombobox
+                options={resources?.map((resource) => ({ value: resource.id, label: `${resource.name} (${resource.type.name})` })) ?? []}
+                value={field.value || []}
+                onValueChange={field.onChange}
+                placeholder="Nessuna risorsa disponibile"
+                searchPlaceholder="Cerca risorsa..."
+                emptyMessage="Nessuna risorsa trovata."
+                disabled={isPending}
+              />
+            )}
+          />
+        </div>
+        <div className="space-y-2 sm:col-span-2">
+          <Label>Downstream</Label>
+          <Controller
+            name="downstreamIds"
+            control={control}
+            render={({ field }) => (
+              <MultiSelectCombobox
+                options={downstreams?.map((downstream) => ({ value: downstream.id, label: downstream.name })) ?? []}
+                value={field.value || []}
+                onValueChange={field.onChange}
+                placeholder="Nessun downstream disponibile"
+                searchPlaceholder="Cerca downstream..."
+                emptyMessage="Nessun downstream trovato."
+                disabled={isPending}
+              />
+            )}
+          />
+        </div>
+        <LinksField
+          fields={linkFields}
+          append={appendLink as (value: FieldValues) => void}
+          remove={removeLink}
+          register={fvRegister}
+          errors={errors}
+          linkUrlValues={watchedLinkUrls}
+          disabled={isPending}
+        />
+      </div>
+    </FormSection>
+  )
+}
+
+export function AnalysisFormDialog(props: AnalysisFormDialogProps) {
+  const {
+    open, onOpenChange, editItem, isPending, products, showProductSelector,
+    selectedProductId, onProductChange,
+  } = props
+  const state = useAnalysisFormDialogState(props)
+  const {
+    isDirty, handleSubmit, handleFormSubmit, fvControl, errors, dateValidation,
+    availableUsers, isOperatorLocked, alarms, environments, setValue, handleFirstAlarmChange,
+    ignoredAlarmMatch, control, register, runbooks, finalActions, hasDateErrors,
+  } = state
+
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!isDirty || v) onOpenChange(v) }}>
       <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto" isDirty={isDirty} onDirtyClose={() => onOpenChange(false)}>
@@ -530,159 +677,7 @@ export function AnalysisFormDialog({
             <IgnoredAlarmWarningBanner ignoredAlarm={ignoredAlarmMatch} />
           )}
 
-          {/* ── Sezione 2: Dettagli Analisi ── */}
-          <FormSection label="Dettagli Analisi" color="blue" icon={FileSearch}>
-            <div className="grid gap-4 p-5 sm:grid-cols-2">
-
-              {/* Row 1: Stato + Tipo analisi */}
-              <div className="space-y-2">
-                <Label>Stato</Label>
-                <Controller
-                  name="status"
-                  control={control}
-                  render={({ field }) => (
-                    <Select
-                      value={field.value || 'CREATED'}
-                      onValueChange={field.onChange}
-                      disabled={isPending}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(Object.keys(ANALYSIS_STATUS_LABELS) as AnalysisStatus[]).map((status) => (
-                          <SelectItem key={status} value={status}>
-                            {ANALYSIS_STATUS_LABELS[status]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Tipo analisi</Label>
-                <Controller
-                  name="analysisType"
-                  control={control}
-                  render={({ field }) => (
-                    <Select
-                      value={field.value || 'ANALYZABLE'}
-                      onValueChange={field.onChange}
-                      disabled={isPending}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(Object.keys(ANALYSIS_TYPE_LABELS) as AnalysisType[]).map((type) => (
-                          <SelectItem key={type} value={type}>
-                            {ANALYSIS_TYPE_LABELS[type]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </div>
-
-              {/* Conditional: Motivo ignora + dettagli dinamici (only for IGNORABLE) */}
-              {watchedAnalysisType === 'IGNORABLE' && (
-                <>
-                  <IgnoreReasonField
-                    control={fvControl}
-                    disabled={isPending}
-                    options={ignoreReasons?.map((r) => ({ value: r.code, label: r.label })) ?? []}
-                    errors={errors}
-                  />
-                  {selectedIgnoreReason?.detailsSchema && (
-                    <div className="sm:col-span-2">
-                      <DynamicIgnoreDetailsForm
-                        control={fvControl}
-                        schema={selectedIgnoreReason.detailsSchema}
-                        disabled={isPending}
-                        errors={errors}
-                      />
-                    </div>
-                  )}
-                </>
-              )}
-
-              {/* Dettagli errore (full width) */}
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="form-error-details">Dettagli errore</Label>
-                <Textarea
-                  id="form-error-details"
-                  placeholder="Descrizione dell'errore..."
-                  rows={3}
-                  {...register('errorDetails')}
-                  disabled={isPending}
-                />
-              </div>
-
-              {/* ID di Tracciamento (full width) */}
-              <TrackingIdsField
-                fields={trackingFields}
-                append={appendTracking as (value: FieldValues) => void}
-                remove={removeTracking}
-                register={fvRegister}
-                errors={errors}
-                disabled={isPending}
-              />
-
-              {/* Risorse (full width) */}
-              <div className="space-y-2 sm:col-span-2">
-                <Label>Risorse</Label>
-                <Controller
-                  name="resourceIds"
-                  control={control}
-                  render={({ field }) => (
-                    <MultiSelectCombobox
-                      options={resources?.map((ms) => ({ value: ms.id, label: `${ms.name} (${ms.type.name})` })) ?? []}
-                      value={field.value || []}
-                      onValueChange={field.onChange}
-                      placeholder="Nessuna risorsa disponibile"
-                      searchPlaceholder="Cerca risorsa..."
-                      emptyMessage="Nessuna risorsa trovata."
-                      disabled={isPending}
-                    />
-                  )}
-                />
-              </div>
-
-              {/* Downstream (full width) */}
-              <div className="space-y-2 sm:col-span-2">
-                <Label>Downstream</Label>
-                <Controller
-                  name="downstreamIds"
-                  control={control}
-                  render={({ field }) => (
-                    <MultiSelectCombobox
-                      options={downstreams?.map((ds) => ({ value: ds.id, label: ds.name })) ?? []}
-                      value={field.value || []}
-                      onValueChange={field.onChange}
-                      placeholder="Nessun downstream disponibile"
-                      searchPlaceholder="Cerca downstream..."
-                      emptyMessage="Nessun downstream trovato."
-                      disabled={isPending}
-                    />
-                  )}
-                />
-              </div>
-
-              {/* Link (full width) */}
-              <LinksField
-                fields={linkFields}
-                append={appendLink as (value: FieldValues) => void}
-                remove={removeLink}
-                register={fvRegister}
-                errors={errors}
-                linkUrlValues={watchedLinkUrls}
-                disabled={isPending}
-              />
-            </div>
-          </FormSection>
+          <AnalysisDetailsFormSection state={state} isPending={isPending} />
 
           {/* ── Sezione 3: Conclusioni e azioni finali ── */}
           <FormSection label="Conclusioni e azioni finali" color="emerald" icon={CheckSquare}>

@@ -32,6 +32,76 @@ const GoogleIcon = () => (
   </svg>
 )
 
+function LoginAnimations() {
+  return (
+    <style>{`
+      @keyframes logo-float {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-10px); }
+      }
+      @keyframes glow-breathe {
+        0%, 100% { opacity: 0.5; transform: scale(1); }
+        50% { opacity: 0.9; transform: scale(1.12); }
+      }
+      @keyframes fade-up {
+        from { opacity: 0; transform: translateY(14px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      .logo-float  { animation: logo-float 6s ease-in-out infinite; }
+      .glow-breathe { animation: glow-breathe 5s ease-in-out infinite; }
+      .fade-up-1 { animation: fade-up 0.45s ease both 0.05s; }
+      .fade-up-2 { animation: fade-up 0.45s ease both 0.15s; }
+      .fade-up-3 { animation: fade-up 0.45s ease both 0.25s; }
+      .fade-up-4 { animation: fade-up 0.45s ease both 0.35s; }
+    `}</style>
+  )
+}
+
+function LoginBrandPanel() {
+  return (
+    <div
+      className="relative hidden flex-col items-center justify-center overflow-hidden lg:flex lg:w-[42%]"
+      style={{ background: 'linear-gradient(135deg, #070b17 0%, #0c1428 50%, #070b17 100%)' }}
+    >
+      <div
+        className="absolute inset-0 opacity-[0.035]"
+        style={{
+          backgroundImage: 'radial-gradient(circle, #94a3b8 1px, transparent 1px)',
+          backgroundSize: '28px 28px',
+        }}
+      />
+      <div
+        className="glow-breathe pointer-events-none absolute left-1/2 top-1/2 h-[380px] w-[380px] -translate-x-1/2 -translate-y-1/2 rounded-full"
+        style={{ background: 'radial-gradient(circle, rgba(59,130,246,0.11) 0%, transparent 70%)' }}
+      />
+      <div
+        className="pointer-events-none absolute left-1/2 top-1/2 h-[200px] w-[200px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-35 blur-2xl"
+        style={{ background: 'radial-gradient(circle, rgba(99,170,255,0.28) 0%, transparent 70%)' }}
+      />
+      <div className="absolute inset-x-0 top-0 h-px" style={{ background: 'linear-gradient(to right, transparent, rgba(99,170,255,0.22), transparent)' }} />
+      <div className="absolute inset-x-0 bottom-0 h-px" style={{ background: 'linear-gradient(to right, transparent, rgba(99,170,255,0.14), transparent)' }} />
+      <div className="absolute inset-y-0 right-0 w-px" style={{ background: 'linear-gradient(to bottom, transparent, rgba(99,170,255,0.2) 30%, rgba(99,170,255,0.28) 50%, rgba(99,170,255,0.2) 70%, transparent)' }} />
+      <div className="relative z-10 flex flex-col items-center gap-8 px-16 text-center">
+        <div className="logo-float drop-shadow-2xl">
+          <Image src="/logo1.png" alt="Watchtower" width={148} height={148} priority />
+        </div>
+        <div className="flex flex-col items-center gap-2.5">
+          <p className="font-mono text-[10px] uppercase tracking-[0.35em]" style={{ color: 'rgba(99,170,255,0.5)' }}>PagoPa · GO Team</p>
+          <h1 className="font-display text-4xl font-bold uppercase leading-none tracking-[0.06em] text-white">Watchtower</h1>
+          <p className="mt-2 text-sm font-medium tracking-wide" style={{ color: 'rgba(203,213,225,0.8)' }}>Monitora. Analizza. Risolvi.</p>
+          <p className="mt-1 max-w-[240px] text-center text-xs leading-relaxed" style={{ color: 'rgba(148,163,184,0.5)' }}>
+            Veglia sull&apos;infrastruttura digitale di PagoPa 24 ore su 24.
+            Un punto unico di osservazione per allarmi, incidenti e azioni.
+          </p>
+        </div>
+      </div>
+      <div className="absolute bottom-7 left-0 right-0 flex justify-center">
+        <p className="font-mono text-[11px] tracking-[0.2em]" style={{ color: 'rgba(100,116,139,0.45)' }}>solo account @pagopa.it</p>
+      </div>
+    </div>
+  )
+}
+
 export function LoginForm() {
   return (
     <Suspense fallback={null}>
@@ -101,106 +171,10 @@ function LoginFormContent() {
 
   return (
     <>
-      <style>{`
-        @keyframes logo-float {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-10px); }
-        }
-        @keyframes glow-breathe {
-          0%, 100% { opacity: 0.5; transform: scale(1); }
-          50% { opacity: 0.9; transform: scale(1.12); }
-        }
-        @keyframes fade-up {
-          from { opacity: 0; transform: translateY(14px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        .logo-float  { animation: logo-float 6s ease-in-out infinite; }
-        .glow-breathe { animation: glow-breathe 5s ease-in-out infinite; }
-        .fade-up-1 { animation: fade-up 0.45s ease both 0.05s; }
-        .fade-up-2 { animation: fade-up 0.45s ease both 0.15s; }
-        .fade-up-3 { animation: fade-up 0.45s ease both 0.25s; }
-        .fade-up-4 { animation: fade-up 0.45s ease both 0.35s; }
-      `}</style>
+      <LoginAnimations />
 
       <div className="flex min-h-screen">
-
-        {/* ── LEFT: Brand panel ── */}
-        <div
-          className="hidden lg:flex lg:w-[42%] relative flex-col items-center justify-center overflow-hidden"
-          style={{ background: 'linear-gradient(135deg, #070b17 0%, #0c1428 50%, #070b17 100%)' }}
-        >
-          {/* Dot grid */}
-          <div
-            className="absolute inset-0 opacity-[0.035]"
-            style={{
-              backgroundImage: 'radial-gradient(circle, #94a3b8 1px, transparent 1px)',
-              backgroundSize: '28px 28px',
-            }}
-          />
-
-          {/* Ambient glow */}
-          <div
-            className="glow-breathe absolute left-1/2 top-1/2 h-[380px] w-[380px] -translate-x-1/2 -translate-y-1/2 rounded-full pointer-events-none"
-            style={{ background: 'radial-gradient(circle, rgba(59,130,246,0.11) 0%, transparent 70%)' }}
-          />
-          <div
-            className="absolute left-1/2 top-1/2 h-[200px] w-[200px] -translate-x-1/2 -translate-y-1/2 rounded-full blur-2xl pointer-events-none opacity-35"
-            style={{ background: 'radial-gradient(circle, rgba(99,170,255,0.28) 0%, transparent 70%)' }}
-          />
-
-          {/* Edge hairlines */}
-          <div className="absolute inset-x-0 top-0 h-px"
-            style={{ background: 'linear-gradient(to right, transparent, rgba(99,170,255,0.22), transparent)' }} />
-          <div className="absolute inset-x-0 bottom-0 h-px"
-            style={{ background: 'linear-gradient(to right, transparent, rgba(99,170,255,0.14), transparent)' }} />
-          <div className="absolute inset-y-0 right-0 w-px"
-            style={{ background: 'linear-gradient(to bottom, transparent, rgba(99,170,255,0.2) 30%, rgba(99,170,255,0.28) 50%, rgba(99,170,255,0.2) 70%, transparent)' }} />
-
-          {/* Content */}
-          <div className="relative z-10 flex flex-col items-center gap-8 px-16 text-center">
-            <div className="logo-float drop-shadow-2xl">
-              <Image
-                src="/logo1.png"
-                alt="Watchtower"
-                width={148}
-                height={148}
-                priority
-              />
-            </div>
-            <div className="flex flex-col items-center gap-2.5">
-              <p
-                className="font-mono text-[10px] tracking-[0.35em] uppercase"
-                style={{ color: 'rgba(99,170,255,0.5)' }}
-              >
-                PagoPa · GO Team
-              </p>
-              <h1 className="font-display text-4xl font-bold uppercase leading-none tracking-[0.06em] text-white">
-                Watchtower
-              </h1>
-              <p
-                className="mt-2 text-sm font-medium tracking-wide"
-                style={{ color: 'rgba(203,213,225,0.8)' }}
-              >
-                Monitora. Analizza. Risolvi.
-              </p>
-              <p
-                className="mt-1 max-w-[240px] text-xs leading-relaxed text-center"
-                style={{ color: 'rgba(148,163,184,0.5)' }}
-              >
-                Veglia sull&apos;infrastruttura digitale di PagoPa 24 ore su 24.
-                Un punto unico di osservazione per allarmi, incidenti e azioni.
-              </p>
-            </div>
-          </div>
-
-          {/* Bottom note */}
-          <div className="absolute bottom-7 left-0 right-0 flex justify-center">
-            <p className="font-mono text-[11px] tracking-[0.2em]"
-              style={{ color: 'rgba(100,116,139,0.45)' }}>
-              solo account @pagopa.it
-            </p>
-          </div>
-        </div>
+        <LoginBrandPanel />
 
         {/* ── RIGHT: Form panel ── */}
         {/*

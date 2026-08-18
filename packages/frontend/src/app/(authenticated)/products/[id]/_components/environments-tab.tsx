@@ -17,7 +17,7 @@ import {
 import { api, type Environment } from '@/lib/api-client'
 import { qk } from '@/lib/query-keys'
 import { usePermissions } from '@/hooks/use-permissions'
-import { useSortable } from '@/hooks/use-sortable'
+import { useSortable, type SortConfig } from '@/hooks/use-sortable'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -73,7 +73,121 @@ interface EnvironmentsTabProps {
   productId: string
 }
 
-export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
+type EnvSortKey = 'name' | 'order'
+
+function EnvironmentsTable({
+  environments,
+  sortConfig,
+  slackWorkspaceUrl,
+  canWrite,
+  canDelete,
+  onSort,
+  onEdit,
+  onDelete,
+  onCreate,
+}: {
+  environments: Environment[] | undefined
+  sortConfig: SortConfig<EnvSortKey>
+  slackWorkspaceUrl: string | null | undefined
+  canWrite: boolean
+  canDelete: boolean
+  onSort: (key: EnvSortKey) => void
+  onEdit: (environment: Environment) => void
+  onDelete: (environment: Environment) => void
+  onCreate: () => void
+}) {
+  if (!environments?.length) {
+    return (
+      <div className="flex flex-col items-center justify-center py-14 text-center">
+        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-muted">
+          <Server className="h-7 w-7 text-muted-foreground" />
+        </div>
+        <p className="text-sm font-medium">Nessun ambiente configurato</p>
+        <p className="mt-1.5 text-sm text-muted-foreground">Aggiungi un ambiente per iniziare.</p>
+        {canWrite && (
+          <Button size="sm" className="mt-5" onClick={onCreate}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            Nuovo Ambiente
+          </Button>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-border">
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-muted/40 hover:bg-muted/40">
+            <SortableTableHead columnKey="order" sortConfig={sortConfig} onSort={onSort} className="w-16 text-center">#</SortableTableHead>
+            <SortableTableHead columnKey="name" sortConfig={sortConfig} onSort={onSort}>Nome</SortableTableHead>
+            <TableHead className="text-xs text-muted-foreground">Slack Channel</TableHead>
+            <TableHead className="text-xs text-muted-foreground">AWS Account</TableHead>
+            <TableHead className="text-xs text-muted-foreground">AWS Region</TableHead>
+            <TableHead className="text-xs text-muted-foreground">Pattern On-Call</TableHead>
+            {(canWrite || canDelete) && <TableHead className="w-20" />}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {environments.map((environment) => (
+            <TableRow key={environment.id} className="group hover:bg-muted/30">
+              <TableCell className="text-center">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded bg-muted text-xs font-medium tabular-nums text-muted-foreground">{environment.order}</span>
+              </TableCell>
+              <TableCell>
+                <div className="text-sm font-medium">{environment.name}</div>
+                {environment.description && <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{environment.description}</p>}
+              </TableCell>
+              <TableCell className="font-mono text-xs text-muted-foreground">
+                {environment.slackChannelId ? (
+                  <span className="flex items-center gap-1">
+                    <span
+                      className={`h-2 w-2 rounded-full ${environment.slackIngestorEnabled ? 'bg-emerald-500' : 'bg-muted-foreground/30'}`}
+                      title={environment.slackIngestorEnabled ? `Abilitato · ${environment.slackParserId ?? 'parser non configurato'}` : 'Disabilitato'}
+                    />
+                    {environment.slackChannelId}
+                    {slackWorkspaceUrl && (
+                      <a
+                        href={`${slackWorkspaceUrl}/archives/${environment.slackChannelId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-muted-foreground/50 transition-colors hover:text-foreground"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
+                  </span>
+                ) : <span className="opacity-30">—</span>}
+              </TableCell>
+              <TableCell className="font-mono text-xs text-muted-foreground">{environment.defaultAwsAccountId ?? <span className="opacity-30">—</span>}</TableCell>
+              <TableCell className="font-mono text-xs text-muted-foreground">{environment.defaultAwsRegion ?? <span className="opacity-30">—</span>}</TableCell>
+              <TableCell className="font-mono text-xs text-muted-foreground">{environment.onCallAlarmPattern ?? <span className="opacity-30">—</span>}</TableCell>
+              {(canWrite || canDelete) && (
+                <TableCell>
+                  <div className="flex justify-end gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+                    {canWrite && (
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(environment)}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    {canDelete && (
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onDelete(environment)}>
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      </Button>
+                    )}
+                  </div>
+                </TableCell>
+              )}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
+function useEnvironmentsTab(productId: string) {
   const queryClient = useQueryClient()
   const { can, isLoading: permissionsLoading } = usePermissions()
   const [showCreateDialog, setShowCreateDialog] = useState(false)
@@ -104,7 +218,6 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
     staleTime: 10 * 60 * 1000,
   })
 
-  type EnvSortKey = 'name' | 'order'
   const { sortedData: sortedEnvironments, sortConfig, requestSort } = useSortable<Environment, EnvSortKey>(environments, 'order')
 
   const {
@@ -210,6 +323,22 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
     }
   }
 
+  return {
+    environments, isLoading, error, refetch, slackWorkspaceUrl, sortedEnvironments,
+    sortConfig, requestSort, register, handleSubmit, reset, watch, setValue, errors, isDirty,
+    handleEdit, canWrite, canDelete, setShowCreateDialog, setDeleteItem, isDialogOpen,
+    isMutating, handleDialogClose, onSubmit, editItem, deleteItem, deleteMutation,
+  }
+}
+
+export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
+  const {
+    environments, isLoading, error, refetch, slackWorkspaceUrl, sortedEnvironments,
+    sortConfig, requestSort, register, handleSubmit, reset, watch, setValue, errors, isDirty,
+    handleEdit, canWrite, canDelete, setShowCreateDialog, setDeleteItem, isDialogOpen,
+    isMutating, handleDialogClose, onSubmit, editItem, deleteItem, deleteMutation,
+  } = useEnvironmentsTab(productId)
+
   if (isLoading && !environments) {
     return (
       <div className="space-y-3">
@@ -267,127 +396,20 @@ export function EnvironmentsTab({ productId }: EnvironmentsTabProps) {
         )}
       </div>
 
-      {/* Table */}
-      {sortedEnvironments && sortedEnvironments.length > 0 ? (
-        <div className="rounded-lg border border-border overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/40 hover:bg-muted/40">
-                <SortableTableHead
-                  columnKey="order"
-                  sortConfig={sortConfig}
-                  onSort={requestSort}
-                  className="w-16 text-center"
-                >
-                  #
-                </SortableTableHead>
-                <SortableTableHead columnKey="name" sortConfig={sortConfig} onSort={requestSort}>
-                  Nome
-                </SortableTableHead>
-                <TableHead className="text-xs text-muted-foreground">Slack Channel</TableHead>
-                <TableHead className="text-xs text-muted-foreground">AWS Account</TableHead>
-                <TableHead className="text-xs text-muted-foreground">AWS Region</TableHead>
-                <TableHead className="text-xs text-muted-foreground">Pattern On-Call</TableHead>
-                {(canWrite || canDelete) && <TableHead className="w-20" />}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedEnvironments.map((env) => (
-                <TableRow key={env.id} className="group hover:bg-muted/30">
-                  <TableCell className="text-center">
-                    <span className="inline-flex h-6 w-6 items-center justify-center rounded bg-muted text-xs font-medium tabular-nums text-muted-foreground">
-                      {env.order}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-sm font-medium">{env.name}</div>
-                    {env.description && (
-                      <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">{env.description}</p>
-                    )}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">
-                    {env.slackChannelId ? (
-                      <span className="flex items-center gap-1">
-                        <span className={`h-2 w-2 rounded-full ${env.slackIngestorEnabled ? 'bg-emerald-500' : 'bg-muted-foreground/30'}`} title={env.slackIngestorEnabled ? `Abilitato · ${env.slackParserId ?? 'parser non configurato'}` : 'Disabilitato'} />
-                        {env.slackChannelId}
-                        {slackWorkspaceUrl && (
-                          <a
-                            href={`${slackWorkspaceUrl}/archives/${env.slackChannelId}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-muted-foreground/50 hover:text-foreground transition-colors"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        )}
-                      </span>
-                    ) : (
-                      <span className="opacity-30">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">
-                    {env.defaultAwsAccountId ?? <span className="opacity-30">—</span>}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">
-                    {env.defaultAwsRegion ?? <span className="opacity-30">—</span>}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">
-                    {env.onCallAlarmPattern ?? <span className="opacity-30">—</span>}
-                  </TableCell>
-                  {(canWrite || canDelete) && (
-                    <TableCell>
-                      <div className="flex gap-0.5 justify-end opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-                        {canWrite && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => handleEdit(env)}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                        {canDelete && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => setDeleteItem(env)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center py-14 text-center">
-          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-muted">
-            <Server className="h-7 w-7 text-muted-foreground" />
-          </div>
-          <p className="text-sm font-medium">Nessun ambiente configurato</p>
-          <p className="mt-1.5 text-sm text-muted-foreground">Aggiungi un ambiente per iniziare.</p>
-          {canWrite && (
-            <Button
-              size="sm"
-              className="mt-5"
-              onClick={() => {
-                reset({ name: '', description: '', order: 0, slackChannelId: '', slackIngestorEnabled: false, slackParserId: 'amazon-q', defaultAwsAccountId: '', defaultAwsRegion: '', onCallAlarmPattern: '' })
-                setShowCreateDialog(true)
-              }}
-            >
-              <Plus className="h-4 w-4 mr-1.5" />
-              Nuovo Ambiente
-            </Button>
-          )}
-        </div>
-      )}
+      <EnvironmentsTable
+        environments={sortedEnvironments}
+        sortConfig={sortConfig}
+        slackWorkspaceUrl={slackWorkspaceUrl}
+        canWrite={canWrite}
+        canDelete={canDelete}
+        onSort={requestSort}
+        onEdit={handleEdit}
+        onDelete={setDeleteItem}
+        onCreate={() => {
+          reset({ name: '', description: '', order: 0, slackChannelId: '', slackIngestorEnabled: false, slackParserId: 'amazon-q', defaultAwsAccountId: '', defaultAwsRegion: '', onCallAlarmPattern: '' })
+          setShowCreateDialog(true)
+        }}
+      />
 
       <Dialog open={isDialogOpen} onOpenChange={(v) => { if (!isDirty || v) handleDialogClose(v) }}>
         <DialogContent className="sm:max-w-md" isDirty={isDirty} onDirtyClose={() => handleDialogClose(false)}>

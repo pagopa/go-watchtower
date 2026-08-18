@@ -80,6 +80,36 @@ interface SimpleNamedResourceTabProps<TItem extends NamedEntity> {
   deleteFn: (productId: string, id: string) => Promise<{ message: string }>
 }
 
+function NamedResourceTabSkeleton() {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <Skeleton className="h-4 w-28" />
+        <Skeleton className="h-8 w-36 rounded-md" />
+      </div>
+      <div className="divide-y divide-border overflow-hidden rounded-lg border border-border">
+        {SKELETON_ROWS.map((n) => (
+          <div key={`skeleton-${n}`} className="flex items-center gap-3 px-4 py-3">
+            <div className="flex-1 space-y-1.5">
+              <Skeleton className="h-4 w-1/3" />
+              <Skeleton className="h-3 w-2/3 opacity-60" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function NamedResourceTabError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="space-y-2 py-4 text-center">
+      <p className="text-sm text-destructive">{message}</p>
+      <Button variant="outline" size="sm" onClick={onRetry}>Riprova</Button>
+    </div>
+  )
+}
+
 export function SimpleNamedResourceTab<TItem extends NamedEntity>({
   productId,
   permission,
@@ -188,35 +218,11 @@ export function SimpleNamedResourceTab<TItem extends NamedEntity>({
   }
 
   if (isLoading && !items) {
-    return (
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <Skeleton className="h-4 w-28" />
-          <Skeleton className="h-8 w-36 rounded-md" />
-        </div>
-        <div className="rounded-lg border border-border overflow-hidden divide-y divide-border">
-          {SKELETON_ROWS.map((n) => (
-            <div key={`skeleton-${n}`} className="flex items-center gap-3 px-4 py-3">
-              <div className="flex-1 space-y-1.5">
-                <Skeleton className="h-4 w-1/3" />
-                <Skeleton className="h-3 w-2/3 opacity-60" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    )
+    return <NamedResourceTabSkeleton />
   }
 
   if (error) {
-    return (
-      <div className="py-4 text-center space-y-2">
-        <p className="text-sm text-destructive">{labels.loadError}</p>
-        <Button variant="outline" size="sm" onClick={() => refetch()}>
-          Riprova
-        </Button>
-      </div>
-    )
+    return <NamedResourceTabError message={labels.loadError} onRetry={() => { void refetch() }} />
   }
 
   return (

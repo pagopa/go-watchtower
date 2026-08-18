@@ -39,7 +39,7 @@ export function NewAlarmsBanner({ signal, onRefresh }: NewAlarmsBannerProps) {
   return (
     <div
       role="alert"
-      className="flex items-center gap-3 rounded-lg border border-amber-800/40 bg-amber-950/30 px-4 py-2.5 animate-in slide-in-from-top-2 fade-in duration-200"
+      className="flex items-center gap-3 rounded-lg border border-amber-800/40 bg-amber-950/30 px-4 py-2.5 animate-in slide-in-from-top-2 fade-in [animation-duration:200ms]"
     >
       {/* Left accent + icon */}
       <div className="flex items-center gap-2.5">

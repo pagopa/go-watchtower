@@ -251,6 +251,331 @@ function segmentToOnCall(v: 'all' | 'yes' | 'no'): boolean | undefined {
   return undefined
 }
 
+type UpdateAnalysisFilter = <K extends keyof AnalysisFiltersState>(key: K, value: AnalysisFiltersState[K]) => void
+type DebouncedInputState = ReturnType<typeof useDebouncedInput>
+
+function AnalysisFiltersHeader({
+  collapsed,
+  activeFilterCount,
+  activeChips,
+  onToggle,
+  onRemoveChip,
+  onReset,
+}: {
+  collapsed: boolean
+  activeFilterCount: number
+  activeChips: FilterChip[]
+  onToggle: (() => void) | undefined
+  onRemoveChip: (key: string) => void
+  onReset: () => void
+}) {
+  return (
+    <div
+      className="flex w-full items-center gap-3 px-4 py-3 text-sm font-medium transition-colors hover:bg-muted/50"
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={!collapsed}
+        className="flex shrink-0 items-center gap-2 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
+        <span>Filtri</span>
+        {activeFilterCount > 0 && (
+          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground">{activeFilterCount}</span>
+        )}
+      </button>
+      {collapsed && activeChips.length > 0 && (
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+          {activeChips.map((chip) => (
+            <button
+              type="button"
+              key={chip.key}
+              onClick={() => onRemoveChip(chip.key)}
+              aria-label={`Rimuovi filtro ${chip.label}`}
+              className="inline-flex shrink-0 items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+            >
+              <span className="max-w-[200px] truncate">{chip.label}</span>
+              <X className="h-3 w-3 shrink-0 opacity-60 transition-opacity hover:text-foreground hover:opacity-100" />
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="ml-auto flex shrink-0 items-center gap-1.5">
+        {collapsed && activeFilterCount > 0 && (
+          <button
+            type="button"
+            onClick={onReset}
+            aria-label="Pulisci filtri"
+            className="inline-flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+            title="Pulisci filtri"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? 'Espandi filtri' : 'Comprimi filtri'}
+          className="inline-flex h-6 w-6 items-center justify-center rounded-full"
+        >
+          <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform duration-200', !collapsed && 'rotate-180')} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function BasicAnalysisFilters({
+  filters,
+  environments,
+  alarms,
+  finalActions,
+  priorityLevels,
+  users,
+  dateRange,
+  search,
+  onUpdate,
+  onDateRangeChange,
+}: Pick<AnalysisFiltersProps, 'filters' | 'environments' | 'alarms' | 'finalActions' | 'priorityLevels' | 'users'> & {
+  dateRange: DateRange | undefined
+  search: DebouncedInputState
+  onUpdate: UpdateAnalysisFilter
+  onDateRangeChange: (range: DateRange | undefined) => void
+}) {
+  return (
+    <>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {environments && (
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Ambiente</Label>
+            <MultiSelectCombobox
+              showTags={false}
+              options={environments.map((environment) => ({ value: environment.id, label: environment.name }))}
+              value={filters.environmentIds}
+              onValueChange={(ids) => onUpdate('environmentIds', ids)}
+              placeholder="Tutti gli ambienti"
+              searchPlaceholder="Cerca ambiente..."
+              emptyMessage="Nessun ambiente trovato."
+            />
+          </div>
+        )}
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Periodo</Label>
+          <DateRangePicker value={dateRange} onChange={onDateRangeChange} presets={DATE_PRESETS} className="w-full" />
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {alarms && (
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Allarme</Label>
+            <MultiSelectCombobox
+              showTags={false}
+              options={alarms.map((alarm) => ({ value: alarm.id, label: alarm.name }))}
+              value={filters.alarmIds}
+              onValueChange={(ids) => onUpdate('alarmIds', ids)}
+              placeholder="Tutti gli allarmi"
+              searchPlaceholder="Cerca allarme..."
+              emptyMessage="Nessun allarme trovato."
+            />
+          </div>
+        )}
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Tipo analisi</Label>
+          <MultiSelectCombobox
+            showTags={false}
+            options={(Object.keys(ANALYSIS_TYPE_LABELS) as AnalysisType[]).map((type) => ({ value: type, label: ANALYSIS_TYPE_LABELS[type] }))}
+            value={filters.analysisTypes}
+            onValueChange={(values) => onUpdate('analysisTypes', values)}
+            placeholder="Tutti i tipi"
+            searchPlaceholder="Cerca tipo..."
+            emptyMessage="Nessun tipo trovato."
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Stato analisi</Label>
+          <MultiSelectCombobox
+            showTags={false}
+            options={(Object.keys(ANALYSIS_STATUS_LABELS) as AnalysisStatus[]).map((status) => ({ value: status, label: ANALYSIS_STATUS_LABELS[status] }))}
+            value={filters.statuses}
+            onValueChange={(values) => onUpdate('statuses', values)}
+            placeholder="Tutti gli stati"
+            searchPlaceholder="Cerca stato..."
+            emptyMessage="Nessuno stato trovato."
+          />
+        </div>
+        {finalActions && (
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Azione finale</Label>
+            <MultiSelectCombobox
+              showTags={false}
+              options={finalActions.map((action) => ({ value: action.id, label: action.name }))}
+              value={filters.finalActionIds}
+              onValueChange={(ids) => onUpdate('finalActionIds', ids)}
+              placeholder="Tutte le azioni"
+              searchPlaceholder="Cerca azione..."
+              emptyMessage="Nessuna azione trovata."
+            />
+          </div>
+        )}
+        {priorityLevels && (
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Priority</Label>
+            <MultiSelectCombobox
+              showTags={false}
+              options={[...priorityLevels].filter((level) => level.isActive).sort((a, b) => b.rank - a.rank).map((level) => ({ value: level.code, label: level.label }))}
+              value={filters.priorityCodes}
+              onValueChange={(codes) => onUpdate('priorityCodes', codes)}
+              placeholder="Tutte le priority"
+              searchPlaceholder="Cerca priority..."
+              emptyMessage="Nessuna priority trovata."
+            />
+          </div>
+        )}
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Operatore</Label>
+          <MultiSelectCombobox
+            showTags={false}
+            options={(users ?? []).map((user) => ({ value: user.id, label: user.name }))}
+            value={filters.operatorIds}
+            onValueChange={(ids) => onUpdate('operatorIds', ids)}
+            placeholder="Tutti gli operatori"
+            searchPlaceholder="Cerca operatore..."
+            emptyMessage="Nessun operatore trovato."
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Reperibilità</Label>
+          <div className="flex h-9 items-center rounded-md border border-input bg-muted/40 p-0.5">
+            {ONCALL_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => onUpdate('isOnCall', segmentToOnCall(option.value))}
+                className={cn(
+                  'flex-1 rounded-[5px] px-2 py-1 text-xs font-medium transition-all',
+                  onCallToSegment(filters.isOnCall) === option.value ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="filter-search" className="text-xs text-muted-foreground">Ricerca</Label>
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input id="filter-search" placeholder="Cerca nei dettagli e tracking ID..." value={search.value} onChange={(event) => search.onChange(event.target.value)} className="pl-8 text-sm" />
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
+function AdvancedAnalysisFilters({
+  filters,
+  ignoreReasons,
+  resources,
+  downstreams,
+  runbooks,
+  linkTypes,
+  traceId,
+  onUpdate,
+}: Pick<AnalysisFiltersProps, 'filters' | 'ignoreReasons' | 'resources' | 'downstreams' | 'runbooks' | 'linkTypes'> & {
+  traceId: DebouncedInputState
+  onUpdate: UpdateAnalysisFilter
+}) {
+  const hasAdvancedFilters = Boolean(
+    filters.ignoreReasonCodes.length || filters.runbookIds.length || filters.resourceIds.length ||
+    filters.downstreamIds.length || filters.linkTypes.length || filters.traceId,
+  )
+  const [manuallyOpen, setManuallyOpen] = useState(false)
+  const open = hasAdvancedFilters || manuallyOpen
+  const activeCount = [
+    filters.ignoreReasonCodes.length, filters.runbookIds.length, filters.resourceIds.length,
+    filters.downstreamIds.length, filters.linkTypes.length, filters.traceId,
+  ].filter(Boolean).length
+  const hasProductScopedFilters = Boolean(resources || downstreams || runbooks)
+
+  return (
+    <div className="border-t pt-3">
+      <button
+        type="button"
+        onClick={() => setManuallyOpen((current) => !current)}
+        className="flex items-center gap-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <Settings2 className="h-3.5 w-3.5" />
+        <span>Filtri avanzati</span>
+        {activeCount > 0 && (
+          <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium text-primary-foreground">{activeCount}</span>
+        )}
+        <ChevronDown className={cn('ml-auto h-3.5 w-3.5 transition-transform duration-200', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <div className="mt-3 grid animate-in gap-4 fade-in slide-in-from-top-1 [animation-duration:150ms] sm:grid-cols-2 lg:grid-cols-4">
+          {ignoreReasons && ignoreReasons.length > 0 && (
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Motivazione ignore</Label>
+              <MultiSelectCombobox
+                showTags={false}
+                options={ignoreReasons.map((reason) => ({ value: reason.code, label: reason.label }))}
+                value={filters.ignoreReasonCodes}
+                onValueChange={(codes) => onUpdate('ignoreReasonCodes', codes)}
+                placeholder="Tutte le motivazioni"
+                searchPlaceholder="Cerca motivazione..."
+                emptyMessage="Nessuna motivazione trovata."
+              />
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <Label htmlFor="filter-traceid" className="text-xs text-muted-foreground">ID Tracciamento</Label>
+            <Input id="filter-traceid" placeholder="Cerca trace ID esatto..." value={traceId.value} onChange={(event) => traceId.onChange(event.target.value)} className="text-sm" />
+          </div>
+          {linkTypes && linkTypes.length > 0 && (
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Tipo link</Label>
+              <MultiSelectCombobox
+                showTags={false}
+                options={linkTypes.map((type) => ({ value: type, label: type }))}
+                value={filters.linkTypes}
+                onValueChange={(types) => onUpdate('linkTypes', types)}
+                placeholder="Tutti i tipi link"
+                searchPlaceholder="Cerca tipo link..."
+                emptyMessage="Nessun tipo link trovato."
+              />
+            </div>
+          )}
+          {runbooks && (
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Runbook</Label>
+              <MultiSelectCombobox showTags={false} options={runbooks.map((runbook) => ({ value: runbook.id, label: runbook.name }))} value={filters.runbookIds} onValueChange={(ids) => onUpdate('runbookIds', ids)} placeholder="Tutti i runbook" searchPlaceholder="Cerca runbook..." emptyMessage="Nessun runbook trovato." />
+            </div>
+          )}
+          {resources && (
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Risorsa</Label>
+              <MultiSelectCombobox showTags={false} options={resources.map((resource) => ({ value: resource.id, label: resource.name }))} value={filters.resourceIds} onValueChange={(ids) => onUpdate('resourceIds', ids)} placeholder="Tutte le risorse" searchPlaceholder="Cerca risorsa..." emptyMessage="Nessuna risorsa trovata." />
+            </div>
+          )}
+          {downstreams && (
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Downstream</Label>
+              <MultiSelectCombobox showTags={false} options={downstreams.map((downstream) => ({ value: downstream.id, label: downstream.name }))} value={filters.downstreamIds} onValueChange={(ids) => onUpdate('downstreamIds', ids)} placeholder="Tutti i downstream" searchPlaceholder="Cerca downstream..." emptyMessage="Nessun downstream trovato." />
+            </div>
+          )}
+          {!hasProductScopedFilters && (
+            <p className="col-span-full text-xs text-muted-foreground/60">Seleziona un prodotto per filtrare per risorsa, downstream e runbook.</p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Main component ──────────────────────────────────────────────────────────
 
 export function AnalysisFilters({
@@ -346,18 +671,6 @@ export function AnalysisFilters({
     onFilterChange({ ...filters, dateFrom, dateTo })
   }
 
-  // Advanced filters section
-  const hasAdvancedFilters = !!(
-    filters.ignoreReasonCodes.length > 0 ||
-    filters.runbookIds.length > 0 ||
-    filters.resourceIds.length > 0 ||
-    filters.downstreamIds.length > 0 ||
-    filters.linkTypes.length > 0 ||
-    filters.traceId
-  )
-  const [advancedToggle, setAdvancedToggle] = useState(false)
-  const advancedOpen = hasAdvancedFilters || advancedToggle
-
   const basicFilterCount = [
     filters.search,
     filters.analysisTypes.length > 0,
@@ -382,8 +695,6 @@ export function AnalysisFilters({
 
   const activeFilterCount = basicFilterCount + advancedFilterCount
 
-  const hasProductScopedAdvanced = !!(resources || downstreams || runbooks)
-
   const activeChips = useMemo(
     () => buildActiveChips(filters, environments, alarms, finalActions, priorityLevels, users, ignoreReasons, runbooks, resources, downstreams),
     [filters, environments, alarms, finalActions, priorityLevels, users, ignoreReasons, runbooks, resources, downstreams],
@@ -391,338 +702,42 @@ export function AnalysisFilters({
 
   return (
     <div className="rounded-lg border">
-      {/* ── Header ── */}
-      <button
-        type="button"
-        onClick={onToggleCollapsed}
-        className="flex w-full items-center gap-3 px-4 py-3 text-sm font-medium hover:bg-muted/50 transition-colors"
-      >
-        {/* Left: icon + label + count */}
-        <div className="flex items-center gap-2 shrink-0">
-          <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
-          <span>Filtri</span>
-          {activeFilterCount > 0 && (
-            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground">
-              {activeFilterCount}
-            </span>
-          )}
-        </div>
-
-        {/* Center: active filter chips (collapsed only) */}
-        {collapsed && activeChips.length > 0 && (
-          <div className="flex flex-1 items-center gap-1.5 overflow-hidden min-w-0">
-            {activeChips.map((chip) => (
-              <span
-                key={chip.key}
-                className="inline-flex shrink-0 items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground"
-              >
-                <span className="truncate max-w-[200px]">{chip.label}</span>
-                <X
-                  className="h-3 w-3 shrink-0 cursor-pointer opacity-60 hover:opacity-100 hover:text-foreground transition-opacity"
-                  onClick={(e) => { e.stopPropagation(); handleRemoveChip(chip.key) }}
-                />
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Right: reset + chevron */}
-        <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-          {collapsed && activeFilterCount > 0 && (
-            <span
-              role="button"
-              tabIndex={0}
-              onClick={(e) => { e.stopPropagation(); handleReset() }}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); handleReset() } }}
-              className="inline-flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-              title="Pulisci filtri"
-            >
-              <X className="h-3.5 w-3.5" />
-            </span>
-          )}
-          <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform duration-200', !collapsed && 'rotate-180')} />
-        </div>
-      </button>
+      <AnalysisFiltersHeader
+        collapsed={collapsed}
+        activeFilterCount={activeFilterCount}
+        activeChips={activeChips}
+        onToggle={onToggleCollapsed}
+        onRemoveChip={handleRemoveChip}
+        onReset={handleReset}
+      />
 
       {/* ── Expanded panel ── */}
       {!collapsed && (
-        <div className="animate-in fade-in slide-in-from-top-1 duration-150 border-t px-4 pb-4 pt-4 space-y-4">
+        <div className="animate-in fade-in slide-in-from-top-1 [animation-duration:150ms] border-t px-4 pb-4 pt-4 space-y-4">
 
-          {/* Row 1 — Ambiente + Periodo */}
-          <div className="grid gap-4 sm:grid-cols-2">
-            {environments && (
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Ambiente</Label>
-                <MultiSelectCombobox showTags={false}
-                  options={environments.map((e) => ({ value: e.id, label: e.name }))}
-                  value={filters.environmentIds}
-                  onValueChange={(ids) => updateFilter('environmentIds', ids)}
-                  placeholder="Tutti gli ambienti"
-                  searchPlaceholder="Cerca ambiente..."
-                  emptyMessage="Nessun ambiente trovato."
-                />
-              </div>
-            )}
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Periodo</Label>
-              <DateRangePicker
-                value={dateRange}
-                onChange={handleDateRangeChange}
-                presets={DATE_PRESETS}
-                className="w-full"
-              />
-            </div>
-          </div>
+          <BasicAnalysisFilters
+            filters={filters}
+            environments={environments}
+            alarms={alarms}
+            finalActions={finalActions}
+            priorityLevels={priorityLevels}
+            users={users}
+            dateRange={dateRange}
+            search={search}
+            onUpdate={updateFilter}
+            onDateRangeChange={handleDateRangeChange}
+          />
 
-          {/* Row 2 — Allarme, Tipo analisi, Stato analisi, Azione finale, Reperibilità */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {/* Allarme (multi, with search) */}
-            {alarms && (
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Allarme</Label>
-                <MultiSelectCombobox showTags={false}
-                  options={alarms.map((a) => ({ value: a.id, label: a.name }))}
-                  value={filters.alarmIds}
-                  onValueChange={(ids) => updateFilter('alarmIds', ids)}
-                  placeholder="Tutti gli allarmi"
-                  searchPlaceholder="Cerca allarme..."
-                  emptyMessage="Nessun allarme trovato."
-                />
-              </div>
-            )}
-
-            {/* Tipo analisi (multi) */}
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Tipo analisi</Label>
-              <MultiSelectCombobox showTags={false}
-                options={(Object.keys(ANALYSIS_TYPE_LABELS) as AnalysisType[]).map((type) => ({
-                  value: type,
-                  label: ANALYSIS_TYPE_LABELS[type],
-                }))}
-                value={filters.analysisTypes}
-                onValueChange={(vals) => updateFilter('analysisTypes', vals)}
-                placeholder="Tutti i tipi"
-                searchPlaceholder="Cerca tipo..."
-                emptyMessage="Nessun tipo trovato."
-              />
-            </div>
-
-            {/* Stato analisi (multi) */}
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Stato analisi</Label>
-              <MultiSelectCombobox showTags={false}
-                options={(Object.keys(ANALYSIS_STATUS_LABELS) as AnalysisStatus[]).map((status) => ({
-                  value: status,
-                  label: ANALYSIS_STATUS_LABELS[status],
-                }))}
-                value={filters.statuses}
-                onValueChange={(vals) => updateFilter('statuses', vals)}
-                placeholder="Tutti gli stati"
-                searchPlaceholder="Cerca stato..."
-                emptyMessage="Nessuno stato trovato."
-              />
-            </div>
-
-            {/* Azione finale (multi) */}
-            {finalActions && (
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Azione finale</Label>
-                <MultiSelectCombobox showTags={false}
-                  options={finalActions.map((fa) => ({ value: fa.id, label: fa.name }))}
-                  value={filters.finalActionIds}
-                  onValueChange={(ids) => updateFilter('finalActionIds', ids)}
-                  placeholder="Tutte le azioni"
-                  searchPlaceholder="Cerca azione..."
-                  emptyMessage="Nessuna azione trovata."
-                />
-              </div>
-            )}
-
-            {priorityLevels && (
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Priority</Label>
-                <MultiSelectCombobox showTags={false}
-                  options={priorityLevels
-                    .filter((level) => level.isActive)
-                    .sort((a, b) => b.rank - a.rank)
-                    .map((level) => ({ value: level.code, label: level.label }))}
-                  value={filters.priorityCodes}
-                  onValueChange={(codes) => updateFilter('priorityCodes', codes)}
-                  placeholder="Tutte le priority"
-                  searchPlaceholder="Cerca priority..."
-                  emptyMessage="Nessuna priority trovata."
-                />
-              </div>
-            )}
-
-            {/* Operatore (multi) */}
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Operatore</Label>
-              <MultiSelectCombobox showTags={false}
-                options={(users ?? []).map((u) => ({ value: u.id, label: u.name }))}
-                value={filters.operatorIds}
-                onValueChange={(ids) => updateFilter('operatorIds', ids)}
-                placeholder="Tutti gli operatori"
-                searchPlaceholder="Cerca operatore..."
-                emptyMessage="Nessun operatore trovato."
-              />
-            </div>
-
-            {/* Reperibilità — segmented toggle */}
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Reperibilità</Label>
-              <div className="flex h-9 items-center rounded-md border border-input bg-muted/40 p-0.5">
-                {ONCALL_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => updateFilter('isOnCall', segmentToOnCall(opt.value))}
-                    className={cn(
-                      'flex-1 rounded-[5px] px-2 py-1 text-xs font-medium transition-all',
-                      onCallToSegment(filters.isOnCall) === opt.value
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground',
-                    )}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Ricerca */}
-            <div className="space-y-1.5">
-              <Label htmlFor="filter-search" className="text-xs text-muted-foreground">Ricerca</Label>
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="filter-search"
-                  placeholder="Cerca nei dettagli e tracking ID..."
-                  value={search.value}
-                  onChange={(e) => search.onChange(e.target.value)}
-                  className="pl-8 text-sm"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* ── Advanced filters toggle ─────────────────────────────────────── */}
-          <div className="border-t pt-3">
-            <button
-              type="button"
-              onClick={() => setAdvancedToggle((o) => !o)}
-              className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <Settings2 className="h-3.5 w-3.5" />
-              <span>Filtri avanzati</span>
-              {advancedFilterCount > 0 && (
-                <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium text-primary-foreground">
-                  {advancedFilterCount}
-                </span>
-              )}
-              <ChevronDown className={cn('h-3.5 w-3.5 ml-auto transition-transform duration-200', advancedOpen && 'rotate-180')} />
-            </button>
-
-            {advancedOpen && (
-              <div className="animate-in fade-in slide-in-from-top-1 duration-150 mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-
-                {/* Motivazione ignore (multi) */}
-                {ignoreReasons && ignoreReasons.length > 0 && (
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">Motivazione ignore</Label>
-                    <MultiSelectCombobox showTags={false}
-                      options={ignoreReasons.map((r) => ({ value: r.code, label: r.label }))}
-                      value={filters.ignoreReasonCodes}
-                      onValueChange={(codes) => updateFilter('ignoreReasonCodes', codes)}
-                      placeholder="Tutte le motivazioni"
-                      searchPlaceholder="Cerca motivazione..."
-                      emptyMessage="Nessuna motivazione trovata."
-                    />
-                  </div>
-                )}
-
-                {/* Trace ID */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="filter-traceid" className="text-xs text-muted-foreground">ID Tracciamento</Label>
-                  <Input
-                    id="filter-traceid"
-                    placeholder="Cerca trace ID esatto..."
-                    value={traceId.value}
-                    onChange={(e) => traceId.onChange(e.target.value)}
-                    className="text-sm"
-                  />
-                </div>
-
-                {/* Link type (multi, populated from persisted analysis links) */}
-                {linkTypes && linkTypes.length > 0 && (
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">Tipo link</Label>
-                    <MultiSelectCombobox showTags={false}
-                      options={linkTypes.map((type) => ({ value: type, label: type }))}
-                      value={filters.linkTypes}
-                      onValueChange={(types) => updateFilter('linkTypes', types)}
-                      placeholder="Tutti i tipi link"
-                      searchPlaceholder="Cerca tipo link..."
-                      emptyMessage="Nessun tipo link trovato."
-                    />
-                  </div>
-                )}
-
-                {/* Runbook (multi, with search) */}
-                {runbooks && (
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">Runbook</Label>
-                    <MultiSelectCombobox showTags={false}
-                      options={runbooks.map((r) => ({ value: r.id, label: r.name }))}
-                      value={filters.runbookIds}
-                      onValueChange={(ids) => updateFilter('runbookIds', ids)}
-                      placeholder="Tutti i runbook"
-                      searchPlaceholder="Cerca runbook..."
-                      emptyMessage="Nessun runbook trovato."
-                    />
-                  </div>
-                )}
-
-                {/* Risorsa (multi, with search) */}
-                {resources && (
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">Risorsa</Label>
-                    <MultiSelectCombobox showTags={false}
-                      options={resources.map((m) => ({ value: m.id, label: m.name }))}
-                      value={filters.resourceIds}
-                      onValueChange={(ids) => updateFilter('resourceIds', ids)}
-                      placeholder="Tutte le risorse"
-                      searchPlaceholder="Cerca risorsa..."
-                      emptyMessage="Nessuna risorsa trovata."
-                    />
-                  </div>
-                )}
-
-                {/* Downstream (multi, with search) */}
-                {downstreams && (
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">Downstream</Label>
-                    <MultiSelectCombobox showTags={false}
-                      options={downstreams.map((d) => ({ value: d.id, label: d.name }))}
-                      value={filters.downstreamIds}
-                      onValueChange={(ids) => updateFilter('downstreamIds', ids)}
-                      placeholder="Tutti i downstream"
-                      searchPlaceholder="Cerca downstream..."
-                      emptyMessage="Nessun downstream trovato."
-                    />
-                  </div>
-                )}
-
-                {/* Placeholder when no product is selected */}
-                {!hasProductScopedAdvanced && (
-                  <p className="col-span-full text-xs text-muted-foreground/60">
-                    Seleziona un prodotto per filtrare per risorsa, downstream e runbook.
-                  </p>
-                )}
-
-              </div>
-            )}
-          </div>
+          <AdvancedAnalysisFilters
+            filters={filters}
+            ignoreReasons={ignoreReasons}
+            resources={resources}
+            downstreams={downstreams}
+            runbooks={runbooks}
+            linkTypes={linkTypes}
+            traceId={traceId}
+            onUpdate={updateFilter}
+          />
 
           {/* Footer — reset (only when filters are active) */}
           {activeFilterCount > 0 && (

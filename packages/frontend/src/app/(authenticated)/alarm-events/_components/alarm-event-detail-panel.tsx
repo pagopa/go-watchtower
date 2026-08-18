@@ -284,6 +284,252 @@ const MIN_PANEL_WIDTH = 320
 const MAX_PANEL_WIDTH = 1000
 const DEFAULT_PANEL_WIDTH = 560
 
+function AlarmEventPanelHeader({
+  event,
+  canWrite,
+  canDelete,
+  onEdit,
+  onDelete,
+  onClose,
+}: Pick<AlarmEventDetailPanelProps, 'canWrite' | 'canDelete' | 'onEdit' | 'onDelete' | 'onClose'> & {
+  event: AlarmEvent
+}) {
+  return (
+    <div className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-5 py-4">
+      <div className="min-w-0 space-y-1.5">
+        <h2 className="break-words pr-2 text-base font-semibold leading-tight">{event.name}</h2>
+        <p className="text-xs text-muted-foreground">
+          <span className="font-medium">{event.product.name}</span>
+          <span className="mx-1.5 text-border">·</span>
+          {event.environment.name}
+        </p>
+        {event.priority.countsAsOnCall ? (
+          <span className="inline-flex items-center gap-1 rounded bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+            <PhoneCall className="h-2.5 w-2.5" />
+            {event.priority.label}
+          </span>
+        ) : event.priority.rank > 0 ? (
+          <span className="inline-flex items-center gap-1 rounded bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+            <AlertTriangle className="h-2.5 w-2.5" />
+            {event.priority.label}
+          </span>
+        ) : (
+          <span className="inline-flex items-center rounded border border-border/50 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground/50">
+            {event.priority.label}
+          </span>
+        )}
+        {event.priority.ruleName && (
+          <p className="text-[11px] text-muted-foreground">
+            Regola: <span className="font-medium text-foreground/80">{event.priority.ruleName}</span>
+          </p>
+        )}
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        <ExecuteRunbookButton
+          target={{
+            alarmEventId: event.id,
+            alarmName: event.alarm?.name ?? event.name,
+            hasAlarm: !!event.alarmId,
+          }}
+          iconOnly
+          variant="ghost"
+          className="h-8 w-8 text-primary hover:text-primary"
+        />
+        <AlarmAutomationExclusionButton alarmId={event.alarmId} />
+        {canWrite && (
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(event)} title="Modifica">
+            <Pencil className="h-4 w-4" />
+          </Button>
+        )}
+        {canDelete && (
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => onDelete(event)} title="Elimina">
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        )}
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose} title="Chiudi">
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function CataloguedAlarmCard({
+  event,
+  onAlarmClick,
+}: Pick<AlarmEventDetailPanelProps, 'onAlarmClick'> & { event: AlarmEvent }) {
+  if (!event.alarm) return null
+
+  return (
+    <div className="space-y-3">
+      <SectionHeader label="Allarme catalogato" icon={BellRing} />
+      <div className="space-y-2.5 rounded-lg border border-border/50 bg-muted/20 px-3.5 py-3">
+        <div className="flex items-start justify-between gap-2">
+          <p className="break-words text-sm font-semibold leading-snug">{event.alarm.name}</p>
+          {onAlarmClick ? (
+            <button
+              type="button"
+              className="inline-flex shrink-0 items-center gap-1 text-xs text-primary hover:underline"
+              onClick={() => onAlarmClick(event.alarm!, event.product.id)}
+            >
+              <BookOpen className="h-3 w-3" />
+              Dettaglio
+            </button>
+          ) : (
+            <Link
+              href={`/products/${event.product.id}?tab=alarms`}
+              className="inline-flex shrink-0 items-center gap-1 text-xs text-primary hover:underline"
+            >
+              Vedi
+              <ExternalLink className="h-3 w-3" />
+            </Link>
+          )}
+        </div>
+        {event.alarm.description && (
+          <p className="text-xs leading-relaxed text-muted-foreground">{event.alarm.description}</p>
+        )}
+        {event.alarm.runbook && (
+          <div className="flex items-center gap-2 pt-0.5">
+            <BookOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
+            <a
+              href={sanitizeUrl(event.alarm.runbook.link)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex min-w-0 items-center gap-1 text-xs text-primary hover:underline"
+            >
+              <span className="truncate">{event.alarm.runbook.name}</span>
+              <ExternalLink className="h-3 w-3 shrink-0" />
+            </a>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function AlarmEventPanelBody({
+  event,
+  ignoredMatch,
+  onShowIgnoredDetails,
+  onAlarmClick,
+}: Pick<AlarmEventDetailPanelProps, 'onAlarmClick'> & {
+  event: AlarmEvent
+  ignoredMatch: IgnoredAlarm | null
+  onShowIgnoredDetails: () => void
+}) {
+  return (
+    <div className="flex-1 overflow-y-auto">
+      <dl className="space-y-6 p-5">
+        <div className="space-y-4">
+          <SectionHeader label="Allarme" icon={BellRing} />
+          <Field label="Nome">
+            <div className="flex items-center gap-1.5">
+              <span className="break-all font-mono text-sm">{event.name}</span>
+              <CopyButton value={event.name} />
+            </div>
+          </Field>
+          <Field label="Data e ora scatto"><UtcTimestamp isoStr={event.firedAt} /></Field>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Prodotto">
+              <span className="inline-flex items-center rounded border px-2 py-0.5 text-sm font-medium text-foreground/80">{event.product.name}</span>
+            </Field>
+            <Field label="Ambiente"><span className="text-sm">{event.environment.name}</span></Field>
+          </div>
+        </div>
+
+        <CataloguedAlarmCard event={event} onAlarmClick={onAlarmClick} />
+
+        {ignoredMatch && (
+          <div className={cn(
+            'flex items-start gap-3 rounded-xl border px-4 py-3.5',
+            'border-amber-400/30 bg-amber-50/60 dark:border-amber-500/20 dark:bg-amber-950/25',
+          )}>
+            <OctagonAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold leading-snug text-amber-900 dark:text-amber-200">Allarme da ignorare</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-amber-800/70 dark:text-amber-300/70">
+                Questo allarme è configurato come &ldquo;da ignorare&rdquo; per{' '}
+                <span className="font-semibold">{ignoredMatch.environment.name}</span>.
+                {ignoredMatch.reason && <> Motivo: {ignoredMatch.reason}</>}
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onShowIgnoredDetails}
+              className={cn(
+                'h-7 shrink-0 gap-1.5 text-xs font-semibold',
+                'text-amber-700 hover:bg-amber-100/80 hover:text-amber-900',
+                'dark:text-amber-400 dark:hover:bg-amber-900/40 dark:hover:text-amber-200',
+              )}
+            >
+              Dettagli
+              <ExternalLink className="h-3 w-3" />
+            </Button>
+          </div>
+        )}
+
+        <div className="space-y-4">
+          <SectionHeader label="AWS" icon={Cloud} />
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Region">
+              <div className="flex items-center gap-1.5">
+                <code className="font-mono text-sm text-foreground/80">{event.awsRegion}</code>
+                <CopyButton value={event.awsRegion} />
+              </div>
+            </Field>
+            <Field label="Account ID">
+              <div className="flex items-center gap-1.5">
+                <code className="font-mono text-sm text-foreground/80">{event.awsAccountId}</code>
+                <CopyButton value={event.awsAccountId} />
+              </div>
+            </Field>
+          </div>
+        </div>
+
+        {(event.description || event.reason) && (
+          <div className="space-y-4">
+            <SectionHeader label="Dettagli" icon={Info} />
+            {event.description && (
+              <Field label="Descrizione">
+                <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/90">{event.description}</p>
+              </Field>
+            )}
+            {event.reason && (
+              <Field label="Ragione">
+                <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/90">{event.reason}</p>
+              </Field>
+            )}
+          </div>
+        )}
+
+        {event.analysisId && (
+          <LinkedAnalysisSection
+            analysisId={event.analysisId}
+            productId={event.product.id}
+            eventId={event.id}
+            eventName={event.name}
+          />
+        )}
+
+        <div className="rounded-lg border border-border/50 bg-muted/30 px-4 py-3">
+          <p className="text-xs text-muted-foreground/60">
+            <span className="font-semibold uppercase tracking-wide">Registrato</span>
+            {' · '}
+            <UtcTimestamp isoStr={event.createdAt} />
+          </p>
+          <div className="mt-1.5 flex items-center gap-1.5">
+            <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/50">ID evento</span>
+            <code className="min-w-0 flex-1 break-all font-mono text-[11px] text-foreground/70">{event.id}</code>
+            <CopyButton value={event.id} title="Copia ID evento" />
+          </div>
+        </div>
+      </dl>
+    </div>
+  )
+}
+
 // ─── Main panel ───────────────────────────────────────────────────────────────
 
 export function AlarmEventDetailPanel({
@@ -370,256 +616,20 @@ export function AlarmEventDetailPanel({
 
         {event && (
           <>
-            {/* Header */}
-            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-5 py-4">
-              <div className="min-w-0 space-y-1.5">
-                <h2 className="text-base font-semibold leading-tight break-words pr-2">
-                  {event.name}
-                </h2>
-                <p className="text-xs text-muted-foreground">
-                  <span className="font-medium">{event.product.name}</span>
-                  <span className="mx-1.5 text-border">·</span>
-                  {event.environment.name}
-                </p>
-                {event.priority.countsAsOnCall ? (
-                  <span className="inline-flex items-center gap-1 rounded bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
-                    <PhoneCall className="h-2.5 w-2.5" />
-                    {event.priority.label}
-                  </span>
-                ) : event.priority.rank > 0 ? (
-                  <span className="inline-flex items-center gap-1 rounded bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
-                    <AlertTriangle className="h-2.5 w-2.5" />
-                    {event.priority.label}
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center rounded border border-border/50 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground/50">
-                    {event.priority.label}
-                  </span>
-                )}
-                {event.priority.ruleName && (
-                  <p className="text-[11px] text-muted-foreground">
-                    Regola: <span className="font-medium text-foreground/80">{event.priority.ruleName}</span>
-                  </p>
-                )}
-              </div>
-              <div className="flex shrink-0 items-center gap-1">
-                <ExecuteRunbookButton
-                  target={{
-                    alarmEventId: event.id,
-                    alarmName: event.alarm?.name ?? event.name,
-                    hasAlarm: !!event.alarmId,
-                  }}
-                  iconOnly
-                  variant="ghost"
-                  className="h-8 w-8 text-primary hover:text-primary"
-                />
-                <AlarmAutomationExclusionButton alarmId={event.alarmId} />
-                {canWrite && (
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(event)} title="Modifica">
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                )}
-                {canDelete && (
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => onDelete(event)} title="Elimina">
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                )}
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose} title="Chiudi">
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            {/* Body */}
-            <div className="flex-1 overflow-y-auto">
-              <dl className="space-y-6 p-5">
-
-                {/* ── Allarme ───────────────────────────────────────────── */}
-                <div className="space-y-4">
-                  <SectionHeader label="Allarme" icon={BellRing} />
-
-                  <Field label="Nome">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-mono text-sm break-all">{event.name}</span>
-                      <CopyButton value={event.name} />
-                    </div>
-                  </Field>
-
-                  <Field label="Data e ora scatto">
-                    <UtcTimestamp isoStr={event.firedAt} />
-                  </Field>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field label="Prodotto">
-                      <span className="inline-flex items-center rounded border px-2 py-0.5 text-sm font-medium text-foreground/80">
-                        {event.product.name}
-                      </span>
-                    </Field>
-                    <Field label="Ambiente">
-                      <span className="text-sm">{event.environment.name}</span>
-                    </Field>
-                  </div>
-
-                </div>
-
-                {/* ── Allarme catalogato ────────────────────────────────── */}
-                {event.alarm && (
-                  <div className="space-y-3">
-                    <SectionHeader label="Allarme catalogato" icon={BellRing} />
-                    <div className="rounded-lg border border-border/50 bg-muted/20 px-3.5 py-3 space-y-2.5">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm font-semibold leading-snug break-words">{event.alarm.name}</p>
-                        {onAlarmClick ? (
-                          <button
-                            type="button"
-                            className="shrink-0 inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                            onClick={() => onAlarmClick(event.alarm!, event.product.id)}
-                          >
-                            <BookOpen className="h-3 w-3" />
-                            Dettaglio
-                          </button>
-                        ) : (
-                          <Link
-                            href={`/products/${event.product.id}?tab=alarms`}
-                            className="shrink-0 inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                          >
-                            Vedi
-                            <ExternalLink className="h-3 w-3" />
-                          </Link>
-                        )}
-                      </div>
-                      {event.alarm.description && (
-                        <p className="text-xs leading-relaxed text-muted-foreground">
-                          {event.alarm.description}
-                        </p>
-                      )}
-                      {event.alarm.runbook && (
-                        <div className="flex items-center gap-2 pt-0.5">
-                          <BookOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
-                          <a
-                            href={sanitizeUrl(event.alarm.runbook.link)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex min-w-0 items-center gap-1 text-xs text-primary hover:underline"
-                          >
-                            <span className="truncate">{event.alarm.runbook.name}</span>
-                            <ExternalLink className="h-3 w-3 shrink-0" />
-                          </a>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* ── Avviso allarme ignorato ──────────────────────────── */}
-                {ignoredMatch && (
-                  <div className={cn(
-                    'flex items-start gap-3 rounded-xl border px-4 py-3.5',
-                    'border-amber-400/30 bg-amber-50/60 dark:border-amber-500/20 dark:bg-amber-950/25',
-                  )}>
-                    <OctagonAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-amber-900 dark:text-amber-200 leading-snug">
-                        Allarme da ignorare
-                      </p>
-                      <p className="mt-0.5 text-xs text-amber-800/70 dark:text-amber-300/70 leading-relaxed">
-                        Questo allarme è configurato come &ldquo;da ignorare&rdquo; per{' '}
-                        <span className="font-semibold">{ignoredMatch.environment.name}</span>.
-                        {ignoredMatch.reason && (
-                          <> Motivo: {ignoredMatch.reason}</>
-                        )}
-                      </p>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowIgnoredDetails(true)}
-                      className={cn(
-                        'shrink-0 h-7 gap-1.5 text-xs font-semibold',
-                        'text-amber-700 hover:text-amber-900 hover:bg-amber-100/80',
-                        'dark:text-amber-400 dark:hover:text-amber-200 dark:hover:bg-amber-900/40',
-                      )}
-                    >
-                      Dettagli
-                      <ExternalLink className="h-3 w-3" />
-                    </Button>
-                  </div>
-                )}
-
-                {/* ── AWS ───────────────────────────────────────────────── */}
-                <div className="space-y-4">
-                  <SectionHeader label="AWS" icon={Cloud} />
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field label="Region">
-                      <div className="flex items-center gap-1.5">
-                        <code className="font-mono text-sm text-foreground/80">{event.awsRegion}</code>
-                        <CopyButton value={event.awsRegion} />
-                      </div>
-                    </Field>
-                    <Field label="Account ID">
-                      <div className="flex items-center gap-1.5">
-                        <code className="font-mono text-sm text-foreground/80">{event.awsAccountId}</code>
-                        <CopyButton value={event.awsAccountId} />
-                      </div>
-                    </Field>
-                  </div>
-                </div>
-
-                {/* ── Dettagli ──────────────────────────────────────────── */}
-                {(event.description || event.reason) && (
-                  <div className="space-y-4">
-                    <SectionHeader label="Dettagli" icon={Info} />
-
-                    {event.description && (
-                      <Field label="Descrizione">
-                        <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/90">
-                          {event.description}
-                        </p>
-                      </Field>
-                    )}
-
-                    {event.reason && (
-                      <Field label="Ragione">
-                        <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/90">
-                          {event.reason}
-                        </p>
-                      </Field>
-                    )}
-                  </div>
-                )}
-
-                {/* ── Analisi collegata ───────────────────────────────── */}
-                {event.analysisId && (
-                  <LinkedAnalysisSection
-                    analysisId={event.analysisId}
-                    productId={event.product.id}
-                    eventId={event.id}
-                    eventName={event.name}
-                  />
-                )}
-
-                {/* ── Metadata ──────────────────────────────────────────── */}
-                <div className="rounded-lg border border-border/50 bg-muted/30 px-4 py-3">
-                  <p className="text-xs text-muted-foreground/60">
-                    <span className="font-semibold uppercase tracking-wide">Registrato</span>
-                    {' · '}
-                    <UtcTimestamp isoStr={event.createdAt} />
-                  </p>
-                  <div className="mt-1.5 flex items-center gap-1.5">
-                    <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/50">
-                      ID evento
-                    </span>
-                    <code className="min-w-0 flex-1 break-all font-mono text-[11px] text-foreground/70">
-                      {event.id}
-                    </code>
-                    <CopyButton value={event.id} title="Copia ID evento" />
-                  </div>
-                </div>
-
-              </dl>
-            </div>
+            <AlarmEventPanelHeader
+              event={event}
+              canWrite={canWrite}
+              canDelete={canDelete}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onClose={onClose}
+            />
+            <AlarmEventPanelBody
+              event={event}
+              ignoredMatch={ignoredMatch}
+              onShowIgnoredDetails={() => setShowIgnoredDetails(true)}
+              onAlarmClick={onAlarmClick}
+            />
           </>
         )}
       </div>
