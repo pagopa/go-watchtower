@@ -118,6 +118,11 @@ export const RUNBOOK_KIND_META: Record<string, OptionMeta> = {
   APIGW: { label: 'API Gateway', description: 'Runbook che analizzano allarmi di API Gateway.' },
   LAMBDA: { label: 'Lambda', description: 'Runbook che analizzano allarmi di funzioni Lambda.' },
   SERVICE: { label: 'Servizio', description: 'Runbook che analizzano allarmi di servizi applicativi.' },
+  DOWNSTREAM: {
+    label: 'Downstream',
+    description: 'Runbook che cercano nei log applicativi gli errori dei sistemi esterni (downstream).',
+  },
+  K8S: { label: 'Kubernetes', description: 'Runbook che analizzano i log applicativi dei pod Kubernetes.' },
 }
 
 export function runbookKindLabel(kind: string): string {
@@ -200,7 +205,7 @@ export const DIMENSION_META: Record<MatcherDimension, OptionMeta> = {
   },
   runbookKinds: {
     label: 'Tipo runbook',
-    description: 'Famiglia del runbook: API Gateway, Lambda o Servizio.',
+    description: 'Famiglia del runbook: API Gateway, Lambda, Servizio, Downstream o Kubernetes.',
   },
   runbookCategories: {
     label: 'Categoria runbook',

@@ -47,8 +47,8 @@ COPY packages/backend/package.json ./packages/backend/
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm install --prod
 
-# Install prisma CLI globally (needed for generate and migrate deploy)
-RUN npm install -g prisma@latest --no-fund --no-update-notifier
+# Match the Prisma CLI used by the builder and @prisma/client in pnpm-lock.yaml
+RUN npm install -g prisma@7.10.0 --no-fund --no-update-notifier
 
 # Copy Prisma schema, migrations and config
 COPY packages/database/prisma ./packages/database/prisma

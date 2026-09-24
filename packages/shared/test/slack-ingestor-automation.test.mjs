@@ -153,6 +153,57 @@ test("catalog validation rejects ambiguous alarm names", () => {
   );
 });
 
+test("DOWNSTREAM and K8S runbooks are valid in the catalog and selectable by kind rules", () => {
+  for (const kind of ["DOWNSTREAM", "K8S"]) {
+    const runbook = { ...descriptor, kind };
+    assert.equal(
+      validateAutomaticRunbookCatalog({ ...catalog, runbooks: [runbook] }).valid,
+      true,
+      `catalog with kind ${kind}`,
+    );
+    const ruleId = `allow-${kind.toLowerCase()}`;
+    const control = {
+      ...DEFAULT_SLACK_INGESTOR_CONTROL,
+      rules: [
+        {
+          id: ruleId,
+          name: kind,
+          enabled: true,
+          effect: "ALLOW",
+          matcher: { runbookKinds: [kind] },
+        },
+      ],
+    };
+    assert.equal(
+      validateSlackIngestorControl(control).valid,
+      true,
+      `rule on kind ${kind}`,
+    );
+    const result = evaluateSlackIngestorScope(control, {
+      channelId: "C1",
+      productId: "00000000-0000-7000-8000-000000000001",
+      environmentId: "00000000-0000-7000-8000-000000000002",
+      alarmName: "send-api-errors",
+      awsRegion: "eu-south-1",
+      awsAccountId: "123456789012",
+      priorityCode: "HIGH",
+      runbook,
+    });
+    assert.deepEqual(result, { effect: "ALLOW", matchedRuleId: ruleId });
+  }
+});
+
+test("catalog validation rejects an unknown runbook kind", () => {
+  const result = validateAutomaticRunbookCatalog({
+    ...catalog,
+    runbooks: [{ ...descriptor, kind: "EC2" }],
+  });
+  assert.equal(result.valid, false);
+  assert.ok(
+    result.errors.some((error) => error.code === "INVALID_RUNBOOK_KIND"),
+  );
+});
+
 test("catalog health is stale exclusively from persisted validUntil", () => {
   const base = {
     revision: "r1",

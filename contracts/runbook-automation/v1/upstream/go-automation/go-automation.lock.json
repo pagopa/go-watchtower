@@ -4,7 +4,7 @@
   "ownerRepository": "go-automation",
   "consumerRepository": "go-watchtower",
   "addressing": "content-sha256",
-  "vendoredAt": "2026-07-02",
+  "vendoredAt": "2026-09-17",
   "artifacts": [
     {
       "path": "execute-runbook-queue-registry-v1.schema.json",
@@ -12,7 +12,7 @@
     },
     {
       "path": "go-automation-contract-manifest.json",
-      "sha256": "53ac1abe83220ee180aba137c6bba437b6c0b4c2765a86ce5abe397208def872"
+      "sha256": "285304073485eb6951451ab11670703954be916e81a44233dcbc894381690e82"
     },
     {
       "path": "fixtures/queue-registry.valid.json",
@@ -28,15 +28,15 @@
     },
     {
       "path": "automatic-runbook-catalog-v1.schema.json",
-      "sha256": "a898bdf20636285cb96c13fa3c98f9fe440c9a174428bd134c002ff2ee0e41df"
+      "sha256": "542c004ae0d72239ad494c17ce3cae93170347baf49760428085f6488486dc8c"
     },
     {
       "path": "fixtures/automatic-runbook-catalog.valid.json",
-      "sha256": "bfe1728f68dd5e34e433eb5af14c288b0caaa088d8fa6f394d5c1a4d0a8274c0"
+      "sha256": "f5db70a3e3bd46c05e789c6603517b9fe0bea0cb3465fedf6f705c3c0dd811fa"
     },
     {
       "path": "fixtures/automatic-runbook-catalog.invalid-revision.json",
-      "sha256": "640c855d4c040441d4067eb74078d3249c4653e21b87621763e53861c235ebe3"
+      "sha256": "12e72a380f8b6ad810be5d035355c9ba0d447704351193ec848c64001608558d"
     },
     {
       "path": "fixtures/analysis-draft.known-case.json",

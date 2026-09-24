@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Bot, ChevronDown, Loader2, RefreshCw, Search, Server, Waypoints, Zap } from 'lucide-react'
+import { Bot, ChevronDown, Container, Loader2, Network, RefreshCw, Search, Server, Waypoints, Zap } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { api, type AutomaticRunbookCapability } from '@/lib/api-client'
@@ -34,6 +34,8 @@ const KIND_ICONS: Record<string, typeof Bot> = {
   APIGW: Waypoints,
   LAMBDA: Zap,
   SERVICE: Server,
+  DOWNSTREAM: Network,
+  K8S: Container,
 }
 
 /** Micro-colonna auto-descrittiva: etichetta sopra, valore sotto (come nel tab Canali). */

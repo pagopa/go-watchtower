@@ -41,10 +41,15 @@ export const SlackAutomationDecisions = {
 export type SlackAutomationDecision =
   (typeof SlackAutomationDecisions)[keyof typeof SlackAutomationDecisions];
 
+// Specchio dell'enum `kind` dello schema catalogo vendorizzato da GA: un kind
+// sconosciuto invalida l'intero catalogo, quindi va aggiunto qui prima che GA
+// lo pubblichi (drift guard in packages/backend/test/automation/catalog-contract.test.ts).
 export const AutomaticRunbookKinds = {
   APIGW: "APIGW",
   LAMBDA: "LAMBDA",
   SERVICE: "SERVICE",
+  DOWNSTREAM: "DOWNSTREAM",
+  K8S: "K8S",
 } as const;
 
 export type AutomaticRunbookKind =

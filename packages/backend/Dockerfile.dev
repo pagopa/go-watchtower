@@ -24,8 +24,8 @@ RUN pnpm --filter @go-watchtower/database exec prisma generate
 # Build database package (API depends on it)
 RUN pnpm --filter @go-watchtower/database build
 
-# Install prisma CLI globally (needed by entrypoint for migrate deploy)
-RUN npm install -g prisma@latest
+# Match the Prisma CLI used for client generation and @prisma/client in pnpm-lock.yaml
+RUN npm install -g prisma@7.10.0
 
 # Copy entrypoint
 COPY packages/backend/entrypoint.sh /app/entrypoint.sh

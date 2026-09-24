@@ -3,7 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import Fastify from "fastify";
-import { validateAutomaticRunbookCatalog } from "@go-watchtower/shared";
+import { AutomaticRunbookKinds, validateAutomaticRunbookCatalog } from "@go-watchtower/shared";
 
 process.env["DATABASE_URL"] ??= "postgresql://unit:unit@localhost:5432/unit";
 const { validateCatalog } = await import(
@@ -84,6 +84,13 @@ function runbook(catalog: Record<string, unknown>): Record<string, unknown> {
   return (catalog["runbooks"] as Record<string, unknown>[])[0]!;
 }
 
+function schemaKindEnum(): string[] {
+  const runbooks = (catalogSchema["properties"] as Record<string, unknown>)["runbooks"] as {
+    items: { properties: { kind: { enum: string[] } } };
+  };
+  return runbooks.items.properties.kind.enum;
+}
+
 function mutated(mutate: Mutate): unknown {
   const clone = structuredClone(validFixture) as Record<string, unknown>;
   mutate(clone);
@@ -101,6 +108,20 @@ test("le mutazioni strutturali sono rigettate da ENTRAMBI i validatori", async (
     const payload = mutated(mutate);
     assert.equal(await schemaAccepts(payload), false, `JSON Schema deve rigettare: ${label}`);
     assert.equal(sharedAccepts(payload), false, `validatore shared deve rigettare: ${label}`);
+  }
+});
+
+test("drift guard: l'enum kind dello schema vendorizzato coincide con AutomaticRunbookKinds", () => {
+  // Un kind pubblicato da GA ma ignoto a shared invalida l'intero catalogo: il
+  // sync fallisce e, scaduto validUntil, ogni dispatch diventa CATALOG_UNAVAILABLE.
+  assert.deepEqual([...schemaKindEnum()].sort(), Object.values(AutomaticRunbookKinds).sort());
+});
+
+test("ogni kind ammesso è accettato da ENTRAMBI i validatori", async () => {
+  for (const kind of Object.values(AutomaticRunbookKinds)) {
+    const payload = mutated((c) => { runbook(c)["kind"] = kind; });
+    assert.equal(await schemaAccepts(payload), true, `JSON Schema deve accettare kind ${kind}`);
+    assert.equal(sharedAccepts(payload), true, `validatore shared deve accettare kind ${kind}`);
   }
 });
 
