@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # Build stage
-FROM node:25-alpine AS builder
+FROM node:24-alpine AS builder
 
 # Install pnpm (corepack removed in Node 25)
 RUN npm install -g pnpm@latest --no-fund --no-update-notifier
@@ -30,7 +30,7 @@ RUN pnpm --filter @go-watchtower/database build
 RUN pnpm --filter @go-watchtower/backend build
 
 # Production stage
-FROM node:25-alpine AS runner
+FROM node:24-alpine AS runner
 
 # Install pnpm (corepack removed in Node 25)
 RUN npm install -g pnpm@latest --no-fund --no-update-notifier
@@ -48,7 +48,7 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm install --prod
 
 # Install prisma CLI globally (needed for generate and migrate deploy)
-RUN npm install -g prisma@latest --no-fund --no-update-notifier
+RUN npm install -g prisma@7.10.1 --no-fund --no-update-notifier
 
 # Copy Prisma schema, migrations and config
 COPY packages/database/prisma ./packages/database/prisma
