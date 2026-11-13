@@ -1,5 +1,5 @@
 # Stage 1: Dependencies
-FROM node:24-alpine AS deps
+FROM node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
@@ -15,7 +15,7 @@ COPY packages/shared/package.json ./packages/shared/
 RUN pnpm install --frozen-lockfile
 
 # Stage 2: Builder
-FROM node:24-alpine AS builder
+FROM node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 AS builder
 WORKDIR /app
 
 RUN npm install -g pnpm@latest --no-fund --no-update-notifier
@@ -38,7 +38,7 @@ WORKDIR /app/packages/frontend
 RUN pnpm build
 
 # Stage 3: Runner
-FROM node:24-alpine AS runner
+FROM node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
