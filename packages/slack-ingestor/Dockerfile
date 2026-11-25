@@ -1,4 +1,4 @@
-FROM public.ecr.aws/lambda/nodejs:22-arm64 AS builder
+FROM public.ecr.aws/lambda/nodejs:22-arm64@sha256:7247bc8ed05b326afa67c58e49f45406dbc7eeea7970ec96cd185d5cf1d34ffb AS builder
 
 # Install pnpm
 RUN npm install -g pnpm@latest
@@ -28,7 +28,7 @@ RUN pnpm --filter @go-watchtower/slack-ingestor build
 RUN pnpm --filter @go-watchtower/slack-ingestor deploy /deploy --prod --legacy
 
 # --- Runtime image ---
-FROM public.ecr.aws/lambda/nodejs:22-arm64
+FROM public.ecr.aws/lambda/nodejs:22-arm64@sha256:7247bc8ed05b326afa67c58e49f45406dbc7eeea7970ec96cd185d5cf1d34ffb
 
 WORKDIR ${LAMBDA_TASK_ROOT}
 
